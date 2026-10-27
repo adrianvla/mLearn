@@ -102,6 +102,23 @@ fn namespaced(package: &str, id: &str) -> Result<(), StorageError> {
     Ok(())
 }
 
+pub(crate) fn migrate_cursors(db: &Connection) -> Result<(), StorageError> {
+    // Only the rebuildable metadata cache used the earlier numeric/display-only
+    // contract. Learner state, authored Material and source data are untouched.
+    let has_cursor: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('collection_catalogs') WHERE name='package_cursor')",
+        [], |row| row.get(0),
+    )?;
+    if !has_cursor {
+        db.execute_batch("ALTER TABLE collection_catalogs ADD COLUMN package_cursor TEXT;")?;
+    }
+    db.execute_batch(
+        "DELETE FROM collection_catalogs;
+         PRAGMA user_version=13;",
+    )?;
+    Ok(())
+}
+
 fn description(package: &str, value: &CollectionDescription) -> Result<String, StorageError> {
     if value.capabilities.is_empty()
         || value.capabilities.len() > 32
@@ -166,6 +183,7 @@ fn target(
         || entry.capabilities.is_empty()
         || entry.capabilities.len() > 32
         || entry.scopes.len() > 128
+        || entry.levels.len() > 256
     {
         return Err(StorageError::Invalid(
             "Catalog target exceeds bounds".into(),
@@ -194,12 +212,27 @@ fn target(
             return Err(StorageError::Invalid("Invalid catalog target scope".into()));
         }
     }
+    let mut memberships = BTreeSet::new();
+    for level in &entry.levels {
+        if !description
+            .levels
+            .iter()
+            .any(|choice| choice.scale_id == level.scale_id && choice.level == level.level)
+            || !memberships.insert((&level.scale_id, &level.level))
+        {
+            return Err(StorageError::Invalid(
+                "Invalid catalog level membership".into(),
+            ));
+        }
+    }
     if let Some(presentation) = &entry.summary.presentation
         && let Some(levels) = &presentation.levels
     {
         let mut keys = BTreeSet::new();
         for level in levels {
-            if !description.levels.contains(level) || !keys.insert((&level.scale_id, &level.level))
+            if !description.levels.contains(level)
+                || !memberships.contains(&(&level.scale_id, &level.level))
+                || !keys.insert((&level.scale_id, &level.level))
             {
                 return Err(StorageError::Invalid("Invalid catalog target level".into()));
             }
@@ -231,7 +264,7 @@ impl ProfileStore {
         revision: &str,
         metadata: &CollectionDescription,
         total: u32,
-    ) -> Result<u32, StorageError> {
+    ) -> Result<(u32, Option<String>), StorageError> {
         bounded(package_id, 512)?;
         bounded(revision, 256)?;
         if total > 1_000_000 {
@@ -241,11 +274,11 @@ impl ProfileStore {
         }
         let json = description(package_id, metadata)?;
         let tx = self.connection.transaction()?;
-        let existing: Option<(String, String, u32, u32)> = tx.query_row(
-            "SELECT revision,description,total,processed FROM collection_catalogs WHERE package_id=?1",
-            [package_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
+        let existing: Option<(String, String, u32, u32, Option<String>)> = tx.query_row(
+            "SELECT revision,description,total,processed,package_cursor FROM collection_catalogs WHERE package_id=?1",
+            [package_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)),
         ).optional()?;
-        if let Some((old_revision, old_description, old_total, processed)) = existing
+        if let Some((old_revision, old_description, old_total, processed, cursor)) = existing
             && old_revision == revision
         {
             if old_description != json || old_total != total {
@@ -253,18 +286,18 @@ impl ProfileStore {
                     "Immutable catalog metadata changed".into(),
                 ));
             }
-            return Ok(processed);
+            return Ok((processed, cursor));
         }
         tx.execute(
             "DELETE FROM collection_catalogs WHERE package_id=?1",
             [package_id],
         )?;
         tx.execute(
-            "INSERT INTO collection_catalogs VALUES(?1,?2,?3,?4,0)",
+            "INSERT INTO collection_catalogs VALUES(?1,?2,?3,?4,0,NULL)",
             params![package_id, revision, json, total],
         )?;
         tx.commit()?;
-        Ok(0)
+        Ok((0, None))
     }
 
     /// Commits a bounded, contiguous page atomically, including its resume cursor.
@@ -273,6 +306,7 @@ impl ProfileStore {
         package_id: &str,
         revision: &str,
         offset: u32,
+        after: Option<&str>,
         page: &CollectionCatalogPage,
     ) -> Result<(), StorageError> {
         if page.items.len() > 64 || serde_json::to_vec(page)?.len() > 262144 {
@@ -285,19 +319,30 @@ impl ProfileStore {
             .ok_or_else(|| StorageError::Invalid("Catalog offset exceeds bounds".into()))?;
         if next > page.total
             || (count == 0 && offset != page.total)
-            || page.next != (next < page.total).then_some(next)
+            || page.next.is_some() != (next < page.total)
+            || page
+                .next
+                .as_deref()
+                .is_some_and(|cursor| Some(cursor) == after)
         {
             return Err(StorageError::Invalid(
                 "Invalid catalog page continuity".into(),
             ));
         }
+        if let Some(cursor) = &page.next {
+            bounded(cursor, 4096)?;
+        }
         let tx = self.connection.transaction()?;
-        let (stored_revision, json, total, processed): (String, String, u32, u32) =
+        let (stored_revision, json, total, processed, cursor): (String, String, u32, u32, Option<String>) =
             tx.query_row(
-                "SELECT revision,description,total,processed FROM collection_catalogs WHERE package_id=?1",
-                [package_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
+                "SELECT revision,description,total,processed,package_cursor FROM collection_catalogs WHERE package_id=?1",
+                [package_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)),
             )?;
-        if stored_revision != revision || total != page.total || processed != offset {
+        if stored_revision != revision
+            || total != page.total
+            || processed != offset
+            || cursor.as_deref() != after
+        {
             return Err(StorageError::Conflict);
         }
         let metadata: CollectionDescription = serde_json::from_str(&json)?;
@@ -337,25 +382,21 @@ impl ProfileStore {
                     params![package_id, entry.summary.target_id, scope],
                 )?;
             }
-            if let Some(presentation) = &entry.summary.presentation
-                && let Some(levels) = &presentation.levels
-            {
-                for level in levels {
-                    tx.execute(
-                        "INSERT INTO collection_levels VALUES(?1,?2,?3,?4)",
-                        params![
-                            package_id,
-                            entry.summary.target_id,
-                            level.scale_id,
-                            level.level
-                        ],
-                    )?;
-                }
+            for level in &entry.levels {
+                tx.execute(
+                    "INSERT INTO collection_levels VALUES(?1,?2,?3,?4)",
+                    params![
+                        package_id,
+                        entry.summary.target_id,
+                        level.scale_id,
+                        level.level
+                    ],
+                )?;
             }
         }
         tx.execute(
-            "UPDATE collection_catalogs SET processed=?2 WHERE package_id=?1",
-            params![package_id, next],
+            "UPDATE collection_catalogs SET processed=?2,package_cursor=?3 WHERE package_id=?1",
+            params![package_id, next, page.next],
         )?;
         tx.commit()?;
         Ok(())

@@ -56,6 +56,10 @@ fn target(index: u32) -> CollectionTarget {
         kind: format!("{PACKAGE}:lexeme"),
         capabilities: vec![format!("{PACKAGE}:meaning")],
         scopes,
+        levels: vec![CollectionLevelMembership {
+            scale_id: format!("{PACKAGE}:stage"),
+            level: if index < 35 { "first" } else { "second" }.into(),
+        }],
         extensions: BTreeMap::from([(
             "org.future:properties".into(),
             serde_json::json!({"schemaVersion": 7, "values": ["unfamiliar", {"x": 3}]}),
@@ -68,6 +72,7 @@ fn catalog(store: &mut ProfileStore, count: u32) {
         .begin_collection_catalog(PACKAGE, "revision-one", &description(), count)
         .unwrap();
     let mut offset = 0;
+    let mut cursor = None;
     while offset < count {
         let end = (offset + 64).min(count);
         store
@@ -75,14 +80,16 @@ fn catalog(store: &mut ProfileStore, count: u32) {
                 PACKAGE,
                 "revision-one",
                 offset,
+                cursor.as_deref(),
                 &CollectionCatalogPage {
                     items: (offset..end).map(target).collect(),
-                    next: (end < count).then_some(end),
+                    next: (end < count).then(|| format!("fixture/{end}")),
                     total: count,
                 },
             )
             .unwrap();
         offset = end;
+        cursor = (end < count).then(|| format!("fixture/{end}"));
     }
 }
 
@@ -183,9 +190,10 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
             PACKAGE,
             "revision-one",
             0,
+            None,
             &CollectionCatalogPage {
                 items: vec![target(0)],
-                next: Some(1),
+                next: Some("lemma/漢字:2".into()),
                 total: 2,
             },
         )
@@ -209,6 +217,7 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
                 PACKAGE,
                 "revision-one",
                 1,
+                Some("lemma/漢字:2"),
                 &CollectionCatalogPage {
                     items: vec![malformed],
                     next: None,
@@ -224,13 +233,28 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
         store
             .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
             .unwrap(),
-        1
+        (1, Some("lemma/漢字:2".into()))
     );
+    assert!(matches!(
+        store.put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            1,
+            Some("wrong/cursor"),
+            &CollectionCatalogPage {
+                items: vec![target(1)],
+                next: None,
+                total: 2
+            }
+        ),
+        Err(StorageError::Conflict)
+    ));
     store
         .put_collection_catalog_page(
             PACKAGE,
             "revision-one",
             1,
+            Some("lemma/漢字:2"),
             &CollectionCatalogPage {
                 items: vec![target(1)],
                 next: None,
@@ -254,6 +278,226 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
         }
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn level_filters_use_all_source_memberships_not_only_inline_display() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    let mut both = target(0);
+    both.levels.push(CollectionLevelMembership {
+        scale_id: format!("{PACKAGE}:stage"),
+        level: "second".into(),
+    });
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![both.clone(), target(1)],
+                next: None,
+                total: 2,
+            },
+        )
+        .unwrap();
+    save(&mut store, 0);
+    let mut selection = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::All {
+            filters: vec![
+                CollectionFilter::Level {
+                    scale_id: format!("{PACKAGE}:stage"),
+                    level: "second".into(),
+                },
+                CollectionFilter::Scope {
+                    id: format!("{PACKAGE}:even"),
+                },
+            ],
+        },
+    );
+    let page = ready(&store, &selection);
+    assert_eq!(page.count, 1);
+    match &page.items[0] {
+        CollectionItem::Target { target, .. } => {
+            assert_eq!(target, &both);
+            assert_eq!(
+                target
+                    .summary
+                    .presentation
+                    .as_ref()
+                    .unwrap()
+                    .levels
+                    .as_ref()
+                    .unwrap(),
+                &vec![level(true)]
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    selection.surface = CollectionSurface::Material;
+    assert_eq!(ready(&store, &selection).count, 1);
+    let mut invalid = target(0);
+    invalid.levels[0].level = "undeclared".into();
+    store
+        .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
+        .unwrap();
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-two",
+                0,
+                None,
+                &CollectionCatalogPage {
+                    items: vec![invalid],
+                    next: None,
+                    total: 1
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
+            .unwrap(),
+        (0, None)
+    );
+}
+
+#[test]
+fn opaque_catalog_progress_rejects_stalls_and_replayed_pages_atomically() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 3)
+        .unwrap();
+    let first = CollectionCatalogPage {
+        items: vec![target(0)],
+        next: Some("opaque/甲:7".into()),
+        total: 3,
+    };
+    store
+        .put_collection_catalog_page(PACKAGE, "revision-one", 0, None, &first)
+        .unwrap();
+    let stalled = CollectionCatalogPage {
+        items: vec![target(1)],
+        next: first.next.clone(),
+        total: 3,
+    };
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-one",
+                1,
+                first.next.as_deref(),
+                &stalled
+            )
+            .is_err()
+    );
+    assert!(matches!(
+        store.put_collection_catalog_page(PACKAGE, "revision-one", 0, None, &first),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-one", &description(), 3)
+            .unwrap(),
+        (1, first.next.clone())
+    );
+    let second = CollectionCatalogPage {
+        items: vec![target(1)],
+        next: Some("opaque/乙:19".into()),
+        total: 3,
+    };
+    store
+        .put_collection_catalog_page(PACKAGE, "revision-one", 1, first.next.as_deref(), &second)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            2,
+            second.next.as_deref(),
+            &CollectionCatalogPage {
+                items: vec![target(2)],
+                next: None,
+                total: 3,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-one", &description(), 3)
+            .unwrap(),
+        (3, None)
+    );
+    assert_eq!(
+        ready(
+            &store,
+            &query(
+                CollectionSurface::Knowledge,
+                CollectionFilter::All { filters: vec![] }
+            )
+        )
+        .count,
+        3
+    );
+}
+
+#[test]
+fn schema_twelve_catalog_rebuild_preserves_material_claims_and_receipts() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    catalog(&mut store, 2);
+    save(&mut store, 0);
+    let claim = ClaimChange {
+        command_id: "retained-catalog-claim".into(),
+        key: KnowledgeKey {
+            package_id: PACKAGE.into(),
+            target_id: "entry-000".into(),
+            capability: format!("{PACKAGE}:meaning"),
+        },
+        claim: Some(true),
+    };
+    let projection = store.change_claim(&claim).unwrap();
+    let material_query = MaterialQuery {
+        after: None,
+        query: String::new(),
+        source_id: None,
+        include_excluded: false,
+    };
+    let materials = store.materials(&material_query).unwrap().items;
+    let preferences = store.preferences().unwrap();
+    drop(store);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute_batch(
+        "ALTER TABLE collection_catalogs DROP COLUMN package_cursor; PRAGMA user_version=12;",
+    )
+    .unwrap();
+    drop(db);
+    let mut store = ProfileStore::open(&path).unwrap();
+    assert_eq!(store.materials(&material_query).unwrap().items, materials);
+    assert_eq!(store.change_claim(&claim).unwrap(), projection);
+    assert_eq!(store.preferences().unwrap(), preferences);
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+            .unwrap(),
+        (0, None)
+    );
+    let db = rusqlite::Connection::open(&path).unwrap();
+    assert_eq!(
+        db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
+            .unwrap(),
+        13
+    );
 }
 
 #[test]

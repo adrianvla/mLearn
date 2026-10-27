@@ -20,23 +20,33 @@ pub struct CollectionDescription {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionLevelMembership {
+    pub scale_id: String,
+    pub level: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct CollectionTarget {
     pub summary: LexicalSummary,
     pub kind: String,
     pub capabilities: Vec<String>,
     pub scopes: Vec<String>,
+    /// Full source memberships, separate from the selected inline display level.
+    pub levels: Vec<CollectionLevelMembership>,
     #[serde(default)]
     #[cfg_attr(feature = "typescript", ts(type = "Record<string, unknown>"))]
     pub extensions: BTreeMap<String, serde_json::Value>,
 }
 
-/// A package's immutable catalog window, addressed by entry offset.
+/// A package's immutable catalog window, addressed by an opaque package cursor.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct CollectionCatalogPage {
     pub items: Vec<CollectionTarget>,
-    pub next: Option<u32>,
+    pub next: Option<String>,
     pub total: u32,
 }
 
