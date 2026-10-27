@@ -809,7 +809,8 @@ try {
   await screenshot('watch-raw-subtitles-with-analysis-unavailable');
   // Two seeks within the same two-second bucket must still change the cue window.
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
-  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  const subsecondAttached=await native({type:'attach_subtitles',sourceId:id,path:unsupported});
+  assert.equal(subsecondAttached.type,'source',JSON.stringify(subsecondAttached));
   await click('Home');await resumeWatch();
   // A Resume click finishes before React mounts the player. Subscribe to its
   // real media/initial-seek events before seeking, retaining that active element.

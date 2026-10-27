@@ -57,6 +57,16 @@ integration, frozen selections/bulk actions, proposals, source search and
 evidence/graph/character surfaces remain open. No M10 continuation verdict or
 maintainer acceptance is claimed.
 
+Automatic CI at `d9753b6`: foundation run40577193503 passed. Real desktop
+run40577193516 failed on Ubuntu job122446665437 at the unchanged native smoke
+test's second `attach_subtitles` assertion (`native-smoke.mjs:812`): response type
+`error`, expected `source`. Its response payload was not printed, so the cause
+is unclassified, not assumed to be infrastructure or a pre-existing M07 defect.
+The assertion now retains that payload without changing its success condition.
+LSP and `node --check` pass; no diagnostic workflow variant or rerun was launched.
+Native-mobile run40577193378 remains pending. Independent M10 implementation
+continues while this source-bound failure stays open.
+
 All substantial local runs were serial and passed fresh three-sample1GiB
 admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
 available6143328256, pressure1, swapUsed3932946432 and swapOut48338993152;
