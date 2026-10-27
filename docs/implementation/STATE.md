@@ -51,6 +51,101 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+The consolidated, explicitly incomplete review package is
+[M03-M07-REVIEW.md](M03-M07-REVIEW.md). It binds subsystem/source boundaries,
+review resolutions, exact-source checks, genuine replay/capture paths,
+resource observations and remaining platform/cleanup gaps.
+
+#### Final-source desktop and Watch comparison — 2026-10-27
+
+Published source `3ffc28fb7599bbf4945787b9ca8b23c84ea04761`, tree
+`cd91e3d6176169ec3ce93d0d43f79955a7c48d93`, passes all five foundation
+jobs in `40456368381` and real Linux desktop `40456368198`, job
+`122030523329`. Artifact `12713250736` is retained as
+`3ffc-desktop-evidence.zip`; its source receipt matches both hashes.
+The final native log confirms real IPC, signed packages, playback/seek,
+contextual Inspector, shared claims, exact source restart and missing-source
+recovery. This supersedes the pending Transcript re-run below without
+discarding its original failing evidence. Mobile run `40456368189` is terminal:
+Android job `122030524178` passes the original native
+Watch/Inspector/Knowledge/source-resume flow, one test and zero failures in
+400.793 seconds. Retained artifact `12713548234`, `3ffc-android-evidence.zip`,
+has the matching commit/tree receipt; selected JUnit and the actual
+Transcript-search frame were inspected.
+iOS job `122030523715` compiles its consuming app, then fails while preparing
+the existing fixture: AVFoundation `-11821 Cannot Decode`, underlying
+`-16977`, makes `tools/create-watch-fixture.swift` terminate with SIGTRAP.
+`3ffc-ios-failed.log` preserves the original failure. No product UI assertion
+is reached, no diagnostic variant or rerun is launched, and neither the
+deferred FileProvider gate nor the later Home-progress repair is certified.
+
+Guarded native run 1140 reuses the exact product contents of Focus QA build
+1112, with no rebuild, model, device or reference-app launch. The requested
+1512x948 comparison window is constrained by the current display to
+1500x919, captured at 3000x1838 physical pixels. Actual position 25240 ms
+matches the approved burnt-in timecode 25:05; authored subtitle newlines
+remain intact. Vocabulary has 17 actual package-derived words, not the staged
+reference's 12. Its separate header/canvas/card materials, capture receipts,
+source captions and -6350 ms overlay were inspected. The transient overlay
+covers part of the header while open, as in the approved composition;
+the toolbar toggle dismisses it and reveals the filters. Opening its numeric
+offset editor and Escape returns focus to that same offset control.
+No synchronization or learner mutation was submitted.
+
+Actual keyboard input searches Transcript for `度胸`, yielding only cue 3
+at 0:24 while retaining the source position. Native AX `setValue` alone did
+not publish a controlled-input change and is not counted as search proof.
+The query and result survive reflow to 420x560; Close stays visible and the
+body scrolls within the bounded modal. Retained frames are
+`watch-final-vocabulary-sync.png`, `watch-final-transcript-search.png` and
+`watch-final-transcript-minimum.png`. The first was also opened in Preview.
+Transcript's full capture rows remain a denser presentation than the
+Vocabulary cards; this comparison does not claim pixel identity for
+unpictured Transcript states or reproduce unsupported legacy Anki status.
+
+Normal source navigation restores `19849|223042|-6350|1.0`, confirmed through
+read-only SQLite. App PID 57111 quits normally, exit 0. During the run OmO
+footprint is 3856381056 bytes, app footprint 185222416, available memory
+5588926464, pressure 1 and unchanged swap-out 40652308480. This is a bounded
+workflow sample, not a diagnosis of the earlier OmO allocation incidents.
+Final platform verification, demonstrations and consolidated M07 delivery
+remain open; there is no maintainer acceptance or merge.
+
+Final normal-launch Home/Settings run 1157 reuses that same compiled product.
+`final-home-1080.png` and `final-settings-1080.png` retain the current native
+theme and composition. Settings reads saved Dark Quartz, JLPT vocabulary and
+Auto collapse; opening its actual theme editor, then wrapping Close -> Save
+at 420x560, keeps Save visibly focused without submitting a preference.
+Escape restores the editor trigger. The second-consumer frame is
+`final-settings-theme-minimum-focus.png`.
+
+An initially malformed background resize capture is explicitly excluded from
+product-failure and visual-pass evidence. Native Web Inspector measures
+inner/client/visual widths 420, then observes one window and one visual-viewport
+resize event at width 500. React's dimension state is 500; the actual shell
+style arguments are `[28,0,true,true]` and both matching stylesheet rules say
+column, while background computed style still reports row. Bringing the same
+unmodified app forward produces the correct narrow layout. Foreground resize
+to 420x560 then passes with no DOM/style staging or source repair.
+`final-settings-420-foreground.png`, `final-settings-packages-420.png` and
+`final-home-420.png` preserve the real responsive surfaces. The latter has one
+activity column; navigation/header/content retain their bounded scroll owners.
+The tentative Settings product-defect task is dropped, not reported fixed.
+Future native resize captures must activate the owned window before a verdict.
+
+Package management retains the actual English/Japanese versions. Its optional
+OCR catalog read reports the unavailable local port 7780 explicitly rather
+than fabricating an empty successful result. No install, model inference,
+theme save or learner mutation occurs. The diagnostic inspector and its
+transient event observers disappear with normal app exit; PID 62114 is absent,
+the window was restored to 1080x800/Home, computer control/session and owned
+guard 1156 are released. Read-only source state is still
+`19849|223042|-6350|1.0`. During the run footprint is 3128882304 bytes for OmO
+and 202081672 for the app, available memory 6334218240, pressure 1. Post-quit
+OmO footprint is 3130602600, available 6753910784, pressure 1; swap-out remains
+45199720448 throughout this continuation. Its increase since the previous
+idle checkpoint is retained without attributing a cause.
+
 #### Inspector primary capture repair: local desktop verified — 2026-10-27
 
 Published source `b38f4039848d0a3e1e79449ce8ae3159a93c61ac`, tree
