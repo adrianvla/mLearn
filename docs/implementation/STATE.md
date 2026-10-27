@@ -53,10 +53,31 @@ launchers were released with retained read-back receipts.
 
 #### Inspector primary capture repair: local desktop verified — 2026-10-27
 
-Published source `4bcf900d6fc935754fc9ccce6cecad4feeb19028` passes all five
-foundation jobs in `40433857902` and real desktop integration `40433857915`.
-Mobile `40433857901` is a terminal failure as detailed below; this does not
-certify the local repair.
+Published source `b38f4039848d0a3e1e79449ce8ae3159a93c61ac`, tree
+`f8ddf0ebdb72ec86ee8204f1c20fd3e04a6947d2`, passes all five foundation jobs
+in `40447023875` and Android job `122000615156` in mobile `40447023866`.
+The original Android Watch/Inspector/Knowledge/source-resume flow has one
+test, zero failures and 403.773 seconds. Its retained source receipt matches
+both hashes; `b38-android-junit.xml` and the inspected
+`b38-android-transcript-search.png` prove the formerly blocked menu path.
+Artifact `12710315901` remains retained as a ZIP with only those selected
+records extracted. Compiled Android/iOS apps remain retained remotely.
+
+Real desktop `40447023902`, Ubuntu job `122000615432`, fails at
+`native-smoke.mjs:492`: an immediate WebDriver search-input lookup follows a
+Transcript menu selection without observing its publication. The retained
+original failure DOM and frame both show that the real search input did
+subsequently render. `b38-desktop-failed.log`, evidence ZIP `12709340425`
+and its selected `b38-desktop-failure*` files are preserved. The local probe
+now subscribes through the existing event observer before selection and
+awaits the visible input with the menu closed, retaining every original
+search, claim and restart assertion. Syntax/LSP checks pass; its native
+re-run is pending, not green.
+
+iOS job `122000615545` fails at the original `m01-watch, mp4 is not visible`
+picker assertion, not the preceding source's Browse lookup. Its original
+log is `b38-ios-failed.log`. The expressly deferred FileProvider gate remains
+unresolved; no diagnostic variant or rerun was launched.
 
 A deliberate same-binary native comparison uses a normal 1512x948 window,
 the actual 25.05-second source, courage Inspector, live words and -6350 ms
@@ -214,16 +235,60 @@ single frame are retained under `ci-4bcf900-android-ui`; artifact
 launched. The local Menu candidate now includes actual safe-area insets and
 an explicit native hit-test layer above absolute source chrome; the old
 overlay applied its z-index only on web and its frame overlapped system UI.
-This candidate passes the connected web/owner checks, but Android touch
-delivery is not reported repaired until actual platform verification.
+This candidate now has the exact-source passing Android workflow above;
+native menu delivery is verified rather than inferred from a changed style.
 iOS job `121957744870`
 fails at `Element not found: Text matching regex: Browse` in the original
 picker path; this is not the earlier mp4-visibility assertion. Its original
 log is retained without a FileProvider diagnostic variant or rerun.
 
-Ledger: 218/254 done, 36 open. Current work is
-`Verify M07 genuine workflows and affected platforms`; the new
-`Repair native Menu touch delivery on Android`, Watch/Inspector, final
+The current Inspector comparison also exercises the real package-declared
+Written recognition, Meaning, Reading and Listening recognition controls.
+Meaning Known yields aggregate Mixed, correcting it to Unknown remains Mixed,
+and Withdraw restores Untracked with withdrawal disabled. The assessment
+remains unmeasured and prediction unavailable: no single capability becomes
+an all-known action or fabricated evidence. Escape closes only the adjustment
+and restores Knowledge focus. At 420x560, Shift+Tab reaches the authoring
+trigger; child Escape restores that trigger and a second Escape closes
+Inspector. Both runs restore source position/rate/offset through normal
+navigation and quit, without submitting the authoring form.
+
+That minimum-size run exposes a further shared focus defect: wrapping from
+the child Close button focuses Save Material but leaves it offscreen.
+`inspector-native-nested-capture-focus-before.png` preserves the native
+failure. Browser run 1106 reproduces it with focused Save and viewport ratio
+0. Installed Radix focus-scope explicitly uses `preventScroll: true`; the
+bounded view had no local focus-reveal behavior. The shared `scrollFocus`
+adapter now reveals descendants only within their own scroll viewport.
+Dialog body and Inspector body/adjustment/footer reuse it, retaining native
+framework behavior outside web hosts and avoiding global `scrollIntoView`.
+Run 1109 passes type/lint/export and the original vertical plus both existing
+horizontal regressions. Integrated run 1121 passes all 79 connected cases
+in 1.2 minutes.
+
+Consuming Focus QA build 1112 passes in 7.87 seconds, maximum RSS 1028505600,
+retaining the preceding compiled apps and the same isolated profile.
+UI SHA-256:
+`f75c1e3568108e173bd5eb67ba71fb6dafa07ec0b01d8bc052d121f643d03f4b`;
+executable:
+`30dd74de383c6c8ec0ef5f43db36743fa60ce1c3f42c7c15c12bac005687fea4`.
+Actual run 1116 replays the same 420x560 wrap: Save Material is visibly
+focused with the heading retained; child dismissal also reveals the focused
+parent authoring trigger. Inspected after frames are
+`inspector-native-nested-capture-focus-after.png` and
+`inspector-native-parent-focus-after.png`. The original Untracked claim is
+still present after restart. No Material is saved; source state returns to
+`19849|223042|-6350|1.0` and the app quits normally, exit 0.
+During that run root footprint is 3746051200, app-PID footprint 179586248,
+available memory 5901844480, pressure 1 and swap-out 40652308480. After quit,
+root footprint is 3746690176 with 6534086656 available and unchanged swap-out.
+Guard 1110 protects the serial continuation; earlier guard expiry was not
+an unsafe-resource event.
+
+Ledger: 221/256 done, 35 open. The local focus repair and current Inspector
+correction/nested-state comparison are complete. Current work is
+`Verify M07 genuine workflows and affected platforms`.
+Watch/final matched captures, the source-bound desktop re-run, remaining
 platform proof and M07 delivery remain incomplete. No acceptance or merge.
 
 #### Current sidebar composition: local verification complete — 2026-10-27

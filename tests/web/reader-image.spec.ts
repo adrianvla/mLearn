@@ -828,6 +828,30 @@ test(`Escape dismisses Knowledge before its Inspector at ${width}px`, async ({ p
 });
 }
 
+test('nested capture focus wrap reveals its action without moving the source', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 420, height: 560 });
+  await start(page);
+  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  const inspector = page.getByTestId('inspector-panel');
+  const author = inspector.getByRole('button', { name: 'Edit before capture', exact: true });
+  await author.click();
+  const dialog = page.getByRole('dialog', { name: 'Capture Material', exact: true });
+  const close = dialog.getByRole('button', { name: 'Close', exact: true });
+  await expect(close).toBeFocused();
+  const sourceScroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
+
+  await page.keyboard.press('Shift+Tab');
+  const save = dialog.getByRole('button', { name: 'Save Material', exact: true });
+  await expect(save).toBeFocused();
+  await expect(save).toBeInViewport({ ratio: 1 });
+  await expect(close).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(sourceScroll);
+  await page.screenshot({ path: testInfo.outputPath('nested-capture-focus-wrap.png') });
+  await page.keyboard.press('Escape');
+  await expect(inspector).toBeVisible();
+  await expect(author).toBeFocused();
+});
+
 test('source Inspector capture options remain readable on their shared menu material', async ({ page }, testInfo) => {
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();

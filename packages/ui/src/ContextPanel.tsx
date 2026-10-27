@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from './Text';
 import { Button } from './Button';
 import { DialogPortalContext } from './Dialog';
+import { revealScrollFocus } from './scrollFocus';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
 export function ContextPanel({ title, anchor, onClose, children, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
@@ -103,30 +104,19 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                         </Primitive.Description>
                                         <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
                                 </View>
-                                <ScrollView testID="inspector-body" style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+                                <ScrollView testID="inspector-body" onFocus={revealScrollFocus} style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                                     {(!anchored || alwaysShowContext) && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
                                     horizontal
-                                    onFocus={event => {
-                                        const target: unknown = event.target;
-                                        const viewport: unknown = event.currentTarget;
-                                        // Reveal only this row, without scrolling its source anchor.
-                                        if (Platform.OS === 'web' && target instanceof HTMLElement
-                                            && viewport instanceof HTMLElement && viewport.contains(target)) {
-                                            const bounds = target.getBoundingClientRect();
-                                            const frame = viewport.getBoundingClientRect();
-                                            if (bounds.left < frame.left) viewport.scrollLeft -= frame.left - bounds.left;
-                                            else if (bounds.right > frame.right) viewport.scrollLeft += bounds.right - frame.right;
-                                        }
-                                    }}
+                                    onFocus={revealScrollFocus}
                                     onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
                                     contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
-                                {popover ? <ScrollView style={[styles.popover(opaque), { bottom: footerHeight,
+                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(opaque), { bottom: footerHeight,
                                     maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
                                     contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
                                     {popover}

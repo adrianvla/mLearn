@@ -418,7 +418,8 @@ remain historical evidence, not authority for another style variant.
   ContextPanel supplies its own nested portal target, so menus cannot inherit
   Reader appearance's older stacking/focus scope. Dialog and Menu share the
   pinned Radix dismissal/focus instances and the app's exact React identity.
-  Focus reveals only the footer, without scrolling its source anchor.
+  Desktop keyboard focus reveals its own bounded dialog/Inspector body,
+  adjustment or horizontal footer without scrolling source ancestors.
   Native Menu bounds include actual safe-area insets and its overlay has an
   explicit hit-test layer above source chrome; platform verification is
   recorded separately in STATE.

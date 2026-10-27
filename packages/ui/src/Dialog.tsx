@@ -6,6 +6,7 @@ import type {} from '@mlearn/theme/runtime';
 import { Button } from './Button';
 import { Text } from './Text';
 import { KeyboardAvoidingView } from './KeyboardAvoidingView';
+import { revealScrollFocus } from './scrollFocus';
 
 type Props = PropsWithChildren<{
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
@@ -64,7 +65,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
                   <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon={sidebar ? 'chevronDown' : 'close'} iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
                 {!sidebar ? descriptionText : null}
-                <ScrollView style={styles.scroll} contentContainerStyle={styles.body(sidebar)} keyboardShouldPersistTaps="handled">
+                <ScrollView onFocus={revealScrollFocus} style={styles.scroll} contentContainerStyle={styles.body(sidebar)} keyboardShouldPersistTaps="handled">
                   {children}
                 </ScrollView>
                 {sidebar ? floatingControls?.(() => closeTarget.current) : null}
