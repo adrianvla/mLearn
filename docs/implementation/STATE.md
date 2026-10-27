@@ -51,7 +51,41 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Desktop sidebar modality repair in verification — 2026-10-26
+#### Current sidebar hierarchy checkpoint — 2026-10-27
+
+The next coherent visual batch places the actual count/description under the
+desktop sidebar title, using shared sidebarTitle/detail roles. The wide Close
+action retains its semantics and focus return with the edited reference's
+downward chevron. CaptureList now uses neutral exclusion/saved/context pills
+before its info capture pill; row presentation keeps its original action order.
+The batch action is trailing-aligned. Watch and Reader share these owners;
+no capture command, retry identity or learner-state meaning was replaced.
+The existing mode selector remains functional while its placement question is
+open; the reference header/body material boundary also remains unfinished.
+
+Typecheck, ownership lint and export pass. The title/count change passes all
+50 affected browser cases; the final card-action source passes all 41 Watch/
+Reader-image cases in 25.7 seconds. Wide and compact captures were inspected.
+The consuming debug macOS build passes in 7.77 seconds; its renderer SHA-256 is
+`24a8d28fb20c57c2bbda887234412b7fbf81119efe6f270b3579feb3fdc4da56`,
+and executable SHA-256 is
+`1c96d8c6646d1d130ead54d7566b8ded7c7a926701ce36449cd3f13c53083567`.
+Actual retained-profile Vocabulary shows 17 real words, the new hierarchy and
+card pills (`sidebar-hierarchy-native-vocabulary.png`). The chevron closes
+the pane and returns focus to Transcript; Home return and normal exit pass.
+The owned app and guard are released. During the run OmO footprint is
+2,715,268,248 bytes, app footprint 182,551,872 bytes, headroom 6,077,628,416
+bytes, pressure normal and swap-out unchanged at 28,479,864,832 bytes.
+The final owner suite passes all 79 infrastructure and 136 client/package
+cases. This is not whole Watch visual conformity.
+
+Published usability source is `79759b84bb9fbf2d931146328aca40057d8da32c`,
+tree `cfe0de1e5c1f27701383c21d6bae43a12e57c1b6`, read back on OPEN/draft
+PR #44. Its real desktop run `40422893910` passes. Exact-source foundation
+`40422893803` and mobile `40422893805` remain under read-only observation.
+The ledger remains 215/250; no M07 acceptance or merge is claimed.
+
+#### Published desktop sidebar usability repair — 2026-10-26
 
 The current Watch comparison reproduced a distinct usability defect: opening
 Vocabulary hid the source from accessibility and blocked caption inspection.
@@ -216,8 +250,10 @@ tracked source remain unchanged. No new reference capture is claimed.
 Bounded `vmmap -summary` reports current 3.2 GiB and historical peak 14.4 GiB;
 later normal pressure is recovery, not a diagnosed fix. Evidence is
 `watch-reference-header-{resource.jsonl,app.log,omo-vmmap.log}`.
-Substantial local verification stays held while the unexplained spike is
-investigated; independent source-bound remote verification continues.
+That reference measurement remains incomplete. Later bounded serial sidebar
+checks above were separately admitted from fresh footprint, pressure, swap
+trend and headroom samples, with a live guard while applications ran. They do
+not diagnose the OmO spike or grant general admission to large workloads.
 
 #### Sidebar synchronization placement and focus verified — 2026-10-26
 

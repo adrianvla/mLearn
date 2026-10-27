@@ -37,6 +37,9 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
     // Native Content has no onCloseAutoFocus; normally Trigger owns this return.
     if (Platform.OS !== 'web' && closed) restoreFocus();
   }, [open, restoreFocus]);
+  const descriptionText = <Primitive.Description asChild>
+    <Text muted variant={sidebar ? 'detail' : 'caption'} accessibilityLiveRegion={sidebar ? 'polite' : undefined}>{description}</Text>
+  </Primitive.Description>;
   // Keep the same nonmodal content owner across the drawer breakpoint so
   // resizing cannot discard pending capture receipts inside the sidebar.
   const frame = <View pointerEvents={sidebar ? 'box-none' : 'auto'} style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
@@ -52,11 +55,14 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
               // Leave pan ownership to its ScrollView, not the wrapper.
               onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>
               <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
-                <View style={styles.header}>
-                  <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title></View>
-                  <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
+                <View style={[styles.header, sidebar && styles.sidebarHeader]}>
+                  <View style={styles.title}>
+                    <Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title>
+                    {sidebar ? descriptionText : null}
+                  </View>
+                  <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon={sidebar ? 'chevronDown' : 'close'} iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
-                <Primitive.Description asChild><Text muted variant="caption">{description}</Text></Primitive.Description>
+                {!sidebar ? descriptionText : null}
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
                   {children}
                 </ScrollView>
@@ -90,7 +96,8 @@ const styles = StyleSheet.create((theme) => ({
   sidebarContent: (height: number) => ({ height, maxHeight: height, padding: theme.spacing.medium,
     borderTopWidth: 0, borderBottomWidth: 0, borderRightWidth: 0 }),
   header: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
-  title: { flex: 1, minWidth: 0 },
+  sidebarHeader: { alignItems: 'flex-start' },
+  title: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
   // Content crosses a third-party asChild/portal boundary. Resolve its palette
   // through useUnistyles so a surface mounted after a theme change cannot keep
   // the initial palette while its child controls use the active theme.

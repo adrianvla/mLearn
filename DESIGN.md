@@ -86,6 +86,18 @@ the compact frame may cover the source, but must not remount pending capture
 receipts merely because the pane changes shape.
  Reader's Page words retains its existing modal child workflow when opened
  from Reader appearance; geometry alone does not select modal behavior.
+ The desktop sidebar title and its short count/description form one column,
+ with the dismissal action beside that column, as in the reference
+ `unknown-words-sidebar-title-col`. Dialog owns this hierarchy and the shared
+ sidebarTitle/detail roles; Watch supplies the real bounded result count.
+ Keep the existing mode selector and source operations available while their
+ remaining placement is compared separately.
+ Vocabulary cards use the shared neutral pill for exclusion and saved/context
+ actions, followed by the info capture pill, matching the reference's action
+ hierarchy without copying its Anki or learner-state semantics. CaptureList
+ owns this treatment for both Watch and Reader. Its batch action sits at the
+ trailing edge above the cards; wide sidebar dismissal uses the reference
+ downward chevron while retaining the existing Close action and focus return.
 Source playback/context inspection remains the primary activity; sidebar
 search, navigation, capture, exclusion and practice remain real secondary
 actions. Preserve selectors, pending/error recovery and close/focus return.

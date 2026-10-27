@@ -183,7 +183,9 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     router.push({ pathname: '../review', params: { sessionId } });
   });
   return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar" modal={false}
-    description={vocabulary ? '' : 'Exact, case-sensitive subtitle search.'}
+    description={vocabulary ? dictionaryPending || dictionary?.identity !== dictionaryIdentity ? 'Loading words…'
+      : dictionaryError ? 'Words unavailable' : `${resolvedCandidates.length} words in this range`
+      : 'Exact, case-sensitive subtitle search.'}
     floatingControls={floatingControls}
     trigger={<Button ref={trigger} label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
     <Select label="Sidebar content" value={vocabulary ? 'vocabulary' : 'transcript'}
@@ -199,10 +201,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         onPress={() => { setPage(null); setAfter(null); }} />
       <Button label="Next page" icon="chevronRight" iconOnly size="compact" variant="secondary" disabled={pending || page?.nextIndex == null}
         onPress={() => { setAfter(page?.nextIndex ?? null); setPage(null); }} />
-    </Row></> : <Text variant="detail" muted accessibilityLiveRegion="polite">
-      {dictionaryPending || dictionary?.identity !== dictionaryIdentity ? 'Loading words…'
-        : dictionaryError ? 'Words unavailable' : `${resolvedCandidates.length} words in this range`}
-    </Text>}
+    </Row></> : null}
     {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
     {analysisPending ? <Text accessibilityLiveRegion="polite">Analyzing transcript…</Text> : null}
     {error ? <><Text accessibilityRole="alert">{error}</Text>
