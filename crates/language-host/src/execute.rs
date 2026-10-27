@@ -1,5 +1,8 @@
 use crate::{Resource, ResourceKind};
-use mlearn_language_sdk::{ABI_VERSION, Call, MAX_MESSAGE_BYTES};
+use mlearn_language_sdk::{
+    ABI_VERSION, Call, MAX_MESSAGE_BYTES, RESOURCE_KEYS_MAX_OUTPUT_BYTES,
+    RESOURCE_KEYS_MAX_PAGE_SIZE,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -91,6 +94,15 @@ fn key(caller: &Caller<'_, State>, pointer: i32, length: i32) -> Option<String> 
     let mut bytes = vec![0; length as usize];
     memory.read(caller, pointer as usize, &mut bytes).ok()?;
     String::from_utf8(bytes).ok()
+}
+fn optional_key(caller: &Caller<'_, State>, pointer: i32, length: i32) -> Option<String> {
+    if length == 0 && pointer >= 0 {
+        let memory = caller.get_export("memory")?.into_memory()?;
+        memory.read(caller, pointer as usize, &mut []).ok()?;
+        Some(String::new())
+    } else {
+        key(caller, pointer, length)
+    }
 }
 
 struct Active {
@@ -435,6 +447,94 @@ impl CompiledPlugin {
                     else {
                         return -1;
                     };
+                    if memory.write(&mut caller, out as usize, &bytes).is_err() {
+                        return -1;
+                    }
+                    bytes.len() as i32
+                },
+            )
+            .map_err(|e| e.to_string())?;
+        linker
+            .func_wrap(
+                "mlearn",
+                "resource_keys",
+                |mut caller: Caller<'_, State>,
+                 rp: i32,
+                 rl: i32,
+                 pp: i32,
+                 pl: i32,
+                 ap: i32,
+                 al: i32,
+                 limit: i32,
+                 out: i32,
+                 cap: i32|
+                 -> i32 {
+                    let Some(resource) = key(&caller, rp, rl) else {
+                        return -1;
+                    };
+                    let Some(prefix) = optional_key(&caller, pp, pl) else {
+                        return -1;
+                    };
+                    let Some(after) = optional_key(&caller, ap, al) else {
+                        return -1;
+                    };
+                    if out < 0
+                        || cap < 1
+                        || cap as usize > RESOURCE_KEYS_MAX_OUTPUT_BYTES
+                        || limit < 1
+                        || limit as usize > RESOURCE_KEYS_MAX_PAGE_SIZE
+                        || caller.data().resource_queries >= 1024
+                        || caller.data().check().is_err()
+                    {
+                        return -1;
+                    }
+                    let Some(memory) = caller.get_export("memory").and_then(Extern::into_memory)
+                    else {
+                        return -1;
+                    };
+                    let Some(end) = (out as usize).checked_add(cap as usize) else {
+                        return -1;
+                    };
+                    // Reject invalid destinations before native SQL or allocation.
+                    if memory.data(&caller).get(out as usize..end).is_none() {
+                        return -1;
+                    }
+                    caller.data_mut().resource_queries += 1;
+                    let started = caller.data().metrics_enabled.then(Instant::now);
+                    let result = caller
+                        .data()
+                        .resources
+                        .get(&resource)
+                        .ok_or_else(|| "Undeclared resource".to_owned())
+                        .and_then(|resource| {
+                            resource.keys(
+                                &prefix,
+                                (!after.is_empty()).then_some(after.as_str()),
+                                limit as usize,
+                            )
+                        })
+                        .and_then(|page| {
+                            serde_json::to_vec(&page).map_err(|error| error.to_string())
+                        });
+                    if let Some(started) = started {
+                        caller.data_mut().resource_elapsed += started.elapsed();
+                    }
+                    let Ok(bytes) = result else {
+                        return -1;
+                    };
+                    if bytes.len() > RESOURCE_KEYS_MAX_OUTPUT_BYTES
+                        || caller.data().read_bytes + bytes.len() > caller.data().read_limit
+                    {
+                        return -1;
+                    }
+                    // Negotiation consumes the same query/output budget as a write.
+                    caller.data_mut().read_bytes += bytes.len();
+                    if caller.data().check().is_err() {
+                        return -1;
+                    }
+                    if bytes.len() > cap as usize {
+                        return bytes.len() as i32;
+                    }
                     if memory.write(&mut caller, out as usize, &bytes).is_err() {
                         return -1;
                     }
