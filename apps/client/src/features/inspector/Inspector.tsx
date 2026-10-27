@@ -165,6 +165,14 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                 accessibilityState={{ expanded: expandedCapability !== null }}
                 disabled={busy || result?.knowledge.claim === 'unavailable'}
                 onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}
+                {materialContent && entry && !readOnlySourceReason ? <CaptureList
+                    key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
+                    client={client} tone="media" presentation="actions"
+                    candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
+                    onOpenMaterial={id => {
+                        onClose();
+                        router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+                    }} /> : null}
                 <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
                     explanationDisabledReason={readOnlySourceReason} />
             </>}>
@@ -221,12 +229,6 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                         {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
                     </> : null}
                     {materialContent && !readOnlySourceReason ? <>
-                        <CaptureList key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                            client={client} tone="media" candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
-                            onOpenMaterial={id => {
-                                onClose();
-                                router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
-                            }} />
                         <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
                             description="Author this Material without changing its source reference or selected dictionary sense."
                             trigger={<Button label="Edit before capture" size="compact" variant="media" />}>

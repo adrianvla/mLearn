@@ -301,7 +301,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
               if (!object(request.batch) || !Array.isArray(request.batch.commands)) throw new Error('Missing capture batch');
               return JSON.stringify({ type: 'material_captured', results: request.batch.commands.map(command => {
                 if (!object(command) || typeof command.commandId !== 'string') throw new Error('Missing capture command identity');
-                return { state: 'saved', commandId: command.commandId, materialId: 'captured-tokyo', committedRevision: 1, reused: false };
+                return { state: 'saved', commandId: command.commandId, materialId: `material-${'c'.repeat(64)}`, committedRevision: 1, reused: false };
               }) });
             }
             case 'material_eligibility': {
@@ -740,7 +740,9 @@ test(`Inspector sense selection stays beside its heading and captures the chosen
   await expect(second).toHaveAttribute('aria-pressed', 'true');
   await expect(first).toHaveAttribute('aria-pressed', 'false');
   await inspector.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
-  await expect(inspector.getByText('Saved · captured-tokyo · revision 1', { exact: true })).toBeVisible();
+  const footer = page.getByTestId('inspector-footer');
+  await expect(footer.getByRole('button', { name: 'Open saved 東京: revision 1', exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(footer.getByRole('button', { name: 'Explain', exact: true })).toBeInViewport({ ratio: 1 });
   const captures = await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'capture_materials'));
   expect(captures).toHaveLength(1);
   expect(captures[0]).toMatchObject({ batch: { commands: [{ content: {
@@ -748,6 +750,7 @@ test(`Inspector sense selection stays beside its heading and captures the chosen
     meaning: 'Tokyo metropolitan area',
     source: { sourceId: 'scan-book' },
   } }] } });
+  await page.screenshot({ path: testInfo.outputPath('inspector-saved-actions.png') });
 });
 
 test(`Inspector footer keeps shared pill actions on one scrolling row at ${width}px`, async ({ page }, testInfo) => {
@@ -757,9 +760,12 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   const footer = page.getByTestId('inspector-footer');
   const knowledge = footer.getByRole('button', { name: /^Knowledge/ });
   await expect(knowledge).toBeVisible();
+  // Capture is a primary Inspector action, not content below a long entry.
+  await expect(footer.getByRole('button', { name: 'Capture this context: 東京', exact: true })).toBeInViewport();
   const actions = footer.getByRole('button');
-  await expect(actions).toHaveCount(4);
-  const geometry = await actions.evaluateAll(nodes => nodes.map(node => {
+  await expect(actions).toHaveCount(6);
+  const geometry = await actions.evaluateAll(nodes => nodes.filter(node =>
+    node.getAttribute('aria-label') !== 'Capture options').map(node => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
     return { top: rect.top, radius: style.borderRadius, material: style.backgroundImage };
@@ -770,14 +776,26 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
     expect(action.material).toContain('linear-gradient');
   }
   const overflow = await footer.evaluate(node => node.scrollWidth > node.clientWidth);
-  expect(overflow).toBe(width === 393);
+  expect(overflow).toBe(true);
+  const captureOptions = footer.getByRole('button', { name: 'Capture options', exact: true });
+  await captureOptions.click();
+  await expect(page.getByRole('menuitem', { name: 'Open saved 東京', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Exclude capture 東京', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(captureOptions).toBeFocused();
   const explain = footer.getByRole('button', { name: 'Explain', exact: true });
-  await explain.focus();
-  const trailing = await explain.boundingBox();
-  const viewport = await footer.boundingBox();
-  if (!trailing || !viewport) throw new Error('Inspector footer geometry is unavailable');
-  expect(trailing.x).toBeGreaterThanOrEqual(viewport.x);
-  expect(trailing.x + trailing.width).toBeLessThanOrEqual(viewport.x + viewport.width);
+  if (width === 1080) await expect(explain).toBeInViewport();
+  for (const action of [explain, footer.getByRole('button', { name: 'Copy context', exact: true })]) {
+    await action.focus();
+    const trailing = await action.boundingBox();
+    const viewport = await footer.boundingBox();
+    if (!trailing || !viewport) throw new Error('Inspector footer geometry is unavailable');
+    expect(trailing.x).toBeGreaterThanOrEqual(viewport.x);
+    // Scroll offsets round fractional CSS widths; compare the painted pixel edge.
+    const scale = await page.evaluate(() => window.devicePixelRatio);
+    expect(Math.round((trailing.x + trailing.width) * scale))
+      .toBeLessThanOrEqual(Math.round((viewport.x + viewport.width) * scale));
+  }
   if (width === 1080) {
     await page.setViewportSize({ width: 393, height: 900 });
     const close = page.getByRole('button', { name: 'Close Inspector', exact: true });
@@ -810,30 +828,26 @@ test(`Escape dismisses Knowledge before its Inspector at ${width}px`, async ({ p
 });
 }
 
-test('source Inspector capture actions remain readable on their shared media material', async ({ page }, testInfo) => {
+test('source Inspector capture options remain readable on their shared menu material', async ({ page }, testInfo) => {
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
-  const action = page.getByRole('button', { name: 'Open saved 東京', exact: true });
-  await action.scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Capture options', exact: true }).click();
+  const action = page.getByRole('menuitem', { name: 'Open saved 東京', exact: true });
   await expect(action).toBeVisible();
-  // Axe cannot infer a sibling backdrop-filter layer. Check the actual active
-  // action foreground against both extremes of that shared translucent material.
-  const foreground = (await page.getByRole('button', { name: 'Exclude capture 東京', exact: true })
+  const foreground = (await page.getByRole('menuitem', { name: 'Exclude capture 東京', exact: true })
     .getByText('Exclude capture 東京', { exact: true }).evaluate(node => getComputedStyle(node).color))
     .match(/\d+(?:\.\d+)?/g)?.map(Number);
   expect(foreground).toHaveLength(3);
-  const panel = resolveTheme(initialTheme).media.panel;
-  const alpha = Number.parseInt(panel.slice(7, 9), 16) / 255;
+  const background = (await page.getByTestId('menu-surface').evaluate(node => getComputedStyle(node).backgroundColor))
+    .match(/\d+(?:\.\d+)?/g)?.map(Number);
+  expect(background).toHaveLength(3);
   const luminance = (rgb: number[]) => rgb.map(value => {
     const channel = value / 255;
     return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
-  for (const source of [0, 255]) {
-    const background = [1, 3, 5].map(offset => Number.parseInt(panel.slice(offset, offset + 2), 16) * alpha + source * (1 - alpha));
-    const a = luminance(foreground!), b = luminance(background);
-    expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
-  }
-  expect((await new AxeBuilder({ page }).include('[data-testid="inspector-panel"]')
+  const a = luminance(foreground!), b = luminance(background!);
+  expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(4.5);
+  expect((await new AxeBuilder({ page }).include('[data-testid="inspector-panel"]').include('[role="menu"]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('image-reader-capture-contrast.png') });
 });
@@ -933,7 +947,7 @@ test(`page word operations reuse shared capture and Inspector and locate the exa
   await page.keyboard.press('Escape');
   await expect(words).toBeVisible();
   await words.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
-  const receipt = words.getByText('Saved · captured-tokyo · revision 1', { exact: true });
+  const receipt = words.getByText(`Saved · material-${'c'.repeat(64)} · revision 1`, { exact: true });
   await expect(receipt).toBeVisible();
   await page.setViewportSize({ width: viewport.width === 1280 ? 390 : 1280, height: viewport.height });
   await expect(receipt).toBeVisible();

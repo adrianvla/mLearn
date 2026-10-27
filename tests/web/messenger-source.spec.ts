@@ -204,7 +204,7 @@ test('message Capture returns the immutable original after an edit and native re
   const inspector = page.getByTestId('inspector-panel');
   await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
   await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
-  await expect(inspector.getByRole('button', { name: 'Open saved Children', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true })).toBeVisible();
   await inspector.getByRole('button', { name: /^Close Inspect/ }).click();
   await page.getByRole('button', { name: 'Message actions', exact: true }).last().click();
   const message = page.getByRole('dialog', { name: 'Message', exact: true });

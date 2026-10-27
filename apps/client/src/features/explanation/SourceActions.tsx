@@ -253,10 +253,6 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
   }
   return <View>
     <Row wrap={tone !== 'media'}>
-      <Button label="Copy selected text" variant={variant} size="compact" disabled={!selected}
-        onPress={() => void copy(selected)} />
-      <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
-        onPress={() => void copy(source.text)} />
       <Dialog open={open} onOpenChange={changeOpen} title="Explain selected text"
         description="Feedback is linked to the original source, not learner evidence."
         trigger={<Button label="Explain" variant={variant} size="compact"
@@ -294,6 +290,10 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
           }} />
         </Row>
       </Dialog>
+      <Button label="Copy selected text" variant={variant} size="compact" disabled={!selected}
+        onPress={() => void copy(selected)} />
+      <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
+        onPress={() => void copy(source.text)} />
     </Row>
     {feedback ? <Text tone={tone} variant="caption" accessibilityLiveRegion="polite">{feedback}</Text> : null}
     {explanationDisabledReason ? <Text tone={tone} variant="caption" muted>{explanationDisabledReason}</Text> : null}

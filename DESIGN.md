@@ -409,6 +409,19 @@ remain historical evidence, not authority for another style variant.
   text scale, translucent dark material, 1px neutral boundary, independently
   scrolling dictionary content and an attached action footer. Knowledge
   colors and gradients carry real claims only.
+  Knowledge, shared Capture actions and Explain lead that footer; secondary
+  copy actions follow on the same horizontally scrolling row. Saved-Material
+  and exclusion choices remain in the capture owner's menu, not a second
+  command/state owner. A new Saved/Reused receipt becomes a bounded primary
+  action for that exact result, with its committed revision exposed accessibly;
+  opaque IDs stay out of the compact footer. Authoring stays available in the dictionary body.
+  ContextPanel supplies its own nested portal target, so menus cannot inherit
+  Reader appearance's older stacking/focus scope. Dialog and Menu share the
+  pinned Radix dismissal/focus instances and the app's exact React identity.
+  Focus reveals only the footer, without scrolling its source anchor.
+  Native Menu bounds include actual safe-area insets and its overlay has an
+  explicit hit-test layer above source chrome; platform verification is
+  recorded separately in STATE.
   The matched courage entry exposed extra definition gaps and badge padding:
   definition baselines are 28px apart and readings have 4px vertical inset.
   Shared web typography requests grayscale antialiasing to match the edited

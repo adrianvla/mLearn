@@ -51,6 +51,181 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Inspector primary capture repair: local desktop verified — 2026-10-27
+
+Published source `4bcf900d6fc935754fc9ccce6cecad4feeb19028` passes all five
+foundation jobs in `40433857902` and real desktop integration `40433857915`.
+Mobile `40433857901` is a terminal failure as detailed below; this does not
+certify the local repair.
+
+A deliberate same-binary native comparison uses a normal 1512x948 window,
+the actual 25.05-second source, courage Inspector, live words and -6350 ms
+synchronization. `watch-matched-current-inspector-before.png` preserves the
+finding: Capture is below the dictionary scroll while secondary copy actions
+occupy its footer. Authored subtitle newlines remain required by VID-03;
+they were not flattened to imitate the staged single-line reference.
+The app restores 19.849 seconds through the actual slider, returns Home and
+exits normally (run 1002, PID 28277, exit 0). Its guard is stopped.
+
+The existing footer cases reproduce the absent primary action at 1080px and
+393px before product edits (run 1006, two failures). CaptureList now offers a
+compact action presentation while retaining the same eligibility, prepared
+command, receipt, retry and exclusion owner. Inspector places that owner in
+its footer; saved/exclusion choices use the shared Menu. SourceActions orders
+Explain before secondary copy actions. No native/domain contract changed.
+All three changed product files have clean LSP diagnostics. Typecheck,
+ownership lint and web export pass. Initial rendered cases reach the new
+Capture action, then fail their stale four-button expectation with six actual
+controls; both resulting desktop/narrow frames were inspected. The test now
+distinguishes primary pills from the options menu and checks menu access,
+focus return and access to trailing copy actions. At that initial checkpoint
+the adaptation was not run and fresh test diagnostics timed out; neither
+repair nor tests were green or included in a consuming native build then.
+
+During run 1008, guard 1007 observes OmO PID 82251 footprint 10,608,129,152
+bytes, pressure 2, available memory 3,949,117,440 bytes and swap-out
+32,883,867,648 bytes; it exits 70. The test command exits 1. A bounded process
+inventory finds no owned application, browser/test runner, device, model or
+compiler remaining. Subsequent same-PID footprint is 3,719,640,192 bytes,
+pressure 1 and available memory 8,103,575,552 bytes, but swap-out has risen to
+34,144,059,392 bytes. `vmmap -summary` reports 3.5 GiB current footprint and
+14.4 GiB historical peak; App-Specific Tag 1 dominates resident allocation.
+The eval heap counter is only about 10 MB and is not process-wide accounting.
+This is another unexplained OmO allocation incident, not a demonstrated
+application/model leak or memory fix. Further substantial local verification
+is held while investigating. Existing artifacts, profiles, four original
+untracked files and unrelated preview PID 2637 remain preserved.
+
+Fresh recovery samples subsequently pass the unchanged 1536 MiB budget:
+footprint settles near 3.69 GB, pressure remains normal and swap-out stays
+34,211,610,624 bytes. During serial connected verification, footprint is
+3,692,704,896 bytes with 6,504,529,920 bytes available and normal pressure.
+The bounded incident investigation is recorded, not a diagnosed allocation
+fix; historical RSS/peak is not an admission cutoff. Guarded serial browser
+checks resume without launching any app, device or model.
+
+The compact capture menu exposes a genuine nested Escape failure: both menu
+and Inspector dismiss. Dialog and Menu resolve separate physical Radix
+dismissal/focus modules. Broad dedupe previews are rejected because they
+would change Metro/Hermes. The applied named update only relocates six Radix
+packages and removes 24 duplicate Radix entries. Root overrides retain the
+existing app React/ReactDOM 19.2.3 and shared dismissal 1.2.1/focus 1.3.1
+identities. Actual resolution now matches for Dialog and Menu; postinstall
+repairs pass and `npm ls` has no invalid React peer. Initial npm preview peer
+warnings are retained in the logs, not suppressed.
+
+The original Escape checks now pass. Focused trailing actions initially
+remain clipped by 86 px; ContextPanel now reveals only its own horizontal
+footer, without scrolling source ancestors. The browser's remaining 0.34 CSS
+pixel scroll rounding maps to the same painted device-pixel edge; the test
+compares physical-pixel edges and still rejects the original clipping.
+An ineffective intrinsic-width experiment was removed. Saved/exclusion
+entries retain their semantics through the new menu; tests use its actual
+painted surface rather than the transparent accessibility wrapper.
+
+Connected run 1041 passes 76/78 cases. Run 1046 passes 77/78: the remaining
+saved-Material case is blocked by a pointer-intercepting, aria-hidden outer
+dialog subtree, not missing capture persistence. ContextPanel now provides
+its own nested portal target, rather than inheriting Reader appearance's
+portal. Original editor/dismissal/source assertions remain intact.
+Targeted run 1048 passes all four original cases in 2.5 seconds; its desktop
+menu and narrow footer captures were inspected. Final candidate run 1049
+passes typecheck, ownership lint, web export, all 78 connected browser cases
+in 1.2 minutes, 79 infrastructure cases and 137 client/package cases, with
+one test worker/process at a time. No test is skipped. Pre-Saved-refinement macOS build
+1051 passes in 8.41 seconds, retaining `net.kikan.mlearn.v3dev.m07qa`.
+UI SHA-256 is
+`9175341a63e334f93aba15c519fb95cc939d9bff342833190c1639312448c9fd`;
+executable SHA-256 is
+`b3b8676bcd58d7f5beca3ffb7e71f4ee200268b38bb0bf035038b662c306c8ae`.
+After the separate 1024 MiB admission, actual native run 1054 captures the
+real courage occurrence at 25240 ms (burnt-in timecode 25:05), opens its
+saved Material through the native menu and returns to the same caption
+selection/position. The real revision-1 receipt is
+`material-9a2a0a3f3ae7d5faaf3c47500f6c619a0f14906e2d60233c2f3160aff214b887`;
+read-only SQLite confirms its Japanese package, position and -6350 ms offset.
+The app quits normally. SQLite confirms restored source state
+`19849|223042|-6350|1.0` and unchanged Japanese package version
+`0.1.7-sudachi20260116-jmdict20261017-ocr2`. The QA capture is preserved.
+
+That actual saved frame reveals a compact-footer defect: the opaque receipt
+ID expands the action block and pushes Explain away. The before frame is
+`inspector-menu-native-receipt-overflow-before.png`. New real-length-ID
+regressions fail at both widths in 1059. Compact saved receipts now expose a
+bounded Saved/Reused button using the actual result Material ID and committed
+revision; full receipts remain in the normal list/card presentations.
+Run 1061 passes type/lint/export and both width regressions with the Saved
+and Explain buttons wholly visible. Candidate 1062 passes type/lint/export
+and 76/78 browser cases; the two Page words cases retained the old short
+fixture ID. Their exact receipt expectation is updated to the new 64-character
+fixture ID, without dropping receipt persistence/resize assertions.
+Run 1070 passes both corrected Page words cases and all 20 capture-owner
+cases, including opening the new receipt ID rather than an older eligibility
+result. Both post-save browser frames were inspected. Thus all 78 connected
+cases have passing evidence for this product source across 1062 and 1070;
+this is not a claim of one 78-case green run.
+
+Consuming Saved-refinement build 1071 passes in 8.12 seconds with maximum
+resident set size 1026228224 bytes, one Cargo job and offline dependencies.
+It preserves the earlier compiled Inspector app and produces
+`mLearn M07 Saved QA.app` under the same isolated bundle identity.
+Its UI SHA-256 is
+`afd217db28c4d21df95637a8fadb444e4d73869e9c2ccc178e9ded2e96e00f2a`;
+executable SHA-256 is
+`2cdc4b6ad154587364594889fcd683382713ba72fc243ec208cda9b28e37daa7`.
+Actual run 1073 captures the real `いい` occurrence at 25240 ms, exposes
+`Open saved いい: revision 1`, keeps that receipt through 1512x948 -> 420x700
+reflow, opens the correct real editor from the Saved action and returns to
+the same caption selection/position. Desktop/narrow frames are retained as
+`inspector-saved-native-{desktop,narrow}.png`. SQLite confirms new receipt
+`material-d2cb4d337bf0ce75ec7045bc5bbed620325d01b18139407c99d053ff3cf0df7d`,
+revision 1, Japanese package, 25240 ms and -6350 ms source offset.
+Normal navigation restores `19849|223042|-6350|1.0`; app PID 43619 then
+quits with exit 0. Both genuine QA captures remain preserved.
+
+Resource guard 1060 stops on renewed OmO growth at physical footprint
+11656770688 bytes, RSS 3112304640, available 3042852864, pressure 2 and swap-out
+35210182656. No further substantial verification is admitted. The next sample
+falls to footprint 3872617600, available 8243118080 and pressure 1, but swap-out
+has increased to 35541663744. The in-process eval context reports only 13.0 MB
+JS heap and 8.7 MB external memory; that does not characterize other VM/native
+allocations. This recurrence is not a diagnosed fix. Passive observer 1066
+completes five minutes without verification workloads: footprint falls from
+3958256768 to 1262089344, peak is 3958256768, pressure stays 1 and swap-out
+remains 35541663744. No growth trigger/thread sample occurs. The first
+post-context-recovery sample has footprint 3714921600, normal pressure and
+8411824128 available, but the system swap-out counter is now 40450801664;
+that intervening increase is not attributed to a device or model.
+Guard 1069 and unchanged three-sample admission protect narrow run 1070,
+build 1071 and native run 1073. During the native workflow root footprint is
+3693212800, app-PID footprint 185418952, available memory 6196756480 and
+pressure 1. After normal quit root footprint is 3700520064 with 6981255168
+available, pressure 1 and unchanged swap-out 40450801664. These are sampled
+process values, not a peak or all-WebKit-process accounting. No heap dump,
+device/model launch or broad verification accompanies this continuation.
+
+Published mobile run `40433857901` is terminal failure. Android job
+`121957744753` fails on absent `transcript-search-input`; JUnit records one
+test, one failure, 141.623 seconds. Its completed menu-item tap uses settled
+hierarchy bounds `[140,46][586,162]`, point `(363,104)`, but the failure frame
+still shows the menu. Original logs, source/tree receipt, hierarchy and that
+single frame are retained under `ci-4bcf900-android-ui`; artifact
+`12703788588` is retained as a ZIP, not broadly extracted. No device was
+launched. The local Menu candidate now includes actual safe-area insets and
+an explicit native hit-test layer above absolute source chrome; the old
+overlay applied its z-index only on web and its frame overlapped system UI.
+This candidate passes the connected web/owner checks, but Android touch
+delivery is not reported repaired until actual platform verification.
+iOS job `121957744870`
+fails at `Element not found: Text matching regex: Browse` in the original
+picker path; this is not the earlier mp4-visibility assertion. Its original
+log is retained without a FileProvider diagnostic variant or rerun.
+
+Ledger: 218/254 done, 36 open. Current work is
+`Verify M07 genuine workflows and affected platforms`; the new
+`Repair native Menu touch delivery on Android`, Watch/Inspector, final
+platform proof and M07 delivery remain incomplete. No acceptance or merge.
+
 #### Current sidebar composition: local verification complete — 2026-10-27
 
 Measured reference header/list/card regions use distinct materials; the old

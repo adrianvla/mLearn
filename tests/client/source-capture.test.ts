@@ -308,6 +308,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
       const analysis = ${JSON.stringify({ ...fixture(2).batch, packageRevision: 'a'.repeat(64) })};
       window.mount = (mode) => {
         let next = 0, attempts = 0, reads = 0;
+        let openedMaterialId = null;
         const commands = [], receipts = new Map();
         const client = createRuntimeClient({
           commandId: () => 'command-' + next++,
@@ -364,7 +365,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             source: cueAnchor(source, { index, startMs: 1500, endMs: 4000, text: phrase },
               { start: 0, end: phrase.length }, 1000) }
         }));
-        window.captureState = () => ({ commands, prepared: next, committed: receipts.size });
+        window.captureState = () => ({ commands, prepared: next, committed: receipts.size, openedMaterialId });
         if (mode === 'transcript' || mode === 'vocabulary-focus' || mode === 'dictionary') {
           function SourceTranscript() {
             const [vocabulary, setVocabulary] = React.useState(mode === 'dictionary');
@@ -379,7 +380,9 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           return;
         }
         createRoot(document.getElementById('root')).render(React.createElement(CaptureList, {
-          client, candidates, presentation: mode === 'cards' ? 'cards' : 'rows'
+          client, candidates: mode === 'actions' ? candidates.slice(0, 1) : candidates,
+          presentation: mode === 'cards' ? 'cards' : mode === 'actions' ? 'actions' : 'rows',
+          onOpenMaterial: id => { openedMaterialId = id; }
         }));
       };
     `, resolveDir: resolve('.') , loader: 'tsx' },
@@ -447,7 +450,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
   assert.ok(script);
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const mode of ['before', 'after', 'availability', 'cards', 'transcript', 'vocabulary-focus', 'dictionary'] as const) await t.test(mode, async () => {
+    for (const mode of ['before', 'after', 'availability', 'cards', 'actions', 'transcript', 'vocabulary-focus', 'dictionary'] as const) await t.test(mode, async () => {
       const page = await browser.newPage();
       page.setDefaultTimeout(3000);
       const errors: string[] = [];
@@ -492,6 +495,15 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           assert.equal(content.source.locator.positionMs, 1000);
           assert.equal(content.source.locator.selectionStart, 0);
           assert.equal(content.source.locator.selectionEnd, 5);
+          return;
+        }
+        if (mode === 'actions') {
+          await page.getByRole('button', { name: 'Capture word0', exact: true }).click();
+          await page.getByRole('button', { name: 'Open saved word0', exact: true }).click();
+          const state = await page.evaluate(() => Reflect.get(window, 'captureState')());
+          assert.equal(state.openedMaterialId, 'saved-command-0');
+          assert.equal(state.prepared, 1);
+          assert.equal(state.committed, 1);
           return;
         }
         if (mode === 'availability') {

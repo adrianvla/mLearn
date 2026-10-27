@@ -1,9 +1,10 @@
-import { useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { Platform, View, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from './Text';
 import { Button } from './Button';
+import { DialogPortalContext } from './Dialog';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
 export function ContextPanel({ title, anchor, onClose, children, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
@@ -25,6 +26,10 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
     const [bounds, setBounds] = useState<TextBounds>(anchor);
     const [headerHeight, setHeaderHeight] = useState(0);
     const [footerHeight, setFooterHeight] = useState(0);
+    const [portal, setPortal] = useState<HTMLElement | null>(null);
+    const contentRef = useCallback((node: View | null) => {
+        setPortal(Platform.OS === 'web' && typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null);
+    }, []);
     useLayoutEffect(() => {
         let active = true;
         let revision = 0;
@@ -52,7 +57,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
         ? Math.min(350 * theme.textScale, placeAbove ? above : below)
         : Math.min(height - 40, height * 0.75);
     return (
-        <Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
+        <DialogPortalContext.Provider value={portal}><Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
             <Primitive.Portal>
                 <Primitive.Overlay asChild>
                     <View style={styles.overlay} onLayout={event => {
@@ -68,7 +73,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                             event.preventDefault();
                             anchor.restoreFocus();
                         }}>
-                            <View testID="inspector-panel" style={[
+                            <View ref={contentRef} testID="inspector-panel" style={[
                                 styles.panel,
                                 {
                                     backgroundColor: Platform.OS === 'web' ? 'transparent' : anchored ? theme.media.panel : theme.media.chrome,
@@ -104,6 +109,18 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
                                     horizontal
+                                    onFocus={event => {
+                                        const target: unknown = event.target;
+                                        const viewport: unknown = event.currentTarget;
+                                        // Reveal only this row, without scrolling its source anchor.
+                                        if (Platform.OS === 'web' && target instanceof HTMLElement
+                                            && viewport instanceof HTMLElement && viewport.contains(target)) {
+                                            const bounds = target.getBoundingClientRect();
+                                            const frame = viewport.getBoundingClientRect();
+                                            if (bounds.left < frame.left) viewport.scrollLeft -= frame.left - bounds.left;
+                                            else if (bounds.right > frame.right) viewport.scrollLeft += bounds.right - frame.right;
+                                        }
+                                    }}
                                     onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
                                     contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
@@ -119,7 +136,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                     </View>
                 </Primitive.Overlay>
             </Primitive.Portal>
-        </Primitive.Root>
+        </Primitive.Root></DialogPortalContext.Provider>
     );
 }
 const styles = StyleSheet.create(theme => ({
