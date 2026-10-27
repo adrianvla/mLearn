@@ -1,5 +1,35 @@
 # Current implementation checkpoint
 
+## Active continuation — M10 then M11, 2026-10-27
+
+The maintainer authorizes M10–M11 while comprehensive M03–M07 review is
+unavailable. M03–M07 remain provisional and unaccepted. Their source/evidence,
+visual discrepancies, iOS gaps, unexplained Windows input loss and unidentified
+historical cleanup roots below are preserved, not converted into passing gates.
+PR44 remains OPEN/draft at `2a1f13a53b6cc4852e6b4fea24881d05d31f8af9`,
+unmerged and unreleased; its tested product source remains `3ffc28fb`.
+
+The new branch is `agent/m10-m11`, created from that exact committed foundation.
+Its separate stacked draft PR is pending the first coherent checkpoint.
+M10 is starting, not implemented or verified. M11 must wait for M10 engineering
+and independent-review gates. The scope is PLAN M10/M11 and feature IDs
+SRC-10, KNW-04/06/07, INS-05, MAT-05/06/07, NAV-02 and
+LRN-12/13/14/15/18, reusing existing native/package/session owners.
+
+Initial resource readback: OmO PID82251 footprint3753899088 bytes,
+available6249381888, pressure1, swapUsed3135242240, swapOut45443366912;
+disk available27981336 KiB. No surviving app, QEMU, Simulator.app or Electron
+was listed. No model/device/reference/server was restarted. Substantial local
+work stays serial and requires fresh disk/physical-footprint/pressure/swap
+admission. The four original untracked reports/Watch fixtures remain untouched.
+
+Current task: trace bounded collection, generation, source-search, evidence/
+graph/character and package-task contracts against the existing native owners
+and approved v2.9 interactions. New execution note:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
+The historical M03–M07 record follows; its older ceiling is not a stop on the
+newly authorized M10–M11 work.
+
 ## Active authorization — sequential M03–M07 implementation
 
 On October 22 the maintainer authorized autonomous sequential M03–M07, with

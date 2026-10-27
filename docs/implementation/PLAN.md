@@ -1,5 +1,26 @@
 # Review-gated implementation plan
 
+> **Active authorization (2026-10-27):** Treat committed M03–M07 as a provisional,
+> unaccepted foundation and implement M10, then M11 without waiting idly for the
+> maintainer's comprehensive review. Preserve all M07 blockers, source identities,
+> evidence and visual discrepancies. Keep PR44 draft, unmerged and unreleased.
+> Use a separate stacked branch/draft PR from `agent/m01` at
+> `2a1f13a53b6cc4852e6b4fea24881d05d31f8af9` so the new work is reviewable apart.
+> Deliver the complete M10 scope below: bounded collections, compound filters,
+> bulk changes, generation/suggestion review, source search, evidence/graph
+> inspection and package-supported character views. Only after its engineering
+> and independent-review gates pass, implement M11's deliberate Word Practice,
+> distinct Word Sync/calibration, real grammar tasks/validators and expert probe
+> authoring. Reuse native Knowledge/Material/learning/package authorities and the
+> approved v2.9 interaction design. Verify real functional/persistence/restart/
+> cancellation/failure workflows and commit/push coherent checkpoints per unit.
+> No acceptance claim, competing store or speculative frontend owner. Disk/memory
+> admission and bounded serial local workloads remain mandatory; no unnecessary
+> long-lived devices, repeated infrastructure investigations without new evidence
+> or resumption of the old hosted-iOS diagnostic campaign. M08/M09 research may
+> be independent and resource-bounded, not implementation or a new prerequisite.
+> This supersedes only the older milestone ceiling/manual-review wait.
+
 > **Active authorization (2026-10-22, explicit gate decision):** Start M03 now,
 > then execute M04–M07 sequentially without intermediate maintainer review stops.
 > The existing hosted iOS FileProvider acceptance failure is **deferred, not
