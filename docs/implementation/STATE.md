@@ -133,7 +133,7 @@ disk available25637364 KiB. Both temporary verification guards are stopped.
 The earlier transient OmO allocation spike remains unexplained; no product
 inference/device workload is blamed, and no such workload was launched.
 
-### Real package catalog producers — source commit containing this section
+### Real package catalog producers — `98ba7fb`
 
 English0.1.4 and Japanese0.1.8 declare `collection.targets.v1`, with bounded
 package-owned keyset pages and stable existing target IDs. Optional catalog
@@ -166,6 +166,36 @@ unchanged, available8129806336 and pressure1; this does not explain the earlier
 growth.
 Runtime preparation/cancellation/restart, full-corpus cache completion and
 typed-client/UI flows remain open. M10 is not complete or independently gated.
+
+### Optional metadata boundary repairs — `b7eeac0`, `a194be8`
+
+Both observed failures were reproduced before repair. At98ba, foundation
+run40603221309 Rust job122536239804 failed the existing ABI1 offline test:
+a retained three-method manifest plus the current compatible module made
+ordinary source analysis fail on its optional catalog metadata. `b7eeac0`
+withholds that optional metadata unless the authenticated manifest grants its
+method. The unchanged offline/source/claim/restart assertions now pass, with
+additional checks that no catalog is published and direct invocation is denied.
+
+`a194be8` keeps package-scoped saved Material readable during partial catalog
+preparation. Its new real-SQLite regression failed before repair. Knowledge
+and catalog-dependent predicates still return Preparing instead of partial
+counts. The full storage suite passes100 tests; ABI1 passes, eleven of twelve
+package-catalog cases pass (including the real SDK producer case), and both
+Japanese runtime workflows pass.
+
+The unchanged HTTP recovery test fails independently on Darwin at
+`catalog.rs:908`: server `shutdown(Both)` returns OS57/NotConnected, then its
+notification receiver disconnects. Isolated reproduction also fails before any
+language/collection operation. Its production owner `runtime/src/catalog.rs`
+has identical blob51ea8ba6 at8a4f350 and98ba; no assertion or product HTTP code
+was changed to hide it. This remains an open platform/test finding, not a
+passing full runtime suite. Source98ba real desktop CI passed40603221290;
+native-mobile40603221308 is still observed, with no diagnostic variant.
+
+Guard1222 is stopped. Post-run footprint4182144128, RSS3275128832,
+available6568738816, pressure1, swapUsed4078108672, swapOut50273304576.
+Native preparation/client flows remain the next implementation work.
 
 ## Active authorization — sequential M03–M07 implementation
 
