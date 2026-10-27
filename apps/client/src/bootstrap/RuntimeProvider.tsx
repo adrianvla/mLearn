@@ -1,11 +1,34 @@
-import { createContext, useContext, useMemo, type PropsWithChildren } from 'react';
+import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useState, type PropsWithChildren } from 'react';
 import { createHost } from '../host/createHost';
+import {applyTheme} from '@mlearn/theme/runtime';
 import type { Host } from '../host/types';
+import { WindowChrome } from '../host/WindowChrome';
+import { UIProvider } from '@mlearn/ui/provider';
+import type { ViewPreferences } from '@mlearn/contracts';
+import { ViewPreferencesContext } from './ViewPreferences';
 
 const RuntimeContext = createContext<Host | null>(null);
 export function RuntimeProvider({ children }: PropsWithChildren) {
   const host = useMemo(createHost, []);
-  return <RuntimeContext.Provider value={host}>{children}</RuntimeContext.Provider>;
+  const [windowMaterial, setWindowMaterial] = useState(false);
+  const [viewPreferences, setViewPreferences] = useState<ViewPreferences | null>(null);
+  useLayoutEffect(() => {
+    if (host.available && host.initialTheme) applyTheme(host.initialTheme);
+  }, [host]);
+  useEffect(() => {
+    if (!host.available || !host.subscribeWindowMaterial) return;
+    let active = true;
+    let stop: (() => void) | undefined;
+    host.subscribeWindowMaterial(value => { if (active) setWindowMaterial(value); })
+      .then(unsubscribe => { if (active) stop = unsubscribe; else unsubscribe(); })
+      .catch(error => { console.error('Native window material unavailable', error); });
+    return () => { active = false; stop?.(); };
+  }, [host]);
+  useEffect(()=>{let active=true;if(host.available)host.client.snapshot().then(s=>{if(active){applyTheme(s.theme);setViewPreferences(s.viewPreferences??null);}}).catch(()=>{/* Screens expose runtime recovery beside their action. */});return()=>{active=false;};},[host]);
+  const view = useMemo(() => ({ value: viewPreferences, publish: setViewPreferences }), [viewPreferences]);
+  return <RuntimeContext.Provider value={host}><ViewPreferencesContext.Provider value={view}><UIProvider windowMaterial={windowMaterial}>
+    {children}<WindowChrome />
+  </UIProvider></ViewPreferencesContext.Provider></RuntimeContext.Provider>;
 }
 export function useRuntime(): Host {
   const host = useContext(RuntimeContext);

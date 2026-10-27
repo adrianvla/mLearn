@@ -1,17 +1,151 @@
 import type { ThemeDocument } from '@mlearn/contracts';
 import quartz from '../../../resources/themes/quartz.json';
-import slate from '../../../resources/themes/slate.json';
+import darkQuartz from '../../../resources/themes/dark-quartz.json';
+import retiredBuiltIns from '../../../resources/themes/retired-built-ins.json';
 
-export const builtInThemes: readonly ThemeDocument[] = [quartz, slate];
+export const builtInThemes: readonly ThemeDocument[] = [quartz, darkQuartz];
 export const initialTheme: ThemeDocument = quartz;
 
+// Import boundary for whole documents saved before the reference-parity rewrite.
+// ID alone is not authority: same-ID user palettes, radii and extensions remain
+// custom. Resolve untouched old presentation, never rewrite learner preferences.
+// Remove these fingerprints only after a native schema migration records
+// built-in/custom identity and no supported profile needs whole-document import.
+export function resolveBuiltInTheme(document: ThemeDocument): ThemeDocument {
+  const retired = retiredBuiltIns.find(preset =>
+    document.id === preset.id && document.name === preset.name && document.radius === preset.radius
+    && Object.keys(document.extensions).length === 0
+    && (['background', 'surface', 'text', 'muted', 'accent', 'onAccent', 'border'] as const)
+      .every(key => document.colors[key] === preset.colors[key]));
+  const replacement = retired && builtInThemes.find(preset => preset.id === retired.replacementId);
+  return replacement ? { ...document, id: replacement.id, name: replacement.name,
+    colors: { ...replacement.colors }, radius: replacement.radius } : document;
+}
+
 /** Rendering-only projection. Rust is authoritative for accepting and storing theme documents. */
-export function resolveTheme(document: ThemeDocument) {
+export function resolveTheme(saved: ThemeDocument) {
+  const document = resolveBuiltInTheme(saved);
+  const rgb = Number.parseInt(document.colors.surface.slice(1, 7), 16);
+  const lightSurface = 0.2126 * (rgb >> 16) + 0.7152 * ((rgb >> 8) & 255) + 0.0722 * (rgb & 255) >= 128;
+  const builtInPalette = builtInThemes.some(preset => document.id === preset.id
+    && Object.entries(preset.colors).every(([key, value]) => document.colors[key as keyof ThemeDocument['colors']] === value));
+  const canvas = lightSurface ? '#F3F5F7' : '#000000';
+  const secondary = lightSurface ? '#FFFFFF99' : `${document.colors.text.slice(0, 7)}26`;
+  const authored = `#${[1, 3, 5].map(offset => {
+    const base = Number.parseInt(secondary.slice(offset, offset + 2), 16);
+    const alpha = Number.parseInt(secondary.slice(7, 9), 16) / 255;
+    const background = Number.parseInt(canvas.slice(offset, offset + 2), 16);
+    const accent = Number.parseInt(document.colors.accent.slice(offset, offset + 2), 16);
+    return Math.round((base * alpha + background * (1 - alpha)) * 0.9 + accent * 0.1)
+      .toString(16).padStart(2, '0');
+  }).join('')}`;
+  const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '500' | '600' | '700' = '400') => ({
+    fontFamily: 'Helvetica Neue',
+    fontSize: fontSize * document.textScale,
+    lineHeight: lineHeight * document.textScale,
+    fontWeight,
+    _web: {
+      fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+      WebkitFontSmoothing: 'antialiased' as const,
+    },
+  });
   return {
     colors: { ...document.colors },
+    controls: {
+      selected: lightSurface ? '#FFFFFFB8' : `${document.colors.text.slice(0, 7)}14`,
+      surface: `${document.colors.text.slice(0, 7)}0D`,
+      field: lightSurface ? '#FFFFFF80' : `${document.colors.text.slice(0, 7)}14`,
+      hover: lightSurface ? '#FFFFFFE6' : `${document.colors.text.slice(0, 7)}20`,
+      outline: lightSurface ? '#00000040' : '#FFFFFF40',
+      backdrop: 'blur(8px)',
+      // WebKit blur alone misses the reference's dark backing; retain this
+      // measured tint until the native renderer's composition matches.
+      quiet: lightSurface ? 'transparent' : '#00000059',
+    },
+    shell: { navigation: document.colors.background, content: document.colors.surface, light: lightSurface,
+      // WebKit's native-material composition needs a stronger light floor than
+      // Chromium's body tint; matched composited reference captures set this alpha.
+      windowTint: builtInPalette ? lightSurface ? '#FFFFFFBF' : '#00000061' : undefined,
+      windowFilter: builtInPalette && lightSurface ? 'blur(8px) saturate(0.82) contrast(0.92) brightness(1.04)' : undefined,
+      canvas },
+    surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233',
+      card: lightSurface ? '#FFFFFF40' : `${document.colors.text.slice(0, 7)}04`, secondary, authored },
+    feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
+    source: { selection: `${document.colors.accent.slice(0, 7)}33` },
+    pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2,
+      pill: { high: '#FF4A64', low: '#3387FF' } },
+    media: {
+      background: '#000000',
+      text: '#E8E8E8',
+      muted: '#A6A6A6',
+      closeIcon: '#FFFFFFB3',
+      actionHover: '#FFFFFF26',
+      chrome: '#1C1C1CE6',
+      // Keep the dark-media luminance while preserving copy contrast over white
+      // page pixels. The blur remains shared with media and source inspection.
+      panel: '#212121EB',
+      translucentPanel: '#3C3C3C80',
+      backdrop: 'blur(20px) saturate(2)',
+      border: '#505050',
+      footer: '#FFFFFF08',
+      badge: '#FFFFFF20',
+      metadata: '#565656',
+    },
+    typography: {
+      heading: textRole(20, 30, '600'),
+      shellTitle: textRole(20, 30, '700'),
+      navigation: textRole(16, 24),
+      listTitle: textRole(16, 24, '600'),
+      sourceTitle: textRole(16, 24, '500'),
+      entryTitle: textRole(24, 36, '700'),
+      section: textRole(18, 27, '600'),
+      groupTitle: textRole(15.2, 23, '600'),
+      sidebarTitle: textRole(14, 21, '600'),
+      body: textRole(16, 24),
+      caption: textRole(14, 21),
+      detail: textRole(12, 17),
+      inspectionTitle: textRole(32, 44),
+      inspectionBody: textRole(20, 28),
+      inspectionReading: textRole(18, 26),
+      reviewCue: textRole(40, 56),
+      reviewExample: textRole(24, 36),
+      reviewFocused: textRole(20, 30),
+      pronunciationPill: textRole(16, 28, '700'),
+      dictionaryMeaning: textRole(20, 28),
+      dictionaryReading: textRole(16, 24),
+      // SubtitleWord.css: .45em reading, line-height 1, .05em spacing.
+      subtitleRuby: { ...textRole(18, 18), letterSpacing: 0.9 * document.textScale },
+      bodyRuby: { ...textRole(7.2, 7.2), letterSpacing: 0.36 * document.textScale },
+      inspectionRuby: { ...textRole(14.4, 14.4), letterSpacing: 0.72 * document.textScale },
+      mediaTitle: textRole(13, 20),
+      subtitle: textRole(40, 64),
+      action: textRole(16, 24, '500'),
+      compactAction: textRole(14, 20, '500'),
+      mediaAction: textRole(13, 20),
+      subtitleOffset: textRole(24, 30),
+      knowledgeAction: textRole(16, 22, '700'),
+      compactPill: textRole(13, 18, '700'),
+      badge: textRole(15, 20, '600'),
+    },
+    pills: {
+      neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
+      info: lightSurface ? { text: '#3C91FF', surface: '#DFF4FF', top: '#EDF8FF' }
+        : { text: '#097FFF', surface: '#07253D', top: '#1A384E' },
+      positive: { text: '#00CC00', surface: '#003300', top: '#2D4C25' },
+      negative: { text: '#FF4D75', surface: '#481024', top: '#693146' },
+      warning: { text: lightSurface ? '#7A5B00' : '#F1C40F', surface: '#F1C40F40', top: '#F1C40F66' },
+    },
     radius: document.radius,
     textScale: document.textScale,
-    spacing: { small: 8, medium: 16, large: 24 },
+    spacing: {
+      tiny: 4 * document.spacingScale,
+      small: 8 * document.spacingScale,
+      compact: 12 * document.spacingScale,
+      medium: 16 * document.spacingScale,
+      comfortable: 20 * document.spacingScale,
+      large: 24 * document.spacingScale,
+      section: 32 * document.spacingScale,
+    },
     scrim: '#00000066',
   };
 }
@@ -30,6 +164,8 @@ export function parseThemePreview(source: string): ThemeDocument {
     if (typeof colors[key] !== 'string' || !/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(colors[key])) throw new Error(`Invalid color: ${key}`);
   }
   if (typeof data.radius !== 'number' || !Number.isInteger(data.radius) || data.radius < 0 || data.radius > 48 || typeof data.textScale !== 'number' || data.textScale < 0.8 || data.textScale > 2) throw new Error('Unsupported radius or text scale.');
+  if (data.spacingScale === undefined) data.spacingScale = 1;
+  if (typeof data.spacingScale !== 'number' || !Number.isFinite(data.spacingScale) || data.spacingScale < 0.75 || data.spacingScale > 1.5) throw new Error('Theme spacing scale must be between 0.75 and 1.5.');
   if (data.extensions === undefined) data.extensions = {};
   if (!data.extensions || typeof data.extensions !== 'object' || Array.isArray(data.extensions)) throw new Error('Theme extensions must be an object.');
   return data as unknown as ThemeDocument;

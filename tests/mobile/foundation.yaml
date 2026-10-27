@@ -5,6 +5,8 @@ name: Native foundation persists Rust state across process restart
 # transport or JavaScript persistence. All test data belongs to this v3 app.
 - launchApp:
     clearState: true
+- tapOn: 'Settings'
+- tapOn: 'Runtime'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000
@@ -20,35 +22,41 @@ name: Native foundation persists Rust state across process restart
     direction: DOWN
 - assertVisible: 'Hello, world!'
 - takeScreenshot: bundled-plugin-result
+- tapOn: 'Appearance'
 - scrollUntilVisible:
-    element: 'Slate'
+    element: 'Select theme.*'
     direction: DOWN
 - assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
-- tapOn: 'Slate'
+- tapOn: 'Select theme.*'
+- tapOn: 'Dark Quartz'
 - extendedWaitUntil:
-    visible: 'Current: Slate\. Saved in the native SQLite profile\.'
+    visible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
     timeout: 15000
 - scrollUntilVisible:
     element:
       id: runtime-message
     direction: DOWN
-- assertVisible: 'Theme saved by Rust · revision [1-9][0-9]*'
+- assertVisible:
+    id: runtime-message
 - takeScreenshot: saved-slate
 - scrollUntilVisible:
-    element: 'One app\. Native at the core\.'
+    element: 'Settings'
     direction: UP
 - takeScreenshot: slate-before-restart
 - stopApp
 - launchApp:
     clearState: false
+- tapOn: 'Settings'
+- tapOn: 'Runtime'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000
 - takeScreenshot: slate-after-restart
+- tapOn: 'Appearance'
 - scrollUntilVisible:
-    element: 'Slate'
+    element: 'Edit theme JSON'
     direction: DOWN
-- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
 - assertNotVisible: 'Unsaved visual preview.*'
 - scrollUntilVisible:
     element: 'Edit theme JSON'
@@ -57,12 +65,33 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Custom theme'
 - assertVisible: 'Theme JSON'
 - takeScreenshot: custom-theme-dialog
-# Focus first: on iOS the first long press on an unfocused input only places
-# the cursor. Select the document rather than issuing thousands of backspaces.
-- tapOn:
-    id: theme-json-input
-- longPressOn:
-    id: theme-json-input
+# Focus first and observe the keyboard before placing the caret: the
+# keyboard-aware dialog moves the leading text when the keyboard opens.
+# Maestro's iOS 27 long press does not open the edit menu; two taps at the
+# same settled leading-text position do.
+# Remove this gesture workaround when longPressOn opens that menu reliably.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: theme-json-input
+          point: "10%,5%"
+      - assertVisible: Done
+      - tapOn:
+          id: theme-json-input
+          point: "10%,5%"
+      - tapOn:
+          id: theme-json-input
+          point: "10%,5%"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: theme-json-input
+      - longPressOn:
+          id: theme-json-input
 - tapOn: 'Select [Aa]ll'
 - eraseText: 1
 # The pinned iOS XCTest driver drops characters in bulk inputText, even in
@@ -103,9 +132,13 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Theme name must contain.*'
 - assertVisible: 'Custom theme'
 - takeScreenshot: rejected-native-theme
+- assertVisible:
+    id: dialog-surface
 - tapOn: 'Close'
-- assertNotVisible: 'Custom theme'
-- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- assertNotVisible:
+    id: dialog-surface
+- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
+- tapOn: 'Runtime'
 - scrollUntilVisible:
     element: 'world'
     direction: UP

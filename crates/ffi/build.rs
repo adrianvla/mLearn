@@ -21,7 +21,7 @@ fn main() {
             for (asset_index, (key, artifact)) in manifest["assets"].as_object().unwrap().iter().enumerate() {
                 let name = format!("asset-{index}-{asset_index}.bin");
                 copy(artifact["path"].as_str().unwrap(), &name);
-                source.push_str(&format!("assets.insert({key:?}.into(), include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}\")).to_vec());\n"));
+                source.push_str(&format!("assets.insert({key:?}.into(), std::borrow::Cow::Borrowed(&include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{name}\"))[..]));\n"));
             }
             source.push_str(&format!("plugins.push(mlearn_runtime::BundledPlugin {{ manifest, code: include_bytes!(concat!(env!(\"OUT_DIR\"), \"/code-{index}.wasm\")).to_vec(), assets }});\n"));
         }

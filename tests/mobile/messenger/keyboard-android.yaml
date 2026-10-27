@@ -1,0 +1,19 @@
+appId: net.kikan.mlearn.v3dev
+name: Android Messenger keeps its composer visible above the keyboard
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Conversation
+    timeout: 60000
+- tapOn: Conversation
+- tapOn: M07 coach.*
+- tapOn:
+    id: conversation-composer
+- inputText: Q
+- takeScreenshot: messenger-keyboard-geometry
+- assertVisible:
+    id: conversation-composer
+- hideKeyboard

@@ -1,0 +1,145 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Append after the complete English claim/preferences/player/restart flow.
+# A distinct video filename keeps its persisted English source untouched.
+- tapOn: Home
+- extendedWaitUntil:
+    visible:
+      id: source-language-select
+      enabled: true
+    timeout: 60000
+- tapOn:
+    id: source-language-select
+- tapOn:
+    id: language-org.mlearn.japanese
+- runFlow:
+    when:
+      platform: Android
+    file: open-android.yaml
+    env:
+      VIDEO_NAME: m01-japanese
+      SUBTITLE_NAME: m01-japanese
+- runFlow:
+    when:
+      platform: iOS
+    file: open-ios.yaml
+    env:
+      VIDEO_NAME: m01-japanese
+      SUBTITLE_NAME: m01-japanese
+# Source-word labels include genuine package reading spans and attribution.
+# Native accessibility groups ruby under its word; captures preserve the glyphs.
+- extendedWaitUntil:
+    visible: '昨日: untracked\. [ぁ-ゖァ-ヺー]+\. .+'
+    timeout: 60000
+- assertVisible: 'つまり: untracked.*'
+- assertVisible: '明日: untracked\. [ぁ-ゖァ-ヺー]+\. .+'
+- takeScreenshot: native-japanese-subtitle-ruby-pitch
+- tapOn: '昨日: untracked.*'
+- runFlow:
+    file: japanese-inspector.yaml
+- takeScreenshot: native-japanese-inspector-pitch-level
+- tapOn: Pronunciation details
+- extendedWaitUntil:
+    visible: '(Heiban|Atamadaka|Nakadaka|Odaka) \[[0-9]+\].* · .+'
+    timeout: 15000
+- takeScreenshot: native-japanese-pronunciation-details
+- tapOn: Close Inspector
+# Transcript consumes the same real analysis/presentation, not fixture UI.
+- tapOn: Transcript
+- tapOn:
+    id: menu-action-transcript
+- extendedWaitUntil:
+    visible: '昨日: untracked\. [ぁ-ゖァ-ヺー]+\. .+'
+    timeout: 60000
+- assertVisible: '明日: untracked\. [ぁ-ゖァ-ヺー]+\. .+'
+- takeScreenshot: native-japanese-transcript-ruby-pitch
+- tapOn: '昨日: untracked.*'
+- runFlow:
+    file: japanese-inspector.yaml
+- tapOn: Close Inspector
+- tapOn: Close
+- extendedWaitUntil:
+    visible:
+      text: Live word translator
+      enabled: true
+    timeout: 60000
+- tapOn: Live word translator
+# Match the actual dictionary meaning/reading button, not only its panel.
+- extendedWaitUntil:
+    visible: '.*[Yy]esterday.* · .+'
+    timeout: 60000
+- takeScreenshot: native-japanese-live-dictionary-cards
+- tapOn: '.*[Yy]esterday.* · .+'
+- runFlow:
+    file: japanese-inspector.yaml
+- takeScreenshot: native-japanese-live-card-inspector
+- tapOn: Close Inspector
+- tapOn: Live word translator
+- tapOn: Subtitle synchronization
+- extendedWaitUntil:
+    visible: 'Subtitle offset(,.*)?'
+    timeout: 15000
+- assertVisible: Align previous subtitle
+- assertVisible: Align next subtitle
+- takeScreenshot: native-japanese-subtitle-synchronization
+- tapOn: Align next subtitle
+- extendedWaitUntil:
+    visible: '今日: untracked.*'
+    timeout: 60000
+- tapOn: Align previous subtitle
+- extendedWaitUntil:
+    visible: '昨日: untracked.*'
+    timeout: 60000
+- tapOn: Align next subtitle
+- extendedWaitUntil:
+    visible: '今日: untracked.*'
+    timeout: 60000
+- tapOn: Home
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- scrollUntilVisible:
+    element: Resume m01-japanese.mp4
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
+- tapOn: Resume m01-japanese.mp4
+- extendedWaitUntil:
+    visible: '今日: untracked.*'
+    timeout: 60000
+- tapOn: Playback options
+- scrollUntilVisible:
+    element: 'Current offset: 15000 ms'
+    direction: DOWN
+    centerElement: true
+- assertVisible: 'Current offset: 15000 ms'
+- scrollUntilVisible:
+    element: Reset synchronization
+    direction: DOWN
+    centerElement: false
+- tapOn: Reset synchronization
+- extendedWaitUntil:
+    visible: 'Current offset: 0 ms'
+    timeout: 15000
+- tapOn: Close
+- extendedWaitUntil:
+    visible: '昨日: untracked.*'
+    timeout: 60000
+- tapOn: Subtitle synchronization
+- tapOn: Hide synchronization
+- assertNotVisible: 'Subtitle offset(,.*)?'
+# Japanese inspection must not alter the original source or its English claim.
+- tapOn: Home
+# The original source is now the second recent row, below the enlarged iOS
+# viewport. Scroll to its own action rather than activating the latest source.
+- scrollUntilVisible:
+    element: Resume m01-watch.mp4
+    direction: DOWN
+    centerElement: true
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: 'Children: mixed'
+    timeout: 60000
+- assertVisible: 'came: untracked'
+- takeScreenshot: native-english-continuity-after-japanese

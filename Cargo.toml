@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/runtime", "crates/ffi", "tools/bindgen", "language-plugins/hello", "apps/desktop/src-tauri"]
+members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/document-parser", "crates/document-pdf-guest", "crates/desktop-ocr", "crates/runtime", "crates/ffi", "tools/bindgen", "language-plugins/hello", "language-plugins/english", "apps/desktop/src-tauri"]
 default-members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/runtime"]
 
 [workspace.package]
@@ -20,3 +20,44 @@ uniffi = "0.32"
 lto = "thin"
 codegen-units = 1
 strip = "debuginfo"
+
+# The interpreter, support crates and host-State monomorphizations all participate
+# in guest execution. Keep symbols, assertions and overflow checks while optimizing
+# them; language-host selects bounded loop dispatch even at this optimization level.
+[profile.dev.package.wasmi]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.mlearn-language-host]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_core]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_ir]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_collections]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+# Streaming authentication of supported language resources must remain usable
+# during normal development. Retain symbols, assertions and overflow checks.
+[profile.dev.package.sha2]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true

@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 description = "mLearn universal application desktop host"
 license-file = "../../../LICENSE"
+[features]
+ocr-probe = []
 [lib]
 name = "mlearn_desktop"
 crate-type = ["rlib"]
@@ -12,7 +14,32 @@ crate-type = ["rlib"]
 tauri-build = { version = "2.7.2", features = [] }
 [dependencies]
 mlearn-runtime = { path = "../../../crates/runtime" }
+mlearn-desktop-ocr = { path = "../../../crates/desktop-ocr" }
 mlearn-language-host = { path = "../../../crates/language-host" }
 serde_json.workspace = true
-tokio = { version = "1", features = ["sync"] }
+serde.workspace = true
+base64 = "=0.22.1"
+tokio = { version = "1", features = ["sync", "rt", "net", "fs", "io-util", "time", "macros", "process"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+uuid = { version = "1", features = ["v4"] }
 tauri = { version = "2.12.3", features = [] }
+http-range = "0.1.5"
+rfd = "0.15.4"
+mlearn-core = {path="../../../crates/core"}
+tempfile = "3"
+sha2.workspace = true
+arboard = { version = "=3.6.1", default-features = false, features = ["wayland-data-control"] }
+
+[target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
+window-vibrancy = "=0.8.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
+windows-version = "0.1.7"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+mlearn-storage = { path = "../../../crates/storage" }
+sha2.workspace = true
+tempfile = "3"

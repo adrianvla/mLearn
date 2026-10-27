@@ -18,14 +18,14 @@ The catalogue describes the intended product, not current implementation status.
 
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
-| SRC-01 | Open local content through a picker, supported drag/drop and mobile import/share | Source identity and access permission survive the supported reopen path; unavailable files produce a recoverable error, not a blank view | M01 |
+| SRC-01 | Open local content through a picker, supported drag/drop and mobile import/share | Source identity, original selected filename and access permission survive the supported reopen path; cancellation preserves saved progress; unavailable files produce a recoverable error, not a blank view | M01 |
 | SRC-02 | Resume a source from recents | Restore the correct file/content revision, position, source language and relevant tracks/view state; deduplicate repeat openings | M01 |
 | SRC-03 | Choose source language independently of UI/definition language | A book, video and conversation can retain different language/variant contexts without global-state contamination | M02 |
 | SRC-04 | Display a bounded batch of annotated text | Analyze the relevant cue/page/message range together; obtain Knowledge for distinct targets in bounded batches; display raw text during preparation without falsely classifying it | M01 |
 | SRC-05 | Apply a Knowledge change consistently | Inspector, visible source annotations and the relevant list agree; unrelated content is not retokenized or reloaded | M01 |
-| SRC-06 | Preserve exact surface text and source coordinates | Punctuation, whitespace, combining marks, source ruby, normalization and alternative analyses do not corrupt selection or source links | M02 |
+| SRC-06 | Preserve exact surface text and source coordinates | Punctuation, whitespace, combining marks, source ruby, normalization and alternative analyses do not corrupt selection or source links; package-projected reading bases may remove duplicate reading markers without replacing original bytes, inflection or source coordinates with a lemma | M02 |
 | SRC-07 | Move between source, inspection, capture and learning | Return to the same source/page/time/selection without replaying Start or dropping unfinished work | M03 |
-| SRC-08 | Retry missing, moved, unsupported or failed content | User can reselect/retry a source without deleting saved progress or confusing missing data with an empty result | M01 |
+| SRC-08 | Retry missing, moved, unsupported or failed content | User can reselect/retry a source or replace a missing subtitle association without deleting saved progress or confusing missing data with an empty result | M01 |
 | SRC-09 | Navigate long documents/transcripts/messages | Windowing/pagination and bounded prefetch preserve position and selection; no whole-library render or per-token listeners/workers | M05 |
 | SRC-10 | Search within applicable source content | Results navigate to a real page/span/cue/message with context and a return path; search scope and unavailable indexes are explicit | M10 |
 
@@ -53,18 +53,20 @@ The catalogue describes the intended product, not current implementation status.
 
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
-| INS-01 | Inspect from text, subtitle, image text or message | Same target/context contract; popup on desktop and suitable touch presentation; no independent lookup feature per source | M01 |
-| INS-02 | See source form and nearby meaning | Preserve selected visual hierarchy, senses/definitions, context and dictionary attribution; do not impose one language's punctuation globally | M01 |
-| INS-03 | Inspect reading/pronunciation/prosody and morphology | Applicable structures, alternate forms and uncertainty are shown; absent capabilities are not fabricated | M02 |
-| INS-04 | See and adjust Knowledge using pills/controls | Visible granular states and explicit corrections use the same native commands as other knowledge surfaces | M01 |
+| INS-01 | Inspect from text, subtitle, image text or message | Same target/context contract; popup on desktop and suitable touch presentation; individual subtitle targets are keyboard/touch/accessibility reachable with return focus; no independent lookup feature per source | M01 |
+| INS-02 | See source form and nearby meaning | Preserve selected visual hierarchy, intact package-produced senses/definitions, context and dictionary attribution; a short nearby summary must not replace the complete definition for existing consumers; do not impose one language's punctuation globally | M01 |
+| INS-03 | Inspect reading/pronunciation/prosody and morphology | Applicable structures, pronunciation alternatives, contours and uncertainty are shown; package-declared level metadata retains attribution and does not imply an official syllabus or invented frequency; absent capabilities are not fabricated | M02 |
+| INS-04 | See and adjust Knowledge using pills/controls | Visible granular states and explicit corrections use the same native commands as other knowledge surfaces; the native aggregate remains distinct from a single capability claim, and mixed/untracked capabilities must not become an all-known action | M01 |
 | INS-05 | Open deeper linguistic/evidence details | Detail navigation preserves original source and target; no separate conflicting Inspector state | M10 |
 | INS-06 | Trigger inspection deliberately | Preserve supported immediate, delayed and modifier-assisted desktop inspection; provide touch/keyboard access without copying pointer-only semantics | M02 |
-| INS-07 | Move across popup content and nested actions | Stable anchor/identity; no flicker, remounting, repeated lookup or accidental close when crossing related content | M01 |
+| INS-07 | Move across popup content and nested actions | Stable anchor/identity; reserve the complete authored cue when anchoring; keep title, dismissal, readable body and all correction actions reachable at supported minimum sizes/enlarged text, using bounded independent scrolling where necessary; retain source context in compact inspection; no flicker, remounting, repeated lookup or accidental close when crossing related content | M01 |
 | INS-08 | Copy or explain a selected phrase/item | Actual selected context is used; optional provider readiness is checked at the action, not before reading/inspection | M07 |
 | INS-09 | Play pronunciation and select available recorded/generated audio | Audio provider/language is explicit, loading/failure/cancel are visible; playback does not certify comprehension | M08 |
 | INS-10 | Capture or reuse the inspected item | Selected sense/context and source media are retained; duplicate or failed capture is visible and retryable | M03 |
-| INS-11 | Control reading annotations and linguistic coloring | Publisher readings are distinct from inferred readings; color/annotation visibility can reflect the relevant capability without flashing false Unknown states | M02 |
+| INS-11 | Control reading annotations and linguistic coloring | Publisher readings are distinct from inferred readings; captions and transcript share package-driven ruby/contours with aligned source baselines, preserved punctuation and reachable native targets; color/annotation visibility can reflect the relevant capability without flashing false Unknown states | M02 |
 | INS-12 | Inspect a long or ambiguous entry | Content scrolls within usable bounds while primary actions remain reachable; missing lookup has a scoped retry | M02 |
+| INS-13 | Open nearby dictionary cards from a source | Real eligible-word summaries open the same Inspector; pending, retry and close are usable; bounded history is released on source/package changes; eligibility and known-meaning filtering use package declarations and native Knowledge, not fabricated translation or per-token backend work | M02 |
+| INS-14 | Select the curriculum scale for inline stars | One persisted cosmetic scale is shown at a time using package-owned levels; preserve v2 FrequencyStars palette, count, compact position and persisted Auto/Always/Never number-plus-star collapse (Auto uses the original 8px clearance). Switching or hiding the scale or changing collapse changes no goals, Knowledge, scheduling, practice membership or progress; absent curricula are not fabricated. This display preference does not implement M12 goal management | M07 |
 
 ## Watch and subtitles
 
@@ -77,7 +79,7 @@ Reference entry: `src/renderer/windows/main/routes/VideoRoute.tsx`; inspect its 
 | VID-03 | Load external subtitles | Supported subtitle files associate with the correct media and retain timing, line breaks and source text; reload/retry is possible | M01 |
 | VID-04 | Discover/select embedded and alternate tracks | Available audio/subtitle tracks can be selected; unavailable codecs/tracks are explained without claiming arbitrary format support | M02 |
 | VID-05 | Display and navigate subtitle/transcript content | Current cues, line navigation, contextual inspection and supported search/selection stay synchronized with playback | M02 |
-| VID-06 | Adjust subtitle synchronization | Timing offset/sync operation has a defined persisted scope and changes actual cue timing; reset is available | M02 |
+| VID-06 | Adjust subtitle synchronization | Previous/next cue alignment uses actual media time and indexed cue starts; manual offset and reset remain available; scope persists with the source/subtitle association through restart, original subtitle timestamps stay intact, and boundary/error feedback remains beside the action | M02 |
 | VID-07 | Preserve supported ASS presentation | Preserve applicable timing/style/layout information and its linguistic selection mapping; unsupported effects are identified, not silently stripped and called complete | M02 |
 | VID-08 | Use fullscreen, compact view and playback shortcuts | Primary player/Inspector controls remain usable with correct focus/IME handling and source continuity | M02 |
 | VID-09 | Configure playback rate, repeat/line behavior and subtitle aids | Inventory each active legacy control and retain approved behavior; do not silently drop a useful control under a generic player replacement | M02 |
@@ -102,10 +104,10 @@ Reference entries: `ReaderRoute.tsx`, its navigation/sidebar/status/layout/resum
 | RDR-08 | Inspect publisher-authored readings | Source ruby, including partial token spans, remains separate from dictionary-inferred readings through reflow and cache updates | M05 |
 | RDR-09 | View relevant/unknown source words | Source-linked list, highlight, inspect, exclude, capture one/all and scoped practice reuse the same Knowledge/Capture contracts | M06 |
 | RDR-10 | Copy/explain source text or context phrases | Context selection is grounded in the source; optional explanation does not make local reading dependent on an LLM | M07 |
-| OCR-01 | Recognize page/image text on device | iOS: Vision on-device text recognition. Android: verified on-device OCR provider (evaluate bundled ML Kit v2). Desktop: supported tuned/package provider. Each recognizes representative content without a cloud or Python dependency on mobile, and returns source-local errors and retry | M06 |
+| OCR-01 | Recognize page/image text on device | iOS: Vision on-device text recognition. Android: verified on-device OCR provider (evaluate bundled ML Kit v2). Desktop: Python-free Rust ONNX Runtime; tuned Japanese Paddle detection, package-owned grouping and original-resolution MangaOCR crops/complete decoding. Optional verified resources, detected acceleration with CPU fallback, bounded reusable/cancellable/unloadable sessions. Real macOS/Windows recognition and original-pipeline comparison; source-local errors and retry | M06 |
 | OCR-02 | Recognize selected crop regions | Add/reprocess a region while preserving other valid regions and mapping its result back to the original image | M06 |
 | OCR-03 | Toggle aligned interactive OCR text | Text hit areas track source-image scaling, offset and layout; Inspector/capture resolve the actual region, including a two-page spread | M06 |
-| OCR-04 | Use the reader's recognized-text mirror presentation | Required as a distinct interaction from ordinary hit-box overlays or magnification. Trace the selected historical implementation and obtain a reference capture before fixing its interaction contract; do not substitute one of those other features | M06 |
+| OCR-04 | Preserve interactive OCR alignment over the original image | Interactive OCR text stays aligned with original source coordinates across fit, resize, zoom, orientation, crops and spreads; lookup, correction and Capture resolve the actual source region. No separate mirrored text view is required. Source-image magnification remains the independent OCR-08 interaction | M06 |
 | OCR-05 | Navigate while recognition is queued or running | Visible work takes priority; bounded prefetch, cancel/retry and honest progress preserve completed page results without stale publication | M06 |
 | OCR-06 | Group text and reading annotations correctly | Preserve context across nearby regions, orientation and punctuation; annotation filtering must not create page-sized false hover targets | M06 |
 | OCR-07 | Hide/reveal publisher reading annotations | Conceal the identified annotation region without deleting source data or ordinary text; deliberate reveal is accessible | M06 |
@@ -237,8 +239,8 @@ These controls are implemented alongside their owning feature. M22 closes the in
 
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
-| OPS-01 | Search/edit active preferences | Every setting has one native owner/default/consumer, clear scope and application timing; dead aliases and Tactile/Flat are retired | M22 |
-| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers; changing appearance does not migrate profiles or alter task evidence | H00 |
+| OPS-01 | Search/edit active preferences | Every setting has one native owner/default/consumer, clear scope and application timing; the legacy Interface style selector, its persisted preference and compatibility branches are excluded; the selected reference presentation is integrated without a style name or alternate variants; themes remain separate, and shared components own approved materials; dead aliases are retired | M22 |
+| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers, including live numeric typography, spacing and radius as well as colors; changing appearance does not migrate profiles or alter task evidence | H00 |
 | OPS-03 | Select/reset input and source-display preferences | Relevant shortcuts, inspector activation and aids affect the intended surface without leaking through IME/modal contexts | M22 |
 | OPS-04 | Manage neural models and providers | Show availability and failures for system OCR without pretending to download its OS-managed model; download/cancel/remove/test only separately installable neural models, with bounded resource ownership and actual supported inference | M06 |
 | OPS-05 | Inspect storage and clean regenerable data | Size categories distinguish content/history/models/cache/backups; cleanup states consequences and preserves authored data | M14 |

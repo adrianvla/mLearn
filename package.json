@@ -2,24 +2,30 @@
   "name": "mlearn",
   "version": "3.0.0-dev.0",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
+    "postinstall": "node tools/patch-expo-video.mjs && node tools/patch-rn-dialog.mjs",
     "dev:web": "npm run web -w @mlearn/client",
     "dev:desktop": "npm run tauri -w @mlearn/desktop -- dev",
     "build:web": "npm run export:web -w @mlearn/client",
     "build:desktop": "npm run tauri -w @mlearn/desktop -- build",
     "build:plugin": "node tools/prepare-plugins.mjs",
+    "build:documents": "node tools/prepare-documents.mjs",
     "codegen": "cargo run -p mlearn-core --features typescript --example export_contracts",
     "check:contracts": "cargo run -p mlearn-core --features typescript --example export_contracts -- --check",
     "lint": "node tools/checks/architecture.mjs",
     "typecheck": "tsc --noEmit -p apps/client/tsconfig.json",
-    "test": "node --test tools/checks/*.test.mjs && tsx --test packages/*/tests/*.test.ts",
-    "test:native": "npm run build:plugin && cargo test --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen",
+    "test": "node --test tools/checks/*.test.mjs && tsx --test packages/*/tests/*.test.ts tests/client/*.test.ts",
+    "test:native": "npm run build:plugin && npm run build:documents && cargo test --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen",
     "prepare:ios": "node tools/build-mobile.mjs ios",
     "prepare:android": "node tools/build-mobile.mjs android",
     "ios": "npm run ios -w @mlearn/client",
     "android": "npm run android -w @mlearn/client",
-    "test:web": "playwright test"
+    "test:web": "playwright test",
+    "prepare:language-data": "python3 tools/prepare-wordnet.py && node tools/acquire-japanese.mjs && python3 tools/prepare-japanese.py --offline"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
@@ -27,5 +33,11 @@
     "tsx": "^4.20.0",
     "@playwright/test": "^1.55.0",
     "@axe-core/playwright": "^4.10.2"
+  },
+  "overrides": {
+    "@radix-ui/react-dismissable-layer": "1.2.1",
+    "@radix-ui/react-focus-scope": "1.3.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }

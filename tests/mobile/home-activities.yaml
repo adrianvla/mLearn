@@ -1,0 +1,109 @@
+appId: net.kikan.mlearn.v3dev
+name: Home activities remain reachable after narrow layout and restart
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: source-language-select
+      enabled: true
+    timeout: 60000
+- assertVisible: Read
+- tapOn:
+    id: home-open-read
+- assertVisible: Open a document
+- extendedWaitUntil:
+    visible:
+      id: reader-open-document
+      enabled: true
+    timeout: 30000
+- assertVisible:
+    id: reader-open-images
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-reader-import-entry
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      id: home-open-watch
+    direction: DOWN
+- tapOn:
+    id: home-open-watch
+- assertVisible: Open a video
+- extendedWaitUntil:
+    visible:
+      text: Open local video
+      enabled: true
+    timeout: 30000
+- assertVisible: Home
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-watch-import-entry
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      id: home-open-conversation
+    direction: DOWN
+- tapOn:
+    id: home-open-conversation
+- assertVisible: Chats
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      id: home-open-review
+    direction: DOWN
+- tapOn:
+    id: home-open-review
+- assertVisible: Start Review
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-review-entry
+- tapOn: Home
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: source-language-select
+      enabled: true
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: home-open-conversation
+    direction: DOWN
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-narrow-activities
+- tapOn: Messenger
+- assertVisible: Chats
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-messenger-entry
+- tapOn: Home
+- scrollUntilVisible:
+    element:
+      text: "Resume .*"
+      index: 0
+    direction: DOWN
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-recent-source
+- tapOn:
+    text: "Resume .*"
+    index: 0
+- extendedWaitUntil:
+    visible: Save position
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: home-native-recent-source-opened
+- tapOn: Home

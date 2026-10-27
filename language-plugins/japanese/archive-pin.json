@@ -1,0 +1,1848 @@
+{
+  "repository": "Jitendex/edrdg-dictionary-archive",
+  "revision": "3f8bf6ff506520b04ff9b74f2bc7a4a101d660dd",
+  "base": {
+    "path": "JMdict_e/JMdict_e.br",
+    "size": 6603842,
+    "sha": "1eaeaa6de3d923db8dcecf001421b0fc4894b656"
+  },
+  "patches": [
+    {
+      "path": "JMdict_e/patches/2025/10/10.patch.br",
+      "size": 1466,
+      "sha": "2aa753b3a7e1614794b1809efe44fe15e845344a"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/11.patch.br",
+      "size": 2082,
+      "sha": "6499aa271bbd19b80dff5495638edb873a65820a"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/12.patch.br",
+      "size": 2202,
+      "sha": "25ba51d1fbba8a38846a20f9d1bddd64a1069294"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/13.patch.br",
+      "size": 1198,
+      "sha": "5735058c33e89c55b1752c5ce2d7a3da7eed2128"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/14.patch.br",
+      "size": 970,
+      "sha": "22e063baf6252b76865fb75643796fc0b8a18484"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/15.patch.br",
+      "size": 916,
+      "sha": "2b43f75ce97fa06ba3e3e52e94cec4a019ff2622"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/16.patch.br",
+      "size": 2803,
+      "sha": "00892e2ec73b96b964890098a9a0ccb0e460f9a9"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/17.patch.br",
+      "size": 501,
+      "sha": "cdb7dba4d4a204930ce112342fb9e936b6f2bd2c"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/18.patch.br",
+      "size": 2248,
+      "sha": "265b8eaf1a3a3ab2715d7e198cf098fcc5f34ebe"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/19.patch.br",
+      "size": 1151,
+      "sha": "86ab83d91a3bc054ca1bd00af43b1cc53b3705e6"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/21.patch.br",
+      "size": 4898,
+      "sha": "2999fe6004e6873cde144e6d0cf941fceccc4a20"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/22.patch.br",
+      "size": 1552,
+      "sha": "210a5c349560460f5a7cb09907576941a4d8625a"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/23.patch.br",
+      "size": 1488,
+      "sha": "9aa15b310d50c936ae764fa4184bfcc031d3d292"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/24.patch.br",
+      "size": 566,
+      "sha": "59ef44fb303de57bdac0c35fa7a06f42ac4c3ec3"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/25.patch.br",
+      "size": 1028,
+      "sha": "8d0cb4645f649823fa22472e300bb581882c62b3"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/26.patch.br",
+      "size": 2424,
+      "sha": "702f07a75a2add987ff3a3eac38648e46764e097"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/27.patch.br",
+      "size": 1797,
+      "sha": "8b81a29eaa0f628ba876fa80762f2dd45f54005a"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/29.patch.br",
+      "size": 3409,
+      "sha": "50036068c8e5a62edb1f69c712cf5d08ffb7059b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/30.patch.br",
+      "size": 2313,
+      "sha": "52b3d5a854f122907eec127d8eeac7de43dfa81f"
+    },
+    {
+      "path": "JMdict_e/patches/2025/10/31.patch.br",
+      "size": 1442,
+      "sha": "2c4f285a63097100c3b9ed882e1f526173fe7faa"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/01.patch.br",
+      "size": 3287,
+      "sha": "ef85f024660e70e3e534609d29552fd004c0fa03"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/02.patch.br",
+      "size": 2882,
+      "sha": "8a2f670cf18ba9c04f9cb32448fa626c906c03ae"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/03.patch.br",
+      "size": 2540,
+      "sha": "fd3d54e5a4d6298aea27483d5f9bd1a01e3aaf21"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/04.patch.br",
+      "size": 3924,
+      "sha": "5b4721a2cbd42265a261888daf340f6b029b4ca4"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/05.patch.br",
+      "size": 1355,
+      "sha": "94b513cb2ee8550f7bd2c47573fc5c5a5af240e5"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/06.patch.br",
+      "size": 2345,
+      "sha": "3d8958a702666791bdff62c58093dd97b94bc921"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/07.patch.br",
+      "size": 1886,
+      "sha": "6834f9bd3f195c3eba129822debd3043e8cbdcf0"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/08.patch.br",
+      "size": 3114,
+      "sha": "a0908ffb6978a17b06b0c024fbaa73fa261a9121"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/09.patch.br",
+      "size": 1795,
+      "sha": "a67234fbf8fe1d39f073c65c98243c621ce2b84b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/10.patch.br",
+      "size": 4888,
+      "sha": "8c589b5b8b2f99e7847a9b87d993096fe77c1ad6"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/11.patch.br",
+      "size": 2912,
+      "sha": "75b4576cd76ae02d4197f73952303491db885b9f"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/12.patch.br",
+      "size": 2142,
+      "sha": "eaf53512a674b177c17cc2733b0f0af3420d4f58"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/13.patch.br",
+      "size": 3026,
+      "sha": "9b9bd0124fb597b062ad0301d022b6a399076635"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/14.patch.br",
+      "size": 1585,
+      "sha": "3be98373642cd830d3d05d835a33d5a587773687"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/16.patch.br",
+      "size": 4803,
+      "sha": "524bbc58de422fb04e925dd440fe0b7335c2d61b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/17.patch.br",
+      "size": 3431,
+      "sha": "056a7b9a5d561d6a5a563eba4dd45e879e22319b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/18.patch.br",
+      "size": 3839,
+      "sha": "75b4fc9f8b4398083b85057f3de32c71221b42cd"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/19.patch.br",
+      "size": 1389,
+      "sha": "b6f85390152f8db42a889f3543fa5e4577d92d7e"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/20.patch.br",
+      "size": 2629,
+      "sha": "c22bb14868b162fc4a4b61e975ec201ce4cc5a31"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/21.patch.br",
+      "size": 2639,
+      "sha": "1a4eef7ba072f0515ba24c8842c56e20f249aca1"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/22.patch.br",
+      "size": 1686,
+      "sha": "fe7def86b567ab1d794904397f65f161efd70fa1"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/23.patch.br",
+      "size": 3871,
+      "sha": "9115cb98201feb3472fccbf87e6f58371e4a843d"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/24.patch.br",
+      "size": 6067,
+      "sha": "a082012859ca2967a87fa55b3f222f95659f9257"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/25.patch.br",
+      "size": 2242,
+      "sha": "b07b25a373629554e6ba6835680a13a5e6d45f48"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/26.patch.br",
+      "size": 2310,
+      "sha": "e5b0cf09a5c458fbfe3d7614a20bd0c9a76e445d"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/27.patch.br",
+      "size": 1703,
+      "sha": "a1b5939de5b22b9e56469e3ddc1b998be73cb09d"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/28.patch.br",
+      "size": 1969,
+      "sha": "7144e49eb207f81cd0d3a7fd976fa825c85f0d0c"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/29.patch.br",
+      "size": 2418,
+      "sha": "ff5b801ee197211cbb5db59ca0938ea041d278c4"
+    },
+    {
+      "path": "JMdict_e/patches/2025/11/30.patch.br",
+      "size": 2541,
+      "sha": "2b2b9c722906a66701fbe1fdc7e4a72da204e7b2"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/01.patch.br",
+      "size": 1044,
+      "sha": "31aa1aa78314710363d8225629b6261cf12ff307"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/02.patch.br",
+      "size": 2681,
+      "sha": "c02600032c21bc2968e67e0d7e5c71917d439ebd"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/03.patch.br",
+      "size": 2436,
+      "sha": "397c7ff99d395a6f57c36cd0dd3ed4acb60960c3"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/04.patch.br",
+      "size": 2982,
+      "sha": "18d282390a0dc3b63354a5f4d08d18ba41945e4f"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/05.patch.br",
+      "size": 2818,
+      "sha": "503a30d907c1e91232a9608914d479e44cdbeac1"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/06.patch.br",
+      "size": 2208,
+      "sha": "e2a21c41da6e485fc345df1501c0d08bca09ea1b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/07.patch.br",
+      "size": 2914,
+      "sha": "4c0a633bb10f5459d8eda773b137766be80ff992"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/08.patch.br",
+      "size": 3651,
+      "sha": "af0d64621cb12fe48c6fe1c6c6985cad268b6ce5"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/09.patch.br",
+      "size": 3152,
+      "sha": "6a80401334c517e66b3df6f914c33f0a5eb09f72"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/10.patch.br",
+      "size": 2109,
+      "sha": "85ea814fa0a4cdc744316ed5c067b30180a44cf0"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/11.patch.br",
+      "size": 2715,
+      "sha": "5cd2b68640538c19c276a745d3790f8e109a57c2"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/12.patch.br",
+      "size": 1833,
+      "sha": "26839a419a157f39adbce7d5f431d189f5daf388"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/13.patch.br",
+      "size": 2304,
+      "sha": "d58c76019b1b6857e00a38f45980d7fc4c2e1956"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/14.patch.br",
+      "size": 1943,
+      "sha": "43d04ec33d2d8160863fa247af0a8f1e18c7bce7"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/15.patch.br",
+      "size": 3041,
+      "sha": "4050c9683157f0b2da2c3539262af70d1ef756fe"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/16.patch.br",
+      "size": 2314,
+      "sha": "732dd5ac6461dcbd17866d0c93a10df51a9d0228"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/17.patch.br",
+      "size": 2597,
+      "sha": "afb939f215419c1bc154123b47b4e1f33e5a3550"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/18.patch.br",
+      "size": 2896,
+      "sha": "1ba7ef56dbab62a12aae9bd18a1a4c1713fc7f78"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/19.patch.br",
+      "size": 2081,
+      "sha": "1491fd70dfbfb0d97b4fb6f70a181f940dabb05a"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/20.patch.br",
+      "size": 2123,
+      "sha": "b7d327fab4c5ccb4b37174c54255739c57ffd1f1"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/21.patch.br",
+      "size": 3263,
+      "sha": "09519b3a97b12631f186b0747a47b3b36199a80d"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/22.patch.br",
+      "size": 2064,
+      "sha": "a4e7218e1649b863f0d4fec5a624947b22872c68"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/23.patch.br",
+      "size": 3406,
+      "sha": "6ee1706358ae647ebb5662271f78aee3d23cea3f"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/24.patch.br",
+      "size": 2280,
+      "sha": "8f05d822b0ef19eb433799c8d8aa52d2672af3dd"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/25.patch.br",
+      "size": 3298,
+      "sha": "b329848fd27bbf62a785ed63125515e21e5ff006"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/26.patch.br",
+      "size": 2555,
+      "sha": "a427e7cac75284748e3dd837ee1aeb2525c69269"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/27.patch.br",
+      "size": 2528,
+      "sha": "ad1ef1e0c6f95612a50ecb083101c3f029ce813b"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/28.patch.br",
+      "size": 2103,
+      "sha": "4e4bdc4b65e57d183eb28b4340a4ae38b8ab90e4"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/29.patch.br",
+      "size": 3745,
+      "sha": "dca9c5cc92a6e06138d003838fc845715f5d44ad"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/30.patch.br",
+      "size": 3437,
+      "sha": "37b0ed384457921a7723e7eecac8fd5117ae7b3c"
+    },
+    {
+      "path": "JMdict_e/patches/2025/12/31.patch.br",
+      "size": 2705,
+      "sha": "55c3de9dbae074f23df90fa9e35a8f535f269d33"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/01.patch.br",
+      "size": 2058,
+      "sha": "30567dfa46bfb2b124b2cdabe04d7e344f4b3919"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/02.patch.br",
+      "size": 3086,
+      "sha": "07045338b30434b2c697fc1c58af2cda159aa257"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/03.patch.br",
+      "size": 1602,
+      "sha": "349c0c64469c3e0f9bfdc0c6d21989f2c8e54388"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/04.patch.br",
+      "size": 2482,
+      "sha": "c3dd31df691e265defd9c73e01451da3e8ae8770"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/05.patch.br",
+      "size": 4933,
+      "sha": "166e88b5f47202eea83e6570afeb18b1be8c2484"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/06.patch.br",
+      "size": 4708,
+      "sha": "1e26fa14b6909d477bca4897c68e010f3d954a21"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/07.patch.br",
+      "size": 3916,
+      "sha": "1fe2d240ad00eab0d1e83e1abbe6a56d7d6810d2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/08.patch.br",
+      "size": 2292,
+      "sha": "e4de4e2753e7f99765106ce14c9a75f6686d7503"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/09.patch.br",
+      "size": 1231,
+      "sha": "9a2dc1980548a83fafb0f7fff6adc1695a7fc283"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/10.patch.br",
+      "size": 1752,
+      "sha": "e6f3122bbfd2f6b5f368903c89e43341babffbb1"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/11.patch.br",
+      "size": 3125,
+      "sha": "553ef950b3f99b7c89d18668c11ae9df7bacb6bc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/12.patch.br",
+      "size": 3540,
+      "sha": "1773273c75a23890c9f9baa0aaf2661bde4e6b50"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/13.patch.br",
+      "size": 4419,
+      "sha": "d801fc1ad0fcbf6c0e2c98353a597321f75bcd04"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/14.patch.br",
+      "size": 3379,
+      "sha": "5b0e77b63393d83f04c866a8100e748e18ebbdbe"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/15.patch.br",
+      "size": 2304,
+      "sha": "872d452a953a533388034e13ddf055d75ae47602"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/16.patch.br",
+      "size": 2980,
+      "sha": "c04ff9fdb06200d1152646678377a62f4e0ff792"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/17.patch.br",
+      "size": 2122,
+      "sha": "11219a6e6acd34cd379ec2675610f08a6898be86"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/18.patch.br",
+      "size": 4588,
+      "sha": "c512617072094b578df2b6cec1a6a0a83fcc5b87"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/19.patch.br",
+      "size": 1927,
+      "sha": "98e0c1da0dafa26c2077c78b640c990ed1437845"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/20.patch.br",
+      "size": 3404,
+      "sha": "8337d6235622be3643c3a6d6f8292ff3d30c8a51"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/21.patch.br",
+      "size": 3604,
+      "sha": "384e3a18546ae83b8942b241c8bfed30a44a0df9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/22.patch.br",
+      "size": 839,
+      "sha": "6c592f677fa986f59b735fcd90c8e5b0926c5aa9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/23.patch.br",
+      "size": 2026,
+      "sha": "401b756bc4581bdde45a6202a3a7e08d90f59ceb"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/24.patch.br",
+      "size": 3070,
+      "sha": "fb7852251bbdd2519ab2644d25a299282638840d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/25.patch.br",
+      "size": 3589,
+      "sha": "5dc5974c357d1417799d309494dc76514aeaf9ac"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/26.patch.br",
+      "size": 1312,
+      "sha": "2df08368d44b2b0e355fe8308b8787c79edc6042"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/27.patch.br",
+      "size": 2706,
+      "sha": "96ebaaa49d1d6abc596f2d28759faec51a389eec"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/28.patch.br",
+      "size": 3189,
+      "sha": "a52f97f3f0510bd94facde13054a258a5c34a9c8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/29.patch.br",
+      "size": 3980,
+      "sha": "d9537f9118946c6a3bd29aab391718362aa2ddce"
+    },
+    {
+      "path": "JMdict_e/patches/2026/01/30.patch.br",
+      "size": 2648,
+      "sha": "f98472c3a51f44f59d0579d05e2688bf4ffb87b7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/01.patch.br",
+      "size": 4363,
+      "sha": "229a04f9bc8f17caef91cb2e06b7e73fb5017fc7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/02.patch.br",
+      "size": 2489,
+      "sha": "ad60aa377391d4d1d5ca44b70e7154068e757893"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/03.patch.br",
+      "size": 3385,
+      "sha": "5ff53310051a40944325cb5460d58df749d8b5c6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/04.patch.br",
+      "size": 7952,
+      "sha": "afd4b2d45e1234abebb3df07cc4d0e73f2991f4f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/05.patch.br",
+      "size": 3998,
+      "sha": "2e6720615d3d499a955207845cbd96c6d2171d7b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/06.patch.br",
+      "size": 2612,
+      "sha": "af0b82edba0c766c324064e3d09c0ff095aec718"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/07.patch.br",
+      "size": 3443,
+      "sha": "dcaf59aed6528b09673e138bedacca044f8f1de0"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/08.patch.br",
+      "size": 2691,
+      "sha": "b70ac0da70917a17f91c1c89c2cea1ad193d1747"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/09.patch.br",
+      "size": 2489,
+      "sha": "8db09c10f9ca56d631ccb0a7271e74e90bf7e2fd"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/10.patch.br",
+      "size": 3700,
+      "sha": "81ae5ea2d07184962c23eafc872adaf22c621863"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/11.patch.br",
+      "size": 3232,
+      "sha": "ca780ead11ff01493f1b4efb8402641172f1aaba"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/12.patch.br",
+      "size": 3547,
+      "sha": "bbb50b3cef11e39fad2664215889f51c31af7074"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/13.patch.br",
+      "size": 3224,
+      "sha": "fcac4b680737523c5facae176f1f258f29c7397b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/14.patch.br",
+      "size": 1410,
+      "sha": "a366854fd0b933858203d251ebb7afa14b1c8747"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/15.patch.br",
+      "size": 3199,
+      "sha": "db4a90bcba676d24e70e81ae912c1bed4682ff5e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/16.patch.br",
+      "size": 4309,
+      "sha": "76b0ddf73bb412e67f0817360b1321e5b8906671"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/17.patch.br",
+      "size": 3767,
+      "sha": "7964ad926526f107ce40974e0675cc6e7917c0e7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/18.patch.br",
+      "size": 4231,
+      "sha": "78c871a894ded33176bbd2270870c57eb4072fa6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/19.patch.br",
+      "size": 4723,
+      "sha": "4e3baf2a64b1400e71c49a1bdcedaf3f12b6f425"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/20.patch.br",
+      "size": 2836,
+      "sha": "b1e1161c24d46223a3d87e80800ac0dc381d670a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/21.patch.br",
+      "size": 2811,
+      "sha": "fb7434a3f56a0a3aadf003f34ca30722728ecaa7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/22.patch.br",
+      "size": 2342,
+      "sha": "9ecd634d620ade01db9afe5db2d1f271509213e3"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/23.patch.br",
+      "size": 4144,
+      "sha": "8e5fca9f3c5c0f772e7aecef290796fc798d2198"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/24.patch.br",
+      "size": 3370,
+      "sha": "e49a2e2363c41ef6efb75173f139b224bda9b584"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/25.patch.br",
+      "size": 3631,
+      "sha": "f47906a248131bae68afb779a18d140928c4eb34"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/26.patch.br",
+      "size": 3002,
+      "sha": "06fad32eeb302cc8cfd171adcfe80d8c09d6f45b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/27.patch.br",
+      "size": 1371,
+      "sha": "f69ba8a489f3f2ffb70dd7aa9560f32b6f55a07d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/02/28.patch.br",
+      "size": 4646,
+      "sha": "42805ed9b52d1310dd696562968b7e96a305a25f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/01.patch.br",
+      "size": 1887,
+      "sha": "3083dd5bb44a346536772f2b8a9f7c5c1e48e6db"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/02.patch.br",
+      "size": 5272,
+      "sha": "7f642d3b68b12b827af4e701039caac6427e9c13"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/03.patch.br",
+      "size": 3962,
+      "sha": "2ad9032a0d5c17b6135da4da0a56a9719d7a7082"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/04.patch.br",
+      "size": 14978,
+      "sha": "e14e3ce2c42c11bf99affdf07cb0ad0d4d869b40"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/05.patch.br",
+      "size": 4660,
+      "sha": "def5a325b94928f81a288cc2a752fd9dcb4cee9a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/06.patch.br",
+      "size": 4629,
+      "sha": "67f0075573974bb28a0129f32cfd4489db0b7748"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/07.patch.br",
+      "size": 2372,
+      "sha": "ebeeaf20bfd3da538ef2e2b85b02aa4395c61664"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/08.patch.br",
+      "size": 6360,
+      "sha": "1d611bbf956e822760e723c6009b03d2e4e258cb"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/09.patch.br",
+      "size": 1357,
+      "sha": "c5626546dce1c3bf4e55bc06b943fcc786e86ecc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/10.patch.br",
+      "size": 1973,
+      "sha": "c812e44cbb0dbba00d87f78455f7927753149cf2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/11.patch.br",
+      "size": 4711,
+      "sha": "67e8497a6a90b961de585db1c010536b7b781f44"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/12.patch.br",
+      "size": 4865,
+      "sha": "fff3fde04d74c985070ef77bede1f609409be6d2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/13.patch.br",
+      "size": 6163,
+      "sha": "a18e99b6fcd053a59213be7c152ce030ea2900ce"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/14.patch.br",
+      "size": 2958,
+      "sha": "e2485104844685b09501f20687df36b465dfba24"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/15.patch.br",
+      "size": 4122,
+      "sha": "4eff79a3cb797960eb1a9ef560b36f54c5ec792c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/16.patch.br",
+      "size": 2388,
+      "sha": "1674a0abeae9eb84f2275631d48ab695b00d4df5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/17.patch.br",
+      "size": 2512,
+      "sha": "67deb5f11f291325ad0c33bfaa50a6c8883eb31b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/18.patch.br",
+      "size": 4667,
+      "sha": "05bd8d91bd7b7aeaf2cb178dec559cf329ffa8fe"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/19.patch.br",
+      "size": 1210,
+      "sha": "3994d5b1187a2f68db0d344eba935040db9e683a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/20.patch.br",
+      "size": 2602,
+      "sha": "aef38e57983a5e11ac7f8b02132e733aba8bb90c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/21.patch.br",
+      "size": 1079,
+      "sha": "4d713d9196777c444e54e039e4018f7ecdeb1af1"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/22.patch.br",
+      "size": 3354,
+      "sha": "08c19f06f37e11244b9905456d1f766e7b73178b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/23.patch.br",
+      "size": 2671,
+      "sha": "dda152ec681cc9ac4b49b8d405c796d52c2062c4"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/24.patch.br",
+      "size": 508,
+      "sha": "48015e44087ee545e6513c81796ddf7f404a093c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/25.patch.br",
+      "size": 1433,
+      "sha": "37856d85d50ac2a97c804df30194c35f159f3cf9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/26.patch.br",
+      "size": 2278,
+      "sha": "164053fdf39ad822bcd729365a00216fea9fe3bc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/27.patch.br",
+      "size": 3321,
+      "sha": "cc7a411c7f02c080f40cde014bf85086fa63f7e4"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/28.patch.br",
+      "size": 2371,
+      "sha": "e9c15a514decf1a92ec501f17a94d6bf42fff32c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/29.patch.br",
+      "size": 3034,
+      "sha": "904b6f9d9caae2c80c79f7fc6d866610629b4168"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/30.patch.br",
+      "size": 4626,
+      "sha": "113659ac6a8d9914be84068e0a32a301d05df375"
+    },
+    {
+      "path": "JMdict_e/patches/2026/03/31.patch.br",
+      "size": 3769,
+      "sha": "38cc5ab860714b870c8074e4f504e625a8acf7c6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/01.patch.br",
+      "size": 3651,
+      "sha": "e712d85f427b6a334acae17d7796d22ce6b284a2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/02.patch.br",
+      "size": 3055,
+      "sha": "257308a11388784e4918cec9c41cefbbaffd05ea"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/03.patch.br",
+      "size": 5021,
+      "sha": "e63cde6cad010d2e956a7d9b3aa6e77b3f7ba908"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/04.patch.br",
+      "size": 3998,
+      "sha": "63c1107c1f77e6ae1b26f8d61d1a6b680a67e829"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/05.patch.br",
+      "size": 4276,
+      "sha": "f4372df6cf87f497c1baddf1b3ef814f8c738426"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/06.patch.br",
+      "size": 4276,
+      "sha": "d2dc4858a59d6cc0211c2211ecad67080a701aa8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/07.patch.br",
+      "size": 4658,
+      "sha": "a1304c2f2569ffe5a24b160343770348ca076e27"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/08.patch.br",
+      "size": 3475,
+      "sha": "e2dfb6913c78aae025a0b6640ca83f0f766c476a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/09.patch.br",
+      "size": 3109,
+      "sha": "f68f97e337fd90d0a05f56eb03cb479dd9f35e93"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/10.patch.br",
+      "size": 5374,
+      "sha": "47799bc35748b513f579a7fc80d48d21ce6c59e6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/11.patch.br",
+      "size": 2777,
+      "sha": "5bee45423b986873318ea3d8a3678324b413de4a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/12.patch.br",
+      "size": 4315,
+      "sha": "0d75b8e1c83d38c7aee0d91ed023a40d0b6afea2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/13.patch.br",
+      "size": 3216,
+      "sha": "54c33b7bff5e8baf2605e20552c7b920947c2b33"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/14.patch.br",
+      "size": 3773,
+      "sha": "f431cae8a54a6586845f888807a843b6bfbad571"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/15.patch.br",
+      "size": 3999,
+      "sha": "570ca1758d9aa347e58d2d96f760b0ba4551d6bf"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/16.patch.br",
+      "size": 3271,
+      "sha": "ddfd5cc1ec995269df3d0d13f424a67e6197e15f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/17.patch.br",
+      "size": 3277,
+      "sha": "96fb16784c3e5f73cc5a83b3720002a03656f516"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/18.patch.br",
+      "size": 2571,
+      "sha": "9fc9ecb0cb50cda8ecab6937d3fe6c6b13c757c4"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/19.patch.br",
+      "size": 2861,
+      "sha": "6695563407684265821e3f7f28385fa40a365a71"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/21.patch.br",
+      "size": 6670,
+      "sha": "d6a7588a7ba1f097db5fd1d448736abd79e28b24"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/22.patch.br",
+      "size": 2454,
+      "sha": "67a9fb6278276d5564cf5759d0ef0d175a8e97fd"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/23.patch.br",
+      "size": 4444,
+      "sha": "802b5bb7a572ec48edbbc64b61bce90c4936262e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/24.patch.br",
+      "size": 2950,
+      "sha": "ddbb747dc455b92270e051a84b1085af80230a9a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/25.patch.br",
+      "size": 3362,
+      "sha": "3329fc1a59f0dcbb7c3f67fdef8c4cb7bd58ae50"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/26.patch.br",
+      "size": 4027,
+      "sha": "75391242a22ed00be6096b27e161a4d3283615db"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/27.patch.br",
+      "size": 2803,
+      "sha": "5204b12a71248e371a744d348f187ccd02615186"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/28.patch.br",
+      "size": 1906,
+      "sha": "297a4183452d0dbcd56b9e52e8e72cf7e08ef460"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/29.patch.br",
+      "size": 3407,
+      "sha": "98e558e3f2804a4889a95fcc16600ac25c74d3f1"
+    },
+    {
+      "path": "JMdict_e/patches/2026/04/30.patch.br",
+      "size": 2922,
+      "sha": "024f0559ff75e7e1c4337c06185642d5ba7e8add"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/01.patch.br",
+      "size": 3430,
+      "sha": "c7d5cccf204046d49a451ce333177df4dc4e4b02"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/02.patch.br",
+      "size": 3282,
+      "sha": "0e410dc31063cb1d949579343be12c8a683c53e1"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/03.patch.br",
+      "size": 4938,
+      "sha": "0356e699eed783b469504cc10c3d49185b7afda6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/04.patch.br",
+      "size": 2912,
+      "sha": "30d7555943b989a812cb3cf2c6cbe299baa74000"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/05.patch.br",
+      "size": 2585,
+      "sha": "43c43a58647c611054e4551d150a9c7d269b9e84"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/06.patch.br",
+      "size": 5037,
+      "sha": "79358b21306238c8d03a0501f909c6f164b8d40d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/07.patch.br",
+      "size": 2870,
+      "sha": "5357be86ec793bff1fbea7bb7b1ffa9a5df5ec6c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/08.patch.br",
+      "size": 3206,
+      "sha": "eb9ed08945d5fd6e198135b61f1f413ced792532"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/09.patch.br",
+      "size": 4078,
+      "sha": "2bf60887c0fd2c9ef911262dee885e389515ba7e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/10.patch.br",
+      "size": 4108,
+      "sha": "89a4934dd0c08ab884c2ef1b5211231f07158dee"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/11.patch.br",
+      "size": 4285,
+      "sha": "a6315c72c272fc27e69de5974a123dbb76c3532b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/12.patch.br",
+      "size": 2668,
+      "sha": "9f8e5ae1335b5e7b92ef573ac241cc8d35d0bacc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/13.patch.br",
+      "size": 3450,
+      "sha": "83a5c6d02f201d2990e2225134bc96acb070b879"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/14.patch.br",
+      "size": 5321,
+      "sha": "0dd8514cf35157c1bb059c92d1df17a87046e5bc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/15.patch.br",
+      "size": 2556,
+      "sha": "8dfb4fa75c0466d0b1ddafb36a7ee2695cf95b3d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/16.patch.br",
+      "size": 3550,
+      "sha": "b4c41c218a6879cbd0fe1ed4f599cce6b4f1c744"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/17.patch.br",
+      "size": 2340,
+      "sha": "266f5edf9ce27ed48cb2f7874f0365c89d4a3ef0"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/18.patch.br",
+      "size": 2998,
+      "sha": "168e2bb7fea3e69c165d30ca5fbb4409a67d9fb6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/19.patch.br",
+      "size": 3966,
+      "sha": "a7bbf98f9c7c30b6e040b0324223b9734c1ffde5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/20.patch.br",
+      "size": 3771,
+      "sha": "7bae19115a2ab71ee9ef7f6412e2affaf03ed23b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/21.patch.br",
+      "size": 3740,
+      "sha": "377932643adb368ac5e112da5eaae445c3fa525a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/22.patch.br",
+      "size": 1752,
+      "sha": "9537807ee3eb8ef8fcd950f2b8a3f8a4366af0d1"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/23.patch.br",
+      "size": 2444,
+      "sha": "292c5601e7475936e6bf0b3963c8759437f58260"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/24.patch.br",
+      "size": 2675,
+      "sha": "17a2153b4f563b395d5fd39524500730c272f2dc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/25.patch.br",
+      "size": 2248,
+      "sha": "8cbfdacb090224efe9ee1a98ea3d1b7631099e56"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/26.patch.br",
+      "size": 1403,
+      "sha": "a7509da9bbdb0bbbe9a0816a83eb8a7d1fd91c0c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/27.patch.br",
+      "size": 1876,
+      "sha": "a3559eef0d9fa599e6961717cb6a33a4e090e327"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/28.patch.br",
+      "size": 3096,
+      "sha": "999282e7587869dbc3147629acac1f2702277ee7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/29.patch.br",
+      "size": 1643,
+      "sha": "f400692ff4327055675e5ead183078e6217d10cf"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/30.patch.br",
+      "size": 1615,
+      "sha": "752dcd0726795c4b7ca09cc6164f20663a2bccd8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/05/31.patch.br",
+      "size": 1652,
+      "sha": "5f8a5edd36965e12fdcbaa5521553e5780c3834d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/01.patch.br",
+      "size": 3376,
+      "sha": "ba9f4c47f40c79b5d1810eeaa85e73f0141d96ce"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/02.patch.br",
+      "size": 3969,
+      "sha": "454c697e8c6377a23cc3fe68f22ae006b1a3dc28"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/03.patch.br",
+      "size": 1874,
+      "sha": "1858e0028b7687595049eac3281ee91d01a8949c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/04.patch.br",
+      "size": 2116,
+      "sha": "effe60371edac52ae0fdd7941280edd317a7257e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/05.patch.br",
+      "size": 2026,
+      "sha": "758ad52fd0cfaea19259f289cc2e624a01d2782e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/06.patch.br",
+      "size": 3189,
+      "sha": "285f756646766020f6bfd5e17b20889aaed1ec0d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/07.patch.br",
+      "size": 3054,
+      "sha": "0a5db976cb290d835eea868ab958b68da543af4e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/08.patch.br",
+      "size": 3432,
+      "sha": "593a2b87c659c2c90a2ccab8df0141c081a3a23b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/09.patch.br",
+      "size": 3575,
+      "sha": "ff67aa9a6db1e6cf02a4836cb4472369c1d9bee3"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/10.patch.br",
+      "size": 3517,
+      "sha": "f84720844793d6040697c6e440d395ba31f3be51"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/11.patch.br",
+      "size": 2527,
+      "sha": "65d08f756e182c691c7fb510319297695d58493e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/12.patch.br",
+      "size": 1803,
+      "sha": "3623520d4c63ee6bda3e7434f3695acaa88f2166"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/13.patch.br",
+      "size": 2779,
+      "sha": "c6f70a496fee6c196b4779f4152fbaa2f593d3de"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/14.patch.br",
+      "size": 1937,
+      "sha": "53b537e0c6019313d79e81d5de669dde5fb67fc8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/15.patch.br",
+      "size": 3594,
+      "sha": "c6a12d4253e8e4e5f614749821885a1acd53c798"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/16.patch.br",
+      "size": 2496,
+      "sha": "1fd03cc0375b1de2ad8324df6fb5ca30efc08c7b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/17.patch.br",
+      "size": 1612,
+      "sha": "0ebd44f863f436ed3f2eeabca47594cb896c602b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/18.patch.br",
+      "size": 2349,
+      "sha": "3cf5ba0ae16aa67af67224cb4810a2327d59d126"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/19.patch.br",
+      "size": 3126,
+      "sha": "1608c65bfa3f463cdf3f5249e7f95b648d80334d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/20.patch.br",
+      "size": 1801,
+      "sha": "a32a273ff5c7e090151d2087d9706d25892efbf8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/21.patch.br",
+      "size": 1643,
+      "sha": "eb21360ceaf3df05ff615a920f0ca3c93fbd45cc"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/22.patch.br",
+      "size": 1504,
+      "sha": "710fbc4bc6a60625df1887ee1e73f1b397756eef"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/23.patch.br",
+      "size": 1693,
+      "sha": "8f5c161489efc804a9f83329bdf26de0b2d8286b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/24.patch.br",
+      "size": 1697,
+      "sha": "2451ed529d4b011195babfca6cb702d11f72be0a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/25.patch.br",
+      "size": 1179,
+      "sha": "19860ae3f1d7e7264f62d151fa4ce154d5ed3dfe"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/26.patch.br",
+      "size": 1836,
+      "sha": "89058b8c835b7c956d7169c5b597ec32e31aa99c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/27.patch.br",
+      "size": 1120,
+      "sha": "9c228e75d1b64c0e070547d71cffd57699011aab"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/28.patch.br",
+      "size": 2998,
+      "sha": "1764d840f4ad63ccb92de2739dc382f37a0359aa"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/29.patch.br",
+      "size": 576,
+      "sha": "1f25472ef2ba6151001a9da0bab6519385be1b44"
+    },
+    {
+      "path": "JMdict_e/patches/2026/06/30.patch.br",
+      "size": 2152,
+      "sha": "dda5487da55f13d137e88fe54f626bbcf9b4f5dd"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/02.patch.br",
+      "size": 3928,
+      "sha": "32bb3b46b18cf0d9bdc60d36bf6b8d18fbb72c5c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/03.patch.br",
+      "size": 1896,
+      "sha": "9d868a427c68ce58e8e3e474485a00e33dfece6d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/04.patch.br",
+      "size": 604,
+      "sha": "a05285db854a934fd505e4997d10fac082fc75d3"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/05.patch.br",
+      "size": 2463,
+      "sha": "6e0c779326372dd301358fd891fe8f02d33c214b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/06.patch.br",
+      "size": 3618,
+      "sha": "37ec08de15dbd098d17025d0528533a2281b448d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/07.patch.br",
+      "size": 2858,
+      "sha": "0bd4991c6cd3fe24c6d631e3e4423677e8b27dec"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/08.patch.br",
+      "size": 3813,
+      "sha": "c4d6436bd685ba0908303f766b8f02ca02707d56"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/09.patch.br",
+      "size": 2744,
+      "sha": "0a1757cd54e36bfa234cd2a728e07726a5531c36"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/10.patch.br",
+      "size": 3192,
+      "sha": "d32f0f9d68b84d28348e7dd331e12c57f1322992"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/11.patch.br",
+      "size": 2259,
+      "sha": "bbcdf8727198d6ad18e4716c1dcdf18514f9cc33"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/12.patch.br",
+      "size": 2362,
+      "sha": "b3b6c907ed8f4a662f8009cf7fb415b6f4efed97"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/13.patch.br",
+      "size": 4039,
+      "sha": "edc92ec8e2bffc5834c44e44b15b59803a3fce2e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/14.patch.br",
+      "size": 4278,
+      "sha": "f2adc0b97d2322484f3d99ad0020ff97cc19aebe"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/15.patch.br",
+      "size": 2649,
+      "sha": "2562e438cbcbfe687fdd6a1691f8b36f49e87251"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/16.patch.br",
+      "size": 2327,
+      "sha": "5c768b548bc1b53dc76645378ce7142a996969be"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/17.patch.br",
+      "size": 3821,
+      "sha": "1abd05e8376845c630fa172d97bbd1a0d84594c3"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/18.patch.br",
+      "size": 1855,
+      "sha": "147ed18465bf564bc82e38f5e593bff68459959a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/19.patch.br",
+      "size": 1437,
+      "sha": "7395ce7f67bf450a828ae7c560e6b552a7da0e25"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/20.patch.br",
+      "size": 3330,
+      "sha": "44c3bcd6763614aacae6398b0d98e5f0732e810f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/21.patch.br",
+      "size": 4711,
+      "sha": "0ccd0fa05e51f4cec120970866101819c2e543ad"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/22.patch.br",
+      "size": 3878,
+      "sha": "82cf75d038272dd35508ca3ff148253685eb03ac"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/23.patch.br",
+      "size": 3958,
+      "sha": "5cc6a84961e6b60c607e287b937cd76f8fc51080"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/24.patch.br",
+      "size": 4379,
+      "sha": "b664cebdd81690a92c8deee8e0454759cf8cd47f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/25.patch.br",
+      "size": 2891,
+      "sha": "9c09d320807dafff30891d7e846894fedc643af5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/26.patch.br",
+      "size": 3149,
+      "sha": "ce5fb3c38165aec4f012a9ceb5cdcbed034258b0"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/27.patch.br",
+      "size": 3513,
+      "sha": "2be0adfd36dfc7abfbfec528619577c20b891a99"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/28.patch.br",
+      "size": 2998,
+      "sha": "d84e1751970d873a751d6b3d64073ab3eee06d01"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/29.patch.br",
+      "size": 4302,
+      "sha": "9feea975caf43c6a718f4ad188aac63d62ec16db"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/30.patch.br",
+      "size": 2852,
+      "sha": "1f59a52ce82276226e606e9fdd655f097256d736"
+    },
+    {
+      "path": "JMdict_e/patches/2026/07/31.patch.br",
+      "size": 1188,
+      "sha": "76ed65fbe234b388fa4a3a24a24611bee7e69604"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/01.patch.br",
+      "size": 2494,
+      "sha": "699fcc2efda0b71c1ed0e1f449d1236947c567d0"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/02.patch.br",
+      "size": 3247,
+      "sha": "b4115fb96513a4cd11b8ca78486621b0c3aacaac"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/03.patch.br",
+      "size": 4236,
+      "sha": "a3a49529d85bb90b54ffedcb5a0cd94dc9952505"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/04.patch.br",
+      "size": 3191,
+      "sha": "6f78250e4c709e88a47e65d2b5171abe7c7f6f6d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/05.patch.br",
+      "size": 1849,
+      "sha": "c1f722de26363e84b3c74ecbbdbeeac41d383e0c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/06.patch.br",
+      "size": 3930,
+      "sha": "25b348399ec675065ab9f40bfe2b319e77b53f4f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/07.patch.br",
+      "size": 3330,
+      "sha": "d3f0ef7540fa54ca8ae3d825031d7577f155003b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/08.patch.br",
+      "size": 2030,
+      "sha": "759c7721d18b84bed143696863b0bb2982715e58"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/09.patch.br",
+      "size": 2179,
+      "sha": "13c0df3f212c87a295b79fc9c6affd12fc19b82a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/10.patch.br",
+      "size": 3404,
+      "sha": "b76443cd1fcf2feeeb8c7503364813bb6d2b5796"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/11.patch.br",
+      "size": 3482,
+      "sha": "6725a077f2ef1f95ea18bf7209f9943c860f2bd5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/12.patch.br",
+      "size": 3562,
+      "sha": "4c2b6645b3f15abcc29ace30f38603766c17390e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/13.patch.br",
+      "size": 1773,
+      "sha": "a53c04792d910cf42c6d9bddcc3dc9b2b88d3fb9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/14.patch.br",
+      "size": 1858,
+      "sha": "1d22119a7643f154327c9d5ab878c3d2f791a0fb"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/15.patch.br",
+      "size": 1041,
+      "sha": "fe80ea9d883b0fbdcec4a4f56b1bc7ae5958763b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/16.patch.br",
+      "size": 2696,
+      "sha": "caeb222bcfb40ca81ae4c6225c4531b48f684ec8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/17.patch.br",
+      "size": 1554,
+      "sha": "3776fe12d77af2ed3f8005750091ae8a2226d563"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/18.patch.br",
+      "size": 1655,
+      "sha": "35e638218159280104788631b16f71ad30cfef69"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/19.patch.br",
+      "size": 4318,
+      "sha": "a798194ca33a2aaaeac6d3defaf5fddd8c28f5a9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/20.patch.br",
+      "size": 3485,
+      "sha": "4f1e08f4881e9c4c1ca5ecf1275f8cc3659bb43f"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/21.patch.br",
+      "size": 3044,
+      "sha": "06d075fb8ae0256115820c7484cb8dc784b7cea7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/22.patch.br",
+      "size": 3227,
+      "sha": "8f51c54408b30510ca6511fd8edb0973c4963b50"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/23.patch.br",
+      "size": 2709,
+      "sha": "e73e6bd86dbc5e29c4283dad161d1bb281ec8835"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/24.patch.br",
+      "size": 3099,
+      "sha": "31f33fe2ddd1382eb85b6f9a68c8ae644a3c01a6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/25.patch.br",
+      "size": 3727,
+      "sha": "932546731921fda108aba87c6154965f8592e75a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/26.patch.br",
+      "size": 1990,
+      "sha": "7278acdeff5b75eff51d0a50d879eb3fe6b8b5e2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/27.patch.br",
+      "size": 2676,
+      "sha": "fded52ca2ff1d0f9dd14f5336651ddf0a3fa5ec6"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/28.patch.br",
+      "size": 1958,
+      "sha": "e5d5bd6609783345d4291c734f92f6cb20687348"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/29.patch.br",
+      "size": 1477,
+      "sha": "283e97acabddb73aad66e42573d3062b128b4d76"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/30.patch.br",
+      "size": 1456,
+      "sha": "651c478cb943dcb17a0eeb1304b59cc9890cfadb"
+    },
+    {
+      "path": "JMdict_e/patches/2026/08/31.patch.br",
+      "size": 1436,
+      "sha": "57cd9acc16bb0eb9170cfd7480d6b989d6061f43"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/01.patch.br",
+      "size": 1570,
+      "sha": "6a9c7c7d5ab913e5420584567aeebeeab6193c6e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/02.patch.br",
+      "size": 1501,
+      "sha": "2d9d35c94da5fa5ecf47ed4f23d5dcdfd983a98b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/03.patch.br",
+      "size": 1525,
+      "sha": "f631cc00da12a5b53c320b75f97b3caa5c97b05e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/04.patch.br",
+      "size": 1579,
+      "sha": "1260c21e702e6e0427120749dddc2bf4544bd21b"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/05.patch.br",
+      "size": 1710,
+      "sha": "47e4550b9720b5d263bd83377d1379c42d682b7e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/06.patch.br",
+      "size": 1773,
+      "sha": "aaba83bca5ae04d9c892ead7426321d6f2ab7e7d"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/07.patch.br",
+      "size": 1647,
+      "sha": "dcfb3e6451f1cb7da1451f6279e57b71f65cbbbd"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/08.patch.br",
+      "size": 2276,
+      "sha": "977624634ba8ee975aa7529fe8359afa6568c286"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/09.patch.br",
+      "size": 2288,
+      "sha": "ae63ff4439a627d6a3e4031c3953ad55edc88a70"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/10.patch.br",
+      "size": 633,
+      "sha": "34e566ffc9636488437048faaf9a83a6905e3c71"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/11.patch.br",
+      "size": 1242,
+      "sha": "424c78eb6d974556344b285bc8df9ab40361a4a0"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/12.patch.br",
+      "size": 1388,
+      "sha": "3a0eb7933bb459daf8c1bc0400285b3ddb930cf8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/13.patch.br",
+      "size": 1858,
+      "sha": "99dfe865e11214c2d1a030815c2a196d993b7466"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/14.patch.br",
+      "size": 1734,
+      "sha": "4e5a693ce934c499d9da5be149f3a58a53526c2c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/15.patch.br",
+      "size": 880,
+      "sha": "1869ab4d28a153cd781ab1e0cd99e8000ea90612"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/16.patch.br",
+      "size": 1260,
+      "sha": "b3caee37badda0a16a19e48e87b3c65754953501"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/17.patch.br",
+      "size": 818,
+      "sha": "ad04e226209dbca812d27163e3c98ca188e0d876"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/18.patch.br",
+      "size": 1142,
+      "sha": "e8a2bb079314cb40d0696ce4043582ac9c1757ad"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/19.patch.br",
+      "size": 565,
+      "sha": "bd5d66bc302c3c8748ebd2cccbad2ea6106de2e7"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/20.patch.br",
+      "size": 1767,
+      "sha": "4d15af8265d3447b97275180bf61f398adfdb8bb"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/21.patch.br",
+      "size": 1494,
+      "sha": "dd396dcd8f3465ee06ddae20f6b1592c2b467b9a"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/22.patch.br",
+      "size": 1642,
+      "sha": "fb8b18c35d7275c687be5ef68a3fbbeca7d22167"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/23.patch.br",
+      "size": 1181,
+      "sha": "ebd7c8882e7a2f76dce15c2237ee42c5b984c575"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/24.patch.br",
+      "size": 1562,
+      "sha": "0628ba28c815b35f532826c1617b59f1c1b79ffd"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/25.patch.br",
+      "size": 1706,
+      "sha": "6cdb3068b0df757b735049b3edfa11f57d05f932"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/26.patch.br",
+      "size": 1989,
+      "sha": "112c5a24c118cbc732284fbec3fa7431ccc7cc9e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/27.patch.br",
+      "size": 1415,
+      "sha": "9178809c3ffe14a54d21e8cd04f92c6f9b72aa40"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/28.patch.br",
+      "size": 1593,
+      "sha": "8323d0b3c2b658aafd5219ec3a04d951ce5761e3"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/29.patch.br",
+      "size": 1120,
+      "sha": "5a59d02db8a9e3fd0608f06134e6b5dde0a02339"
+    },
+    {
+      "path": "JMdict_e/patches/2026/09/30.patch.br",
+      "size": 1783,
+      "sha": "fd6626f87edc7e6847a4e2cbf7fa3ecf44a938c8"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/01.patch.br",
+      "size": 832,
+      "sha": "f97aaecd66ac42de67f2c9e51ddab278a989fc80"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/02.patch.br",
+      "size": 962,
+      "sha": "a1ee471817600b63b2b1a6ee5ae63c462aff25b9"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/03.patch.br",
+      "size": 1346,
+      "sha": "dbb90aa1eace6edd55ee1600c7cc03aa82a14d96"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/04.patch.br",
+      "size": 1344,
+      "sha": "45ed245470acc72baf9f86e1f79dd9f3927a3925"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/05.patch.br",
+      "size": 1480,
+      "sha": "956d1ca97690a83cb972119accf139c3cb601caf"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/06.patch.br",
+      "size": 1160,
+      "sha": "1beb9ca550427f7cccb7d1c38487eba49e3ef4e4"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/07.patch.br",
+      "size": 854,
+      "sha": "1dc30ebdae2fa00e9768179959aa2b17f8bc43d5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/08.patch.br",
+      "size": 1584,
+      "sha": "5f8aca4a7718cfcfd430d630d5db83b90dbd17da"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/09.patch.br",
+      "size": 856,
+      "sha": "f6505f9d5e24802ac58448535bf2b6499a96d50c"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/10.patch.br",
+      "size": 1282,
+      "sha": "6fea9a6e8f398f884282ccdce8bac0d63b8ccc97"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/11.patch.br",
+      "size": 1089,
+      "sha": "74d92083fca6a4d4c75d2e8ec87eeacedbe26d98"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/12.patch.br",
+      "size": 1727,
+      "sha": "c36134e16231a391ab08d771658d4163e984f596"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/13.patch.br",
+      "size": 1999,
+      "sha": "7feb39f1fea2eadd0f7520e6402c24893e77bde2"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/14.patch.br",
+      "size": 951,
+      "sha": "6ab0257fd9dcc085e7891120125d7ab4ddc7f688"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/15.patch.br",
+      "size": 1217,
+      "sha": "5cbe5e9faf94d5b5776a2ffeebc92f798be43b4e"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/16.patch.br",
+      "size": 1179,
+      "sha": "25d91a9267cecd911479df5c697f222deec2b2a5"
+    },
+    {
+      "path": "JMdict_e/patches/2026/10/17.patch.br",
+      "size": 1433,
+      "sha": "2d84fc10d1032b56fa0d9544034fd5b7804d38a9"
+    }
+  ],
+  "expandedByteLength": 63177054,
+  "expandedSha256": "9b55bbea476c0308f3c71f908446855cbe80ae2ec905eba554b47a47ac38df12"
+}

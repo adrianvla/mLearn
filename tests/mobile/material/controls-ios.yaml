@@ -1,0 +1,25 @@
+appId: net.kikan.mlearn.v3dev
+---
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          text: ${NAME}
+          below: ${'Remove ' + NAME}
+          point: 50%, 10%
+- assertVisible: Play
+# Reachable controls must also seek the actual restored attachment.
+# Keep playback paused so assertions do not race AVKit's overlay auto-hide.
+- tapOn:
+    id: Skip Forward
+- extendedWaitUntil:
+    visible: '0:10 elapsed'
+    timeout: 15000
+- tapOn:
+    id: Skip Backward
+- extendedWaitUntil:
+    visible: '0:00 elapsed'
+    timeout: 15000
+- takeScreenshot: ${'source-material-' + NAME + '-native-controls'}
