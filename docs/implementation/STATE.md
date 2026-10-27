@@ -119,8 +119,12 @@ The serial guard is stopped. This checkpoint is committed locally, not pushed;
 real package production, runtime jobs and client functionality remain open.
 
 At published `8a4f350`, foundation run 40592717257 and real desktop run
-40592717283 pass. Native-mobile run 40592717267 remains pending. The desktop
-pass does not explain or close the earlier `d9753b6` subtitle error.
+40592717283 pass. Native-mobile run40592717267 completed: Android job
+122500776388 passed; original iOS job122500775895 failed at the unchanged
+Watch import assertion, `id: m01-watch, mp4 is not visible`. That is the
+retained deferred picker gap, not a passing iOS gate. All three original
+observers are terminal; no diagnostic workflow variant was launched. The
+desktop pass does not explain or close the earlier `d9753b6` subtitle error.
 
 All substantial local runs were serial and passed fresh three-sample1GiB
 admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
@@ -128,6 +132,40 @@ available6143328256, pressure1, swapUsed3932946432 and swapOut48338993152;
 disk available25637364 KiB. Both temporary verification guards are stopped.
 The earlier transient OmO allocation spike remains unexplained; no product
 inference/device workload is blamed, and no such workload was launched.
+
+### Real package catalog producers — source commit containing this section
+
+English0.1.4 and Japanese0.1.8 declare `collection.targets.v1`, with bounded
+package-owned keyset pages and stable existing target IDs. Optional catalog
+metadata is generated from Core; one validator serves native publication and
+cache admission. Inspection, dictionary batches and catalog rows reuse the same
+summary projection. Japanese retains all source level memberships separately
+from its unchanged hardest-level inline presentation. Source/model pins,
+licenses, resource codecs and executable-host policies are unchanged.
+
+Serial checks pass: English12 owner tests, Japanese26 plugin tests, all99
+storage tests, two existing real Japanese runtime workflows, and one new
+production-runtime test executing actual compiled SDK imports for both packages.
+The latter verifies replay, next-page identities and inspection equality for
+six targets per package; it is not full-corpus preparation evidence. WordNet's
+stored array lengths independently sum to its declared206978 targets, and all
+four POS values match its declared scopes. Architecture ownership, codegen,
+typed consumers and contract freshness pass. The existing catalog test file also has mechanical Rustfmt
+changes. JSON LSP is unavailable because Biome is absent; the existing package
+builder and Rust loader parsed and executed both manifests.
+
+Compiled Wasm SHA256: English
+`50166a12251dbf51c43386a2413bfeb59977f924050552ad45ad52df4ae475e8`;
+Japanese `d7690ea7c4ecb4e5472e41a8b17e33755ec90815bfcdbf801daa551a40b1ea89`.
+Both verification guards are stopped. Afterward OmO footprint4213699688,
+RSS3608870912, available8565817344, pressure1, swapUsed4111663104,
+swapOut50273304576. Footprint and swap rose during the serial work; keep
+monitoring the unexplained allocation trend before admitting another workload.
+A later idle sample decreased to footprint4173100136 with swap counters
+unchanged, available8129806336 and pressure1; this does not explain the earlier
+growth.
+Runtime preparation/cancellation/restart, full-corpus cache completion and
+typed-client/UI flows remain open. M10 is not complete or independently gated.
 
 ## Active authorization — sequential M03–M07 implementation
 

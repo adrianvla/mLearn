@@ -42,6 +42,29 @@ impl LanguageWork {
         {
             return Err(Failure::Operation("Invalid package level scales".into()));
         }
+        if let Some(catalog) = &description.catalog {
+            catalog.validate(id).map_err(Failure::Operation)?;
+            if !self
+                .package
+                .manifest
+                .capabilities
+                .iter()
+                .any(|capability| capability == "collection.targets.v1")
+                || catalog
+                    .capabilities
+                    .iter()
+                    .any(|capability| !description.capabilities.contains(capability))
+                || catalog.levels.iter().any(|level| {
+                    !declared_scales
+                        .iter()
+                        .any(|scale| scale.id == level.scale_id)
+                })
+            {
+                return Err(Failure::Operation(
+                    "Catalog declares an unavailable capability or level scale".into(),
+                ));
+            }
+        }
         Ok(description)
     }
     pub(super) fn entry(&self, target: &str) -> Result<LexicalEntry, Failure> {
@@ -200,12 +223,10 @@ mod tests {
                 .unwrap();
             let knowledge = runtime.target_knowledge("org.example", &entry).unwrap();
             assert_eq!(knowledge.claim, expected);
-            assert!(
-                knowledge
-                    .projections
-                    .iter()
-                    .all(|p| p.assessed.is_none() && p.prediction.is_none())
-            );
+            assert!(knowledge
+                .projections
+                .iter()
+                .all(|p| p.assessed.is_none() && p.prediction.is_none()));
         }
         drop(runtime);
         let runtime = Runtime::open(&path, CodePolicy::MobileBundled, None, vec![]).unwrap();

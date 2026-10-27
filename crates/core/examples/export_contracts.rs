@@ -152,6 +152,7 @@ fn main() {
         CuePosition::decl(),
         TranscriptPage::decl(),
         Capability::decl(),
+        CollectionDescription::decl(),
         LanguageDescription::decl(),
         AnalyzedToken::decl(),
         CueAnalysis::decl(),

@@ -119,59 +119,6 @@ pub(crate) fn migrate_cursors(db: &Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn description(package: &str, value: &CollectionDescription) -> Result<String, StorageError> {
-    if value.capabilities.is_empty()
-        || value.capabilities.len() > 32
-        || value.kinds.is_empty()
-        || value.kinds.len() > 64
-        || value.scopes.len() > 128
-        || value.levels.len() > 256
-    {
-        return Err(StorageError::Invalid(
-            "Catalog metadata exceeds bounds".into(),
-        ));
-    }
-    let mut capabilities = BTreeSet::new();
-    for capability in &value.capabilities {
-        namespaced(package, &capability.id)?;
-        bounded(&capability.label, 256)?;
-        if !capabilities.insert(&capability.id) {
-            return Err(StorageError::Invalid("Duplicate catalog capability".into()));
-        }
-    }
-    for choices in [&value.kinds, &value.scopes] {
-        let mut ids = BTreeSet::new();
-        for choice in choices {
-            namespaced(package, &choice.id)?;
-            bounded(&choice.label, 256)?;
-            bounded(&choice.attribution, 2048)?;
-            if let Some(color) = &choice.color {
-                bounded(color, 64)?;
-            }
-            if !ids.insert(&choice.id) {
-                return Err(StorageError::Invalid("Duplicate catalog choice".into()));
-            }
-        }
-    }
-    let mut levels = BTreeSet::new();
-    for level in &value.levels {
-        namespaced(package, &level.scale_id)?;
-        bounded(&level.level, 128)?;
-        bounded(&level.label, 256)?;
-        bounded(&level.attribution, 2048)?;
-        if !levels.insert((&level.scale_id, &level.level)) {
-            return Err(StorageError::Invalid("Duplicate catalog level".into()));
-        }
-    }
-    let json = serde_json::to_string(value)?;
-    if json.len() > 65536 {
-        return Err(StorageError::Invalid(
-            "Catalog metadata exceeds byte budget".into(),
-        ));
-    }
-    Ok(json)
-}
-
 fn target(
     package: &str,
     entry: &CollectionTarget,
@@ -272,7 +219,10 @@ impl ProfileStore {
                 "Catalog target count exceeds bounds".into(),
             ));
         }
-        let json = description(package_id, metadata)?;
+        metadata
+            .validate(package_id)
+            .map_err(StorageError::Invalid)?;
+        let json = serde_json::to_string(metadata)?;
         let tx = self.connection.transaction()?;
         let existing: Option<(String, String, u32, u32, Option<String>)> = tx.query_row(
             "SELECT revision,description,total,processed,package_cursor FROM collection_catalogs WHERE package_id=?1",

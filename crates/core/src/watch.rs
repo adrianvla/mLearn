@@ -51,7 +51,8 @@ model!(InlineLevel {
     attribution: String
 });
 model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capability>,annotation_capability:String,attribution:String,
-    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] level_scales:Option<Vec<LevelScale>> });
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] level_scales:Option<Vec<LevelScale>>,
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] catalog:Option<crate::CollectionDescription> });
 // Packages own linguistic meaning. These bounded display values contain neither
 // executable layout nor a core-maintained inventory of language-specific features.
 model!(ReadingSpan {
@@ -95,6 +96,27 @@ pub enum AggregateClaim {
 }
 model!(TargetKnowledge { projections:Vec<KnowledgeProjection>,claim:AggregateClaim });
 model!(LexicalSummary { target_id:String,headword:String,reading:Option<String>,summary:String,presentation:Option<LinguisticPresentation> });
+impl From<LexicalEntry> for LexicalSummary {
+    fn from(entry: LexicalEntry) -> Self {
+        let summary = entry
+            .summary
+            .as_deref()
+            .unwrap_or(&entry.definition)
+            .lines()
+            .next()
+            .unwrap_or("")
+            .chars()
+            .take(512)
+            .collect();
+        Self {
+            target_id: entry.target_id,
+            headword: entry.headword,
+            reading: entry.reading,
+            summary,
+            presentation: entry.presentation,
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]

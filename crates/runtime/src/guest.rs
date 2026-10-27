@@ -5,8 +5,8 @@ use crate::{
     execution::{Cancellation, Failure},
 };
 use mlearn_core::{
-    AnalyzedToken, ClaimChange, DictionaryResult, LanguageDescription, LexicalEntry,
-    LexicalSummary, Response, SourceRecord,
+    AnalyzedToken, ClaimChange, DictionaryResult, LanguageDescription, LexicalEntry, Response,
+    SourceRecord,
 };
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
@@ -159,27 +159,9 @@ impl GuestWork {
                         for target in targets {
                             work.cancellation.check()?;
                             items.push(match work.entry_with_schema(target, &schema) {
-                                Ok(entry) => {
-                                    let summary = entry
-                                        .summary
-                                        .as_deref()
-                                        .unwrap_or(&entry.definition)
-                                        .lines()
-                                        .next()
-                                        .unwrap_or("")
-                                        .chars()
-                                        .take(512)
-                                        .collect::<String>();
-                                    DictionaryResult::Available {
-                                        summary: LexicalSummary {
-                                            target_id: entry.target_id,
-                                            headword: entry.headword,
-                                            reading: entry.reading,
-                                            summary,
-                                            presentation: entry.presentation,
-                                        },
-                                    }
-                                }
+                                Ok(entry) => DictionaryResult::Available {
+                                    summary: entry.into(),
+                                },
                                 Err(Failure::Cancelled) => return Err(Failure::Cancelled),
                                 Err(error) => DictionaryResult::Unavailable {
                                     target_id: target.clone(),

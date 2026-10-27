@@ -322,7 +322,9 @@ export type TranscriptPage = { sourceId: string, subtitleRevision: string, cues:
 
 export type Capability = { id: string, label: string, };
 
-export type LanguageDescription = { language: string, label: string, capabilities: Array<Capability>, annotationCapability: string, attribution: string, levelScales?: Array<LevelScale>, };
+export type CollectionDescription = { capabilities: Array<Capability>, kinds: Array<LinguisticLabel>, scopes: Array<LinguisticLabel>, levels: Array<InlineLevel>, };
+
+export type LanguageDescription = { language: string, label: string, capabilities: Array<Capability>, annotationCapability: string, attribution: string, levelScales?: Array<LevelScale>, catalog?: CollectionDescription, };
 
 export type AnalyzedToken = { start: number, end: number, text: string, targets: Array<string>, presentation?: LinguisticPresentation, nearbyMeaning?: boolean, };
 

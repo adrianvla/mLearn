@@ -7,6 +7,7 @@ use mlearn_language_sdk::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_segmentation::UnicodeSegmentation;
+mod catalog;
 mod ocr;
 mod review;
 const PACKAGE: &str = "org.mlearn.english";
@@ -119,8 +120,14 @@ fn handle(call: Call) -> Result<Value, String> {
         "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
-            json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities(),"annotationCapability":"org.mlearn.english:meaning","attribution":"Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation."}),
+            json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities(),"annotationCapability":"org.mlearn.english:meaning","attribution":"Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation.","catalog":catalog::description()}),
         ),
+        "collection.targets.v1" => {
+            serde_json::to_value(catalog::page(call.input, &read, &|after| {
+                mlearn_language_sdk::resource_keys("lexicon.sqlite", "lemma/", after, 1)
+            })?)
+            .map_err(|error| error.to_string())
+        }
         "text.analyze.v1" => {
             let texts = call
                 .input
@@ -200,26 +207,32 @@ fn handle(call: Call) -> Result<Value, String> {
                 .get("targetId")
                 .and_then(Value::as_str)
                 .ok_or("Expected targetId")?;
-            let sense = validate_target(id, &read)?;
-            let headword = id.splitn(4, ':').nth(3).ok_or("Target lemma missing")?;
-            Ok(json!(LexicalEntry {
-                target_id: id.into(),
-                headword: headword.replace('_', " "),
-                reading: None,
-                presentation: None,
-                part_of_speech: sense["pos"].as_str().ok_or("Invalid sense")?.into(),
-                definition: sense["definition"]
-                    .as_str()
-                    .ok_or("Invalid definition")?
-                    .into(),
-                summary: None,
-                senses: None,
-                attribution: "Princeton WordNet 3.0".into(),
-                capabilities: capabilities()
-            }))
+            serde_json::to_value(inspect(id, &read)?).map_err(|error| error.to_string())
         }
         _ => Err("Unsupported English capability".into()),
     }
+}
+fn inspect(
+    id: &str,
+    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
+) -> Result<LexicalEntry, String> {
+    let sense = validate_target(id, lookup)?;
+    let headword = id.splitn(4, ':').nth(3).ok_or("Target lemma missing")?;
+    Ok(LexicalEntry {
+        target_id: id.into(),
+        headword: headword.replace('_', " "),
+        reading: None,
+        presentation: None,
+        part_of_speech: sense["pos"].as_str().ok_or("Invalid sense")?.into(),
+        definition: sense["definition"]
+            .as_str()
+            .ok_or("Invalid definition")?
+            .into(),
+        summary: None,
+        senses: None,
+        attribution: "Princeton WordNet 3.0".into(),
+        capabilities: capabilities(),
+    })
 }
 fn validate_target(
     id: &str,

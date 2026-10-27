@@ -5,7 +5,7 @@ use crate::{
     MaterialId,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +15,65 @@ pub struct CollectionDescription {
     pub kinds: Vec<LinguisticLabel>,
     pub scopes: Vec<LinguisticLabel>,
     pub levels: Vec<InlineLevel>,
+}
+
+impl CollectionDescription {
+    pub fn validate(&self, package: &str) -> Result<(), String> {
+        let text = |value: &str, limit: usize| !value.is_empty() && value.len() <= limit;
+        let namespace = format!("{package}:");
+        let qualified = |id: &str| text(id, 512) && id.starts_with(&namespace);
+        if !text(package, 512)
+            || self.capabilities.is_empty()
+            || self.capabilities.len() > 32
+            || self.kinds.is_empty()
+            || self.kinds.len() > 64
+            || self.scopes.len() > 128
+            || self.levels.len() > 256
+        {
+            return Err("Catalog metadata exceeds bounds".into());
+        }
+        let mut capabilities = BTreeSet::new();
+        for capability in &self.capabilities {
+            if !qualified(&capability.id)
+                || !text(&capability.label, 256)
+                || !capabilities.insert(&capability.id)
+            {
+                return Err("Invalid or duplicate catalog capability".into());
+            }
+        }
+        for choices in [&self.kinds, &self.scopes] {
+            let mut ids = BTreeSet::new();
+            for choice in choices {
+                if !qualified(&choice.id)
+                    || !text(&choice.label, 256)
+                    || !text(&choice.attribution, 2048)
+                    || choice.color.as_ref().is_some_and(|color| !text(color, 64))
+                    || !ids.insert(&choice.id)
+                {
+                    return Err("Invalid or duplicate catalog choice".into());
+                }
+            }
+        }
+        let mut levels = BTreeSet::new();
+        for level in &self.levels {
+            if !qualified(&level.scale_id)
+                || !text(&level.level, 128)
+                || !text(&level.label, 256)
+                || !text(&level.attribution, 2048)
+                || !levels.insert((&level.scale_id, &level.level))
+            {
+                return Err("Invalid or duplicate catalog level".into());
+            }
+        }
+        if serde_json::to_vec(self)
+            .map_err(|error| error.to_string())?
+            .len()
+            > 65536
+        {
+            return Err("Catalog metadata exceeds byte budget".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,6 +107,26 @@ pub struct CollectionCatalogPage {
     pub items: Vec<CollectionTarget>,
     pub next: Option<String>,
     pub total: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CollectionCatalogRequest {
+    pub after: Option<String>,
+    pub limit: u32,
+}
+impl CollectionCatalogRequest {
+    pub fn validate(&self) -> Result<(), String> {
+        if !(1..=64).contains(&self.limit)
+            || self
+                .after
+                .as_ref()
+                .is_some_and(|cursor| cursor.is_empty() || cursor.len() > 4096)
+        {
+            return Err("Invalid package catalog window".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

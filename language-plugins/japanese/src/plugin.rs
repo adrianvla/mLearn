@@ -1,4 +1,5 @@
 use crate::{JapaneseEngine, Token, DICTIONARY_BYTES};
+use mlearn_core::Capability;
 use mlearn_language_sdk::{
     serde_json::{self, json, Value},
     Call,
@@ -9,6 +10,8 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
+#[path = "catalog.rs"]
+mod catalog;
 #[path = "ocr.rs"]
 mod ocr;
 #[path = "presentation.rs"]
@@ -50,13 +53,19 @@ fn validate_lexicon_metadata(metadata: &Value) -> Result<(), String> {
     }
     Ok(())
 }
-fn capabilities() -> Value {
-    json!([
-        {"id":format!("{PACKAGE}:written-recognition"),"label":"Written recognition"},
-        {"id":format!("{PACKAGE}:meaning"),"label":"Meaning"},
-        {"id":format!("{PACKAGE}:reading"),"label":"Reading"},
-        {"id":format!("{PACKAGE}:listening"),"label":"Listening recognition"}
-    ])
+fn capabilities() -> Vec<Capability> {
+    [
+        ("written-recognition", "Written recognition"),
+        ("meaning", "Meaning"),
+        ("reading", "Reading"),
+        ("listening", "Listening recognition"),
+    ]
+    .into_iter()
+    .map(|(id, label)| Capability {
+        id: format!("{PACKAGE}:{id}"),
+        label: label.into(),
+    })
+    .collect()
 }
 fn read(key: &str) -> Result<Option<Value>, String> {
     mlearn_language_sdk::resource_get("lexicon.sqlite", key)?
@@ -228,9 +237,9 @@ fn inspect_entry(
     target: &str,
     value: Value,
     lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
-) -> Result<Value, String> {
+) -> Result<(Value, BTreeSet<u32>), String> {
     let entry = validate_entry(target, value)?;
-    let presentation = presentation::entry(&entry.headword, &entry.variants, lookup)?;
+    let (presentation, levels) = presentation::entry(&entry.headword, &entry.variants, lookup)?;
     let readings = entry
         .variants
         .iter()
@@ -298,11 +307,14 @@ fn inspect_entry(
             json!({"heading":heading,"labels":sense.pos,"definitions":sense.glosses,"notes":notes})
         })
         .collect::<Vec<_>>();
-    Ok(json!({
-        "targetId":entry.target_id,"headword":entry.headword,"reading":reading,"presentation":presentation,
-        "partOfSpeech":parts.join("; "),"definition":definition,"summary":summary,"senses":senses,
-        "attribution":ATTRIBUTION,"capabilities":capabilities()
-    }))
+    Ok((
+        json!({
+            "targetId":entry.target_id,"headword":entry.headword,"reading":reading,"presentation":presentation,
+            "partOfSpeech":parts.join("; "),"definition":definition,"summary":summary,"senses":senses,
+            "attribution":ATTRIBUTION,"capabilities":capabilities()
+        }),
+        levels,
+    ))
 }
 
 fn validate_entry(target: &str, value: Value) -> Result<DictionaryEntry, String> {
@@ -325,8 +337,14 @@ fn handle(call: Call) -> Result<Value, String> {
         "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":ATTRIBUTION,
-                "levelScales":[{"id":format!("{PACKAGE}:jlpt-vocabulary"),"label":"JLPT vocabulary","attribution":"Reference JLPT vocabulary list, 1788f9c7; not an official syllabus"}]}),
+                "levelScales":[{"id":format!("{PACKAGE}:jlpt-vocabulary"),"label":"JLPT vocabulary","attribution":"Reference JLPT vocabulary list, 1788f9c7; not an official syllabus"}],"catalog":catalog::description()}),
         ),
+        "collection.targets.v1" => {
+            serde_json::to_value(catalog::page(call.input, &read, &|after, limit| {
+                mlearn_language_sdk::resource_keys("lexicon.sqlite", "entry/", after, limit)
+            })?)
+            .map_err(|error| error.to_string())
+        }
         "text.analyze.v1" => {
             let texts = call
                 .input
@@ -383,6 +401,7 @@ fn handle(call: Call) -> Result<Value, String> {
             inspect_entry(target, entry, &|key| {
                 read(key).map(|value| value.map(Rc::new))
             })
+            .map(|(entry, _)| entry)
         }
         _ => Err("Unsupported Japanese capability".into()),
     }
@@ -442,7 +461,8 @@ mod tests {
                  "glosses":["a separate sense"]}
             ]
         });
-        let entry = inspect_entry("jmdict:1", source.clone(), &|_| Ok(None)).unwrap();
+        let (entry, levels) = inspect_entry("jmdict:1", source.clone(), &|_| Ok(None)).unwrap();
+        assert!(levels.is_empty());
         assert_eq!(
             entry["senses"][0]["definitions"],
             source["senses"][0]["glosses"]
