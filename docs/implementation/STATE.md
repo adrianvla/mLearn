@@ -64,8 +64,41 @@ test's second `attach_subtitles` assertion (`native-smoke.mjs:812`): response ty
 is unclassified, not assumed to be infrastructure or a pre-existing M07 defect.
 The assertion now retains that payload without changing its success condition.
 LSP and `node --check` pass; no diagnostic workflow variant or rerun was launched.
-Native-mobile run40577193378 remains pending. Independent M10 implementation
-continues while this source-bound failure stays open.
+Native-mobile run40577193378 completed: Android job122446665582 passed;
+iOS job122446665731 failed the original UI/persistence step with
+`Assertion is false: id: m01-watch, mp4 is not visible`. This matches the
+explicitly deferred picker failure retained below, not a passed iOS gate.
+All CI observation sessions are terminal. No iOS diagnostic variant was launched.
+Independent M10 implementation continues while the desktop failure stays open.
+
+### Indexed resource producer boundary — `f97e461`
+
+A generic `resource_keys` import provides literal prefix/keyset windows over
+authenticated SQLite resources: at most 64 keys, 256 UTF-8 bytes each, and
+128 KiB of encoded JSON. Binary primary-key ordering is
+required for this operation; existing point reads retain their behavior.
+Immutable snapshots, namespace boundaries, ranges, shared 1024-query/8 MiB
+budgets and charged capacity negotiation are covered by four passing real
+SQLite/Wasmi tests. All five SDK tests, including two new pointer/length adapter
+tests, pass under
+Miri default, strict-provenance/symbolic-alignment and explicit Tree Borrows
+configurations. Its Rust host-span model is not actual Wasm SDK execution.
+ASan passed all five SDK tests and all four SQLite/Wasmi cases, with Rust and bundled
+SQLite C instrumentation. The first C-link attempt failed on Apple's
+`___asan_version_mismatch_check_apple_clang_2100`; using the retained upstream
+NDK clang 18.0.2 for macOS 11 produced the compatible v8 guard and passed without
+disabling instrumentation, assertions or budgets. No emulator was started.
+Actual package catalog producers, opaque package-cursor persistence, runtime
+jobs and typed-client/UI integration remain
+unimplemented; this is not a collection feature or M10 continuation verdict.
+
+The serial SDK guards are stopped. Post-run OmO footprint 4031394944 bytes,
+available 5958828032, pressure 1, swapUsed 3857448960, swapOut 48338993152;
+disk available 23917652 KiB. The owned nightly toolchain remains under the
+registered runtime root until cleanup. Compiled `target/miri-sdk`,
+`target/asan-language-host` and the shared Miri compiler sysroot at
+`/Users/adrian/Library/Caches/org.rust-lang.miri` are retained as artifacts,
+not guessed-deleted as worker caches.
 
 All substantial local runs were serial and passed fresh three-sample1GiB
 admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
