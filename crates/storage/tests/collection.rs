@@ -177,6 +177,66 @@ fn save(store: &mut ProfileStore, index: u32) {
 }
 
 #[test]
+fn saved_material_remains_readable_while_catalog_filters_are_preparing() {
+    // Given saved content and a partially prepared package, not an empty library.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile.sqlite")).unwrap();
+    save(&mut store, 0);
+    save(&mut store, 2);
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 4)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![target(0)],
+                next: Some("fixture/1".into()),
+                total: 4,
+            },
+        )
+        .unwrap();
+
+    // When browsing that package's saved Material during preparation.
+    let page = ready(
+        &store,
+        &query(
+            CollectionSurface::Material,
+            CollectionFilter::Text {
+                text: "Élément".into(),
+            },
+        ),
+    );
+
+    // Then authored rows stay readable, but metadata predicates cannot count a prefix.
+    assert_eq!(page.count, 2);
+    assert_eq!(page.items.len(), 2);
+    assert!(
+        page.items
+            .iter()
+            .all(|item| matches!(item, CollectionItem::Material { .. }))
+    );
+    assert_eq!(
+        store
+            .collection(&query(
+                CollectionSurface::Material,
+                CollectionFilter::Level {
+                    scale_id: format!("{PACKAGE}:stage"),
+                    level: "first".into(),
+                },
+            ))
+            .unwrap(),
+        CollectionResult::Preparing {
+            processed: 1,
+            total: 4
+        },
+    );
+}
+
+#[test]
 fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
     // Given an interrupted catalog with one committed page.
     let dir = tempfile::tempdir().unwrap();

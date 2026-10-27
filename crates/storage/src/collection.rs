@@ -39,6 +39,7 @@ struct FilterSql<'a> {
     surface: CollectionSurface,
     values: Vec<Value>,
     nodes: u32,
+    catalog_filter: bool,
 }
 
 impl FilterSql<'_> {
@@ -91,6 +92,7 @@ impl FilterSql<'_> {
                 ))
             }
             CollectionFilter::Scope { id } => {
+                self.catalog_filter = true;
                 if !self.metadata.scopes.iter().any(|scope| &scope.id == id) {
                     return Err(StorageError::Invalid(
                         "Collection scope is unavailable".into(),
@@ -102,6 +104,7 @@ impl FilterSql<'_> {
                 ))
             }
             CollectionFilter::Level { scale_id, level } => {
+                self.catalog_filter = true;
                 if !self
                     .metadata
                     .levels
@@ -119,6 +122,7 @@ impl FilterSql<'_> {
                 ))
             }
             CollectionFilter::Capability { capability, states } => {
+                self.catalog_filter = true;
                 if states.is_empty()
                     || states.len() > 5
                     || !self
@@ -181,6 +185,7 @@ impl FilterSql<'_> {
                 })
             }
             CollectionFilter::EntityKind { id } => {
+                self.catalog_filter = true;
                 if !self.metadata.kinds.iter().any(|kind| &kind.id == id) {
                     return Err(StorageError::Invalid(
                         "Collection target kind is unavailable".into(),
@@ -293,10 +298,11 @@ impl ProfileStore {
             ).optional()?,
             None => None,
         };
+        let mut preparing = None;
         let (package_revision, metadata) = match catalog {
             Some((revision, json, processed, total)) => {
                 if processed != total {
-                    return Ok(CollectionResult::Preparing { processed, total });
+                    preparing = Some((processed, total));
                 }
                 (
                     Some(revision),
@@ -328,8 +334,14 @@ impl ProfileStore {
                 None => Value::Null,
             }],
             nodes: 0,
+            catalog_filter: false,
         };
         let predicate = filter.filter(&query.filter, 0)?;
+        if let Some((processed, total)) = preparing
+            && (query.surface == CollectionSurface::Knowledge || filter.catalog_filter)
+        {
+            return Ok(CollectionResult::Preparing { processed, total });
+        }
         let (from, id, package, due, label) = match query.surface {
             CollectionSurface::Knowledge => (
                 "collection_targets t",
