@@ -488,7 +488,13 @@ try {
   await click('Transcript');await click('Vocabulary');
   await observedSourceView('Vocabulary must preserve the current real source captions');
   await screenshot('native-vocabulary-with-source-captions');
+  // Menu choices publish after their closing focus scope, not click dispatch.
+  await observeSourceView(`(()=>{
+    const input=document.querySelector('[aria-label="Search transcript"]');
+    return !!input&&input.getClientRects().length>0&&!input.closest('[aria-hidden="true"]')&&!document.querySelector('[role="menu"]');
+  })()`);
   await click('Transcript');await click('Transcript');
+  await observedSourceView('Transcript selection must expose its real search input');
   const search=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Search transcript"]'});
   const searchId=search['element-6066-11e4-a52e-4f735466cecf'];
   await rpc('POST',`/session/${session}/element/${searchId}/value`,{text:'came'});
