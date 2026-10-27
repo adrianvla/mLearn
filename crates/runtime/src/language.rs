@@ -10,9 +10,20 @@ impl LanguageWork {
     }
     pub(super) fn description(&self) -> Result<LanguageDescription, Failure> {
         let id = &self.package.manifest.id;
-        let description: LanguageDescription =
+        let mut description: LanguageDescription =
             serde_json::from_value(self.invoke("language.describe.v1", Value::Null)?)
                 .map_err(|e| Failure::Operation(e.to_string()))?;
+        // Optional metadata cannot expand an authenticated manifest's authority.
+        // Retained ABI1 manifests can predate this extension of the same ABI.
+        if !self
+            .package
+            .manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability == "collection.targets.v1")
+        {
+            description.catalog = None;
+        }
         if !description
             .capabilities
             .iter()
@@ -44,16 +55,10 @@ impl LanguageWork {
         }
         if let Some(catalog) = &description.catalog {
             catalog.validate(id).map_err(Failure::Operation)?;
-            if !self
-                .package
-                .manifest
+            if catalog
                 .capabilities
                 .iter()
-                .any(|capability| capability == "collection.targets.v1")
-                || catalog
-                    .capabilities
-                    .iter()
-                    .any(|capability| !description.capabilities.contains(capability))
+                .any(|capability| !description.capabilities.contains(capability))
                 || catalog.levels.iter().any(|level| {
                     !declared_scales
                         .iter()
@@ -223,10 +228,12 @@ mod tests {
                 .unwrap();
             let knowledge = runtime.target_knowledge("org.example", &entry).unwrap();
             assert_eq!(knowledge.claim, expected);
-            assert!(knowledge
-                .projections
-                .iter()
-                .all(|p| p.assessed.is_none() && p.prediction.is_none()));
+            assert!(
+                knowledge
+                    .projections
+                    .iter()
+                    .all(|p| p.assessed.is_none() && p.prediction.is_none())
+            );
         }
         drop(runtime);
         let runtime = Runtime::open(&path, CodePolicy::MobileBundled, None, vec![]).unwrap();
