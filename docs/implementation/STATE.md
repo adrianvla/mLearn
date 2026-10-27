@@ -10,8 +10,9 @@ PR44 remains OPEN/draft at `2a1f13a53b6cc4852e6b4fea24881d05d31f8af9`,
 unmerged and unreleased; its tested product source remains `3ffc28fb`.
 
 The new branch is `agent/m10-m11`, created from that exact committed foundation.
-Its separate stacked draft PR is pending the first coherent checkpoint.
-M10 is starting, not implemented or verified. M11 must wait for M10 engineering
+Its separate stacked draft is PR45, based on `agent/m01`; authorization source
+is `f9378744`. M10 is in progress, not implemented or verified as a milestone.
+M11 must wait for M10 engineering
 and independent-review gates. The scope is PLAN M10/M11 and feature IDs
 SRC-10, KNW-04/06/07, INS-05, MAT-05/06/07, NAV-02 and
 LRN-12/13/14/15/18, reusing existing native/package/session owners.
@@ -23,12 +24,45 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: trace bounded collection, generation, source-search, evidence/
-graph/character and package-task contracts against the existing native owners
-and approved v2.9 interactions. New execution note:
+Current task: connect native collection/catalog preparation to real package
+producers and the typed client, then complete the remaining M10 flows and gate.
+New execution note:
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
 The historical M03–M07 record follows; its older ceiling is not a stop on the
 newly authorized M10–M11 work.
+
+### Native collection owner checkpoint — `3a5570d`
+
+Product/test source `3a5570d699f887f806835a30c691dc48b5fd66e5` adds the
+rebuildable package catalog and schema12 migration, shared native Boolean
+scope/level/capability/Material predicates, exact counts, bounded24-row/256KiB
+pages, deterministic text/due cursors and explicit revision conflicts.
+Saved Material remains readable across languages and without catalog metadata;
+catalog eviction preserves authored content and learner state. Point projection
+and collection status share the existing Knowledge authority, including claim
+precedence and active latest observations. Native selection types are contracts
+only; selection execution is not implemented by this checkpoint.
+
+The first new owner test reproduced a Unicode search mismatch (Material count6
+versus expected5). Material's existing text-index/input owner now uses Rust
+Unicode lowercase; migration repairs old cache rows in32-row windows without
+rewriting authored content, identity or revision.
+
+At this source, `cargo test --locked -p mlearn-storage -- --test-threads=1`
+passed all96 tests, including8 collection cases; `cargo check --locked -p
+mlearn-core --features typescript` passed. LSP and staged-diff checks were clean.
+These are real temporary-SQLite owner tests, not real-package corpus, runtime,
+desktop/mobile GUI or milestone evidence. Package producers, runtime/client
+integration, frozen selections/bulk actions, proposals, source search and
+evidence/graph/character surfaces remain open. No M10 continuation verdict or
+maintainer acceptance is claimed.
+
+All substantial local runs were serial and passed fresh three-sample1GiB
+admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
+available6143328256, pressure1, swapUsed3932946432 and swapOut48338993152;
+disk available25637364 KiB. Both temporary verification guards are stopped.
+The earlier transient OmO allocation spike remains unexplained; no product
+inference/device workload is blamed, and no such workload was launched.
 
 ## Active authorization — sequential M03–M07 implementation
 
