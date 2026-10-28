@@ -41,6 +41,160 @@ fn retained_bulk_edit_content_reserves_recoverable_wire_capacity() {
     );
 }
 
+#[test]
+fn released_bulk_receipts_discard_edit_text_but_keep_exact_replay_identity() {
+    // Given a completed edit whose authored content and recovery draft have different lifetimes.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let original = saved(store.create_material(&capture("saved")).unwrap());
+    let selected = select_materials(&mut store, "select-retirement");
+    let command = MaterialBulkStart {
+        command_id: "retire-edit".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("retained authored notes".into()),
+                ..Default::default()
+            },
+        },
+    };
+    store.begin_material_bulk(&command).unwrap();
+    store
+        .apply_material_bulk_item(&command.command_id, &original.id.0, None)
+        .unwrap();
+    store
+        .finish_material_bulk(&command.command_id, None)
+        .unwrap();
+
+    // When recovery results and then their frozen selection are explicitly released.
+    store.release_material_bulk(&command.command_id).unwrap();
+    store.release_material_bulk(&command.command_id).unwrap();
+    store.release_collection_selection(&selected.id).unwrap();
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then cleared drafts/labels are gone, current authored content stays, and retries never reapply.
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let document: String = db
+        .query_row(
+            "SELECT document FROM material_bulk_jobs WHERE command_id=?1",
+            [&command.command_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let summary: serde_json::Value = serde_json::from_str(&document).unwrap();
+    assert!(summary.get("command").is_none());
+    assert_eq!(summary["phase"], "completed");
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM material_bulk_results WHERE command_id=?1",
+            [&command.command_id],
+            |row| row.get::<_, u32>(0)
+        )
+        .unwrap(),
+        0
+    );
+    assert!(store.material_bulk_status(&command.command_id).is_err());
+    let (receipt, admitted) = store.begin_material_bulk(&command).unwrap();
+    assert!(!admitted);
+    assert!(!receipt.results_available);
+    assert_eq!(receipt.command, command);
+    assert_eq!((receipt.processed, receipt.succeeded), (1, 1));
+    let current = store.material(&original.id).unwrap();
+    assert_eq!(current.revision, original.revision + 1);
+    assert_eq!(current.content.notes, "retained authored notes");
+}
+
+#[test]
+fn schema_sixteen_bulk_migration_compacts_retired_drafts_without_inventing_removed_labels() {
+    // Given a historical removed-item receipt and a retired full edit document.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let original = saved(store.create_material(&capture("legacy-material")).unwrap());
+    let selected = select_materials(&mut store, "legacy-selection");
+    let remove = MaterialBulkStart {
+        command_id: "legacy-remove".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Remove,
+    };
+    store.begin_material_bulk(&remove).unwrap();
+    store
+        .apply_material_bulk_item(&remove.command_id, &original.id.0, None)
+        .unwrap();
+    store
+        .finish_material_bulk(&remove.command_id, None)
+        .unwrap();
+    let page = store.material_bulk_page(&remove.command_id, None).unwrap();
+    assert_eq!(page.items[0].label, original.content.phrase);
+    let edit = MaterialBulkStart {
+        command_id: "legacy-retired".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("discarded recovery input".into()),
+                ..Default::default()
+            },
+        },
+    };
+    store.begin_material_bulk(&edit).unwrap();
+    let mut legacy = store.cancel_material_bulk(&edit.command_id).unwrap();
+    store.release_material_bulk(&edit.command_id).unwrap();
+    legacy.results_available = false;
+    drop(store);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute(
+        "UPDATE material_bulk_jobs SET document=?2 WHERE command_id=?1",
+        rusqlite::params![edit.command_id, serde_json::to_string(&legacy).unwrap()],
+    )
+    .unwrap();
+    db.execute_batch(
+        "ALTER TABLE material_bulk_results DROP COLUMN label; PRAGMA user_version=16;",
+    )
+    .unwrap();
+    drop(db);
+
+    // When the current owner migrates that actual prior row shape.
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then identity/progress survive, retired edit text is dropped, and missing historical labels stay honest.
+    assert_eq!(store.collection_selection(&selected.id).unwrap(), selected);
+    let page = store.material_bulk_page(&remove.command_id, None).unwrap();
+    assert_eq!(page.items[0].label, original.id.0);
+    assert!(matches!(
+        page.items[0].outcome,
+        Some(MaterialBulkOutcome::Removed { .. })
+    ));
+    let (receipt, admitted) = store.begin_material_bulk(&edit).unwrap();
+    assert!(!admitted);
+    assert_eq!(receipt.phase, MaterialBulkPhase::Cancelled);
+    assert_eq!(receipt.command, edit);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let document: String = db
+        .query_row(
+            "SELECT document FROM material_bulk_jobs WHERE command_id=?1",
+            [&edit.command_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&document)
+            .unwrap()
+            .get("command")
+            .is_none()
+    );
+    assert!(
+        store
+            .remove_material(&MaterialRemove {
+                command_id: "unrelated-removal".into(),
+                id: original.id,
+                expected_revision: 1,
+            })
+            .is_err()
+    );
+}
+
 fn capture(command: &str) -> MaterialCreate {
     MaterialCreate {
         command_id: command.into(),

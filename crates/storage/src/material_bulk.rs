@@ -1,14 +1,56 @@
 use crate::{
-    collection_selection,
+    ProfileStore, StorageError, collection_selection,
     material::{create_in_transaction, update_in_transaction},
     material_read::read_material,
     material_removal::remove_in_transaction,
     material_validation::bounded,
-    ProfileStore, StorageError,
 };
 use mlearn_core::*;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleasedSummary {
+    phase: MaterialBulkPhase,
+    total: u32,
+    processed: u32,
+    succeeded: u32,
+    duplicates: u32,
+    failed: u32,
+    message: Option<String>,
+}
+
+impl From<MaterialBulkStatus> for ReleasedSummary {
+    fn from(status: MaterialBulkStatus) -> Self {
+        Self {
+            phase: status.phase,
+            total: status.total,
+            processed: status.processed,
+            succeeded: status.succeeded,
+            duplicates: status.duplicates,
+            failed: status.failed,
+            message: status.message,
+        }
+    }
+}
+
+impl ReleasedSummary {
+    fn receipt(self, command: MaterialBulkStart) -> MaterialBulkStatus {
+        MaterialBulkStatus {
+            command,
+            phase: self.phase,
+            total: self.total,
+            processed: self.processed,
+            succeeded: self.succeeded,
+            duplicates: self.duplicates,
+            failed: self.failed,
+            message: self.message,
+            results_available: false,
+        }
+    }
+}
 
 pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
     db.execute_batch(
@@ -29,13 +71,56 @@ pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
+pub(crate) fn migrate_projection(db: &Connection) -> Result<(), StorageError> {
+    let has_label: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('material_bulk_results') WHERE name='label')",
+        [], |row| row.get(0),
+    )?;
+    if !has_label {
+        db.execute_batch("ALTER TABLE material_bulk_results ADD COLUMN label TEXT;")?;
+    }
+    // Released receipts retain replay identity/progress, not discarded edit text.
+    // Decode in bounded windows; older full documents are a compatible superset.
+    let mut after = String::new();
+    loop {
+        let rows = {
+            let mut statement = db.prepare(
+                "SELECT command_id,document FROM material_bulk_jobs WHERE retained=0 AND command_id>?1 ORDER BY command_id LIMIT 32",
+            )?;
+            statement
+                .query_map([&after], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        if rows.is_empty() {
+            break;
+        }
+        for (id, document) in rows {
+            let summary: ReleasedSummary = serde_json::from_str(&document)?;
+            db.execute(
+                "UPDATE material_bulk_jobs SET document=?2 WHERE command_id=?1",
+                params![id, serde_json::to_string(&summary)?],
+            )?;
+            after = id;
+        }
+    }
+    db.pragma_update(None, "user_version", 17)?;
+    Ok(())
+}
+
 fn status(db: &Connection, command_id: &str) -> Result<MaterialBulkStatus, StorageError> {
     bounded(command_id, 128)?;
-    let document: String = db.query_row(
-        "SELECT document FROM material_bulk_jobs WHERE command_id=?1",
+    let (retained, document): (bool, String) = db.query_row(
+        "SELECT retained,document FROM material_bulk_jobs WHERE command_id=?1",
         [command_id],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
+    if !retained {
+        return Err(StorageError::Invalid(
+            "Bulk results have been released; the command will not be repeated".into(),
+        ));
+    }
     Ok(serde_json::from_str(&document)?)
 }
 
@@ -97,12 +182,37 @@ fn result(
     .transpose()
 }
 
+fn result_label(
+    db: &Connection,
+    selection_id: &CollectionSelectionId,
+    item_id: &str,
+) -> Result<String, StorageError> {
+    let (phrase,media,headword): (Option<String>,Option<String>,Option<String>) = db.query_row(
+        "SELECT json_extract(m.content,'$.phrase'),
+         (SELECT json_extract(a.document,'$.name') FROM material_assets r
+          JOIN authored_media a ON a.id=r.media_id WHERE r.material_id=m.id ORDER BY r.media_id LIMIT 1),
+         json_extract(t.document,'$.summary.headword')
+         FROM collection_selection_entries e
+         LEFT JOIN materials m ON e.material_revision IS NOT NULL AND m.id=e.item_id
+         LEFT JOIN collection_targets t ON e.material_revision IS NULL AND t.package_id=e.package_id AND t.target_id=e.item_id
+         WHERE e.selection_id=?1 AND e.item_id=?2",
+        params![selection_id.0,item_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+    )?;
+    Ok([phrase, media, headword]
+        .into_iter()
+        .flatten()
+        .find(|label| !label.trim().is_empty())
+        .unwrap_or_else(|| item_id.into()))
+}
+
 fn commit_result(
     db: &Connection,
     current: &mut MaterialBulkStatus,
     item_id: &str,
+    label: &str,
     outcome: &MaterialBulkOutcome,
 ) -> Result<(), StorageError> {
+    bounded(label, 2048)?;
     if current.processed >= current.total {
         return Err(StorageError::Invalid(
             "Bulk progress exceeds its frozen selection".into(),
@@ -123,12 +233,13 @@ fn commit_result(
         }
     };
     db.execute(
-        "INSERT INTO material_bulk_results(command_id,item_id,state,outcome) VALUES(?1,?2,?3,?4)",
+        "INSERT INTO material_bulk_results(command_id,item_id,state,outcome,label) VALUES(?1,?2,?3,?4,?5)",
         params![
             current.command.command_id,
             item_id,
             state,
-            serde_json::to_string(outcome)?
+            serde_json::to_string(outcome)?,
+            label
         ],
     )?;
     if db.execute(
@@ -179,20 +290,25 @@ impl ProfileStore {
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let previous: Option<Vec<u8>> = tx
+        let previous: Option<(Vec<u8>, bool, String)> = tx
             .query_row(
-                "SELECT digest FROM material_bulk_jobs WHERE command_id=?1",
+                "SELECT digest,retained,document FROM material_bulk_jobs WHERE command_id=?1",
                 [&command.command_id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        if let Some(previous) = previous {
+        if let Some((previous, retained, document)) = previous {
             if previous != digest {
                 return Err(StorageError::Invalid(
                     "Bulk command identity was reused".into(),
                 ));
             }
-            return Ok((status(&tx, &command.command_id)?, false));
+            let status = if retained {
+                serde_json::from_str(&document)?
+            } else {
+                serde_json::from_str::<ReleasedSummary>(&document)?.receipt(command.clone())
+            };
+            return Ok((status, false));
         }
         let selected = collection_selection::selection(&tx, &command.selection_id)?;
         let total = match &command.action {
@@ -329,6 +445,14 @@ impl ProfileStore {
             params![current.command.selection_id.0, item_id],
             entry,
         )?;
+        let label = match (&current.command.action, add_content) {
+            (MaterialBulkAction::Add { .. }, Some(content))
+                if !content.phrase.trim().is_empty() =>
+            {
+                content.phrase.clone()
+            }
+            _ => result_label(&tx, &current.command.selection_id, item_id)?,
+        };
         let item_command = format!(
             "bulk-{:x}",
             Sha256::digest(serde_json::to_vec(&(command_id, item_id))?)
@@ -437,7 +561,7 @@ impl ProfileStore {
                     material_id: removed.id,
                     committed_revision: removed.committed_revision,
                 };
-                commit_result(&tx, &mut current, item_id, &outcome)?;
+                commit_result(&tx, &mut current, item_id, &label, &outcome)?;
                 tx.commit()?;
                 return Ok(outcome);
             }
@@ -456,7 +580,7 @@ impl ProfileStore {
                 material_ids: items.into_iter().map(|item| item.id).collect(),
             },
         };
-        commit_result(&tx, &mut current, item_id, &outcome)?;
+        commit_result(&tx, &mut current, item_id, &label, &outcome)?;
         tx.commit()?;
         Ok(outcome)
     }
@@ -490,7 +614,8 @@ impl ProfileStore {
         let outcome = MaterialBulkOutcome::Failed {
             message: message.into(),
         };
-        commit_result(&tx, &mut current, item_id, &outcome)?;
+        let label = result_label(&tx, &current.command.selection_id, item_id)?;
+        commit_result(&tx, &mut current, item_id, &label, &outcome)?;
         tx.commit()?;
         Ok(outcome)
     }
@@ -508,7 +633,7 @@ impl ProfileStore {
         retained(&current)?;
         let rows = {
             let mut statement = tx.prepare(
-                "SELECT e.item_id,e.package_id,e.package_revision,e.material_revision,r.outcome
+                "SELECT e.item_id,e.package_id,e.package_revision,e.material_revision,r.outcome,r.label
                  FROM collection_selection_entries e LEFT JOIN material_bulk_results r
                  ON r.command_id=?1 AND r.item_id=e.item_id
                  WHERE e.selection_id=?2 AND (?3 IS NULL OR e.item_id>?3)
@@ -517,7 +642,13 @@ impl ProfileStore {
             statement
                 .query_map(
                     params![command_id, current.command.selection_id.0, after],
-                    |row| Ok((entry(row)?, row.get::<_, Option<String>>(4)?)),
+                    |row| {
+                        Ok((
+                            entry(row)?,
+                            row.get::<_, Option<String>>(4)?,
+                            row.get::<_, Option<String>>(5)?,
+                        ))
+                    },
                 )?
                 .collect::<Result<Vec<_>, _>>()?
         };
@@ -525,10 +656,22 @@ impl ProfileStore {
             items: vec![],
             next: None,
         };
-        for (index, (entry, outcome)) in rows.iter().take(24).enumerate() {
+        for (index, (entry, outcome, label)) in rows.iter().take(24).enumerate() {
             let previous = page.next.clone();
+            let label = match label {
+                Some(label) => label.clone(),
+                None => result_label(
+                    &tx,
+                    &current.command.selection_id,
+                    match &entry.item {
+                        CollectionItemId::Target { target_id } => target_id,
+                        CollectionItemId::Material { id } => &id.0,
+                    },
+                )?,
+            };
             page.items.push(MaterialBulkItem {
                 entry: entry.clone(),
+                label,
                 outcome: outcome
                     .as_ref()
                     .map(|json| serde_json::from_str(json))
@@ -663,14 +806,20 @@ impl ProfileStore {
         Ok(())
     }
 
-    pub fn release_material_bulk(
-        &mut self,
-        command_id: &str,
-    ) -> Result<MaterialBulkStatus, StorageError> {
+    pub fn release_material_bulk(&mut self, command_id: &str) -> Result<(), StorageError> {
+        bounded(command_id, 128)?;
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let mut current = status(&tx, command_id)?;
+        let is_retained: bool = tx.query_row(
+            "SELECT retained FROM material_bulk_jobs WHERE command_id=?1",
+            [command_id],
+            |row| row.get(0),
+        )?;
+        if !is_retained {
+            return Ok(());
+        }
+        let current = status(&tx, command_id)?;
         if current.phase == MaterialBulkPhase::Running {
             return Err(StorageError::Conflict);
         }
@@ -682,9 +831,14 @@ impl ProfileStore {
             "DELETE FROM material_bulk_results WHERE command_id=?1",
             [command_id],
         )?;
-        current.results_available = false;
-        write_status(&tx, &current)?;
+        tx.execute(
+            "UPDATE material_bulk_jobs SET retained=0,document=?2 WHERE command_id=?1",
+            params![
+                command_id,
+                serde_json::to_string(&ReleasedSummary::from(current))?
+            ],
+        )?;
         tx.commit()?;
-        Ok(current)
+        Ok(())
     }
 }

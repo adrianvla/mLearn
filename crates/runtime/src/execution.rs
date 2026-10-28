@@ -342,6 +342,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::CreateCollectionSelection { .. }
         | Request::CollectionSelection { .. }
         | Request::CollectionSelections
+        | Request::CollectionSelectionMembership { .. }
         | Request::CollectionSelectionPage { .. }
         | Request::ReleaseCollectionSelection { .. }
         | Request::PrepareCollection { .. }

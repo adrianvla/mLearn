@@ -289,6 +289,13 @@ pub enum Request {
         id: crate::CollectionSelectionId,
     },
     CollectionSelections,
+    CollectionSelectionMembership {
+        id: crate::CollectionSelectionId,
+        #[serde(rename = "packageId")]
+        package_id: Option<String>,
+        surface: crate::CollectionSurface,
+        items: Vec<crate::CollectionItemId>,
+    },
     CollectionSelectionPage {
         id: crate::CollectionSelectionId,
         after: Option<String>,

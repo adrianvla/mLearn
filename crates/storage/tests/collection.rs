@@ -5,6 +5,247 @@ use std::collections::{BTreeMap, BTreeSet};
 const PACKAGE: &str = "example.language";
 
 #[test]
+fn amended_selection_keeps_frozen_preconditions_and_projects_only_requested_membership() {
+    // Given a hand-built selection and a later edit to one selected identity.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    catalog(&mut store, 6);
+    for index in [0, 2, 4] {
+        save(&mut store, index);
+    }
+    let selection_query = query(
+        CollectionSurface::Material,
+        CollectionFilter::All { filters: vec![] },
+    );
+    let materials = ready(&store, &selection_query)
+        .items
+        .into_iter()
+        .map(|item| match item {
+            CollectionItem::Material { material, .. } => {
+                (material.content.target_id.clone().unwrap(), *material)
+            }
+            other => panic!("Expected Material: {other:?}"),
+        })
+        .collect::<BTreeMap<_, _>>();
+    let item = |index| CollectionItemId::Material {
+        id: materials[&format!("entry-{index:03}")].id.clone(),
+    };
+    let original = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "initial-selection".into(),
+            source: CollectionSelectionSource::Items {
+                query: selection_query.clone(),
+                items: vec![item(0), item(2)],
+            },
+        })
+        .unwrap();
+    let changed = &materials["entry-000"];
+    let mut content = changed.content.clone();
+    content.notes = "edited after selection".into();
+    store
+        .update_material(&MaterialEdit {
+            command_id: "change-selected".into(),
+            id: changed.id.clone(),
+            expected_revision: changed.revision,
+            content,
+            excluded: false,
+            media_imports: vec![],
+        })
+        .unwrap();
+    let command = CollectionSelectionCreate {
+        command_id: "amend-selection".into(),
+        source: CollectionSelectionSource::Amend {
+            selection_id: original.id.clone(),
+            query: selection_query.clone(),
+            add: vec![item(4)],
+            remove: vec![item(2)],
+        },
+    };
+
+    // When selection changes without re-evaluating the retained identities.
+    let amended = store.create_collection_selection(&command).unwrap();
+
+    // Then the old snapshot is unchanged and the retained edit precondition is frozen.
+    assert_eq!((original.material_count, amended.material_count), (2, 2));
+    let old = store.collection_selection_page(&original.id, None).unwrap();
+    assert!(old.items.iter().any(|entry| entry.item == item(2)));
+    let page = store.collection_selection_page(&amended.id, None).unwrap();
+    assert_eq!(
+        page.items
+            .iter()
+            .find(|entry| entry.item == item(0))
+            .unwrap()
+            .material_revision,
+        Some(changed.revision)
+    );
+    assert!(!page.items.iter().any(|entry| entry.item == item(2)));
+    let requested = vec![item(4), item(2), item(0)];
+    let projected = store
+        .collection_selection_membership(&amended.id, None, CollectionSurface::Material, &requested)
+        .unwrap();
+    assert_eq!(
+        projected,
+        requested
+            .iter()
+            .cloned()
+            .zip([true, false, true])
+            .map(|(item, selected)| { CollectionSelectionMembership { item, selected } })
+            .collect::<Vec<_>>()
+    );
+    let oversized = (0..65)
+        .map(|index| CollectionItemId::Material {
+            id: MaterialId(format!("material-{index}")),
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                None,
+                CollectionSurface::Material,
+                &oversized
+            )
+            .is_err()
+    );
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                None,
+                CollectionSurface::Material,
+                &[item(0), item(0)]
+            )
+            .is_err()
+    );
+    let overlap = CollectionSelectionCreate {
+        command_id: "overlap".into(),
+        source: CollectionSelectionSource::Amend {
+            selection_id: original.id.clone(),
+            query: selection_query.clone(),
+            add: vec![item(0)],
+            remove: vec![item(0)],
+        },
+    };
+    assert!(store.create_collection_selection(&overlap).is_err());
+    let outside = CollectionSelectionCreate {
+        command_id: "outside-filter".into(),
+        source: CollectionSelectionSource::Amend {
+            selection_id: original.id.clone(),
+            query: query(
+                CollectionSurface::Material,
+                CollectionFilter::Text {
+                    text: "not present".into(),
+                },
+            ),
+            add: vec![item(4)],
+            remove: vec![],
+        },
+    };
+    assert!(matches!(
+        store.create_collection_selection(&outside),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(store.collection_selections().unwrap().len(), 2);
+    store.release_collection_selection(&original.id).unwrap();
+    assert_eq!(
+        store.create_collection_selection(&command).unwrap(),
+        amended
+    );
+}
+
+#[test]
+fn removing_frozen_targets_survives_catalog_eviction_without_cross_package_aliases() {
+    // Given frozen target identities whose rebuildable catalog is later evicted.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    catalog(&mut store, 2);
+    let selection_query = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::All { filters: vec![] },
+    );
+    let original = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "select-targets".into(),
+            source: CollectionSelectionSource::Matching {
+                query: selection_query.clone(),
+            },
+        })
+        .unwrap();
+    store.evict_collection_catalog(PACKAGE).unwrap();
+    let item = |index| CollectionItemId::Target {
+        target_id: format!("entry-{index:03}"),
+    };
+
+    // When only membership removal is requested, no current dictionary is needed.
+    let amended = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "remove-frozen-target".into(),
+            source: CollectionSelectionSource::Amend {
+                selection_id: original.id,
+                query: selection_query.clone(),
+                add: vec![],
+                remove: vec![item(0)],
+            },
+        })
+        .unwrap();
+
+    // Then the remainder is readable, but an aliased target in another package is not selected.
+    assert_eq!(amended.target_count, 1);
+    let keys = vec![item(0), item(1)];
+    assert_eq!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                Some(PACKAGE),
+                CollectionSurface::Knowledge,
+                &keys
+            )
+            .unwrap()
+            .iter()
+            .map(|row| row.selected)
+            .collect::<Vec<_>>(),
+        vec![false, true]
+    );
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                Some("other.package"),
+                CollectionSurface::Knowledge,
+                &keys
+            )
+            .unwrap()
+            .iter()
+            .all(|row| !row.selected)
+    );
+    let add = CollectionSelectionCreate {
+        command_id: "add-without-catalog".into(),
+        source: CollectionSelectionSource::Amend {
+            selection_id: amended.id.clone(),
+            query: selection_query.clone(),
+            add: vec![item(0)],
+            remove: vec![],
+        },
+    };
+    assert!(store.create_collection_selection(&add).is_err());
+    let mut foreign_query = selection_query;
+    foreign_query.package_id = Some("other.package".into());
+    assert!(
+        store
+            .create_collection_selection(&CollectionSelectionCreate {
+                command_id: "foreign-amendment".into(),
+                source: CollectionSelectionSource::Amend {
+                    selection_id: amended.id,
+                    query: foreign_query,
+                    add: vec![],
+                    remove: vec![item(1)],
+                },
+            })
+            .is_err()
+    );
+}
+
+#[test]
 fn frozen_selection_survives_filter_changes_retry_and_reopen() {
     // Given saved Materials selected through the same native negated predicate.
     let directory = tempfile::tempdir().unwrap();
@@ -806,7 +1047,7 @@ fn schema_twelve_catalog_rebuild_preserves_material_claims_and_receipts() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        16
+        17
     );
 }
 

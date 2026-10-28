@@ -238,6 +238,18 @@ impl Runtime {
                     .collection_selections()
                     .map_err(|error| Failure::Operation(error.to_string()))?,
             }),
+            Request::CollectionSelectionMembership {
+                id,
+                package_id,
+                surface,
+                items,
+            } => Ok(Response::CollectionSelectionMembership {
+                items: self
+                    .store
+                    .collection_selection_membership(&id, package_id.as_deref(), surface, &items)
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+                id,
+            }),
             Request::CollectionSelectionPage { id, after } => {
                 Ok(Response::CollectionSelectionPage {
                     page: self

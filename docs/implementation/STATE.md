@@ -26,6 +26,12 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: extend the verified collection/filter owners with stable native
 selections, bulk operations and remaining M10 flows.
+Latest checkpoint: `570ae394de262d8f400f997f996c4ad50daa33a0` is pushed with
+the verified native bulk engine/typed client, not a completed management UI.
+The current consumer-boundary increment adds immutable row amendments,
+bounded visible membership, readable result labels and Schema17 retirement;
+guarded run1460 passed its owner/runtime/client checks. Next is the shared Knowledge/Material controls,
+with actual desktop/narrow captures and complete four-action workflows.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -198,6 +204,41 @@ come from the native content/receipt owner, including after removal. These are
 not implemented by the current identity-only packet. Build those boundaries
 before composing the shared controls, then inspect real desktop/narrow rendering
 and exercise the four bulk actions with cancellation/restart/retry.
+
+Engine570ae39 exact foundation40670697356 and desktop40670697311 passed;
+mobile40670697251 remains under observer1459. Removald1d80ff mobile40663084185
+finished with Android122737199189 passing and iOS122737198915 failing at
+2026-10-28T10:12:22Z: `Assertion is false: id: m01-watch, mp4 is not visible`.
+This differs from selection4ca6474's missing Open-local-video control; no common
+cause is claimed. The exact log is owned-root `ios-d1d80ff-failure.log`.
+
+The uncommitted selection amendments retain original edit/package preconditions,
+validate newly added keys through the existing native filter compiler, and
+permit removal of frozen keys without an available catalog. Visible membership
+reads at most64 requested keys and distinguishes package aliases. Storage/client
+and authentic-package runtime regressions cover those boundaries.
+
+Result labels now come from native content/package/media metadata and are stored
+with each mutation receipt before removal. Missing historical content falls back
+to its genuine identifier, not invented text. Consumer tracing also exposed that
+clearing results retained full edit drafts indefinitely. Schema17 now migrates
+released documents in bounded windows to typed compact progress summaries,
+discarding edit inputs/labels while preserving the digest. An exact Start replay
+reconstructs its summary only from the digest-matched incoming command and never
+reapplies work. Direct released-result reads fail explicitly; release acknowledges
+only the command ID and is idempotent. New retirement/migration regressions cover
+these lifetimes. No affected UI has been edited yet.
+
+Consumer-boundary run1460 passed all117 storage tests, both native bulk-worker
+tests, all three native collection tests, all five native Material tests,
+Rust contract generation, typecheck, ownership lint and all26 targeted client
+tests. Log: owned root `management-boundaries-verify.log`. Existing unused
+`practice` fixture and ts-rs serde-attribute warnings remain. Final sample:
+footprint1806054528, available8569831424, pressure1, swapUsed4070834176,
+swapOut67667247104, with the unchanged 2GiB workload budget and 4GiB reserve.
+These native boundaries are verified for continuation, not GUI or milestone
+acceptance. Management selection/bulk controls and real four-action workflows
+remain incomplete; M11 has not begun.
 
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;

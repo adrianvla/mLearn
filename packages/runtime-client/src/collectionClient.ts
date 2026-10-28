@@ -1,11 +1,22 @@
 import type {
-  CollectionPreparationCommand, CollectionQuery, CollectionSelectionCreate,
+  CollectionItemId, CollectionPreparationCommand, CollectionQuery, CollectionSelectionCreate,
   CollectionSelectionSource, Request, Response,
 } from '@mlearn/contracts';
 import { isCollectionResponse } from './collectionProtocol';
 import { RuntimeError } from './errors';
 
 type Execute = (request: Request) => Promise<Response>;
+
+function identity(item: CollectionItemId): string {
+  switch (item.kind) {
+    case 'target': return JSON.stringify(['target', item.targetId]);
+    case 'material': return JSON.stringify(['material', item.id]);
+    default: {
+      const unexpected: never = item;
+      throw new RuntimeError('protocol', `Unsupported selection identity: ${String(unexpected)}`);
+    }
+  }
+}
 
 export function createCollectionClient(request: Execute, commandId: () => string, execute: Execute) {
   async function control(command: Request, expectedId: string | null) {
@@ -20,7 +31,7 @@ export function createCollectionClient(request: Execute, commandId: () => string
   }
   return {
     prepareCollectionSelection(source: CollectionSelectionSource): CollectionSelectionCreate {
-      return { source, commandId: commandId() };
+      return { source: structuredClone(source), commandId: commandId() };
     },
     async createCollectionSelection(command: CollectionSelectionCreate) {
       const response = await request({ type: 'create_collection_selection', command });
@@ -40,6 +51,22 @@ export function createCollectionClient(request: Execute, commandId: () => string
       if (!isCollectionResponse(response) || response.type !== 'collection_selections')
         throw new RuntimeError('protocol', 'Malformed retained selections.');
       return response.selections;
+    },
+    async collectionSelectionMembership(
+      id: string,
+      scope: Pick<CollectionQuery, 'packageId' | 'surface'>,
+      items: CollectionItemId[],
+    ) {
+      const requested = structuredClone(items);
+      const response = await request({
+        type: 'collection_selection_membership', id,
+        packageId: scope.packageId, surface: scope.surface, items: requested,
+      });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selection_membership'
+        || response.id !== id || response.items.length !== requested.length
+        || response.items.some((row, index) => identity(row.item) !== identity(requested[index])))
+        throw new RuntimeError('protocol', 'Mismatched bounded selection membership.');
+      return response.items;
     },
     async collectionSelectionPage(id: string, after: string | null = null) {
       const response = await request({ type: 'collection_selection_page', id, after });

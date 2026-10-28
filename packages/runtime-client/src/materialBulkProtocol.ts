@@ -57,7 +57,7 @@ export function isMaterialBulkStatus(value: unknown): value is MaterialBulkStatu
   }
 }
 function item(value: unknown): boolean {
-  if (!object(value) || !isCollectionSelectionEntry(value.entry)) return false;
+  if (!object(value) || !isCollectionSelectionEntry(value.entry) || !text(value.label, 2048)) return false;
   if (value.outcome === null) return true;
   if (!object(value.outcome)) return false;
   const outcome = value.outcome;
@@ -80,10 +80,11 @@ function item(value: unknown): boolean {
     default: return false;
   }
 }
-type BulkResponse = Extract<Response, { type: 'material_bulk_status' | 'material_bulk_jobs' | 'material_bulk_page' }>;
+type BulkResponse = Extract<Response, { type: 'material_bulk_status' | 'material_bulk_jobs' | 'material_bulk_page' | 'material_bulk_released' }>;
 export function isMaterialBulkResponse(value: unknown): value is BulkResponse {
   if (!object(value) || encodedBytes(value) > 524288) return false;
   switch (value.type) {
+    case 'material_bulk_released': return text(value.commandId, 128);
     case 'material_bulk_status': return isMaterialBulkStatus(value.status);
     case 'material_bulk_jobs': {
       const jobs = value.jobs;

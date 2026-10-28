@@ -23,6 +23,10 @@ pub enum Response {
     CollectionSelections {
         selections: Vec<crate::CollectionSelection>,
     },
+    CollectionSelectionMembership {
+        id: crate::CollectionSelectionId,
+        items: Vec<crate::CollectionSelectionMembership>,
+    },
     CollectionSelectionPage {
         id: crate::CollectionSelectionId,
         page: crate::CollectionSelectionPage,
@@ -130,6 +134,10 @@ pub enum Response {
     },
     MaterialBulkJobs {
         jobs: Vec<crate::MaterialBulkStatus>,
+    },
+    MaterialBulkReleased {
+        #[serde(rename = "commandId")]
+        command_id: String,
     },
     MaterialBulkPage {
         #[serde(rename = "commandId")]

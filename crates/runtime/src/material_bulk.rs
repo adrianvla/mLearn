@@ -137,13 +137,13 @@ impl MaterialBulkOwner {
                 }) {
                     return Err(Failure::Busy);
                 }
-                let status = runtime
+                runtime
                     .lock()
                     .map_err(|_| poisoned())?
                     .store
                     .release_material_bulk(&command_id)
                     .map_err(storage)?;
-                Ok(Response::MaterialBulkStatus { status })
+                Ok(Response::MaterialBulkReleased { command_id })
             }
         }
     }
@@ -672,13 +672,15 @@ mod tests {
                 ..
             })
         )));
-        let released = status(call(
+        let released = call(
             &executor,
             MaterialBulkCommand::Release {
                 command_id: command.command_id.clone(),
             },
-        ));
-        assert!(!released.results_available);
+        );
+        assert!(
+            matches!(released, Response::MaterialBulkReleased { command_id } if command_id == command.command_id)
+        );
         assert!(matches!(
             call(
                 &executor,

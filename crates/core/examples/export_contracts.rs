@@ -185,6 +185,7 @@ fn main() {
         CollectionSelection::decl(),
         CollectionSelectionEntry::decl(),
         CollectionSelectionPage::decl(),
+        CollectionSelectionMembership::decl(),
         LanguageDescription::decl(),
         AnalyzedToken::decl(),
         CueAnalysis::decl(),

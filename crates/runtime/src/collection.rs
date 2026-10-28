@@ -342,24 +342,30 @@ impl Runtime {
         }
         let query = match &command.source {
             mlearn_core::CollectionSelectionSource::Matching { query }
-            | mlearn_core::CollectionSelectionSource::Items { query, .. } => query,
+            | mlearn_core::CollectionSelectionSource::Items { query, .. } => Some(query),
+            mlearn_core::CollectionSelectionSource::Amend { query, add, .. } => {
+                (!add.is_empty()).then_some(query)
+            }
         };
         // Apply the same installed-package/revision authority as normal browsing.
-        match self.collection_query(query.clone())? {
-            Response::Collection {
-                result: mlearn_core::CollectionResult::Ready { .. },
-            } => {}
-            Response::Collection {
-                result: mlearn_core::CollectionResult::Unavailable { message },
-            } => {
-                return Err(Failure::Operation(message));
+        // Removing frozen keys does not need an installed or rebuilt catalog.
+        if let Some(query) = query {
+            match self.collection_query(query.clone())? {
+                Response::Collection {
+                    result: mlearn_core::CollectionResult::Ready { .. },
+                } => {}
+                Response::Collection {
+                    result: mlearn_core::CollectionResult::Unavailable { message },
+                } => {
+                    return Err(Failure::Operation(message));
+                }
+                Response::Collection {
+                    result: mlearn_core::CollectionResult::Preparing { .. },
+                } => {
+                    return Err(Failure::Operation("Collection is still preparing".into()));
+                }
+                _ => return Err(Failure::Operation("Unexpected collection response".into())),
             }
-            Response::Collection {
-                result: mlearn_core::CollectionResult::Preparing { .. },
-            } => {
-                return Err(Failure::Operation("Collection is still preparing".into()));
-            }
-            _ => return Err(Failure::Operation("Unexpected collection response".into())),
         }
         let selection = self
             .store
@@ -568,6 +574,69 @@ mod tests {
             .remove(package_id)
             .unwrap();
         drop(retired);
+        let scope = CollectionQuery {
+            package_id: Some(package_id.into()),
+            surface: CollectionSurface::Knowledge,
+            filter: CollectionFilter::All { filters: vec![] },
+            sort: CollectionSort::Default,
+            after: None,
+        };
+        let item = CollectionItemId::Target {
+            target_id: entry.target_id.clone(),
+        };
+        let Response::CollectionSelectionMembership { id, items } = call(
+            &executor,
+            Request::CollectionSelectionMembership {
+                id: selection.id.clone(),
+                package_id: scope.package_id.clone(),
+                surface: scope.surface,
+                items: vec![item.clone()],
+            },
+        ) else {
+            panic!("Expected bounded native membership without a live package");
+        };
+        assert_eq!(id, selection.id);
+        assert_eq!(
+            items,
+            vec![CollectionSelectionMembership {
+                item: item.clone(),
+                selected: true
+            }]
+        );
+        let Response::CollectionSelection { selection: empty } = call(
+            &executor,
+            Request::CreateCollectionSelection {
+                command: CollectionSelectionCreate {
+                    command_id: "remove-unavailable-target".into(),
+                    source: CollectionSelectionSource::Amend {
+                        selection_id: selection.id.clone(),
+                        query: scope.clone(),
+                        add: vec![],
+                        remove: vec![item.clone()],
+                    },
+                },
+            },
+        ) else {
+            panic!("Expected removal-only amendment without a live package");
+        };
+        assert_eq!(empty.target_count, 0);
+        assert!(matches!(
+            call(
+                &executor,
+                Request::CreateCollectionSelection {
+                    command: CollectionSelectionCreate {
+                        command_id: "refuse-unavailable-target".into(),
+                        source: CollectionSelectionSource::Amend {
+                            selection_id: empty.id,
+                            query: scope,
+                            add: vec![item],
+                            remove: vec![],
+                        },
+                    },
+                }
+            ),
+            Response::Error { .. }
+        ));
         let command = MaterialBulkStart {
             command_id: "add-package-target".into(),
             selection_id: selection.id,

@@ -39,6 +39,14 @@ function selection(value: unknown): boolean {
     && uint(value.targetCount, 1000000) && uint(value.materialCount, 1000000)
     && (value.targetCount === 0 || value.materialCount === 0);
 }
+function selectionItem(value: unknown): boolean {
+  if (!object(value)) return false;
+  switch (value.kind) {
+    case 'target': return text(value.targetId, 512);
+    case 'material': return text(value.id, 512);
+    default: return false;
+  }
+}
 function selectionEntry(value: unknown): value is CollectionSelectionEntry {
   if (!object(value) || !object(value.item) || !text(value.packageId, 512)
     || !(value.packageRevision === null || text(value.packageRevision, 512))) return false;
@@ -73,6 +81,10 @@ export function isCollectionResponse(value: unknown): value is Response {
     case 'collection_selection': return selection(value.selection);
     case 'collection_selections': return list(value.selections, 8, selection);
     case 'collection_selection_released': return text(value.id, 128);
+    case 'collection_selection_membership':
+      return text(value.id, 128) && list(value.items, 64, row => object(row)
+        && selectionItem(row.item) && typeof row.selected === 'boolean')
+        && encodedBytes(value) <= 262144;
     case 'collection_selection_page':
       return text(value.id, 128) && object(value.page)
         && list(value.page.items, 64, selectionEntry)

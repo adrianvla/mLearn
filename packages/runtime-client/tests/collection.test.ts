@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { CollectionQuery } from '@mlearn/contracts';
+import type { CollectionItemId, CollectionQuery, CollectionSelectionSource } from '@mlearn/contracts';
 import { createRuntimeClient } from '../src/client.ts';
 
 const query: CollectionQuery = {
@@ -10,6 +10,53 @@ const query: CollectionQuery = {
   sort: 'default',
   after: null,
 };
+
+test('selection amendment freezes its draft and visible membership validates exact requested keys', async () => {
+  // Given a prepared amendment whose unsubmitted draft later changes.
+  const selected = {
+    id: 'amended-selection', packageId: query.packageId, packageRevision: 'revision-one',
+    targetCount: 1, materialCount: 0,
+  };
+  const first: CollectionItemId = { kind: 'target', targetId: 'entry-1' };
+  const second: CollectionItemId = { kind: 'target', targetId: 'entry-2' };
+  const source: CollectionSelectionSource = {
+    kind: 'amend', selectionId: 'base-selection', query: structuredClone(query),
+    add: [first], remove: [],
+  };
+  const original = structuredClone(source);
+  let response: unknown = { type: 'collection_selection', selection: selected };
+  const submissions: unknown[] = [];
+  const client = createRuntimeClient({
+    commandId: () => 'amend-once',
+    execute: async raw => {
+      const request: unknown = JSON.parse(raw);
+      submissions.push(request);
+      return JSON.stringify(response);
+    },
+  });
+  const prepared = client.prepareCollectionSelection(source);
+  source.add.push(second);
+
+  // When the frozen intent is submitted and only the current page asks for membership.
+  assert.deepEqual(await client.createCollectionSelection(prepared), selected);
+  assert.deepEqual(submissions[0], {
+    type: 'create_collection_selection', command: { commandId: 'amend-once', source: original },
+  });
+  const membership = [{ item: first, selected: true }, { item: second, selected: false }];
+  response = { type: 'collection_selection_membership', id: selected.id, items: membership };
+
+  // Then native item order/identity, bounded cardinality and boolean state are checked.
+  assert.deepEqual(await client.collectionSelectionMembership(selected.id, query, [first,second]), membership);
+  for (const invalid of [
+    { id: 'foreign', items: membership },
+    { id: selected.id, items: [...membership].reverse() },
+    { id: selected.id, items: [{ item: first, selected: 'yes' }, membership[1]] },
+    { id: selected.id, items: Array.from({ length: 65 }, () => membership[0]) },
+  ]) {
+    response = { type: 'collection_selection_membership', ...invalid };
+    await assert.rejects(client.collectionSelectionMembership(selected.id, query, [first,second]), { code: 'protocol' });
+  }
+});
 
 test('frozen selection retries retain the command and reject foreign or unbounded pages', async () => {
   // Given a selection receipt lost once at the transport boundary.

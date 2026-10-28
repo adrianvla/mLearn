@@ -1,12 +1,12 @@
 use crate::{
     ProfileStore, StorageError,
-    collection::{compile_collection, read_collection},
+    collection::{CollectionSql, compile_collection, read_collection},
     material_validation::bounded,
 };
 use mlearn_core::*;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_SELECTIONS: u32 = 8;
 const MAX_ENTRIES: u32 = 1_000_000;
@@ -77,7 +77,309 @@ fn receipt(
     }
 }
 
+fn item_ids(
+    items: &[CollectionItemId],
+    surface: CollectionSurface,
+    maximum: usize,
+) -> Result<BTreeSet<&str>, StorageError> {
+    if items.len() > maximum {
+        return Err(StorageError::Invalid(
+            "Selection exceeds item bounds".into(),
+        ));
+    }
+    let mut ids = BTreeSet::new();
+    for item in items {
+        let id = match (surface, item) {
+            (CollectionSurface::Knowledge, CollectionItemId::Target { target_id }) => {
+                target_id.as_str()
+            }
+            (CollectionSurface::Material, CollectionItemId::Material { id }) => id.0.as_str(),
+            _ => {
+                return Err(StorageError::Invalid(
+                    "Selection item has the wrong kind".into(),
+                ));
+            }
+        };
+        bounded(id, 512)?;
+        if !ids.insert(id) {
+            return Err(StorageError::Invalid("Duplicate selection item".into()));
+        }
+    }
+    Ok(ids)
+}
+
+fn compile_selection(
+    db: &Connection,
+    query: &CollectionQuery,
+    explicit: Option<&BTreeSet<&str>>,
+) -> Result<(CollectionSql, Option<String>), StorageError> {
+    if query.after.is_some() {
+        return Err(StorageError::Invalid(
+            "Selection requires a complete query, not a page cursor".into(),
+        ));
+    }
+    let revision = match read_collection(db, query)? {
+        CollectionResult::Ready { page } => page.package_revision,
+        CollectionResult::Preparing { .. } => {
+            return Err(StorageError::Invalid(
+                "Collection is still preparing".into(),
+            ));
+        }
+        CollectionResult::Unavailable { message } => return Err(StorageError::Invalid(message)),
+    };
+    let metadata = match &query.package_id {
+        Some(package_id) => db
+            .query_row(
+                "SELECT description FROM collection_catalogs WHERE package_id=?1",
+                [package_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?,
+        None => None,
+    }
+    .unwrap_or(CollectionDescription {
+        capabilities: vec![],
+        kinds: vec![],
+        scopes: vec![],
+        levels: vec![],
+    });
+    let mut compiled = compile_collection(query, &metadata)?;
+    if let Some(ids) = explicit {
+        let mut parameters = Vec::with_capacity(ids.len());
+        for id in ids {
+            compiled.values.push(Value::Text((*id).into()));
+            parameters.push(format!("?{}", compiled.values.len()));
+        }
+        compiled.membership.push_str(&if parameters.is_empty() {
+            " AND 0".into()
+        } else {
+            format!(" AND {} IN ({})", compiled.id, parameters.join(","))
+        });
+    }
+    Ok((compiled, revision))
+}
+
+fn insert_entries(
+    db: &Connection,
+    compiled: &mut CollectionSql,
+    id: &CollectionSelectionId,
+    surface: CollectionSurface,
+    limit: u32,
+) -> Result<usize, StorageError> {
+    let (revision, material_revision) = match surface {
+        CollectionSurface::Knowledge => (
+            "(SELECT revision FROM collection_catalogs WHERE package_id=t.package_id)",
+            "NULL",
+        ),
+        CollectionSurface::Material => {
+            ("json_extract(m.content,'$.packageRevision')", "m.revision")
+        }
+    };
+    compiled.values.push(Value::Text(id.0.clone()));
+    let selection_parameter = compiled.values.len();
+    Ok(db.execute(
+        &format!(
+            "INSERT OR IGNORE INTO collection_selection_entries
+             SELECT ?{selection_parameter},{},{},{revision},{material_revision}
+             {} ORDER BY {} LIMIT {limit}",
+            compiled.id, compiled.package, compiled.membership, compiled.id,
+        ),
+        params_from_iter(&compiled.values),
+    )?)
+}
+
+fn amend(
+    db: &Connection,
+    command: &CollectionSelectionCreate,
+    id: &CollectionSelectionId,
+    digest: &[u8],
+    available: u32,
+) -> Result<CollectionSelection, StorageError> {
+    let CollectionSelectionSource::Amend {
+        selection_id,
+        query,
+        add,
+        remove,
+    } = &command.source
+    else {
+        return Err(StorageError::Invalid(
+            "Expected an immutable selection amendment".into(),
+        ));
+    };
+    if query.after.is_some() {
+        return Err(StorageError::Invalid(
+            "Selection requires a complete query, not a page cursor".into(),
+        ));
+    }
+    if let Some(package_id) = &query.package_id {
+        bounded(package_id, 512)?;
+    }
+    let base = selection(db, selection_id)?;
+    if base.target_count > 0
+        && (query.surface != CollectionSurface::Knowledge || base.package_id != query.package_id)
+        || base.material_count > 0 && query.surface != CollectionSurface::Material
+    {
+        return Err(StorageError::Invalid(
+            "Selection amendment changed its collection identity".into(),
+        ));
+    }
+    let add_ids = item_ids(add, query.surface, 256)?;
+    let remove_ids = item_ids(remove, query.surface, 256)?;
+    if !add_ids.is_disjoint(&remove_ids) {
+        return Err(StorageError::Invalid(
+            "Selection amendment adds and removes the same item".into(),
+        ));
+    }
+    db.execute(
+        "INSERT INTO collection_selections(id,digest,document) VALUES(?1,?2,NULL)",
+        params![id.0, digest],
+    )?;
+    let mut values = vec![
+        Value::Text(id.0.clone()),
+        Value::Text(selection_id.0.clone()),
+    ];
+    let mut parameters = Vec::with_capacity(remove_ids.len());
+    for removed in remove_ids {
+        values.push(Value::Text(removed.into()));
+        parameters.push(format!("?{}", values.len()));
+    }
+    let excludes = if parameters.is_empty() {
+        "1".into()
+    } else {
+        format!("item_id NOT IN ({})", parameters.join(","))
+    };
+    let copied = db.execute(
+        &format!(
+            "INSERT INTO collection_selection_entries
+             SELECT ?1,item_id,package_id,package_revision,material_revision
+             FROM collection_selection_entries WHERE selection_id=?2 AND {excludes} LIMIT {}",
+            available + 1,
+        ),
+        params_from_iter(&values),
+    )?;
+    if copied > available as usize {
+        return Err(StorageError::Invalid(
+            "Selection exceeds retained item bounds".into(),
+        ));
+    }
+    let mut package_id = base.package_id.clone();
+    let mut package_revision = base.package_revision.clone();
+    if !add_ids.is_empty() {
+        let (mut compiled, revision) = compile_selection(db, query, Some(&add_ids))?;
+        let matches: usize = db.query_row(
+            &format!("SELECT COUNT(*) {}", compiled.membership),
+            params_from_iter(&compiled.values),
+            |row| row.get(0),
+        )?;
+        if matches != add_ids.len() {
+            return Err(StorageError::Conflict);
+        }
+        insert_entries(db, &mut compiled, id, query.surface, available + 1)?;
+        if base.target_count == 0 && base.material_count == 0 {
+            package_id = query.package_id.clone();
+            package_revision = revision;
+        } else if package_id != query.package_id {
+            package_id = None;
+            package_revision = None;
+        } else if package_revision != revision {
+            package_revision = None;
+        }
+    }
+    let count: u32 = db.query_row(
+        "SELECT COUNT(*) FROM collection_selection_entries WHERE selection_id=?1",
+        [&id.0],
+        |row| row.get(0),
+    )?;
+    if count > available {
+        return Err(StorageError::Invalid(
+            "Selection exceeds retained item bounds".into(),
+        ));
+    }
+    let selected = CollectionSelection {
+        id: id.clone(),
+        package_id,
+        package_revision,
+        target_count: if query.surface == CollectionSurface::Knowledge {
+            count
+        } else {
+            0
+        },
+        material_count: if query.surface == CollectionSurface::Material {
+            count
+        } else {
+            0
+        },
+    };
+    db.execute(
+        "UPDATE collection_selections SET document=?2 WHERE id=?1",
+        params![id.0, serde_json::to_string(&selected)?],
+    )?;
+    Ok(selected)
+}
+
 impl ProfileStore {
+    pub fn collection_selection_membership(
+        &self,
+        id: &CollectionSelectionId,
+        package_id: Option<&str>,
+        surface: CollectionSurface,
+        items: &[CollectionItemId],
+    ) -> Result<Vec<CollectionSelectionMembership>, StorageError> {
+        if let Some(package_id) = package_id {
+            bounded(package_id, 512)?;
+        }
+        if surface == CollectionSurface::Knowledge && package_id.is_none() {
+            return Err(StorageError::Invalid(
+                "Knowledge membership requires its explicit package".into(),
+            ));
+        }
+        let ids = item_ids(items, surface, 64)?;
+        let tx = self.connection.unchecked_transaction()?;
+        selection(&tx, id)?;
+        let mut values = vec![Value::Text(id.0.clone())];
+        let mut parameters = Vec::with_capacity(ids.len());
+        for item_id in ids {
+            values.push(Value::Text(item_id.into()));
+            parameters.push(format!("?{}", values.len()));
+        }
+        let selected = if parameters.is_empty() {
+            BTreeMap::new()
+        } else {
+            let mut statement = tx.prepare(&format!(
+                "SELECT item_id,package_id,material_revision IS NOT NULL
+                 FROM collection_selection_entries WHERE selection_id=?1 AND item_id IN ({})",
+                parameters.join(","),
+            ))?;
+            statement
+                .query_map(params_from_iter(&values), |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        (row.get::<_, String>(1)?, row.get::<_, bool>(2)?),
+                    ))
+                })?
+                .collect::<Result<BTreeMap<_, _>, _>>()?
+        };
+        let projection = items
+            .iter()
+            .map(|item| {
+                let (key, material) = match item {
+                    CollectionItemId::Target { target_id } => (target_id, false),
+                    CollectionItemId::Material { id } => (&id.0, true),
+                };
+                CollectionSelectionMembership {
+                    item: item.clone(),
+                    selected: selected.get(key).is_some_and(|(package, kind)| {
+                        *kind == material && (material || Some(package.as_str()) == package_id)
+                    }),
+                }
+            })
+            .collect();
+        tx.commit()?;
+        Ok(projection)
+    }
+
     pub fn collection_selections(&self) -> Result<Vec<CollectionSelection>, StorageError> {
         let mut statement = self.connection.prepare(
             "SELECT document FROM collection_selections WHERE document IS NOT NULL ORDER BY id LIMIT 8",
@@ -117,7 +419,7 @@ impl ProfileStore {
             [],
             |row| row.get(0),
         )?;
-        if retained >= MAX_SELECTIONS || entries >= MAX_ENTRIES {
+        if retained >= MAX_SELECTIONS || entries > MAX_ENTRIES {
             return Err(StorageError::Invalid(
                 "Release an existing selection before selecting more items".into(),
             ));
@@ -125,113 +427,32 @@ impl ProfileStore {
         let (query, explicit) = match &command.source {
             CollectionSelectionSource::Matching { query } => (query, None),
             CollectionSelectionSource::Items { query, items } => {
-                if items.len() > 256 {
-                    return Err(StorageError::Invalid(
-                        "Selection exceeds item bounds".into(),
-                    ));
-                }
-                (query, Some(items))
+                (query, Some(item_ids(items, query.surface, 256)?))
+            }
+            CollectionSelectionSource::Amend { .. } => {
+                let selected = amend(&tx, command, &id, &digest, MAX_ENTRIES - entries)?;
+                tx.commit()?;
+                return Ok(selected);
             }
         };
-        if query.after.is_some() {
-            return Err(StorageError::Invalid(
-                "Selection requires a complete query, not a page cursor".into(),
-            ));
-        }
-        // Readiness, filter validation and membership share the collection owner
-        // and this transaction; another process cannot change the set between them.
-        let page = match read_collection(&tx, query)? {
-            CollectionResult::Ready { page } => page,
-            CollectionResult::Preparing { .. } => {
-                return Err(StorageError::Invalid(
-                    "Collection is still preparing".into(),
-                ));
-            }
-            CollectionResult::Unavailable { message } => {
-                return Err(StorageError::Invalid(message));
-            }
-        };
-        let metadata = match &query.package_id {
-            Some(package_id) => tx
-                .query_row(
-                    "SELECT description FROM collection_catalogs WHERE package_id=?1",
-                    [package_id],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()?
-                .map(|json| serde_json::from_str(&json))
-                .transpose()?,
-            None => None,
-        }
-        .unwrap_or(CollectionDescription {
-            capabilities: vec![],
-            kinds: vec![],
-            scopes: vec![],
-            levels: vec![],
-        });
-        let mut compiled = compile_collection(query, &metadata)?;
-        if let Some(items) = explicit {
-            let mut seen = BTreeSet::new();
-            let mut parameters = Vec::with_capacity(items.len());
-            for item in items {
-                let item_id = match (query.surface, item) {
-                    (CollectionSurface::Knowledge, CollectionItemId::Target { target_id }) => {
-                        target_id
-                    }
-                    (CollectionSurface::Material, CollectionItemId::Material { id }) => &id.0,
-                    _ => {
-                        return Err(StorageError::Invalid(
-                            "Selection item has the wrong kind".into(),
-                        ));
-                    }
-                };
-                bounded(item_id, 512)?;
-                if !seen.insert(item_id) {
-                    return Err(StorageError::Invalid("Duplicate selection item".into()));
-                }
-                compiled.values.push(Value::Text(item_id.clone()));
-                parameters.push(format!("?{}", compiled.values.len()));
-            }
-            compiled.membership.push_str(&if parameters.is_empty() {
-                " AND 0".into()
-            } else {
-                format!(" AND {} IN ({})", compiled.id, parameters.join(","))
-            });
-        }
+        let (mut compiled, package_revision) = compile_selection(&tx, query, explicit.as_ref())?;
         tx.execute(
             "INSERT INTO collection_selections(id,digest,document) VALUES(?1,?2,NULL)",
             params![id.0, digest],
         )?;
-        let (revision, material_revision) = match query.surface {
-            CollectionSurface::Knowledge => (
-                "(SELECT revision FROM collection_catalogs WHERE package_id=t.package_id)",
-                "NULL",
-            ),
-            CollectionSurface::Material => {
-                ("json_extract(m.content,'$.packageRevision')", "m.revision")
-            }
-        };
-        compiled.values.push(Value::Text(id.0.clone()));
-        let selection_parameter = compiled.values.len();
-        let count = tx.execute(
-            &format!(
-                "INSERT INTO collection_selection_entries
-                 SELECT ?{selection_parameter},{},{},{revision},{material_revision}
-                 {} ORDER BY {} LIMIT {}",
-                compiled.id,
-                compiled.package,
-                compiled.membership,
-                compiled.id,
-                MAX_ENTRIES - entries + 1,
-            ),
-            params_from_iter(&compiled.values),
+        let count = insert_entries(
+            &tx,
+            &mut compiled,
+            &id,
+            query.surface,
+            MAX_ENTRIES - entries + 1,
         )?;
         if count > (MAX_ENTRIES - entries) as usize {
             return Err(StorageError::Invalid(
                 "Selection exceeds retained item bounds".into(),
             ));
         }
-        if explicit.is_some_and(|items| items.len() != count) {
+        if explicit.as_ref().is_some_and(|items| items.len() != count) {
             return Err(StorageError::Conflict);
         }
         let count = u32::try_from(count)
@@ -239,7 +460,7 @@ impl ProfileStore {
         let selected = CollectionSelection {
             id,
             package_id: query.package_id.clone(),
-            package_revision: page.package_revision,
+            package_revision,
             target_count: if query.surface == CollectionSurface::Knowledge {
                 count
             } else {

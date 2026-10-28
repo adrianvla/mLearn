@@ -89,6 +89,7 @@ pub enum MaterialBulkOutcome {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct MaterialBulkItem {
     pub entry: CollectionSelectionEntry,
+    pub label: String,
     pub outcome: Option<MaterialBulkOutcome>,
 }
 

@@ -324,6 +324,13 @@ pub enum CollectionSelectionSource {
         query: CollectionQuery,
         items: Vec<CollectionItemId>,
     },
+    Amend {
+        #[serde(rename = "selectionId")]
+        selection_id: CollectionSelectionId,
+        query: CollectionQuery,
+        add: Vec<CollectionItemId>,
+        remove: Vec<CollectionItemId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -363,4 +370,12 @@ pub struct CollectionSelectionEntry {
 pub struct CollectionSelectionPage {
     pub items: Vec<CollectionSelectionEntry>,
     pub next: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionSelectionMembership {
+    pub item: CollectionItemId,
+    pub selected: bool,
 }

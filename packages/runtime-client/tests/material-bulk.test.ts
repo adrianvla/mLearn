@@ -14,7 +14,7 @@ const entry = {
   item: { kind: 'material', id: 'material-one' }, packageId: 'example.language',
   packageRevision: null, materialRevision: 4,
 };
-const result = { entry, outcome: { state: 'saved', materialId: 'material-one', committedRevision: 5, reused: false } };
+const result = { entry, label: 'Selected word', outcome: { state: 'saved', materialId: 'material-one', committedRevision: 5, reused: false } };
 function gate() {
   let release = () => {};
   const promise = new Promise<void>(resolve => { release = resolve; });
@@ -115,10 +115,11 @@ test('bulk receipts reject inconsistent progress, foreign identities and unbound
     { items: [result], next: 'not-the-last-key' },
     { items: [{ ...result, outcome: { ...result.outcome, committedRevision: 6 } }], next: null },
     { items: [{ ...result, outcome: { state: 'removed', materialId: 'foreign', committedRevision: 5 } }], next: null },
-    { items: [{ entry: { ...entry, materialRevision: 4294967295 }, outcome: {
+    { items: [{ ...result, entry: { ...entry, materialRevision: 4294967295 }, outcome: {
       state: 'removed', materialId: entry.item.id, committedRevision: 4294967296,
     } }], next: null },
-    { items: [{ entry: { ...entry, materialRevision: null }, outcome: null }], next: null },
+    { items: [{ ...result, entry: { ...entry, materialRevision: null }, outcome: null }], next: null },
+    { items: [{ ...result, label: '' }], next: null },
     { items: [{ ...result, outcome: { state: 'invented-success' } }], next: null },
   ]) {
     response = { type: 'material_bulk_page', commandId: command.commandId, page };
@@ -155,8 +156,10 @@ test('prepared bulk edits freeze input and compare receipt semantics rather than
   await assert.rejects(client.startMaterialBulk(prepared), { code: 'protocol' });
   response = { type: 'material_bulk_status', status: completed };
   await assert.rejects(client.releaseMaterialBulk(command.commandId), { code: 'protocol' });
-  response = { type: 'material_bulk_status', status: { ...completed, resultsAvailable: false } };
-  assert.equal((await client.releaseMaterialBulk(command.commandId)).resultsAvailable, false);
+  response = { type: 'material_bulk_released', commandId: 'foreign' };
+  await assert.rejects(client.releaseMaterialBulk(command.commandId), { code: 'protocol' });
+  response = { type: 'material_bulk_released', commandId: command.commandId };
+  await client.releaseMaterialBulk(command.commandId);
   assert.throws(() => client.prepareMaterialBulk(command.selectionId, { kind: 'edit', patch: {
     phrase: null, reading: null, meaning: null, context: null, notes: null, examples: null,
   } }), { code: 'invalid_request' });

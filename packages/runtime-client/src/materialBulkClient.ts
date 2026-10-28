@@ -68,9 +68,8 @@ export function createMaterialBulkClient(execute: (request: Request) => Promise<
       return response.page;
     },
     async releaseMaterialBulk(commandId: string) {
-      const status = await control({ kind: 'release', commandId }, commandId);
-      if (status.resultsAvailable) throw malformed();
-      return status;
+      const response = await read({ kind: 'release', commandId });
+      if (response.type !== 'material_bulk_released' || response.commandId !== commandId) throw malformed();
     },
   };
 }
