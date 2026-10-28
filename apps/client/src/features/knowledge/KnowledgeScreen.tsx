@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Platform, View, useWindowDimensions, type Text as NativeText } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native-unistyles';
-import type { CollectionFilter, CollectionPreparationCommand, CollectionPreparationStatus, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionItemId, CollectionPreparationCommand, CollectionPreparationStatus, CollectionQuery, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -12,7 +12,7 @@ import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Inspector, type Inspection } from '../inspector';
 import { LinguisticWord } from '../linguistic';
-import { CollectionFilters } from '../collection';
+import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
 
 export function KnowledgeScreen() {
   const host = useRuntime();
@@ -39,6 +39,14 @@ export function KnowledgeScreen() {
   const inspectionChanged = useRef(false);
   const loadedQuery = useRef('');
   const queryKey = JSON.stringify([packageId, query, filter, sort, after]);
+  const collectionQuery = useMemo<CollectionQuery>(() => ({
+    packageId, surface: 'knowledge', filter: { kind: 'all', filters: [{ kind: 'text', text: query }, filter] }, sort, after: null,
+  }), [packageId, query, filter, sort]);
+  const currentResult = loadedQuery.current === queryKey ? result : null;
+  const page = currentResult?.state === 'ready' ? currentResult.page : null;
+  const visibleItems = useMemo<CollectionItemId[]>(() => page?.items.flatMap(item => item.kind === 'target'
+    ? [{ kind: 'target' as const, targetId: item.target.summary.targetId }] : []) ?? [], [page]);
+  const selection = useCollectionSelection(host.available ? host.client : null, collectionQuery, visibleItems);
   useFocusEffect(useCallback(() => {
     if (!host.available) return;
     const scope = {};
@@ -64,15 +72,13 @@ export function KnowledgeScreen() {
     if (loadedQuery.current !== queryKey) {
       loadedQuery.current = queryKey; setResult(null); setDescription(null);
     }
-    void Promise.all([host.client.collection({
-      packageId, surface: 'knowledge', filter: { kind: 'all', filters: [{ kind: 'text', text: query }, filter] }, sort, after,
-    }), host.client.describeLanguage(packageId)]).then(([value, language]) => {
+    void Promise.all([host.client.collection({ ...collectionQuery, after }), host.client.describeLanguage(packageId)]).then(([value, language]) => {
       if (active) { setResult(value); setDescription(language); }
     })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
       .finally(() => { if (active) setPending(false); });
     return () => { active = false; };
-  }, [host, packageId, query, filter, sort, after, queryKey, reload]));
+  }, [host, packageId, collectionQuery, after, queryKey, reload]));
   useEffect(() => { setInspection(null); }, [packageId, query, filter, sort, after]);
   async function prepare() {
     if (!host.available || preparing.current || !packageId) return;
@@ -106,8 +112,6 @@ export function KnowledgeScreen() {
       if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
     }
   }
-  const currentResult = loadedQuery.current === queryKey ? result : null;
-  const page = currentResult?.state === 'ready' ? currentResult.page : null;
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
   return <AppShell contentInset="none" header={<>
@@ -137,6 +141,8 @@ export function KnowledgeScreen() {
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.results} accessibilityLiveRegion="polite">
+        <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
+          ready={!!page && !pending} surface="knowledge" packages={packages} /></View>
         {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
         {error ? <View style={styles.notice}><Text accessibilityRole="alert">{error}</Text>
           <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></View> : null}
@@ -190,6 +196,10 @@ export function KnowledgeScreen() {
               <View style={styles.meaning(compact)}><Text numberOfLines={compact ? 3 : 2}>{target.summary.summary}</Text></View>
               <View style={styles.level(compact)}><Text variant="caption">{target.levels.map(level => level.level).join(' · ') || '—'}</Text></View>
               <View style={styles.knowledge(compact)}>
+                {selection.enabled ? <Button label="Select" accessibilityLabel={`Select ${target.summary.headword}`}
+                  variant="secondary" size="compact" disabled={!selection.canToggle}
+                  accessibilityState={{ selected: selection.selected({ kind: 'target', targetId: target.summary.targetId }) }}
+                  onPress={() => selection.toggle({ kind: 'target', targetId: target.summary.targetId })} /> : null}
                 {compact && capabilityLabel ? <Text variant="caption" muted>{capabilityLabel}</Text> : null}
                 <Badge label={projection?.status.replaceAll('_', ' ') ?? 'Knowledge unavailable'} />
               </View>

@@ -176,6 +176,24 @@ is not established by the transparent reference CDP canvas.
 
 ## Knowledge collection, 2026-10-28
 
+Shared collection selection controls retain the native frozen handle, not a
+renderer copy of selected membership. Primary action in selection mode: select
+the intended scope before applying a bulk change. Priorities: exact selected
+count and package, current row membership, then recovery/release controls.
+Required content: select current filtered set, individual toggles, explicit
+clear, lost-receipt retry, retained selections, and pending/error feedback.
+Keep selection controls collapsed during ordinary browsing; no automatic
+selection or mutation occurs on navigation. Filter/order/page changes must not
+replace a frozen selection. Native jobs pin their selection until results clear.
+Layout: Knowledge and Material selection - keep scope beside the current
+results without enlarging the compact fixed header -> existing wrapping Row
+within app-shell-content; scroll owner: app-shell-content. Shared Button owns
+toggle, checked/pressed, keyboard, hover and touch semantics; Select owns
+retained-handle recovery. Do not add feature-local checkbox or clickable DOM.
+The fresh selection-before-material/knowledge captures at1100/390 widths in
+the current execution root are the before set. Actual native membership,
+refresh, restart and lost-receipt behavior must be exercised after integration.
+
 Layout: Knowledge - compare bounded lexical results beneath stable search and
 navigation -> the existing AppShell scroll-body shell; scroll owner:
 app-shell-content. Keep the header out of the result scroll, avoid nested

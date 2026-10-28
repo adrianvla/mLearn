@@ -26,12 +26,14 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: extend the verified collection/filter owners with stable native
 selections, bulk operations and remaining M10 flows.
-Latest checkpoint: `570ae394de262d8f400f997f996c4ad50daa33a0` is pushed with
-the verified native bulk engine/typed client, not a completed management UI.
-The current consumer-boundary increment adds immutable row amendments,
+Latest checkpoint: `f074bc701cb6093bfe768c5a28ee5773ae4ccad3` is pushed with
+the verified native bulk engine, selection amendments and typed client, not a completed management UI.
+The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
-guarded run1460 passed its owner/runtime/client checks. Next is the shared Knowledge/Material controls,
-with actual desktop/narrow captures and complete four-action workflows.
+guarded run1460 passed its owner/runtime/client checks. The current uncommitted
+UI increment connects native selection controls to Knowledge and Material.
+Its first export/capture and recovery checks passed; bulk-action controls and complete
+four-action workflows are still unimplemented.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -206,7 +208,24 @@ before composing the shared controls, then inspect real desktop/narrow rendering
 and exercise the four bulk actions with cancellation/restart/retry.
 
 Engine570ae39 exact foundation40670697356 and desktop40670697311 passed;
-mobile40670697251 remains under observer1459. Removald1d80ff mobile40663084185
+mobile40670697251 failed. Android122756404068 built/installed successfully but
+failed the initial `Watch Inspector Knowledge and native source resume` flow
+after14s at2026-10-28T10:40:12Z. Retained `android-build-evidence`
+artifact12809368322, under owned-root `android-ci-570ae39`, records
+`DeviceServerDiedException` during `viewHierarchy`, caused by
+`Command failed (host:transport:emulator-5554): device offline`.
+The initial enabled `source-language-select` assertion was still running;
+this is not a completed negative product assertion. The retained native log
+has no `Fatal signal`, `FATAL EXCEPTION`, `OutOfMemory`, `am_crash` or `ANR in`
+match. This identifies a lost device/driver connection, not its underlying
+cause. Artifact source.txt matches570ae394 and treea8cd3262.
+iOS122756404720 failed before a functional flow started:
+`LocalXCTestInstaller$IOSDriverTimeoutException: iOS driver not ready in time`
+at2026-10-28T11:15:34Z. This is a harness startup failure, not a product
+assertion pass or proof of a product regression. Exact logs are owned-root
+`android-570ae39-failure.log` and `ios-570ae39-failure.log`. No workflow rerun,
+timeout change or local device launch was made.
+Removald1d80ff mobile40663084185
 finished with Android122737199189 passing and iOS122737198915 failing at
 2026-10-28T10:12:22Z: `Assertion is false: id: m01-watch, mp4 is not visible`.
 This differs from selection4ca6474's missing Open-local-video control; no common
@@ -239,6 +258,93 @@ swapOut67667247104, with the unchanged 2GiB workload budget and 4GiB reserve.
 These native boundaries are verified for continuation, not GUI or milestone
 acceptance. Management selection/bulk controls and real four-action workflows
 remain incomplete; M11 has not begun.
+
+Consumer boundaries committed/pushed as
+`f074bc701cb6093bfe768c5a28ee5773ae4ccad3`. Existing automatically triggered
+foundation40678063354 and desktop40678063477 passed;
+mobile40678063651 remains under its final-only observer.
+No additional workflow was dispatched. A deliberate,
+guarded current-native Material baseline run is active before the first visible
+selection change: owned-root `management-ui-baseline.log`. No device/model or
+reference application was started. The surviving static server PID2637
+(`node tools/serve-web.mjs`, started October24) was inspected and reused, not
+restarted or stopped.
+
+That baseline run stopped at the resource guard after the current native QA
+binary compiled successfully and the single Material test started. It produced
+no accepted baseline or product assertion verdict. Sample: footprint3925767296,
+available6229327872, pressure1, swapUsed4037279744, swapOut67667247104;
+projected headroom4081844224 was below the unchanged4294967296 reserve.
+The immediate process inventory found no owned QA/browser/Cargo/guard process
+remaining. Follow-up footprint3924833408 and available6487851008, with unchanged
+swap, leave little margin for the browser. Keep visible UI edits behind fresh
+baseline evidence; wait for three samples with at least7.5GiB available before
+another deliberate full test run, retaining the original guard and workload budget.
+That one-shot headroom watch timed out without restarting any workload.
+
+Native `vmmap -summary 82251` then reported footprint2.1GiB, peak14.4GiB
+(a historical peak, not a current allocation), and App-Specific Tag1 resident7.7GiB,
+dirty3.9GiB. The allocation owner behind that tag is unidentified. The eval
+runtime reported about75MB JavaScript heap and42MB external storage; retained
+inspection results totaled only200KB. Normal `Bun.gc(true)` reduced reported
+footprint by about6.5MB, not the tagged allocation. Do not call this resolved
+or attribute it to a device/model. Follow-up native sample:
+footprint2187179136, available6896467968, pressure1,
+swapUsed4028891136, swapOut67667247104.
+
+A materially smaller baseline path is now running: reuse the retained isolated
+native corpus profile and current compiled binary, one headless browser context,
+no Playwright test worker,52-entry seed run or trace recorder. It captures both
+Material and Knowledge before selection edits at1100/390 widths. Its original
+2GiB workload guard and4GiB reserve remain unchanged, with fresh admission and
+per-capture samples. Log: owned-root `management-ui-lean-baseline.log`.
+The temporary helper's LSP cannot initialize TypeScript outside the workspace;
+no dependency installation was attempted. No visible product source has changed.
+
+The lean baseline's first attempt exposed a helper-only mistake: baseline mode
+inherited the filter editor's390px Apply-filters scroll. The condition is now
+restricted to actual filter/source modes. Corrected capture passed with four
+inspected frames: `selection-before-material-final-{1100,390}-dark.png` and
+`selection-before-knowledge-final-{1100,390}-dark.png` in the owned root.
+Real Japanese Knowledge count was218923; Material had five real retained entries.
+No blank/overlapping frames were observed. After cleanup: footprint2412770432,
+available7101726720, pressure1, swapUsed4012113920, swapOut67667247104.
+These are browser-layout/native-owner baselines, not native compositor acceptance.
+
+Shared selection UI is now uncommitted in `features/collection`, with both
+screens reusing their exact native browse query for selection. Ordinary browsing
+keeps controls collapsed. Explicit activation supports individual row toggles,
+select-all-matching, retained-handle recovery, clear and lost-receipt retry.
+Replaced unpinned snapshots release; bulk-pinned snapshots stay retained.
+Only visible bounded membership enters React; filters/pages do not rewrite
+the frozen native handle. All four touched UI files had clean LSP diagnostics.
+Serial typecheck/lint/export and actual native-backed desktop/narrow captures
+passed: owned-root `management-selection-ui-verify.log`. All eight collapsed/
+active Material/Knowledge frames at1100/390 widths were inspected. Individual
+selection and clear returned real native receipts; controls stayed contained
+with the actual218923-entry Japanese catalog. This is not a full-corpus bulk
+run or native-compositor parity gate. Final guard sample:
+footprint2536076416, available6618021888, pressure1, swapUsed3986948096,
+swapOut67667247104, projected headroom4419393458.
+
+The new real-native web regression covers nonadjacent-page selection,
+filter refresh, original edit revisions, native restart recovery, loss of a
+committed amendment receipt followed by identical-command retry, select-all
+beyond the visible page, and explicit release. It retains the real SQLite and
+package owners; only the response delivery is interrupted. That test and the
+existing Material collection flow both passed serially in5.9s under the guard:
+owned-root `management-selection-recovery-tests.log`. The actual lost response
+was delivered only after the native amendment committed; retry submitted the
+identical command and retained one live snapshot, not a duplicate. Select-all
+retained all25 identities beyond the24-row visible page. Native restart kept the
+original selected revision1 despite a subsequent authored revision2. Explicit
+clear released the handle without changing authored content. The light-theme
+desktop/narrow25-item frames were inspected as well as the eight dark-theme
+Material/Knowledge frames. Final sample: footprint2569254016,
+available6600294400, pressure1, swapUsed3986948096, swapOut67667247104,
+projected headroom4452810752. Fresh LSP diagnostics for
+the new test timed out; this is not reported as a clean diagnostic. All product
+UI diagnostics remain clean. MAT-06 and the milestone remain incomplete.
 
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;

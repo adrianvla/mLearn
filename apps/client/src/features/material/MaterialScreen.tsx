@@ -1,9 +1,9 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Platform, View, type Text as NativeText } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import type { CollectionFilter, CollectionResult, CollectionSort, Material, MaterialContent, PluginSummary } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionItemId, CollectionQuery, CollectionResult, CollectionSort, Material, MaterialContent, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Panel, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -13,7 +13,7 @@ import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialEditor } from './MaterialEditor';
 import { emptyMaterial } from './content';
-import { CollectionFilters } from '../collection';
+import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
 
 const orders = [
   { value: 'default', label: 'Default order' },
@@ -69,6 +69,16 @@ export function MaterialScreen() {
   const restore = useRef<string | null>(null);
   const focusedEditor = useRef<string | null>(null);
   const opened = useRef('');
+  const collectionQuery = useMemo<CollectionQuery>(() => {
+    const filters: CollectionFilter[] = [filter];
+    if (query) filters.push({ kind: 'text', text: query });
+    if (!includeExcluded) filters.push({ kind: 'material', state: 'not_excluded' });
+    if (sourceOnly && sourceId) filters.push({ kind: 'source', sourceId });
+    return { packageId: collectionPackageId, surface: 'material', filter: { kind: 'all', filters }, sort, after: null };
+  }, [filter, query, includeExcluded, sourceOnly, sourceId, collectionPackageId, sort]);
+  const visibleItems = useMemo<CollectionItemId[]>(() => page?.items.flatMap(item => item.kind === 'material'
+    ? [{ kind: 'material' as const, id: item.material.id }] : []) ?? [], [page]);
+  const selection = useCollectionSelection(host.available ? host.client : null, collectionQuery, visibleItems);
   useFocusEffect(useCallback(() => {
     if (!host.available) return;
     const scope = {}; owner.current = scope;
@@ -92,13 +102,8 @@ export function MaterialScreen() {
     let active = true;
     setPending(true); setError('');
     if (loadedQuery.current !== queryKey) setResult(null);
-    const filters: CollectionFilter[] = [filter];
-    if (query) filters.push({ kind: 'text', text: query });
-    if (!includeExcluded) filters.push({ kind: 'material', state: 'not_excluded' });
-    if (sourceOnly && sourceId) filters.push({ kind: 'source', sourceId });
     void Promise.all([
-      host.client.collection({ packageId: collectionPackageId, surface: 'material',
-        filter: { kind: 'all', filters }, sort, after }),
+      host.client.collection({ ...collectionQuery, after }),
       host.client.snapshot(),
     ]).then(([value, snapshot]) => {
       if (!active) return;
@@ -109,7 +114,7 @@ export function MaterialScreen() {
       if (active) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
-  }, [host, after, query, filter, collectionPackageId, sort, sourceId, sourceOnly, includeExcluded, reload, queryKey]));
+  }, [host, after, collectionQuery, reload, queryKey]));
   const open = useCallback(async (id: string, trigger: string | null) => {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
@@ -213,6 +218,8 @@ export function MaterialScreen() {
       sourceId={sourceId} value={filter} onApply={value => { setAfter(null); setFilter(value); }} /> : null}
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
+      <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
+        ready={!!page && !pending} surface="material" packages={packages} /></View>
       {opening?.trigger === null ? openStatus(opening.id) : null}
       {editor ? <View style={styles.notice}><Panel>
         <Row><Text ref={heading} variant="section" accessibilityRole="header" accessible tabIndex={-1}
@@ -258,6 +265,10 @@ export function MaterialScreen() {
           <Text selectable variant="caption" muted>{item.material.content.meaning}</Text>
           {item.material.content.context ? <Text selectable muted>{item.material.content.context}</Text> : null}
           <View style={styles.actions}><Row>{item.material.excluded ? <Badge label="Excluded" variant="label" /> : null}
+            {selection.enabled ? <Button label="Select" accessibilityLabel={`Select ${item.material.content.phrase || item.material.id}`}
+              variant="secondary" size="compact" disabled={!selection.canToggle}
+              accessibilityState={{ selected: selection.selected({ kind: 'material', id: item.material.id }) }}
+              onPress={() => selection.toggle({ kind: 'material', id: item.material.id })} /> : null}
             <Button label="Edit" accessibilityLabel={`Edit ${item.material.content.phrase}`} variant="secondary" size="compact" disabled={!!opening?.pending}
               ref={node => { if (node) triggers.current.set(item.material.id, node); else triggers.current.delete(item.material.id); }}
               busy={opening?.id === item.material.id && opening.pending} onPress={() => void open(item.material.id, item.material.id)} />
