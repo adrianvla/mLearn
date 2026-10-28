@@ -1,4 +1,4 @@
-import type { CollectionPreparationStatus, Response } from '@mlearn/contracts';
+import type { CollectionPreparationStatus, CollectionSelectionEntry, Response } from '@mlearn/contracts';
 import { encodedBytes, isMaterial } from './materialProtocol';
 import { isKnowledgeProjection, isLexicalSummary } from './watchProtocol';
 
@@ -39,7 +39,7 @@ function selection(value: unknown): boolean {
     && uint(value.targetCount, 1000000) && uint(value.materialCount, 1000000)
     && (value.targetCount === 0 || value.materialCount === 0);
 }
-function selectionEntry(value: unknown): boolean {
+function selectionEntry(value: unknown): value is CollectionSelectionEntry {
   if (!object(value) || !object(value.item) || !text(value.packageId, 512)
     || !(value.packageRevision === null || text(value.packageRevision, 512))) return false;
   switch (value.item.kind) {
@@ -50,6 +50,7 @@ function selectionEntry(value: unknown): boolean {
     default: return false;
   }
 }
+export { selectionEntry as isCollectionSelectionEntry };
 export function isCollectionPreparationStatus(value: unknown): value is CollectionPreparationStatus {
   if (!object(value) || !object(value.command) || !text(value.command.commandId, 128)
     || !text(value.command.packageId, 128) || !uint(value.processed, 1000000)

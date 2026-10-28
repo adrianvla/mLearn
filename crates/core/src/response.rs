@@ -125,6 +125,17 @@ pub enum Response {
     MaterialRemoved {
         outcome: crate::MaterialRemoval,
     },
+    MaterialBulkStatus {
+        status: crate::MaterialBulkStatus,
+    },
+    MaterialBulkJobs {
+        jobs: Vec<crate::MaterialBulkStatus>,
+    },
+    MaterialBulkPage {
+        #[serde(rename = "commandId")]
+        command_id: String,
+        page: crate::MaterialBulkPage,
+    },
     MaterialCaptured {
         results: Vec<MaterialCaptureResult>,
     },

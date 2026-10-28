@@ -15,6 +15,7 @@ mod guest;
 mod language;
 mod linguistic;
 mod material;
+mod material_bulk;
 mod material_media;
 mod material_source;
 mod media_file;
@@ -100,6 +101,9 @@ impl Runtime {
             .interrupt_conversation_generations()
             .map_err(|error| error.to_string())?;
         store.interrupt_ocr().map_err(|error| error.to_string())?;
+        store
+            .interrupt_material_bulk()
+            .map_err(|error| error.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
         let mut runtime = Self {
             store,

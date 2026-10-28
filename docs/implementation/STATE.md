@@ -106,6 +106,99 @@ The next bulk-owner step must commit each item mutation and its bulk result in
 the same native transaction; calling a mutation and separately recording success
 would leave a crash window that can invalidate frozen edit preconditions on retry.
 
+Removal committed/pushed as `d1d80ffdd4e69cb006951b0fcc3ef701bd01921c`.
+Its exact foundation40663084168, desktop40663084158 and mobile40663084185
+have observers1438–1440; desktop passed. Selection4ca6474 foundation40660669537
+also passed; its mobile observer1428 remains active. No hosted iOS variant was
+dispatched and no platform gap is converted into acceptance.
+
+The current uncommitted native bulk-storage increment extracts transaction-scoped
+create/edit/remove functions in the existing Material owners, reused by individual
+actions and the bulk ledger. Schema16 adds bounded retained jobs, indexed pending
+identities and per-item receipts; progress and a successful item mutation commit
+together. Jobs pin their immutable native selection until results are released.
+Cancellation fences later commits; restart interruption and explicit retry
+preserve successes and reset only failed/pending work. The indexed pending table
+avoids rescanning the completed prefix for each next item. Four new storage
+regressions cover an injected SQLite progress-write rollback, cancellation and
+restart retry, paging/capacity/release, and package identity/duplicate-versus-
+distinct addition. This storage increment is not yet executed or connected to a
+runtime bulk worker or management UI at that checkpoint. MAT-06 and M10 remain incomplete.
+
+Bulk-storage recheck1445 passed all112 storage tests, including all four new
+transaction/recovery/capacity/addition regressions. Log: owned root
+`material-bulk-storage-recheck.log`. Initial1441 compiled successfully and passed
+the collection suite before a resource-guard interruption; it did not report a
+product assertion failure. Guard sample: footprint4235195520, available6380929024,
+growth extrapolation707834630, projected headroom3525610746 below the unchanged
+4294967296 reserve. Its group-signal cleanup again reported EPERM; no owned
+verification process survived inspection. A small owned `/bin/cat` process-group
+probe signalled and closed normally, so the Cargo cleanup EPERM is not diagnosed
+or reported fixed. Successful1445 ended at footprint1791833216,
+available8810414080, pressure1, swapUsed4288937984 and unchanged
+swapOut67667247104.
+
+The uncommitted bulk runtime now uses the existing blocking executor and shared
+guest admission, with durable per-item transactions, live status/cancel,
+explicit failed/pending retry, bounded result recovery and explicit release.
+Dictionary addition uses the selected package's actual entry/default sense,
+checks its revision before lookup and commit, and invents no source provenance.
+Runtime reopen marks abandoned jobs Interrupted without automatically resuming.
+New event-driven native tests cover cancellation publication fencing and
+restart recovery; a bounded authentic English target fixture exercises package
+unavailability/reopen retry and real dictionary output, not full-corpus or GUI
+acceptance. These runtime tests and generated bulk contracts are not yet run.
+Typed bulk client methods and the management UI remain unimplemented.
+
+Exact selection4ca6474 mobile40660669332: Android122722613375 passed;
+iOS122722612935 failed at 2026-10-28T09:26:02Z with
+`Element not found: Text matching regex: Open local video, Enabled`.
+Exact removald1d80ff foundation40663084168: Rust/web/OCR detector/macOS passed,
+Windows122733429663 failed at 2026-10-28T09:36:42Z during actual native theme
+input: expected Quartz JSON, received unchanged Dark Quartz JSON despite the
+reported focused editor and expected clipboard. This is an observed input-loss
+gate, not a diagnosed cause or a passing platform. Logs are owned-root
+`ios-4ca6474-failure.log` and `windows-d1d80ff-failure.log`.
+No workflow was rerun and no hosted iOS diagnostic variant was launched.
+
+Native bulk run1448 passed both event-driven worker tests, all three collection
+runtime tests (including authentic package-unavailable/reopen bulk addition),
+all five native Material tests, Rust contract generation, typecheck and ownership
+lint. Log: owned root `material-bulk-native-verify.log`. Final sample:
+footprint1788589184, available6939967488, pressure1, swapUsed4280549376,
+swapOut67667247104. These are native owner/transport tests, not management GUI
+or full-corpus readiness.
+
+Typed bulk client methods and nested packet guards are now implemented but
+unverified. They bypass their own long admission for live control, retain exact
+prepared intent across source navigation/lost receipts, compare action semantics
+without depending on object key order, and validate frozen identity/revision,
+counts, recovery capacity and bounded result pages. Three client regressions
+cover those contracts. Inspection found that eight maximal edit drafts plus
+status messages could exceed the existing transport limit; native admission now
+caps retained job documents at262144 bytes, reserving wire headroom for future
+bounded errors. A fifth bulk storage regression verifies release restores that
+capacity without hiding retained handles. This new bound and the typed client
+checks are pending. Native management selection controls/UI remain unimplemented;
+MAT-06, M10 and M11 are not complete.
+
+Integrated bulk run1449 passed all113 storage tests, both native bulk worker
+tests, all three native collection tests, all five native Material tests,
+Rust-generated contracts, typecheck, ownership lint and all25 targeted client
+tests. Log: owned root `material-bulk-client-verify.log`. Final sample:
+footprint1806234752, available6978830336, pressure1, swapUsed4171497472,
+swapOut67667247104. The native engine and typed transport are verified for
+continuation; no management GUI workflow is claimed.
+
+Next real consumers are Knowledge/Material selection controls and per-item
+results. Their required native projection work remains explicit: bounded visible
+membership queries and immutable selection amendment for row toggles without
+loading an entire selected corpus into React; human-readable result labels must
+come from the native content/receipt owner, including after removal. These are
+not implemented by the current identity-only packet. Build those boundaries
+before composing the shared controls, then inspect real desktop/narrow rendering
+and exercise the four bulk actions with cancellation/restart/retry.
+
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;
 no extra workflow was dispatched. The working tree retains only the four

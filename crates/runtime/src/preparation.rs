@@ -11,9 +11,10 @@ impl Runtime {
         match request {
             Request::PrepareCollection { .. }
             | Request::CollectionPreparationStatus { .. }
-            | Request::CancelCollectionPreparation { .. } => Err(Failure::Protocol(
+            | Request::CancelCollectionPreparation { .. }
+            | Request::MaterialBulk { .. } => Err(Failure::Protocol(
                 "requires_executor",
-                "Collection task control requires the shared native executor".into(),
+                "Task control requires the shared native executor".into(),
             )),
             Request::Conversation { command } => self.prepare_conversation(command, cancellation),
             Request::ImportImageCollection {

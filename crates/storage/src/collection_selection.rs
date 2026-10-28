@@ -25,7 +25,7 @@ pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn selection(
+pub(crate) fn selection(
     db: &Connection,
     id: &CollectionSelectionId,
 ) -> Result<CollectionSelection, StorageError> {
@@ -322,6 +322,16 @@ impl ProfileStore {
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let pinned: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM material_bulk_jobs WHERE selection_id=?1 AND retained=1)",
+            [&id.0],
+            |row| row.get(0),
+        )?;
+        if pinned {
+            return Err(StorageError::Invalid(
+                "Release the bulk results before their frozen selection".into(),
+            ));
+        }
         tx.execute(
             "DELETE FROM collection_selection_entries WHERE selection_id=?1",
             [&id.0],

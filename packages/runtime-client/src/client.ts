@@ -1,5 +1,6 @@
 import { isWatchResponse } from './watchProtocol';
 import { createMaterialClient } from './materialClient';
+import { createMaterialBulkClient } from './materialBulkClient';
 import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
@@ -104,6 +105,7 @@ export function createRuntimeClient(transport: Transport) {
     ...createCollectionClient(request, () => transport.commandId(), execute),
     ...createConversationClient(request, () => transport.commandId(), execute),
     ...createMaterialClient(request, () => transport.commandId()),
+    ...createMaterialBulkClient(execute, () => transport.commandId()),
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),
     ...createOcrClient(request, () => transport.commandId()),

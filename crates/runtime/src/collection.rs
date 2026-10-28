@@ -471,6 +471,180 @@ mod tests {
     }
 
     #[test]
+    fn bulk_add_uses_the_actual_package_and_retries_an_unavailable_package_after_reopen() {
+        use mlearn_core::*;
+        // Given one authentic package-produced target as a bounded test fixture.
+        // This does not stand in for full-corpus preparation or real management QA.
+        let directory = tempfile::tempdir().unwrap();
+        let profile = directory.path().join("profile");
+        let executor = open(&profile);
+        let package_id = "org.mlearn.english";
+        let Response::Language { description } = call(
+            &executor,
+            Request::DescribeLanguage {
+                package_id: package_id.into(),
+            },
+        ) else {
+            panic!("Expected actual package metadata");
+        };
+        let Response::PluginResult { output } = call(
+            &executor,
+            Request::InvokePlugin {
+                plugin_id: package_id.into(),
+                capability: "collection.targets.v1".into(),
+                input: serde_json::json!({"after":null,"limit":1}),
+            },
+        ) else {
+            panic!("Expected an actual package target page");
+        };
+        let page: CollectionCatalogPage = serde_json::from_value(output).unwrap();
+        assert_eq!(page.items.len(), 1);
+        let target = page.items[0].clone();
+        let Response::Entry {
+            entry,
+            package_revision,
+            ..
+        } = call(
+            &executor,
+            Request::InspectTarget {
+                package_id: package_id.into(),
+                target_id: target.summary.target_id.clone(),
+                expected_revision: None,
+            },
+        )
+        else {
+            panic!("Expected actual dictionary content");
+        };
+        {
+            let mut runtime = executor.runtime.lock().unwrap();
+            runtime
+                .store
+                .begin_collection_catalog(
+                    package_id,
+                    &package_revision,
+                    &description.catalog.unwrap(),
+                    1,
+                )
+                .unwrap();
+            runtime
+                .store
+                .put_collection_catalog_page(
+                    package_id,
+                    &package_revision,
+                    0,
+                    None,
+                    &CollectionCatalogPage {
+                        items: vec![target],
+                        next: None,
+                        total: 1,
+                    },
+                )
+                .unwrap();
+        }
+        let Response::CollectionSelection { selection } = call(
+            &executor,
+            Request::CreateCollectionSelection {
+                command: CollectionSelectionCreate {
+                    command_id: "select-package-target".into(),
+                    source: CollectionSelectionSource::Matching {
+                        query: CollectionQuery {
+                            package_id: Some(package_id.into()),
+                            surface: CollectionSurface::Knowledge,
+                            filter: CollectionFilter::All { filters: vec![] },
+                            sort: CollectionSort::Default,
+                            after: None,
+                        },
+                    },
+                },
+            },
+        ) else {
+            panic!("Expected native frozen target identity");
+        };
+        let retired = executor
+            .runtime
+            .lock()
+            .unwrap()
+            .installed
+            .remove(package_id)
+            .unwrap();
+        drop(retired);
+        let command = MaterialBulkStart {
+            command_id: "add-package-target".into(),
+            selection_id: selection.id,
+            action: MaterialBulkAction::Add { distinct: false },
+        };
+
+        // When the package is unavailable, then restored by a normal native reopen.
+        let Response::MaterialBulkStatus { status } = call(
+            &executor,
+            Request::MaterialBulk {
+                command: MaterialBulkCommand::Start {
+                    command: command.clone(),
+                },
+            },
+        ) else {
+            panic!("Expected recoverable native bulk status");
+        };
+        assert_eq!(status.phase, MaterialBulkPhase::Failed);
+        assert_eq!((status.succeeded, status.failed), (0, 1));
+        drop(executor);
+        let executor = open(&profile);
+        let Response::MaterialBulkStatus { status } = call(
+            &executor,
+            Request::MaterialBulk {
+                command: MaterialBulkCommand::Retry {
+                    command_id: command.command_id.clone(),
+                },
+            },
+        ) else {
+            panic!("Expected a native retry receipt");
+        };
+
+        // Then the package's real dictionary snapshot is saved with no invented source.
+        assert_eq!(status.phase, MaterialBulkPhase::Completed);
+        assert_eq!((status.succeeded, status.failed), (1, 0));
+        let Response::MaterialBulkPage { page, .. } = call(
+            &executor,
+            Request::MaterialBulk {
+                command: MaterialBulkCommand::Results {
+                    command_id: command.command_id,
+                    after: None,
+                },
+            },
+        ) else {
+            panic!("Expected bounded native results");
+        };
+        let Some(MaterialBulkOutcome::Saved { material_id, .. }) = &page.items[0].outcome else {
+            panic!("Expected a saved dictionary Material");
+        };
+        let Response::Material { material } = call(
+            &executor,
+            Request::Material {
+                id: material_id.clone(),
+            },
+        ) else {
+            panic!("Expected readable authored Material");
+        };
+        assert_eq!(material.content.package_id, package_id);
+        assert_eq!(material.content.package_revision, Some(package_revision));
+        assert_eq!(
+            material.content.target_id.as_deref(),
+            Some(entry.target_id.as_str())
+        );
+        assert_eq!(material.content.phrase, entry.headword);
+        assert_eq!(
+            material.content.sense,
+            entry
+                .senses
+                .as_ref()
+                .and_then(|senses| senses.first())
+                .cloned()
+        );
+        assert!(material.content.source.is_none());
+        assert!(material.content.attachments.is_empty());
+    }
+
+    #[test]
     fn frozen_selection_transport_retains_receipts_and_releases_after_reopen() {
         use mlearn_core::{CollectionSelectionCreate, CollectionSelectionSource};
         // Given the real metadata transport without an installed language package.

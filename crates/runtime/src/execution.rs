@@ -87,11 +87,22 @@ pub struct RuntimeExecutor {
     pub(super) runtime: Arc<Mutex<Runtime>>,
     conversations: crate::conversation_execution::ConversationOwner,
     collections: crate::collection::CollectionOwner,
+    bulk: crate::material_bulk::MaterialBulkOwner,
     pub(super) guest: Mutex<()>,
     admitted: AtomicUsize,
     cancellation: Arc<AtomicU64>,
 }
 impl RuntimeExecutor {
+    #[cfg(test)]
+    pub(crate) fn observe_material_bulk(
+        &self,
+    ) -> (
+        std::sync::mpsc::Receiver<u32>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        self.bulk.observe()
+    }
+
     #[cfg(test)]
     pub(crate) fn observe_collection(
         &self,
@@ -118,6 +129,7 @@ impl RuntimeExecutor {
             runtime: Arc::new(Mutex::new(runtime)),
             conversations: crate::conversation_execution::ConversationOwner::default(),
             collections: crate::collection::CollectionOwner::default(),
+            bulk: crate::material_bulk::MaterialBulkOwner::default(),
             guest: Mutex::new(()),
             admitted: AtomicUsize::new(0),
             cancellation,
@@ -144,6 +156,9 @@ impl RuntimeExecutor {
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
         let request = match request {
+            Request::MaterialBulk { command } => {
+                return self.bulk.execute(&self.runtime, &self.guest, command);
+            }
             Request::PrepareCollection { command } => {
                 return self
                     .collections
@@ -358,6 +373,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::Materials { .. }
         | Request::Material { .. }
         | Request::RemoveMaterial { .. }
+        | Request::MaterialBulk { .. }
         | Request::MaterialEligibility { .. }
         | Request::SetCaptureExclusion { .. }
         | Request::ReturnMaterialSource { .. }

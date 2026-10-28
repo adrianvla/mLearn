@@ -59,9 +59,9 @@ fn sequential_migrations_preserve_existing_state_and_reject_newer_versions() {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            15
+            16
         );
-        db.pragma_update(None, "user_version", 16).unwrap();
+        db.pragma_update(None, "user_version", 17).unwrap();
         drop(db);
         assert!(ProfileStore::open(&path).is_err());
     }

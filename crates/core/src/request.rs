@@ -171,6 +171,9 @@ pub enum Request {
     RemoveMaterial {
         command: crate::MaterialRemove,
     },
+    MaterialBulk {
+        command: crate::MaterialBulkCommand,
+    },
     CaptureMaterials {
         batch: MaterialCaptureBatch,
     },
