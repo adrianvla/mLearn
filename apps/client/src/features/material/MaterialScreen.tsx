@@ -12,6 +12,7 @@ import { Select } from '@mlearn/ui/select';
 import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialEditor } from './MaterialEditor';
+import { MaterialProposalReview } from './MaterialProposalReview';
 import { emptyMaterial } from './content';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
 
@@ -58,6 +59,10 @@ export function MaterialScreen() {
   const [opening, setOpening] = useState<{ id: string; pending: boolean; error: string; trigger: string | null } | null>(null);
   const [returning, setReturning] = useState<{ material: Material; location: string; pending: boolean; error: string } | null>(null);
   const [reload, setReload] = useState(0);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
+  const [proposalSeed, setProposalSeed] = useState<Material | null>(null);
+  const proposalTrigger = useRef<View>(null);
+  const proposalFocus = useRef<View | null>(null);
   const owner = useRef<object | null>(null);
   const openRequest = useRef<object | null>(null);
   const returnRequest = useRef<{ location: string } | null>(null);
@@ -189,6 +194,10 @@ export function MaterialScreen() {
           setReturning(previous => previous?.location === 'editor' ? null : previous);
           setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add' });
         }} />
+      <Button ref={proposalTrigger} label="Review proposals" variant="secondary" onPress={() => {
+        proposalFocus.current = proposalTrigger.current;
+        setProposalSeed(null); setProposalsOpen(true);
+      }} />
     </> : null}
   </>} header={<>
     {host.available ? <Row>
@@ -241,6 +250,10 @@ export function MaterialScreen() {
           {returnStatus('editor')}
         </> : null}
         <MaterialEditor key={editor.key} client={host.client} authoredMedia={host.authoredMedia} initial={editor.content} material={editor.material}
+          onPropose={(material, trigger) => {
+            proposalFocus.current = trigger;
+            setProposalSeed(material); setProposalsOpen(true);
+          }}
           onSaved={material => {
             setEditor(previous => previous ? { ...previous, material } : previous);
             setAfter(null);
@@ -288,6 +301,9 @@ export function MaterialScreen() {
         <Button label="Refresh Material" variant="quiet" disabled={pending}
           onPress={() => { setAfter(null); setReload(value => value + 1); }} />
       </View>
+      <MaterialProposalReview client={host.client} open={proposalsOpen} onOpenChange={setProposalsOpen}
+        seed={proposalSeed} focusTarget={() => proposalFocus.current ?? proposalTrigger.current}
+        onChanged={() => { setAfter(null); setReload(value => value + 1); }} />
     </>}
   </AppShell>;
 }

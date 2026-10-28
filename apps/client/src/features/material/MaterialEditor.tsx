@@ -4,19 +4,19 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { AuthoredMediaId, Material, MaterialContent, MaterialCreate, MaterialEdit } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { MaterialMedia } from './MaterialMedia';
+import { MaterialFields } from './MaterialFields';
 import { mediaImportOf, releaseStaged, type MaterialMediaHost, type StagedMedia } from './media';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
-import { Badge } from '@mlearn/ui/badge';
-import { TextField } from '@mlearn/ui/text-field';
 import { Row } from '@mlearn/ui/layout';
 
-export function MaterialEditor({ client, authoredMedia, initial, material, onSaved }: {
+export function MaterialEditor({ client, authoredMedia, initial, material, onSaved, onPropose }: {
   readonly client: RuntimeClient;
   readonly authoredMedia: MaterialMediaHost | null;
   readonly initial: MaterialContent;
   readonly material?: Material;
   readonly onSaved?: (material: Material) => void;
+  readonly onPropose?: (material: Material, trigger: View | null) => void;
 }) {
   const [draft, setDraft] = useState(initial);
   const [base, setBase] = useState(material);
@@ -24,6 +24,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
   const [pending, setPending] = useState(false);
   const [mediaPending, setMediaPending] = useState(false);
   const locked = useRef(false);
+  const proposeTrigger = useRef<View>(null);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
   const [receipt, setReceipt] = useState('');
@@ -63,15 +64,6 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
   function removeAttachment(mediaId: AuthoredMediaId) {
     setDraft(previous => ({ ...previous, attachments: previous.attachments.filter(item => item.mediaId !== mediaId) }));
     setReceipt('');
-  }
-  function field(key: 'phrase' | 'reading' | 'meaning' | 'context' | 'notes', label: string, maxLength: number, multiline = false) {
-    return <TextField label={label} testID={`material-${key}`} value={draft[key]} maxLength={maxLength}
-      multiline={multiline} editable={!pending && !retry} onChangeText={value => {
-        setDraft(previous => ({ ...previous, [key]: value,
-          attachments: key === 'phrase' ? previous.attachments.map(item => ({ ...item, audioBinding: null })) : previous.attachments }));
-        if (key === 'phrase') setBoundStaged([]);
-        setReceipt('');
-      }} />;
   }
   async function save(command: MaterialCreate | MaterialEdit, imports: readonly StagedMedia[]) {
     if (locked.current) return;
@@ -152,37 +144,11 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     } finally { locked.current = false; if (scope && owner.current === scope) setPending(false); }
   }
   return <View style={styles.editor}>
-    {field('phrase', 'Phrase', 2048)}
-    {field('reading', 'Reading', 2048)}
-    {field('meaning', 'Meaning', 32768, true)}
-    {field('context', 'Context', 32768, true)}
-    {field('notes', 'Notes', 32768, true)}
-    <Text accessibilityRole="header">Examples</Text>
-    {draft.examples.map((example, index) => <View key={index} style={styles.example}>
-      <TextField label={`Example ${index + 1}`} value={example} maxLength={4096} editable={!pending && !retry}
-        onChangeText={value => setDraft(previous => ({ ...previous, examples: previous.examples.map((item, i) => i === index ? value : item) }))} />
-      <Button label={`Remove example ${index + 1}`} size="compact" variant="quiet" disabled={pending || !!retry}
-        onPress={() => setDraft(previous => ({ ...previous, examples: previous.examples.filter((_, i) => i !== index) }))} />
-    </View>)}
-    <Row><Button label="Add example" size="compact" variant="secondary" disabled={pending || !!retry || draft.examples.length >= 16}
-      onPress={() => setDraft(previous => ({ ...previous, examples: [...previous.examples, ''] }))} /></Row>
-    {draft.source ? <View style={styles.reference}>
-      <Text variant="caption" muted>Source reference · {draft.source.sourceId} · {draft.source.locator.kind === 'document'
-        ? `${draft.source.locator.resource} · ${draft.source.locator.blockId} · bytes ${draft.source.locator.contextStart + draft.source.locator.selectionStart}–${draft.source.locator.contextStart + draft.source.locator.selectionEnd}`
-        : draft.source.locator.kind === 'image'
-        ? `${draft.source.locator.resourceId} · region ${draft.source.locator.regionId} · recognition ${draft.source.locator.ocrRevision}`
-        : draft.source.locator.kind === 'message'
-        ? `message ${draft.source.locator.messageId} · revision ${draft.source.locator.messageRevision} · bytes ${draft.source.locator.contextStart + draft.source.locator.selectionStart}–${draft.source.locator.contextStart + draft.source.locator.selectionEnd}`
-        : draft.source.locator.cueIndex === null
-        ? `frame at ${(draft.source.locator.positionMs / 1000).toFixed(1)}s`
-        : `cue ${draft.source.locator.cueIndex + 1}`}</Text>
-      <Text selectable>{draft.source.text}</Text>
-    </View> : null}
-    {draft.sense ? <View style={styles.reference}>
-      <Badge label="Selected dictionary sense" />
-      <Text selectable>{draft.sense.heading} · {draft.sense.definitions.join('; ')}</Text>
-      <Text variant="caption" muted selectable>Package revision: {draft.packageRevision}</Text>
-    </View> : null}
+    <MaterialFields value={draft} disabled={pending || !!retry} onChange={(update, key) => {
+      setDraft(update);
+      if (key === 'phrase') setBoundStaged([]);
+      setReceipt('');
+    }} />
     {authoredMedia ? <MaterialMedia host={authoredMedia} source={draft.source} base={base}
       attachments={draft.attachments} staged={staged} disabled={pending || !!retry}
       canBindAudio={draft.phrase.trim().length > 0} boundStaged={boundStaged}
@@ -202,7 +168,9 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
       disabled={pending || !!retry} accessibilityState={{ selected: excluded }} onPress={() => setExcluded(value => !value)} />
       <Text variant="caption">{excluded ? 'Excluded from learning' : 'Included in learning'}</Text></Row> : null}
     <Row><Button label={base ? 'Save changes' : 'Save Material'} testID="material-save" busy={pending}
-      disabled={!!retry || mediaPending} onPress={() => submit()} /></Row>
+      disabled={!!retry || mediaPending} onPress={() => submit()} />
+      {base && onPropose ? <Button ref={proposeTrigger} label="Propose changes to saved Material" variant="secondary"
+        disabled={pending || !!retry || mediaPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}</Row>
     {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
     {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
     {retry ? <Row>
@@ -228,6 +196,5 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
 
 const styles = StyleSheet.create(theme => ({
   editor: { gap: theme.spacing.compact, minWidth: 0 },
-  example: { gap: theme.spacing.small },
   reference: { gap: theme.spacing.small, paddingVertical: theme.spacing.small },
 }));

@@ -24,11 +24,20 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: source-grounded generated/suggested Material proposal review,
-then the remaining M10 flows.
-Latest checkpoint: `42d13e665d656b7d088ecec32da6ada727e17758` is pushed with
-the verified native bulk engine, selection amendments, typed client and shared
-selection/bulk UI.
+Current task: checkpoint the verified source-grounded Material proposal UI,
+then source/content search and the remaining M10 flows.
+Latest verified increment: this checkpoint's shared proposal review, based on
+pushed native generation `87c73fe27784f640c6eb445f036c9bb5e709e1cb`.
+Local integration passed17 affected client tests, six real Rust-backed GUI
+scenarios, all20 existing desktop/narrow Material editor regressions, typecheck,
+architecture/draft lint and web export. Final log:
+owned root `proposal-retry-lane-final.log`; captures are under
+`proposal-ui-retry-lane-final`. Desktop/narrow light and dark proposal, source
+Return, partial-output and cancellation surfaces were inspected across the
+recorded runs. This is verified for continuation, not M10 acceptance.
+Native/compositor interaction on the new controls and the independent M10
+review remain integration gates. Existing platform discrepancies below remain
+unresolved; the new GUI evidence is not a claim about native window materials.
 The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
 guarded run1460 passed its owner/runtime/client checks. Shared native selection
@@ -44,9 +53,138 @@ drafts, immutable identity, editable fields, explicit accept/reject and atomic
 Material/receipt publication. Its six new persistence tests and all123 storage
 tests pass. Native dispatch, Rust-generated contracts and a typed client passed
 integration checks, including the repaired cross-language replacement regression.
-Shared native generation integration is now uncommitted and verified at its
-native/storage/client boundaries; the
-actual review UI remains unimplemented. MAT-07 and M10 are not complete.
+Shared native generation integration is committed and verified at its
+native/storage/client boundaries. The actual review UI now connects source and
+saved-Material suggestions, grounded generation, editable drafts, explicit
+accept/reject, bounded recovery/history and partial failure. Native proposal
+identity/source validation and atomic acceptance remain the sole authority;
+unsubmitted fields and view lifetimes remain in React. M10 is not complete.
+Shared `MaterialFields` extraction passed typecheck, architecture lint, draft
+guard, web export and all20 existing desktop/narrow editor regressions.
+The native-backed after captures at1100/390 were inspected: the same field
+hierarchy and usable single-column narrow editor remain intact. Log:
+owned root `material-fields-ui-verify.log`; after images use
+`material-fields-after-proposal-before-editor-final-*`.
+The first real proposal dialog now connects bounded pending/history pages,
+existing-Material suggestions, shared editable fields, CAS review, accept/reject,
+duplicate/distinct outcomes, exact-command recovery and native source Return.
+Its first serial guarded verification/capture passed in run1526,
+`proposal-review-first.log`: typecheck, architecture/draft lint, export and all20
+editor regressions pass; real native suggestion publication and pending-list
+recovery rendered at1100/390. The suggestion/list/pending captures were inspected;
+the shared Dialog owns scrolling and narrow controls wrap without overlap.
+Generation controls and a shared SourceActions entry are now connected in source.
+They reuse shared provider settings, native admission/retry/cancellation and
+retained generation pages; only the visible active job samples native progress,
+and closing the view stops sampling without pretending to cancel the job.
+The first generation-control run1527 passed typecheck but architecture lint
+rejected SourceActions' private cross-feature import before any export/capture.
+The repair exports the shared review composition through the existing Material
+public boundary; no rule was relaxed. Guarded run1528 now verifies that repair
+and partial-output rendering in `generation-controls-public.log`; these new
+paths are not yet verified by that first failed run. Run1528 subsequently
+passed typecheck, architecture/draft lint, export and all20 Material editor
+regressions. Native generation used the shared provider fixture, retained one
+grounded replacement, reported the second invalid candidate and published no
+Material automatically. Its `generation-controls-public-generation-partial`
+desktop/narrow images were inspected: progress, partial error and review entry
+remain contained and readable. This proves that path, not all MAT-07 recovery.
+New native GUI regression run1529 (`proposal-focus-red.log`) now checks the
+actual editor opener versus the global Review proposals trigger, retaining the
+separate unsaved Material editor fields. This suspected focus defect is being
+reproduced before repair; run1529 failed exactly because the editor's
+Propose changes opener was inactive after dismissal. MaterialScreen had always
+restored the global Review proposals button. The fix passes the actual shared
+Button ref from MaterialEditor and retains it at the dialog owner. Fresh LSP
+diagnostics are clean; guarded run1531 in `proposal-focus-fixed.log` verifies
+the existing regression plus desktop/narrow before/after captures. Run1531
+passed typecheck, architecture lint, export and that actual native GUI
+regression; its desktop/narrow focus-return images were inspected. Unsaved
+Material fields and the saved revision remained separate; dismissal wrote no
+proposal or Material.
+Run1532 (`proposal-recovery-first.log`) now exercises the four-scenario native
+GUI suite: exact editor focus, actual Reader source suggestion/edit/accept with
+lost receipt and process restart, held generation admission cancellation followed
+by retained retry/partial collection/explicit replacement acceptance, and
+provider-free rejection/history persistence. Assertions observe native state,
+real source anchors and exact wire-command identity. Provider waits subscribe
+before the action; no test sleeps or timing-based passes were added. These new
+recovery scenarios all passed in run1532 (four tests,6.6s). The source and
+partial-generation captures at desktop/narrow widths were inspected; actual
+source selection, authored edits, replay identity, rejection history and native
+restart behavior held.
+Capture inspection exposed a stale empty proposal list after native generation
+collection. A strengthened generation test also now drops the held original
+admission response after successful Cancel, rather than delivering it normally,
+to verify the late failure cannot publish a stale recovery action. Targeted
+run1534 (`proposal-late-failure-red.log`) reproduces that edge before repair.
+Run1534 failed exactly because the lost original admission receipt published
+`Recover generation action` after a successful cancellation receipt. The repair
+gives each presentation action a scoped owner; successful Cancel invalidates the
+held action and releases its UI lock, so its late success/failure cannot publish
+or unlock a newer action. Native generation identity and cancellation are
+unchanged. Collection now invalidates the parent proposal page, and choosing a
+generated proposal collapses job controls to reveal its authored fields.
+LSP diagnostics are clean. Guarded run1535 (`proposal-recovery-fixed.log`)
+passed all four native scenarios with the stronger dropped-receipt assertion,
+fresh desktop/narrow source and generated-review captures, and all20 existing
+editor regressions. Typecheck, architecture/draft lint and export also passed.
+Generated-review and source-Return images were inspected; job controls collapse
+to the reviewed fields and the real Reader resumes on the native anchor.
+Before committing, owner inspection identified two additional bounded edges:
+Open saved Material can target the same already-open item, and a retry has its
+own admission receipt/control identity. New targeted regressions run1536
+(`proposal-review-edges-red.log`) test obsolete editor draft reopening and a
+held retry receipt before repairing either. Same-item Open saved Material
+passed without a product change: actual router navigation reloads the saved
+revision. The retry scenario failed because Cancel was absent while its own
+admission receipt was held. The repair retains one exact admission function for
+both initial and retried jobs; Cancel replays that same command independently
+of its held wire receipt. Retry preparation is shared only until its command
+identity exists, without a second provider/queue owner.
+Guarded run1537 (`proposal-integrated-final.log`) now verifies all six native
+GUI scenarios, all20 existing editor regressions, typecheck, architecture/draft
+lint and export. Fresh LSP requests timed out, not a diagnostic pass; the full
+typecheck in this run remains the pending authority. No unrelated feature was
+expanded. Run1537 passed typecheck, architecture/draft lint, export and five
+native scenarios. The held-retry test then timed out waiting for provider
+cancellation. Its inspected surface had the Cancel action, exposing the deeper
+shared-client issue: `retry_generation` still used the serialized request lane,
+so resolving the exact retry queued behind the held receipt itself.
+The owning conversation client now routes retry admission through the same
+direct control lane as explanation/cancellation. No new worker or private
+generation transport was introduced. Client LSP diagnostics are clean.
+Guarded run1538 (`proposal-retry-lane-final.log`) passed the affected
+conversation/generation/proposal client suites, all six native proposal
+scenarios and all20 existing editor tests with a fresh export. The17 client
+tests, typecheck and architecture/draft lint passed. Successful held-retry
+cancellation captures were inspected at desktop and narrow widths. The prior
+cancellation timeout remains recorded and is explained by the verified lane
+repair, not waived.
+Resource note: run1534 sampled OmO footprint4773246056 bytes, available7010107392,
+pressure1, swapUsed4059889664, swapOut72139259904. Fresh pre-admission readback
+decreased to4491097192 bytes with available7988019200, pressure1; swapUsed
+5024645120 and swapOut73229844480 had increased. This remains unexplained OmO
+growth, not attributed to the native fixture. The three-sample7.5GB admission,
+2GiB reservation and4GiB reserve remain unchanged; no concurrent local workload
+was added, and model work pauses while serial verification holds the reservation.
+Final run1538 readback: OmO footprint1682191488 bytes, available7727300608,
+pressure1, swapUsed3780968448 and unchanged swapOut73977217024. The transient
+OmO growth receded; no emulator, simulator or persistent server was started.
+The generation-review implementation task is locally verified for continuation;
+the named native/compositor and M10 review gates remain open. No second
+provider/session owner was added.
+Exact-source generation checkpoint foundation CI40707752973 has terminated
+successfully; its preserved log is `ci-40707752973.log`. The mobile observer
+40707752976 first observer timed out, not the hosted run. Its continuation1530
+is now terminal: Android job122886719522 passed at15:18:29Z; iOS122886720125
+failed the actual UI/persistence step after1h5m36s. The job's exact failed log
+was retained by observer1533 as `ci-40707752976-ios-failed.log`. At15:46:28.843Z
+it reports `Watch Inspector Knowledge and native source resume` failed after
+1m42s with `Assertion is false: id: m01-watch, mp4 is not visible`.
+This repeats the earlier observable assertion, without establishing a common
+root cause. No workflow was rerun or cancelled. Earlier iOS/Windows failed
+evidence remains open; Android success is not an iOS verdict.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -704,6 +842,48 @@ swapUsed4001038336, swapOut71340490752; the guard retains its 2GiB workload and
 The next visible increment must reuse the existing shared Material editor/control
 owners, expose saved proposals and retained generation recovery without an
 optional provider, and verify real desktop/narrow source-grounded workflows.
+
+Shared generation checkpoint87c73fe2 is committed/pushed on the same stacked
+draft. Automatically triggered gates: foundation40707752973,
+desktop40707752998 and mobile40707752976, under final-only observers1521–1523.
+Proposal42d13e66 mobile40703061767 ended cancelled with no jobs reported;
+it supplies no platform verification verdict. Bulk134fac93 Android122851408995
+passed; iOS122851408394 was still running on readback and has observer1519.
+No workflow was manually rerun or cancelled.
+Before the first proposal-review presentation edit, a serial native-example
+rebuild/web export will capture the unchanged Material grid and existing shared
+editor at1100/390 widths in the retained isolated corpus profile. The current
+normal preview PID2637, started October24, was inspected and reused, not
+restarted. Temporary capture scripts pass node syntax checks; their out-of-tree
+TypeScript LSP initialization remains unavailable. Capture tag:
+`generation-ui-before`; next log: `material-generation-ui-baseline.log`.
+No application UI source has changed in this increment yet.
+
+Pre-edit run1524 passed native-example build, web export and all four fresh
+Material grid/editor captures at1100/390 widths; all four frames were inspected.
+The actual retained corpus still has seven authored entries. Native QA binary
+SHA256:de537b9b71f328e478080ca5ef5b362597933c44d8e87dad9f1a3f822434326b.
+It includes87c73fe2 and migrations18/19, not the earlier bulk-only binary.
+Log: `material-generation-ui-baseline.log`; frames `generation-ui-before-*`.
+Cleanup sample: footprint1612051584, available7910965248, pressure1,
+swapUsed3959095296, unchanged swapOut71340490752.
+
+The first presentation change extracts existing authored fields/examples and
+read-only source/sense references into controlled `MaterialFields`, reusing the
+same semantic controls, labels, limits and spacing in the ordinary editor.
+Phrase edits still revoke explicit audio target bindings; staged media and
+native save ownership remain in MaterialEditor. This is the field owner for the
+upcoming proposal editor, not a second authoring authority. Both touched UI files
+have clean LSP diagnostics. Typecheck/lint, draft guard, all20 existing editor
+interactions and fresh desktop/narrow renders must pass before the next visible
+change. Log: `material-fields-ui-verify.log`; capture tag `material-fields-after`.
+The proposal-review controls and source entry points are still unimplemented.
+
+Exact bulk134fac93 iOS122851408394 failed at2026-10-28T14:40:50Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`. Its native failed-step
+log was retrieved; Android passed. This is not a platform acceptance pass or a
+diagnosed common cause. Generation87c73fe2 desktop40707752998 passed; its other
+hosted gates remain under their existing final-only observers.
 
 Exact selection910aac71 iOS122818462698 failed at
 2026-10-28T13:38:50Z: `Assertion is false: id: m01-watch, mp4 is not visible`.

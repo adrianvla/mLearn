@@ -207,6 +207,36 @@ their operation. Layout: bulk controls/results - bounded recovery beside the
 initiating selection -> shared wrapping Rows and Dialog, not a new full-height
 pane; scroll owner: app-shell-content, with Dialog owning its own modal body.
 
+## Material proposal review, 2026-10-28
+
+Primary action: accept the reviewed proposal; while authored fields are dirty,
+save those edits before acceptance. Priorities: phrase and source grounding,
+editable authored content, then explicit acceptance/rejection and native job
+status. Required content: phrase, reading, meaning, context, notes, examples,
+original source reference, replacement revision, generation progress/errors,
+partial results, cancellation, exact retry, retained job/proposal recovery,
+bounded paging, source Return and saved Material access. Pending proposals and
+generated text are not learner evidence or committed Material.
+
+Reuse the existing Material editor's fields/source/sense composition as one
+controlled MaterialFields owner. Keep unsubmitted input in the editor; Rust
+retains proposals, identities, generation and admission. Shared TextField,
+Button, Text, Badge, Row, Panel and Dialog own all control/material behavior.
+Do not add an alternate palette, promotional descriptions, generated metrics,
+automatic acceptance or a second inference/settings owner.
+Layout: Material text editing - preserve existing field order and source
+reference -> existing stack in the Material editor; scroll owner:
+app-shell-content. No new nested vertical scroller or screen-local control skin.
+Layout: proposal review - bounded recovery and one inspected proposal -> shared
+Dialog list/detail composition; scroll owner: Dialog's body, with the underlying
+AppShell body inactive while modal. Preserve source order, focus restoration and
+single-column wrapping at narrow widths rather than a parallel full-height pane.
+The four `generation-ui-before-*` native-backed grid/editor captures at1100/390
+widths are the pre-edit set. The normal editor and the new proposal consumer must
+both render and pass their interaction checks after sharing the field owner.
+
+## Knowledge collection layout
+
 Layout: Knowledge - compare bounded lexical results beneath stable search and
 navigation -> the existing AppShell scroll-body shell; scroll owner:
 app-shell-content. Keep the header out of the result scroll, avoid nested

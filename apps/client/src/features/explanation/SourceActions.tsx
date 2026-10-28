@@ -9,6 +9,7 @@ import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { MaterialProposalReview } from '../material';
 
 type Flight = {
   readonly admit: () => Promise<ConversationGeneration>;
@@ -33,6 +34,8 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
   const host = useRuntime();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
+  const proposalTrigger = useRef<View>(null);
   const [instruction, setInstruction] = useState('');
   const submittedInstruction = useRef('');
   const instructionChanged = instruction.trim() !== submittedInstruction.current;
@@ -294,7 +297,11 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         onPress={() => void copy(selected)} />
       <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
         onPress={() => void copy(source.text)} />
+      <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={!selected}
+        onPress={() => setProposalsOpen(true)} />
     </Row>
+    <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}
+      focusTarget={() => proposalTrigger.current} seed={null} source={source} />
     {feedback ? <Text tone={tone} variant="caption" accessibilityLiveRegion="polite">{feedback}</Text> : null}
     {explanationDisabledReason ? <Text tone={tone} variant="caption" muted>{explanationDisabledReason}</Text> : null}
     {!open && error ? <Text tone={tone} variant="caption" accessibilityRole="alert">{error}</Text> : null}

@@ -13,7 +13,10 @@ export function createConversationClient(request: (request: Request) => Promise<
     if (encodedBytes(snapshot) > 65536) throw new RuntimeError('invalid_request', 'Conversation command exceeds its byte budget.');
     // Explanation may await a provider; neither cancellation nor saved-history
     // reads should queue behind that network lifetime.
-    const execute = command.action === 'explain' || command.action === 'cancel_generation' ? control : request;
+    // Exact retry admission recovery must also bypass its original lost/held
+    // receipt, so Cancel can resolve the admitted generation identity.
+    const execute = command.action === 'explain' || command.action === 'cancel_generation'
+      || command.action === 'retry_generation' ? control : request;
     const response = await execute({ type: 'conversation', command: snapshot });
     if (!isConversationResponse(response)) throw malformed();
     return response.result;
