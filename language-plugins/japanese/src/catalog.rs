@@ -45,7 +45,10 @@ pub(super) fn page(
         .and_then(|count| u32::try_from(count).ok())
         .filter(|count| *count <= 1_000_000)
         .ok_or("Invalid JMdict target count")?;
-    let window = keys(request.after.as_deref(), request.limit as usize)?;
+    // A real 24-entry window after entry/1207490 exceeds the unchanged 64M
+    // allowance; 12 entries use 35.8M. Requested limits are upper bounds.
+    let limit = usize::try_from(request.limit.min(12)).map_err(|error| error.to_string())?;
+    let window = keys(request.after.as_deref(), limit)?;
     let cache = RefCell::new(BTreeMap::<String, Option<Rc<Value>>>::new());
     let resolve = |key: &str| {
         if let Some(value) = cache.borrow().get(key) {
@@ -105,6 +108,44 @@ pub(super) fn page(
 mod tests {
     use super::*;
     use mlearn_language_sdk::serde_json::json;
+
+    #[test]
+    fn requested_large_windows_preserve_a_bounded_continuation() {
+        let lookup = |key: &str| {
+            if key == "metadata" {
+                return Ok(Some(
+                    json!({"schema":"org.mlearn.japanese.lexicon","schemaVersion":3,
+                    "valueCodec":"zlib-json-v1","linguisticSchema":{"id":"org.mlearn.japanese.linguistic","version":1},
+                    "entries":13}),
+                ));
+            }
+            Ok(key.strip_prefix("entry/").map(|id| {
+                json!({
+                    "targetId":format!("jmdict:{id}"),"headword":"語",
+                    "variants":[{"written":"語","reading":"ご"}],
+                    "senses":[{"pos":["noun"],"forms":[],"readings":[],"glosses":["word"]}]
+                })
+            }))
+        };
+        let keys = |after: Option<&str>, limit: usize| {
+            let all = (100..=112)
+                .map(|id| format!("entry/{id}"))
+                .collect::<Vec<_>>();
+            let eligible = all
+                .into_iter()
+                .filter(|key| after.is_none_or(|after| key.as_str() > after))
+                .collect::<Vec<_>>();
+            let keys = eligible.iter().take(limit).cloned().collect::<Vec<_>>();
+            let next = (eligible.len() > keys.len()).then(|| keys.last().unwrap().clone());
+            Ok(ResourceKeyPage { keys, next })
+        };
+        let first = page(json!({"after":null,"limit":64}), &lookup, &keys).unwrap();
+        assert_eq!(first.items.len(), 12);
+        let last = page(json!({"after":first.next,"limit":64}), &lookup, &keys).unwrap();
+        assert_eq!(last.items.len(), 1);
+        assert_eq!(last.items[0].summary.target_id, "jmdict:112");
+        assert_eq!(last.next, None);
+    }
 
     #[test]
     fn restricted_entry_catalog_preserves_all_levels_and_inline_hardest() {
