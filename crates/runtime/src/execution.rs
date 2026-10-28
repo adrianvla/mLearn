@@ -364,6 +364,8 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::RecentDocuments
         | Request::DocumentWindow { .. }
         | Request::DocumentContents { .. }
+        | Request::SearchDocument { .. }
+        | Request::ReturnSourceAnchor { .. }
         | Request::CheckpointDocument { .. }
         | Request::DocumentResource { .. }
         | Request::ReviewSession { .. }

@@ -17,6 +17,9 @@ pub enum Response {
     Collection {
         result: crate::CollectionResult,
     },
+    DocumentSearch {
+        page: crate::DocumentSearchPage,
+    },
     CollectionSelection {
         selection: crate::CollectionSelection,
     },

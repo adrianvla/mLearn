@@ -6,6 +6,7 @@ mod conversation_generation;
 mod conversation_read;
 mod document;
 mod document_read;
+mod document_search;
 mod document_validation;
 mod knowledge;
 mod material;

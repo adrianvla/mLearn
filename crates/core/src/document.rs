@@ -139,6 +139,46 @@ model!(DocumentContentsPage {
     items: Vec<DocumentNavigation>,
     next_offset: Option<u32>,
 });
+/// Search does not recognize images or replace a package's source interpretation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum DocumentSearchScope {
+    Text,
+    RecognizedPages,
+}
+model!(DocumentSearchCursor {
+    identity: String,
+    index: u32,
+    region: u32,
+    offset: u32,
+    unavailable: u32,
+});
+model!(DocumentSearchQuery {
+    source_id: String,
+    content_revision: String,
+    parser_revision: String,
+    scope: DocumentSearchScope,
+    text: String,
+    after: Option<DocumentSearchCursor>,
+});
+model!(DocumentSearchHit {
+    position: DocumentPosition,
+    anchor: crate::SourceAnchor,
+});
+// A bounded scan quantum, not an assertion that a partial index is complete.
+model!(DocumentSearchPage {
+    source_id: String,
+    content_revision: String,
+    parser_revision: String,
+    scope: DocumentSearchScope,
+    text: String,
+    hits: Vec<DocumentSearchHit>,
+    next: Option<DocumentSearchCursor>,
+    scanned: u32,
+    total: u32,
+    unavailable: u32,
+});
 model!(DocumentCheckpoint {
     source_id: String,
     content_revision: String,

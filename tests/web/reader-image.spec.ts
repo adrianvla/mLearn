@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { DocumentWindow, ImageReaderSettings, OcrCorrection, OcrEvidence, OcrPage, OcrProvider, OcrRecovery, OcrRegion, OcrRequest } from '@mlearn/contracts';
+import type { DocumentWindow, ImageReaderSettings, OcrCorrection, OcrEvidence, OcrPage, OcrProvider, OcrRecovery, OcrRegion, OcrRequest, SourceAnchor } from '@mlearn/contracts';
 import { initialTheme, resolveTheme } from '../../packages/theme/src/theme';
 
 declare global { interface Window {
@@ -205,6 +205,33 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
             case 'recent_documents': return JSON.stringify({ type: 'documents', sources: [source.source] });
             case 'import_image_collection': return JSON.stringify({ type: 'document', window: source });
             case 'resume_document': return JSON.stringify({ type: 'document', window: source });
+            case 'search_document': {
+              if (!object(request.query) || request.query.scope !== 'recognized_pages' || request.query.text !== '大阪'
+                || request.query.after !== null) throw new Error('Unexpected saved-recognition search fixture query');
+              const original = recognized.get('image-1');
+              if (!original) throw new Error('Missing saved page');
+              return JSON.stringify({ type: 'document_search', page: {
+                sourceId: source.source.id, contentRevision: source.source.contentRevision,
+                parserRevision: source.source.parserRevision, scope: 'recognized_pages', text: '大阪',
+                scanned: 3, total: 3, unavailable: 0, next: null,
+                hits: [{ position: { parserRevision: 'images-1', resource: 'image-1', blockId: 'page-1', offset: 0 },
+                  anchor: { sourceId: source.source.id, contentRevision: source.source.contentRevision,
+                    packageId: 'package', packageVersion: '1', text: '大阪',
+                    locator: { kind: 'image', resourceId: 'image-1', pageIndex: 1, ocrRevision: original.ocrRevision,
+                      regionId: 'line-1', contextStart: 0, selectionStart: 0, selectionEnd: 6 } } }],
+              } });
+            }
+            case 'return_source_anchor': {
+              const anchor: SourceAnchor = JSON.parse(String(args.request)).anchor;
+              if (anchor.locator.kind !== 'image' || anchor.locator.resourceId !== 'image-1'
+                || anchor.text !== '大阪' || anchor.locator.selectionStart !== 0 || anchor.locator.selectionEnd !== 6)
+                throw new Error('Unexpected original search span');
+              const original = recognized.get(anchor.locator.resourceId);
+              if (!original || original.ocrRevision !== anchor.locator.ocrRevision) throw new Error('Missing immutable searched page');
+              source.source.position = { parserRevision: 'images-1', resource: 'image-1', blockId: 'page-1', offset: 0 };
+              return JSON.stringify({ type: 'image_material_source', anchor, page: original,
+                window: { ...source, blocks: source.blocks.slice(1) } });
+            }
             case 'analyze_document': {
               if (++analysisCount === 1) firstAnalysis(); else secondAnalysis();
               return JSON.stringify({ type: 'document_analysis', batch: {
@@ -368,7 +395,7 @@ test(`Reader toolbar stays one row and retains overflow controls at ${width}px`,
   await page.setViewportSize({ width, height: 900 });
   await start(page);
   const home = await page.getByRole('button', { name: 'Home', exact: true }).boundingBox();
-  for (const name of ['Previous page', 'Next page', 'Contents', 'View options']) {
+  for (const name of ['Previous page', 'Next page', 'Search source', 'Contents', 'View options']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
     if (!home || !box) throw new Error('Reader navigation geometry is unavailable');
     expect(box.y).toBe(home.y);
@@ -621,8 +648,8 @@ test('explicit crop recognition uses original coordinates and keeps unrelated sa
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null).length)).toBe(1);
 });
 
-for (const entry of ['keyboard', 'rail', 'contents'] as const) {
-test(`${entry} source navigation cancels running recognition without waiting for SDK completion or publishing its stale result`, async ({ page }) => {
+for (const entry of ['keyboard', 'rail', 'contents', 'search'] as const) {
+test(`${entry} source navigation cancels running recognition without waiting for SDK completion or publishing its stale result`, async ({ page }, info) => {
   await start(page);
   await page.evaluate(() => { window.__imageOcrControl.hold = true; });
   await readerOptions(page);
@@ -637,9 +664,19 @@ test(`${entry} source navigation cancels running recognition without waiting for
     await page.keyboard.press('PageDown');
   } else if (entry === 'rail') {
     await page.getByRole('button', { name: 'Read image-1 page-1', exact: true }).click();
-  } else {
+  } else if (entry === 'contents') {
     await page.getByRole('button', { name: 'Contents', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Page 2', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: 'Search source', exact: true }).click();
+    const search = page.getByRole('dialog', { name: 'Search source', exact: true });
+    await search.getByRole('textbox', { name: 'Search this source', exact: true }).fill('大阪');
+    await search.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(search.getByRole('button', { name: '大阪', exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath('recognized-search-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: info.outputPath('recognized-search-phone.png') });
+    await search.getByRole('button', { name: '大阪', exact: true }).click();
   }
   await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
   await expect(page.getByRole('button', { name: '大阪: untracked', exact: true })).toBeVisible();
@@ -653,6 +690,15 @@ test(`${entry} source navigation cancels running recognition without waiting for
   await expect(page.getByRole('button', { name: 'Cancel recognition', exact: true })).toHaveCount(0);
   await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
   await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toHaveCount(0);
+  if (entry === 'search') {
+    const requests = await page.evaluate(() => window.__imageReaderRequests);
+    expect(requests.filter(request => request.type === 'recognize_image')).toHaveLength(1);
+    expect(requests.filter(request => request.type === 'return_source_anchor')).toHaveLength(1);
+    await page.getByRole('button', { name: 'Search source', exact: true }).click();
+    await page.getByRole('button', { name: 'Return to reading position', exact: true }).click();
+    await expect(page.getByTestId('reader-position')).toHaveText('Page 1 of 3');
+    await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  }
 });
 }
 

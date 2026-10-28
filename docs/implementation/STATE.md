@@ -45,9 +45,29 @@ seven. The retained failed log is `ci-40722951324-web-failed.log`; this is an
 omitted stale test update caused by the proposal increment, not infrastructure.
 The test now expects all seven and extends its keyboard/scroll reachability
 assertions to Propose Material, retaining all original geometry/material checks.
+That focused repair is committed/pushed as
+`e17bccd34fe91a85ffbd8ce55c5a03823027ee6c`; unfinished Reader search source was
+not included. Its foundation CI40728696872 completed: web, Rust, macOS desktop
+and detector passed. Windows job122962714012 passed builds, both real OCR
+workflows and initial theme transitions, then failed in repeated-edit cycle4 at
+2026-10-28T17:01:31Z: `Incomplete native theme input`, expected Slate but
+received unchanged Dark Quartz. Clipboard matched expected input and editor
+reported focused; the native focus HWND changed from66140 to131684 before
+that failed paste. This repeats the unresolved input-loss symptom, without
+establishing its root cause. Exact failed log:
+`ci-40728696872-windows-failed.log`. No assertion was weakened and no workflow
+was rerun. Footer web coverage is green; the overall workflow is not.
 Windows job122941995691 passed its actual theme/OCR steps; that does not explain
-the earlier intermittent input-loss evidence. Mobile40722951303 is still
-observed read-only by run1541; no workflow was rerun.
+the earlier intermittent input-loss evidence. Mobile40722951303 completed on
+exact proposal source5a9c938c: Android job122938475335 passed; iOS
+job122938474874 failed `Exercise actual iOS UI and Rust persistence` at
+2026-10-28T17:08:44Z. The observer reached its deadline; a subsequent one-shot
+status read confirmed the workflow's actual terminal result. Retained log
+`ci-40722951303-ios-failed.log` shows the same deferred Watch picker
+assertion at2026-10-28T17:07:56.558748Z:
+`id: (mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4) is visible`
+was false. Fixture export succeeded; this does not diagnose the picker failure
+or verify downstream iOS workflows. No workflow was rerun or assertion changed.
 
 Source-search owner trace: Watch already searches literal subtitle text through
 `transcript_page` and navigates real cue indexes; Messenger already searches
@@ -82,6 +102,68 @@ remain, including keyboard access to the new seventh action. Existing ts-rs
 serde-attribute diagnostics and unused `practice` test-fixture warnings remain;
 the new macro doc-comment warning is gone. Reader search is still not connected
 to the GUI, and native/compositor/M10 acceptance remains open.
+Before Reader presentation edits, guarded run1549
+(`reader-search-before-ui.log`) rebuilt the actual QA host/export and captured
+normal desktop/narrow Reader on the retained isolated corpus profile. Both
+baseline images were inspected. Reader now has a shared-control source-search
+Dialog, bounded result pages, stop/retry, explicit unavailable-recognition
+coverage, exact source-anchor navigation and Return to the original position.
+Navigation reuses useReader's existing save/cancel/source-session owner and
+retains native returned highlights; image navigation propagates failed
+admission rather than retaining prepared pages. Guarded
+`reader-search-first-ui.log` passed typecheck, architecture lint, web export,
+and actual native-backed search/navigation/Return capture. Desktop1100/narrow390
+results and retained Return captures were inspected: no blank, overlap or
+overflow; compact source title truncates while accessible actions remain.
+The final sample was footprint1654191232, available7206174720, pressure1,
+swapUsed3663527936, swapOut73977217024; the guard reported safe. No device,
+reference application or persistent server was launched.
+Three new native-backed GUI regressions now cover source-span/position
+persistence across native restart, bounded Unicode paging and stop/late-result/
+failed-search retry. Their first run, together with existing Reader/image and
+Messenger-history regressions, passed48/50 (`reader-search-native-first.log`).
+All47 existing tests and the new Unicode paging test passed. Two new tests
+failed: a stopped search's held receipt blocked the replacement behind the
+typed client's serialized mutation lane; the position test incorrectly
+expected saving the first visible line to retain the matched word's byte10,
+although DocumentCanvas explicitly reports the first visible scalar (byte0
+on this short line). Search now admits at most two independent bounded reads
+with source-epoch fencing, allowing one replacement without blocking source/
+control commands. A client regression asserts replacement, admission bound,
+navigation and stale receipt rejection. The GUI test still asserts the exact
+native anchor/returned position, and separately asserts the actual byte0
+reading checkpoint; source restoration assertions remain exact.
+The first repair observer expired before resource admission; no repair log was
+created and no test was started. A fresh sample after its deadline showed
+footprint4807357568, available8327069696, pressure1, swapUsed4705681408,
+swapOut75548114944. Footprint was stable versus the preceding run's
+4824708224, not explained away as workload memory. No surviving browser/build/
+model/device workload appeared among the largest processes; no unrelated
+process was stopped. The readmitted repair passed in
+`reader-search-native-repair.log`:14 typed client tests, all three native-backed
+Reader GUI scenarios, typecheck, architecture lint and web export. Its light
+desktop/narrow result captures were inspected alongside earlier dark captures.
+Final footprint1718498432, available9273917440, pressure1,
+swapUsed4613341184, swapOut75548114944; the guard reported safe. The earlier
+high footprint receded without killing a process.
+Review of the image consumer found search navigation also needs to cancel its
+running recognition, as existing keyboard/rail/contents navigation already do.
+The shared search callback now uses that existing cancellation before native
+anchor Return. The existing image-navigation test loop gains one search case
+covering saved recognition, held-inference cancellation, exact page, no extra
+recognition, and Return to the original page; the toolbar layout checks now
+include Search. Final `reader-search-final.log` passed14 client tests, three
+native-backed GUI scenarios and four image/toolbar cases after typecheck,
+architecture lint and export. The saved-recognition desktop/narrow captures
+were inspected; source text, scope, actual page and controls remain contained.
+Its final resource sample: footprint1709831296, available6836633600, pressure1,
+swapUsed4512677888, swapOut75548114944; guard safe, no observed growth.
+Recognition
+quality/persistence remains separately covered by real native owners, not this
+explicit browser-boundary fixture.
+Watch's existing cue search seeks
+real cue positions, but an explicit pre-search playback Return still needs
+verification/repair; this source-search task is not complete.
 The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
 guarded run1460 passed its owner/runtime/client checks. Shared native selection

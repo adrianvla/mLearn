@@ -115,10 +115,17 @@ impl Runtime {
             | Request::RecentDocuments
             | Request::DocumentWindow { .. }
             | Request::DocumentContents { .. }
+            | Request::SearchDocument { .. }
             | Request::CheckpointDocument { .. }
             | Request::DocumentResource { .. }) => Ok(Prepared::Immediate(Box::new(
                 self.document_request(request, &cancellation)?,
             ))),
+            Request::ReturnSourceAnchor { anchor } => {
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(
+                    self.return_source_anchor(anchor, cancellation.epoch)?,
+                )))
+            }
             Request::AnalyzeDocument {
                 source_id,
                 position,

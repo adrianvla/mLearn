@@ -22,6 +22,7 @@ import { imageAnchor, imageContext } from './imageFlow';
 import { ImageSourceWords } from './ImageSourceWords';
 import { ImageRecognition } from './ImageRecognition';
 import { SourceEntryScreen } from '../source-entry';
+import { ReaderSearch } from './ReaderSearch';
 
 export function ReaderScreen() {
     const host = useRuntime();
@@ -161,6 +162,13 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 {imageMode && imageReader.recognizing ? <Button label="Cancel recognition" icon="stop" iconOnly={compact}
                     variant="secondary" size="compact" onPress={imageReader.cancel} /> : null}
                 {imageMode && layoutInline ? <ImageLayoutControls reader={imageReader} onBeforeAction={() => setInspection(null)} /> : null}
+                {source && focused ? <ReaderSearch key={JSON.stringify([source.id, source.contentRevision,
+                    source.parserRevision, source.packageId, source.packageVersion, imageMode])}
+                    client={client} source={source} scope={imageMode ? 'recognized_pages' : 'text'}
+                    position={reader.position} compact={compact} disabled={reader.pending}
+                    onOpen={() => setInspection(null)}
+                    onLocate={hit => { if (imageMode) imageReader.cancel(); return reader.locate(hit.anchor); }}
+                    onReturn={point => imageMode ? imageReader.navigate(point) : reader.navigate(point)} /> : null}
                 <Dialog title="Contents" description="Navigate to the original document location."
                     open={contentsOpen} onOpenChange={open => {
                         setContentsOpen(open); setInspection(null);

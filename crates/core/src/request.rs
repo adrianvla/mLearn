@@ -113,6 +113,12 @@ pub enum Request {
         source_id: String,
         after: Option<u32>,
     },
+    SearchDocument {
+        query: crate::DocumentSearchQuery,
+    },
+    ReturnSourceAnchor {
+        anchor: crate::SourceAnchor,
+    },
     CheckpointDocument {
         checkpoint: crate::DocumentCheckpoint,
     },

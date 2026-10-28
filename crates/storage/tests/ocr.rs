@@ -126,6 +126,102 @@ fn recognize(store: &mut ProfileStore, id: &str) -> OcrPage {
 }
 
 #[test]
+fn image_search_reports_missing_recognition_and_returns_only_saved_region_text() {
+    // Given: registered source pages do not imply that a text index exists.
+    let (_directory, mut store, record) = fixture();
+    let query = DocumentSearchQuery {
+        source_id: record.id.clone(),
+        content_revision: record.content_revision.clone(),
+        parser_revision: record.parser_revision.clone(),
+        scope: DocumentSearchScope::RecognizedPages,
+        text: "bridge".into(),
+        after: None,
+    };
+    let missing = store.search_document(&query).unwrap();
+    assert_eq!(missing.total, 2);
+    assert_eq!(missing.scanned, 2);
+    assert_eq!(missing.unavailable, 2);
+    assert!(missing.hits.is_empty());
+
+    // When: the existing OCR owner saves explicitly labelled storage-fixture evidence.
+    let page = recognize(&mut store, "search-page");
+    let found = store.search_document(&query).unwrap();
+
+    // Then: search uses that real projection and keeps the remaining page unavailable.
+    assert_eq!(found.unavailable, 1);
+    assert_eq!(found.hits.len(), 1);
+    let hit = &found.hits[0];
+    assert_eq!(hit.position.block_id, "block-0");
+    let SourceLocator::Image {
+        ref resource_id,
+        page_index,
+        ocr_revision,
+        ref region_id,
+        context_start,
+        selection_start,
+        selection_end,
+    } = hit.anchor.locator
+    else {
+        panic!("Expected original image-region coordinates");
+    };
+    assert_eq!(resource_id, &page.resource_id);
+    assert_eq!(page_index, Some(0));
+    assert_eq!(ocr_revision, page.ocr_revision);
+    assert_eq!(region_id, "0");
+    assert_eq!(context_start + selection_start, 6);
+    assert_eq!(
+        hit.anchor
+            .text
+            .get(selection_start as usize..selection_end as usize),
+        Some("bridge")
+    );
+}
+
+#[test]
+fn image_search_cursor_is_invalidated_by_a_new_authoritative_ocr_revision() {
+    // Given: a saved region has more matches than one search response can carry.
+    let (_directory, mut store, record) = fixture();
+    let request = request("search-many");
+    store.plan_ocr(&request, &plan(&request)).unwrap();
+    let mut evidence = result(&request);
+    evidence.regions = vec![region("repeated", 0.1, &"bridge ".repeat(40))];
+    let page = store.complete_ocr(&evidence).unwrap();
+    let mut query = DocumentSearchQuery {
+        source_id: record.id,
+        content_revision: record.content_revision,
+        parser_revision: record.parser_revision,
+        scope: DocumentSearchScope::RecognizedPages,
+        text: "bridge".into(),
+        after: None,
+    };
+    let first = store.search_document(&query).unwrap();
+    assert_eq!(first.hits.len(), 16);
+    query.after = first.next;
+    assert!(query.after.is_some());
+    let mut corrected = page.regions[0].clone();
+    corrected.text = "Corrected source region.".into();
+
+    // When: the original OCR correction owner publishes a newer region revision.
+    store
+        .correct_ocr(&OcrCorrection {
+            command_id: "search-correction".into(),
+            source_id: page.source_id,
+            content_revision: page.content_revision,
+            resource_id: page.resource_id,
+            expected_revision: page.ocr_revision,
+            region: corrected,
+        })
+        .unwrap();
+
+    // Then: continuation cannot combine old and new recognition into one result.
+    assert!(store.search_document(&query).is_err());
+    query.after = None;
+    let fresh = store.search_document(&query).unwrap();
+    assert!(fresh.hits.is_empty());
+    assert_eq!(fresh.unavailable, 1);
+}
+
+#[test]
 fn retry_recovery_distinguishes_cancelled_work_and_replays_only_the_committed_revision() {
     let (directory, mut store, _) = fixture();
     let cancelled = request("cancelled");

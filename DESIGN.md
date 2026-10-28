@@ -376,6 +376,19 @@ report zero and retain their existing header inset.
 
 ## Reader source flow, 2026-10-22
 
+Source search uses one compact Search action beside Contents, with the same
+icon-only treatment at narrow widths. Its shared Dialog owns one scrolling
+body; the source canvas stays inactive while it is open. Shared TextField,
+Button, Row and Text own query, result actions and status, with no local control
+skin. Results preserve literal source context and native page/byte coordinates.
+Search scope explicitly distinguishes canonical text from already recognized
+pages; missing recognition is unavailable coverage, not an empty match.
+Search results remain bounded and resumable. Opening a hit preserves the
+original reading position for an explicit Return action when search reopens.
+The `reader-search-before` captures at1100/390 in the current M10 evidence root
+are the pre-edit set; toolbar containment and actual source navigation must be
+checked after integration.
+
 The approved Reader images establish a compact stationary control rail, a
 separately scrolling source navigator, the large source canvas and a compact
 position footer. Existing shared controls own their materials and interaction

@@ -7,11 +7,13 @@ import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
 import { createConversationClient } from './conversationClient';
 import { createCollectionClient } from './collectionClient';
+import { isMaterialResponse } from './materialProtocol';
+import { isSourceAnchor } from './sourceProtocol';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
 export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
-import type { Request, Response, Snapshot, StarCollapse, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -20,7 +22,7 @@ export interface Transport {
 }
 
 export function createRuntimeClient(transport: Transport) {
-  let tail:Promise<void>=Promise.resolve();let pending=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
+  let tail:Promise<void>=Promise.resolve();let pending=0;let searches=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
   type DisplayRead={readonly command:Request;readonly epoch:number;readonly queuedAt:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
   const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
@@ -57,12 +59,25 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
+    if(command.type==='search_document'){
+      // A stopped bounded read may still have an unacknowledged transport
+      // receipt. Admit one replacement without blocking source/control work.
+      if(searches>=2)throw new RuntimeError('busy','Source search reads are still pending; retry the search.');
+      const epoch=sourceEpoch;searches++;
+      try{
+        if(cancelInFlight)await cancelInFlight;
+        if(epoch!==sourceEpoch)throw cancelled();
+        const value=await execute(command);
+        if(epoch!==sourceEpoch)throw cancelled();
+        return value;
+      }finally{searches--;}
+    }
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window'
       ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source'))return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_material_proposal_source','return_review_source'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_material_proposal_source','return_review_source','return_source_anchor'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -111,6 +126,22 @@ export function createRuntimeClient(transport: Transport) {
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),
     ...createOcrClient(request, () => transport.commandId()),
+    async returnSourceAnchor(anchor: SourceAnchor) {
+      const original = structuredClone(anchor);
+      if (!isSourceAnchor(original)) throw new RuntimeError('invalid_request', 'Choose a valid original source span.');
+      const response = await request({ type: 'return_source_anchor', anchor: original });
+      if (!isMaterialResponse(response) || response.type !== 'material_source' && response.type !== 'document_material_source'
+        && response.type !== 'image_material_source' && response.type !== 'conversation_material_source')
+        throw new RuntimeError('protocol', 'Malformed source return response.');
+      const returned = response.anchor;
+      if (returned.sourceId !== original.sourceId || returned.contentRevision !== original.contentRevision
+        || returned.packageId !== original.packageId || returned.packageVersion !== original.packageVersion
+        || returned.text !== original.text
+        || JSON.stringify(Object.entries(returned.locator).sort(([a], [b]) => a.localeCompare(b)))
+          !== JSON.stringify(Object.entries(original.locator).sort(([a], [b]) => a.localeCompare(b))))
+        throw new RuntimeError('protocol', 'Source return changed the requested original span.');
+      return response;
+    },
     prepareInstall,
     installPackage,
     packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),

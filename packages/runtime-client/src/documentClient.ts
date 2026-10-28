@@ -1,4 +1,4 @@
-import type { DocumentCheckpoint, DocumentPosition, Request } from '@mlearn/contracts';
+import type { DocumentCheckpoint, DocumentPosition, DocumentSearchQuery, Request } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
 import { isDocumentAppearance, isDocumentPosition, isDocumentResponse } from './documentProtocol';
 
@@ -36,6 +36,21 @@ export function createDocumentClient(request: (command: Request) => Promise<unkn
       const response = await read({ type: 'document_contents', sourceId, after });
       if (response.type !== 'document_contents' || response.page.sourceId !== sourceId
         || response.page.nextOffset !== null && after !== null && response.page.nextOffset <= after) throw malformed();
+      return response.page;
+    },
+    async searchDocument(query: DocumentSearchQuery) {
+      const command = structuredClone(query);
+      const response = await read({ type: 'search_document', query: command });
+      if (response.type !== 'document_search' || response.page.sourceId !== command.sourceId
+        || response.page.contentRevision !== command.contentRevision || response.page.parserRevision !== command.parserRevision
+        || response.page.scope !== command.scope || response.page.text !== command.text
+        || command.after !== null && (response.page.scanned < command.after.index
+          || response.page.unavailable < command.after.unavailable
+          || response.page.next !== null && (response.page.next.identity !== command.after.identity
+            || response.page.next.index === command.after.index
+              && (response.page.next.region < command.after.region
+                || response.page.next.region === command.after.region && response.page.next.offset <= command.after.offset))))
+        throw malformed();
       return response.page;
     },
     async checkpointDocument(checkpoint: DocumentCheckpoint) {

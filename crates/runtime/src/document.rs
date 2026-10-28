@@ -96,6 +96,13 @@ impl Runtime {
                     .document_contents(&source_id, after)
                     .map_err(|error| Failure::Operation(error.to_string()))?,
             }),
+            Request::SearchDocument { query } => {
+                let page = self.store.search_document(&query).map_err(|error| {
+                    Failure::Protocol("invalid_document_search", error.to_string())
+                })?;
+                cancellation.check()?;
+                Ok(Response::DocumentSearch { page })
+            }
             Request::CheckpointDocument { checkpoint } => {
                 let source = self
                     .store
