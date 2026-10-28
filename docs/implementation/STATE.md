@@ -24,8 +24,8 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: extend the verified collection/filter owners with bulk operations
-and remaining M10 flows, then the milestone gate.
+Current task: verify actual native modifier delivery while extending the
+verified collection/filter owners with bulk operations and remaining M10 flows.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -331,6 +331,46 @@ unexplained, not resolved by these bounded passing runs.
 Collection-filter behavior is `verified_for_continuation` (47/108 tracked items
 done), not M10/native GUI/visual acceptance. Next: bulk stable selection,
 supported add/edit/exclude/remove receipts, then grounded proposal review.
+
+### Native modifier gate follow-up — M10 still in progress
+
+Filters are committed/pushed at `a0e6c10acdd626b123c0365f2dcc417c29acddaf`.
+Its exact gates are foundation 40644740351, desktop 40644740447 and mobile
+40644740359 under observer 1391. Prior 92ad607 foundation passed; desktop
+40640874478 failed, and its mobile run was cancelled, not passed. Failed native
+job 122658452144 retained the original Shift-assisted pointer/Inspector
+assertion at 06:04:24 UTC on October 28. Its failure image and geometry were
+inspected: Children is visible and hit-testable, with no Inspector, but there
+is no native modifier-event trace from that run. No product cause is established.
+Artifact 12795363672 (54,718,970 bytes) is preserved under the owned execution
+root's `native-ci-92ad607`; no model/device was launched to inspect it.
+
+Earlier 77c58abb foundation/desktop passed. Mobile 40640068421 finished failed:
+Android job 122655898465 passed; iOS 122655898116 failed its UI/persistence
+step. Observer 1369's deadline was not a job verdict; continuation 1399 obtained
+the terminal parent result. No hosted run was manually restarted or cancelled.
+
+The original Inspector/no-new-claim assertions remain unchanged. The desktop
+test now subscribes to actual native key/pointer events before input, requires
+trusted Shift and mouse-entry delivery, moves through a real blank media point
+instead of window chrome, releases Shift immediately after entry, and retains
+up to 16 events in modifier-input.json. Listeners/timer are released in finally.
+Node syntax, both embedded browser programs, ownership lint and whitespace
+checks passed (1398/1401). Actual WebKitGTK execution is pending; this is not
+a claim that the native failure is repaired. No renderer behavior or policy
+was changed. A new tracked gate brings the ledger to 47/109.
+
+Bulk audit: current Material create/edit/capture receipts are the mutation owner;
+there is no core bulk/removal command yet. Collection filtering must remain the
+selection authority, with stable native membership rather than a renderer-wide
+library copy. Review admissions and authored-media references need retention
+proof before removal; current media unreferenced checks inspect material_assets.
+Do not delete learner claims/evidence or create a parallel learning owner.
+
+The goal tool still holds the blocked historical visual goal. Registering the
+new M10/M11 objective was rejected as an unfinished-goal conflict; it was not
+falsely marked complete. Continue the current authorization/checkpoint, not the
+obsolete goal's branch, milestone ceiling or resume workloads.
 
 ### Knowledge presentation — verified local increment, M10 still open
 
