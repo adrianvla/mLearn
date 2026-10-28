@@ -17,6 +17,7 @@ mod linguistic;
 mod material;
 mod material_bulk;
 mod material_media;
+mod material_proposal;
 mod material_source;
 mod media_file;
 mod media_format;
@@ -357,6 +358,14 @@ impl Runtime {
                     })?;
                 Ok(Response::Saved { revision })
             }
+            request @ (Request::MaterialProposals { .. }
+            | Request::MaterialProposal { .. }
+            | Request::SuggestMaterial { .. }
+            | Request::ReviewMaterialProposal { .. }
+            | Request::ReturnMaterialProposalSource { .. }) => self.material_proposal_metadata(
+                request,
+                self.cancellation.load(std::sync::atomic::Ordering::Relaxed),
+            ),
             request @ (Request::Materials { .. }
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }

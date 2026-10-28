@@ -162,6 +162,21 @@ pub enum Request {
     Material {
         id: MaterialId,
     },
+    MaterialProposals {
+        query: crate::MaterialProposalQuery,
+    },
+    MaterialProposal {
+        id: crate::MaterialProposalId,
+    },
+    SuggestMaterial {
+        command: crate::MaterialSuggestion,
+    },
+    ReviewMaterialProposal {
+        command: crate::MaterialProposalReview,
+    },
+    ReturnMaterialProposalSource {
+        id: crate::MaterialProposalId,
+    },
     CreateMaterial {
         command: MaterialCreate,
     },

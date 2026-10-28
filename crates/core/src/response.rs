@@ -123,6 +123,15 @@ pub enum Response {
     Material {
         material: Material,
     },
+    MaterialProposals {
+        page: crate::MaterialProposalPage,
+    },
+    MaterialProposal {
+        proposal: crate::MaterialProposal,
+    },
+    MaterialProposalReviewed {
+        receipt: crate::MaterialProposalReceipt,
+    },
     MaterialWritten {
         outcome: MaterialWriteResult,
     },

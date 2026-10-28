@@ -387,6 +387,11 @@ impl Runtime {
             | Request::MaterialMedia { .. }
             | Request::Materials { .. }
             | Request::Material { .. }
+            | Request::MaterialProposals { .. }
+            | Request::MaterialProposal { .. }
+            | Request::SuggestMaterial { .. }
+            | Request::ReviewMaterialProposal { .. }
+            | Request::ReturnMaterialProposalSource { .. }
             | Request::RemoveMaterial { .. }
             | Request::MaterialEligibility { .. }
             | Request::SetCaptureExclusion { .. }

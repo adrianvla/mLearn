@@ -504,24 +504,7 @@ impl ProfileStore {
                 let mut content = material.content;
                 let excluded = match &current.command.action {
                     MaterialBulkAction::Edit { patch } => {
-                        if let Some(value) = &patch.phrase {
-                            content.phrase.clone_from(value);
-                        }
-                        if let Some(value) = &patch.reading {
-                            content.reading.clone_from(value);
-                        }
-                        if let Some(value) = &patch.meaning {
-                            content.meaning.clone_from(value);
-                        }
-                        if let Some(value) = &patch.context {
-                            content.context.clone_from(value);
-                        }
-                        if let Some(value) = &patch.notes {
-                            content.notes.clone_from(value);
-                        }
-                        if let Some(value) = &patch.examples {
-                            content.examples.clone_from(value);
-                        }
+                        patch.apply_to(&mut content);
                         material.excluded
                     }
                     MaterialBulkAction::Exclude { excluded } => *excluded,

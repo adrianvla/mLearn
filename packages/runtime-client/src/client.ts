@@ -1,6 +1,7 @@
 import { isWatchResponse } from './watchProtocol';
 import { createMaterialClient } from './materialClient';
 import { createMaterialBulkClient } from './materialBulkClient';
+import { createMaterialProposalClient } from './materialProposalClient';
 import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
@@ -61,7 +62,7 @@ export function createRuntimeClient(transport: Transport) {
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_review_source'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_material_proposal_source','return_review_source'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -106,6 +107,7 @@ export function createRuntimeClient(transport: Transport) {
     ...createConversationClient(request, () => transport.commandId(), execute),
     ...createMaterialClient(request, () => transport.commandId()),
     ...createMaterialBulkClient(execute, () => transport.commandId()),
+    ...createMaterialProposalClient(request, () => transport.commandId()),
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),
     ...createOcrClient(request, () => transport.commandId()),

@@ -13,6 +13,30 @@ pub struct MaterialBulkPatch {
     pub examples: Option<Vec<String>>,
 }
 
+impl MaterialBulkPatch {
+    /// Apply authored text only; source, dictionary identity and media are unchanged.
+    pub fn apply_to(&self, content: &mut crate::MaterialContent) {
+        if let Some(value) = &self.phrase {
+            content.phrase.clone_from(value);
+        }
+        if let Some(value) = &self.reading {
+            content.reading.clone_from(value);
+        }
+        if let Some(value) = &self.meaning {
+            content.meaning.clone_from(value);
+        }
+        if let Some(value) = &self.context {
+            content.context.clone_from(value);
+        }
+        if let Some(value) = &self.notes {
+            content.notes.clone_from(value);
+        }
+        if let Some(value) = &self.examples {
+            content.examples.clone_from(value);
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]

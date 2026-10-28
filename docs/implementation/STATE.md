@@ -24,21 +24,28 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: extend the verified collection/filter owners with stable native
-selections, bulk operations and remaining M10 flows.
-Latest checkpoint: `910aac71216c70178f477a1c3c4249336e471db2` is pushed with
+Current task: source-grounded generated/suggested Material proposal review,
+then the remaining M10 flows.
+Latest checkpoint: `134fac93f6b5f21da269856fee48e8187341b303` is pushed with
 the verified native bulk engine, selection amendments, typed client and shared
-selection UI, not completed bulk management.
+selection/bulk UI.
 The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
 guarded run1460 passed its owner/runtime/client checks. Shared native selection
 controls on Knowledge and Material passed export/capture and recovery checks.
-The current uncommitted bulk-action composition connects those handles to
+The committed bulk-action composition connects those handles to
 confirmation, live control, retained jobs and bounded result pages. Final
 five-scenario native GUI and 20 desktop/narrow Material regressions pass,
 including Retry/Clear, alongside authentic Japanese addition outcomes.
 This bulk increment is verified for continuation; M10 native/compositor,
 independent-review and remaining feature gates are still open.
+The uncommitted proposal owner adds source/existing-Material-grounded text
+drafts, immutable identity, editable fields, explicit accept/reject and atomic
+Material/receipt publication. Its six new persistence tests and all123 storage
+tests pass. Native dispatch, Rust-generated contracts and a typed client passed
+integration checks, including the repaired cross-language replacement regression.
+Shared native generation lifecycle and the
+actual review UI remain unimplemented; MAT-07 and M10 are not complete.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -574,6 +581,87 @@ Final guard sample: footprint1612854400, available7515422720, pressure1,
 swapUsed4872994816, unchanged swapOut69005623296, projected headroom5367939072.
 No Rust/protocol source changed after the117-storage/26-client passing boundary
 checkpoint; those checks are reused, not falsely reported rerun.
+
+Bulk UI checkpoint134fac93 is committed/pushed on the existing stacked draft.
+Automatically triggered exact-source gates: foundation40697502070,
+desktop40697502407 (passed), mobile40697502478; final-only observers1504–1506.
+No workflow was manually dispatched and neither draft PR was merged.
+Selection910aac71 mobile40685089625 ended with Android122818463123 passing
+and iOS122818462698 failing during `Exercise actual iOS UI and Rust persistence`.
+Its exact failed assertion still needs retrieval; this is not a platform pass.
+
+The proposal-storage candidate introduces Schema18 with bounded12-item/
+192KiB pages and at most128 pending drafts. Proposals preserve source/package/
+dictionary identity; replacements retain their original Material revision and
+media owner. Acceptance reuses the existing transaction-scoped Material
+create/edit functions and commits its result receipt in that same transaction.
+Digest-checked receipt replay cannot resurrect rejected drafts or deleted
+Material. Normal duplicate detection leaves the proposal pending for an explicit
+distinct decision. Five new real-SQLite tests cover edit/reject/restart/evidence
+separation, injected acceptance-receipt rollback and replay, duplicates,
+concurrent authored revisions and bounded paging/capacity. Existing migration
+assertions move the current version17 to18 and future-version rejection18 to19;
+no historical-data assertion is removed. A shared authored-text patch operation
+now serves the existing bulk owner and proposal editing. New native modules have
+clean LSP diagnostics. The whole storage suite must pass before this native
+candidate is verified, and the generation/provider/UI work remains open.
+
+Proposal storage run1507 passed all122 storage tests, including the five new
+draft/receipt/CAS/paging cases and all existing migration/data/evidence checks.
+Log: `material-proposal-storage-verify.log`. Existing unused `practice` fixture
+warnings remain. Final sample: footprint1613395072, available7148306432,
+pressure1, swapUsed4780720128, unchanged swapOut69005623296.
+Native proposal metadata now routes suggest/read/list/edit/accept/reject/Return
+through the existing runtime/store. Fresh source drafts cannot claim invented
+dictionary IDs; replacement proposals retain the existing Material's trusted
+identity and are usable without an optional provider. Two new runtime tests
+cover actual JSON dispatch, explicit acceptance, restart/receipt recovery and
+forged identity refusal. A typed client adds bounded nested validation, command/
+revision correlation, immutable-basis checks, stable lost-receipt retry and the
+existing source-cancellation lane. New client tests cover adversarial packets
+and exact retry. Integration verification and Rust-generated types are pending;
+stale-generated-type LSP errors are not suppressed or claimed passing.
+Exact bulk134fac93 foundation40697502070 and desktop40697502407 passed;
+mobile40697502478 remains under its existing observer.
+
+Proposal transport run1508 passed Rust contract generation, all122 storage
+tests, both new runtime proposal tests, all five existing native Material tests,
+typecheck, ownership lint and all28 targeted client tests. Log:
+`material-proposal-transport-verify.log`. Existing ts-rs attribute and unused
+`practice` fixture warnings remain. Final sample: footprint1636971648,
+available6794870784, pressure1, swapUsed4755554304, unchanged swapOut69005623296.
+Fresh proposal-client diagnostics were clean after generated types landed.
+Review then found an invalid extra restriction: replacement proposals must
+preserve an existing Material whose target language differs from its original
+source language. The focused new storage regression reproduced
+`Invalid("Proposal source belongs to another language package")` against the
+original predicate, with healthy resources, in run1509. Baseline log:
+`material-proposal-language-baseline.log`. The repair limits that same-package
+check to fresh source-text proposals; replacements still preserve exact existing
+source/dictionary identity. A corresponding typed-client test protects that
+separation. The repaired six-proposal/29-client candidate needs final recheck
+before commit; provider generation and review UI remain incomplete.
+
+Final proposal run1511 passed Rust contract generation, all123 storage tests,
+both native proposal tests, all five existing native Material tests, typecheck,
+ownership lint and all29 targeted client tests. The cross-language regression
+now passes without changing existing identity/provenance assertions. Log:
+`material-proposal-language-fixed.log`. Final guard sample:
+footprint1638626432, available9004613632, pressure1, swapUsed6674579456,
+swapOut71275069440. Swap increased during this interval despite the final low
+OmO footprint; do not call the host allocation incident resolved or blame an
+unobserved device/model workload. This is a verified native proposal/transport
+increment, not generated-provider behavior, GUI completion or MAT-07 acceptance.
+Next integration must reuse the existing native generation worker, provider
+settings/session credential, trace and cancellation owners, not add another
+queue or a renderer-owned parser/admission path.
+
+Exact selection910aac71 iOS122818462698 failed at
+2026-10-28T13:38:50Z: `Assertion is false: id: m01-watch, mp4 is not visible`.
+This was retrieved from the failed job log, not inferred from its step name.
+Bulk134fac93 mobile40697502478 observer timed out; actual readback has both
+iOS122851408394 and Android122851408995 still running. Final-only observer1510
+was renewed without rerunning the workflow or launching a device.
 
 910aac71 mobile40685089625 observer timed out; actual readback has
 Android122818463123 passing and iOS122818462698 still running. Renew only its

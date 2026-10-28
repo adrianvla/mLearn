@@ -373,6 +373,11 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::MaterialMedia { .. }
         | Request::Materials { .. }
         | Request::Material { .. }
+        | Request::MaterialProposals { .. }
+        | Request::MaterialProposal { .. }
+        | Request::SuggestMaterial { .. }
+        | Request::ReviewMaterialProposal { .. }
+        | Request::ReturnMaterialProposalSource { .. }
         | Request::RemoveMaterial { .. }
         | Request::MaterialBulk { .. }
         | Request::MaterialEligibility { .. }
