@@ -195,6 +195,35 @@ This connected increment is `verified_for_continuation`, not full visual or
 native acceptance. Sidebar width (200 versus 220), native materials and broader
 M10 controls remain explicit follow-up gates; no M11 transition is authorized
 until M10 passes its gates. Continue compound filter membership next.
+Material layout checkpoint is committed/pushed as
+`77c58abb7a21b9d225355120124f271921dee8e0`; only the four original untracked
+files remained afterward. Exact hosted runs are foundation 40640068424,
+desktop 40640068557 and mobile 40640068421, under read-only final observer
+1369. No workflow was manually dispatched.
+
+Compound-filter readiness: auditing the SQL owner found potentially nullable
+equality in source and target-kind predicates. Negation may drop source-free
+or unlinked Material rather than include it. A new owner-suite regression
+creates real linked/unlinked Material and checks both counts and membership;
+LSP is clean. Run it against unchanged product SQL before repair. This is
+still a hypothesis, not a confirmed defect. The serial helper's `filter`
+target runs only the storage collection suite with one Cargo build job,
+2048 MiB forecast, unchanged 4 GiB reserve and final-only notification.
+Baseline 1370 reproduced the native defect without product changes:
+`negated_source_and_kind_filters_include_unlinked_material` failed at
+collection.rs:688 with actual counts `[1, 0]`, expected `[2, 1]`.
+The repair changes only the nullable `source_id` and joined `entity_kind`
+comparisons to SQLite `IS`, making absence false before Boolean negation.
+LSP reports no errors. The entire collection owner suite is next; the
+regression remains unchanged and no acceptance assertion is weakened.
+Verification 1371 passed all 13 real-storage collection tests in 0.25 seconds,
+including the new red/green case and existing compound counts, paging,
+revision-conflict, unavailable-scope, migration and persistence coverage.
+Diff/cleanup 1372 confirmed the two SQL changes, unchanged original assertions
+(the edit hook reformatted four existing assertions only), clean whitespace,
+and no owned test/guard process. Post-cleanup footprint 3604460672, available
+6744621056, pressure 1, swapUsed 4524736512, swapOut 60321775616.
+This repairs native membership; the compound-filter controls are still pending.
 
 ### Knowledge presentation — verified local increment, M10 still open
 

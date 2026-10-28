@@ -178,8 +178,10 @@ impl FilterSql<'_> {
                 let source = self.bind(source_id.clone());
                 // This is saved-Material provenance, not an assertion that an
                 // entire source has been linguistically indexed.
+                // Nullable predicates must return false, not SQL NULL, so NOT
+                // includes independently authored Material without that value.
                 Ok(if material {
-                    format!("m.source_id={source}")
+                    format!("m.source_id IS {source}")
                 } else {
                     format!("EXISTS({target_materials} AND fm.source_id={source})")
                 })
@@ -192,7 +194,7 @@ impl FilterSql<'_> {
                     ));
                 }
                 let kind = self.bind(id.clone());
-                Ok(format!("t.entity_kind={kind}"))
+                Ok(format!("t.entity_kind IS {kind}"))
             }
         }
     }

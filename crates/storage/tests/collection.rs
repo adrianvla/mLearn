@@ -214,11 +214,10 @@ fn saved_material_remains_readable_while_catalog_filters_are_preparing() {
     // Then authored rows stay readable, but metadata predicates cannot count a prefix.
     assert_eq!(page.count, 2);
     assert_eq!(page.items.len(), 2);
-    assert!(
-        page.items
-            .iter()
-            .all(|item| matches!(item, CollectionItem::Material { .. }))
-    );
+    assert!(page
+        .items
+        .iter()
+        .all(|item| matches!(item, CollectionItem::Material { .. })));
     assert_eq!(
         store
             .collection(&query(
@@ -271,21 +270,19 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
     ));
     let mut malformed = target(1);
     malformed.capabilities.push("other.package:injected".into());
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-one",
-                1,
-                Some("lemma/漢字:2"),
-                &CollectionCatalogPage {
-                    items: vec![malformed],
-                    next: None,
-                    total: 2,
-                }
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            1,
+            Some("lemma/漢字:2"),
+            &CollectionCatalogPage {
+                items: vec![malformed],
+                next: None,
+                total: 2,
+            }
+        )
+        .is_err());
     drop(store);
     // When the real owner resumes after restart.
     let mut store = ProfileStore::open(&path).unwrap();
@@ -406,21 +403,19 @@ fn level_filters_use_all_source_memberships_not_only_inline_display() {
     store
         .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
         .unwrap();
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-two",
-                0,
-                None,
-                &CollectionCatalogPage {
-                    items: vec![invalid],
-                    next: None,
-                    total: 1
-                }
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-two",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![invalid],
+                next: None,
+                total: 1
+            }
+        )
+        .is_err());
     assert_eq!(
         store
             .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
@@ -449,17 +444,9 @@ fn opaque_catalog_progress_rejects_stalls_and_replayed_pages_atomically() {
         next: first.next.clone(),
         total: 3,
     };
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-one",
-                1,
-                first.next.as_deref(),
-                &stalled
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(PACKAGE, "revision-one", 1, first.next.as_deref(), &stalled)
+        .is_err());
     assert!(matches!(
         store.put_collection_catalog_page(PACKAGE, "revision-one", 0, None, &first),
         Err(StorageError::Conflict)
@@ -641,6 +628,68 @@ fn compound_counts_match_membership_on_both_surfaces() {
         // Then overlap is deduplicated and count and rows have identical meaning.
         assert_eq!(page.count, 5);
         assert_eq!(actual, expected.iter().map(|id| id.to_string()).collect());
+    }
+}
+
+#[test]
+fn negated_source_and_kind_filters_include_unlinked_material() {
+    // Given source-linked entries and independently authored source-free content.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 2);
+    save(&mut store, 0);
+    save(&mut store, 1);
+    let saved = store
+        .create_material(&MaterialCreate {
+            command_id: "source-free-material".into(),
+            distinct: false,
+            media_imports: vec![],
+            content: MaterialContent {
+                package_id: PACKAGE.into(),
+                target_id: None,
+                package_revision: None,
+                sense: None,
+                phrase: "Independent phrase".into(),
+                reading: "".into(),
+                meaning: "Authored without a catalog target or source".into(),
+                context: "".into(),
+                notes: "".into(),
+                examples: vec![],
+                attachments: vec![],
+                source: None,
+            },
+        })
+        .unwrap();
+    let id = match saved {
+        MaterialWriteResult::Saved { material, .. } => material.id,
+        other => panic!("{other:?}"),
+    };
+    // When ordinary source and entity-kind predicates are negated.
+    let pages = [
+        CollectionFilter::Source {
+            source_id: "source-one".into(),
+        },
+        CollectionFilter::EntityKind {
+            id: format!("{PACKAGE}:lexeme"),
+        },
+    ]
+    .map(|filter| {
+        ready(
+            &store,
+            &query(
+                CollectionSurface::Material,
+                CollectionFilter::Not {
+                    filter: Box::new(filter),
+                },
+            ),
+        )
+    });
+    // Then absence is a non-match, so negation includes it with exact counts.
+    assert_eq!(pages.each_ref().map(|page| page.count), [2, 1]);
+    for page in pages {
+        assert_eq!(page.items.len(), page.count as usize);
+        assert!(page.items.iter().any(|item| matches!(item,
+            CollectionItem::Material { material, .. } if material.id == id)));
     }
 }
 
