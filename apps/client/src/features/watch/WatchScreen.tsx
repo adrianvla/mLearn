@@ -380,9 +380,14 @@ function WatchWorkspace() {
         void changeSource(client => client.alignSubtitleOffset(command), true);
     }
     function seekTranscript(positionMs: number) {
-        controller.current?.seekTo(positionMs);
+        const player = controller.current;
+        const previous = player?.pauseAndRead();
+        if (!player || !previous || !Number.isFinite(previous.positionMs)
+            || !Number.isFinite(previous.durationMs) || previous.durationMs <= 0) return null;
+        player.seekTo(positionMs);
         setInspection(null);
         setTranscriptOpen(false);
+        return previous.positionMs;
     }
     async function back() {
         setBusy(true);

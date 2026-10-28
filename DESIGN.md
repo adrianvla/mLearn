@@ -125,6 +125,15 @@ Source playback/context inspection remains the primary activity; sidebar
 search, navigation, capture, exclusion and practice remain real secondary
 actions. Preserve selectors, pending/error recovery and close/focus return.
 
+Transcript source navigation retains the player's actual paused position before
+its first cue jump. Reopening the same source's pane exposes Return to playback
+position beside search/navigation, using the same shared compact secondary
+Button and wrapping Row. The pane body remains its scroll owner at desktop and
+narrow widths; no floating player control or second saved-position owner is
+added. Return preserves the query, subtitle offset and playback rate. Pending
+cue navigation disables Return; unavailable playback leaves explicit recovery
+beside the initiating action rather than recording a successful jump.
+
 Match viewport, scale, theme, data, media time and state. Compare full windows and individual UI regions using 1:1 side-by-side and overlay/difference inspection, then exercise the real interactions. A numerical match dominated by the video background is not evidence of matched chrome. Do not mask UI differences, rebaseline to v3 or substitute generated/staged UI.
 
 Unimplemented capabilities or missing trustworthy reference states stay explicitly incomplete; no fake actions/data. Preserve responsive and native touch/keyboard behavior and the repaired native performance. Do not confuse accessibility containment, code review or successful builds with visual conformity.

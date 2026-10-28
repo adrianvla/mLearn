@@ -25,6 +25,75 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: source/content search, then the remaining M10 flows.
+Reader search's verified increment is committed/pushed as
+`2505a044a08574cd2a41283673e025f351a38a8e`; it does not close the remaining
+Watch playback Return work or M10's native/compositor and review gates.
+Exact-source automatic CI observers: desktop40738484644,
+foundation40738484650, mobile40738484551. Desktop40738484644 passed.
+Foundation40738484650 passed Rust, macOS, Windows and detector jobs, but its
+web job122993370968 failed:136/137 tests passed, including Reader search.
+The unchanged Knowledge browsing scenario failed during `backend.close()`:
+`Native QA owner did not shut down cleanly` at runtime-browser-qa.mjs:80.
+The test's functional assertions completed; this log does not establish why
+the native process failed or whether shutdown was forced. Retained failure:
+`ci-40738484650-web-failed.log`. No check was weakened or workflow rerun;
+the teardown failure remains an integration concern to diagnose, not a passed
+gate. Mobile remains observed. No workflow was manually rerun.
+The next guarded baseline captures Watch transcript search at desktop/narrow
+widths using the retained authored video/subtitles and actual native source/
+cue owners. Its browser transport serves those same local video bytes for
+real decoding; this is not Tauri/native playback certification.
+That baseline passed in `watch-search-baseline.log`; desktop/narrow images
+were inspected before product edits. Its drag/drop shell subscription remains
+explicitly unsupported in the baseline adapter; actual video decoding and
+native cue search succeeded. A portable regression now serves authored video
+bytes through that same browser media boundary and adapts only shell event
+registration, while exercising real source/package/cue timing and persistence.
+The first red-run observer expired before starting: no log was created.
+Fresh footprint2361308288, available6957006848, pressure1,
+swapUsed4185522176, swapOut75548114944. The additional fixed7.5GB prefilter
+was more conservative than the repository policy and repeatedly prevented
+admission. Subsequent runs use `resource-guard.mjs admission` directly:
+unchanged2GiB workload budget,4GiB reserve, three healthy samples, physical
+growth/sustained swap checks and live guard. No workload budget or repository
+safeguard is reduced.
+The first Watch red run reached real video decoding but its HTTP adapter did
+not support byte ranges, leaving the initial seek at0. Correcting that test
+boundary and asserting native position readback produced the intended failure
+in `watch-search-red-range.log`: the player resumed3s, native cue2 under a
+2000ms subtitle offset sought13s, and the query survived native restart, but
+Return was absent. No product assertion was weakened.
+Transcript now retains the actual player-reported pre-jump position in its
+existing source-keyed view and offers Return when reopened. Watch's existing
+controller pauses/reads/seeks; unavailable playback refuses the jump, with
+feedback beside cue/Return actions. Rust remains the saved-position owner.
+The first typecheck/lint/export/actual-playback Return run passed in
+`watch-search-first.log`: actual3s -> offset cue13s -> Return3s persisted across
+native restart with the2000ms offset and1.5x rate retained. Desktop/narrow
+captures were inspected before further changes. They expose the deliberately
+killed owner's pending analysis as explicit Retry feedback, not clean final
+surface evidence. The test now waits for the exact connected source token to
+render before the controlled restart, avoiding a race with its guest read.
+Messenger's existing source search is also being verified through its explicit
+Latest return, with the unsubmitted draft preserved; ordinary clear-search
+and edit/delete assertions remain. The final serial run uses the tracked
+offline video generator rather than relying on the retained untracked video,
+and includes existing Watch layout and affected Messenger history checks.
+Final `source-search-final.log` passed all five selected scenarios: generated
+offline video, native cue offset and rate, actual browser3s/13s/3s playback,
+native restart/persistence,1200/500/320 Watch layouts, and Messenger search/
+Latest with an unsubmitted draft preserved. Desktop/narrow Watch Return and
+Messenger captures under `watch-search-final` were inspected; source errors
+from the deliberately interrupted first attempt are absent after waiting for
+the connected token render. Dictionary preparation remains explicit pending
+feedback, not a fabricated result. Final footprint1718367360,
+available7088128000, pressure1, swapUsed4764598272, swapOut76471255040;
+the live guard reported safe with no observed sustained growth.
+Reader search and source Return are checkpoint2505a044 above. The Watch
+Return addition and cross-source verification are locally verified and being
+checkpointed next. This finishes SRC-10's implementation/connected browser
+work, not M10 acceptance: native/compositor interaction, the unchanged
+Knowledge teardown failure and independent M10 review remain separate gates.
 Latest verified increment: shared proposal review is committed/pushed as
 `5a9c938cc6325d1791a069ffbd801c2146406512`, based on native generation
 `87c73fe27784f640c6eb445f036c9bb5e709e1cb`. Ledger:50/109 complete.
