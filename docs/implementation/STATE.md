@@ -26,12 +26,41 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: build the shared collection presentation over the verified native
 preparation/read API and typed client, then complete the remaining M10 flows
-and gate. The Knowledge GUI increment is locally verified;
+and gate. The Knowledge GUI increment is committed/pushed at
+`8eec14d991542ece155812fc87b1b0cf8db49c05` on draft PR45 and locally verified;
 Material collection presentation and the M10 milestone remain incomplete.
 New execution note:
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
 The historical M03–M07 record follows; its older ceiling is not a stop on the
 newly authorized M10–M11 work.
+
+Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
+40629230889 also passed; mobile 40629230832 is pending under observer 1330;
+no extra workflow was dispatched. The working tree retains only the four
+original untracked files plus this continuation record and the new Material
+collection test and current Material integration edits. Guarded baseline 1331
+seeded 52 actual authored entries without a prepared catalog and failed at the
+absent count. Its actual pre-edit desktop frame was inspected. Material now uses
+the same native collection API for count, sort, text/source/exclusion predicates
+and opaque paging, without changing its authoring/source-return owner. Saving
+resets the cursor and a removed opener restores focus to the real heading.
+Targeted run 1332 passed: typecheck/lint/export, the real-native paging/edit/
+exclusion/restart flow and all 20 existing desktop/narrow Material interaction
+tests (8.2 seconds). The fixture transport now returns the typed collection
+response; its original assertions and request budgets are preserved.
+The fresh 1080x900 and 390x844 native-backed captures were inspected: real
+24-of-52/51 counts, fitting sort controls and rows, working edit/exclusion,
+first-page/focus reset and durable membership. All owned processes were absent
+in 1333; the guard remained healthy at 4.66 GB projected headroom, pressure 1,
+declining swap. MaterialScreen LSP was clean; the new test's freshness timeout
+was not labeled a clean diagnostic.
+Material's final card-grid reference conformity remains open, not inferred from
+the current functional list or the other surface's My learning reference.
+Before a new deliberate Material reference capture, revision
+`1ab95600bee97017635afe538af4e890e0cded3a` and its clean tracked source were
+rechecked, ports 3000/7752/7753/9229 were free, and only selected settings from
+the retained isolated profile were inspected: selected UI, Dark Quartz,
+Japanese, OCR/voice/LLM disabled. Nothing was automatically restarted.
 
 ### Knowledge presentation — verified local increment, M10 still open
 

@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Platform, type Text as NativeText, type View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import type { Material, MaterialContent, MaterialPage, PluginSummary } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionResult, CollectionSort, Material, MaterialContent, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Panel, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -11,6 +11,14 @@ import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialEditor } from './MaterialEditor';
 import { emptyMaterial } from './content';
+
+const orders = [
+  { value: 'default', label: 'Default order' },
+  { value: 'label_ascending', label: 'Text A–Z' },
+  { value: 'label_descending', label: 'Text Z–A' },
+  { value: 'due_ascending', label: 'Due first' },
+  { value: 'due_descending', label: 'Due last' },
+] as const;
 
 function focus(target: View | NativeText | null | undefined) {
   if (Platform.OS === 'web') target?.focus();
@@ -30,7 +38,9 @@ export function MaterialScreen() {
   const [query, setQuery] = useState('');
   const [after, setAfter] = useState<string | null>(null);
   const [includeExcluded, setIncludeExcluded] = useState(false);
-  const [page, setPage] = useState<MaterialPage | null>(null);
+  const [result, setResult] = useState<CollectionResult | null>(null);
+  const [sort, setSort] = useState<CollectionSort>('default');
+  const page = result?.state === 'ready' ? result.page : null;
   const [packages, setPackages] = useState<PluginSummary[]>([]);
   const [packageId, setPackageId] = useState('');
   const [editor, setEditor] = useState<{ key: string; content: MaterialContent; material?: Material; trigger: string | null } | null>(null);
@@ -44,6 +54,9 @@ export function MaterialScreen() {
   const returnRequest = useRef<{ location: string } | null>(null);
   const triggers = useRef(new Map<string, View>());
   const heading = useRef<NativeText>(null);
+  const collectionHeading = useRef<NativeText>(null);
+  const loadedQuery = useRef('');
+  const queryKey = JSON.stringify([after, query, sort, sourceId, sourceOnly, includeExcluded]);
   const restore = useRef<string | null>(null);
   const focusedEditor = useRef<string | null>(null);
   const opened = useRef('');
@@ -61,7 +74,7 @@ export function MaterialScreen() {
     if (editor) {
       if (Platform.OS === 'web') focus(heading.current);
     } else if (restore.current) {
-      focus(triggers.current.get(restore.current));
+      focus(triggers.current.get(restore.current) ?? collectionHeading.current);
       restore.current = null;
     }
   }, [editor?.key]);
@@ -69,19 +82,25 @@ export function MaterialScreen() {
     if (!host.available) return;
     let active = true;
     setPending(true); setError('');
+    if (loadedQuery.current !== queryKey) setResult(null);
+    const filters: CollectionFilter[] = [];
+    if (query) filters.push({ kind: 'text', text: query });
+    if (!includeExcluded) filters.push({ kind: 'material', state: 'not_excluded' });
+    if (sourceOnly && sourceId) filters.push({ kind: 'source', sourceId });
     void Promise.all([
-      host.client.materials({ after, query, sourceId: sourceOnly ? sourceId : null, includeExcluded }),
+      host.client.collection({ packageId: null, surface: 'material',
+        filter: { kind: 'all', filters }, sort, after }),
       host.client.snapshot(),
     ]).then(([value, snapshot]) => {
       if (!active) return;
       const languages = snapshot.installedPlugins.filter(item => item.capabilities.includes('text.analyze.v1'));
-      setPage(value); setPackages(languages);
+      setResult(value); setPackages(languages); loadedQuery.current = queryKey;
       setPackageId(previous => languages.some(item => item.id === previous) ? previous : languages[0]?.id || '');
     }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
-  }, [host, after, query, sourceId, sourceOnly, includeExcluded, reload]));
+  }, [host, after, query, sort, sourceId, sourceOnly, includeExcluded, reload, queryKey]));
   const open = useCallback(async (id: string, trigger: string | null) => {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
@@ -144,11 +163,11 @@ export function MaterialScreen() {
   }
   return <AppShell header={<>
     <Row><Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
-      <Text variant="heading" accessibilityRole="header">Material</Text>
+      <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
       <Button label="Knowledge" variant="quiet" size="compact"
         onPress={() => router.push({ pathname: '../knowledge', params: { packageId } })} /></Row>
     {host.available ? <Row>
-      <Select label="Material language" value={packageId} options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
+      <Select label="New Material language" value={packageId} options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
         onValueChange={setPackageId} />
       <Button label="Add Material" testID="material-add" ref={node => { if (node) triggers.current.set('add', node); else triggers.current.delete('add'); }}
         disabled={!packageId || !!opening?.pending} onPress={() => {
@@ -156,6 +175,10 @@ export function MaterialScreen() {
           setReturning(previous => previous?.location === 'editor' ? null : previous);
           setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add' });
         }} />
+      <Select label="Material order" value={sort} options={orders} onValueChange={value => {
+        const selected = orders.find(item => item.value === value);
+        if (selected) { setAfter(null); setSort(selected.value); }
+      }} />
     </Row> : null}
   </>}>
     {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
@@ -181,6 +204,7 @@ export function MaterialScreen() {
         <MaterialEditor key={editor.key} client={host.client} authoredMedia={host.authoredMedia} initial={editor.content} material={editor.material}
           onSaved={material => {
             setEditor(previous => previous ? { ...previous, material } : previous);
+            setAfter(null);
             setReload(value => value + 1);
           }} />
       </Panel> : null}
@@ -193,25 +217,30 @@ export function MaterialScreen() {
             onPress={() => { setAfter(null); setSourceOnly(value => !value); }} /> : null}
         </Row>
         {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
-        {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list" onPress={() => setReload(value => value + 1)} /></> : null}
-        {page?.items.map(material => <Panel key={material.id} inset="compact">
-          <Text selectable variant="section">{material.content.phrase}</Text>
-          <Text selectable>{material.content.meaning}</Text>
-          {material.content.context ? <Text selectable muted>{material.content.context}</Text> : null}
-          <Row>{material.excluded ? <Badge label="Excluded" /> : null}
-            <Button label={`Edit ${material.content.phrase}`} variant="secondary" disabled={!!opening?.pending}
-              ref={node => { if (node) triggers.current.set(material.id, node); else triggers.current.delete(material.id); }}
-              busy={opening?.id === material.id && opening.pending} onPress={() => void open(material.id, material.id)} />
-            {material.content.source ? <Button label={`Return to source: ${material.content.phrase}`} disabled={!!returning?.pending}
-              busy={returning?.location === material.id && returning.pending}
-              variant="quiet" onPress={() => void returnSource(material, material.id)} /> : null}</Row>
-          {opening?.trigger === material.id ? openStatus(material.id) : null}
-          {returnStatus(material.id)}
-        </Panel>)}
+        {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
+          onPress={() => { setAfter(null); setReload(value => value + 1); }} /></> : null}
+        {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
+        {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
+        {page ? <Text variant="caption" muted>{page.items.length} of {page.count} items</Text> : null}
+        {page?.items.map(item => item.kind === 'material' ? <Panel key={item.material.id} inset="compact">
+          <Text selectable variant="section">{item.material.content.phrase}</Text>
+          <Text selectable>{item.material.content.meaning}</Text>
+          {item.material.content.context ? <Text selectable muted>{item.material.content.context}</Text> : null}
+          <Row>{item.material.excluded ? <Badge label="Excluded" /> : null}
+            <Button label={`Edit ${item.material.content.phrase}`} variant="secondary" disabled={!!opening?.pending}
+              ref={node => { if (node) triggers.current.set(item.material.id, node); else triggers.current.delete(item.material.id); }}
+              busy={opening?.id === item.material.id && opening.pending} onPress={() => void open(item.material.id, item.material.id)} />
+            {item.material.content.source ? <Button label={`Return to source: ${item.material.content.phrase}`} disabled={!!returning?.pending}
+              busy={returning?.location === item.material.id && returning.pending}
+              variant="quiet" onPress={() => void returnSource(item.material, item.material.id)} /> : null}</Row>
+          {opening?.trigger === item.material.id ? openStatus(item.material.id) : null}
+          {returnStatus(item.material.id)}
+        </Panel> : null)}
         {!pending && page?.items.length === 0 ? <Text>No Material matches this query.</Text> : null}
         <Row><Button label="First Material page" variant="secondary" disabled={pending || after === null} onPress={() => setAfter(null)} />
           <Button label="Next Material page" variant="secondary" disabled={pending || page?.next == null} onPress={() => setAfter(page?.next ?? null)} /></Row>
-        <Button label="Refresh Material" variant="quiet" disabled={pending} onPress={() => setReload(value => value + 1)} />
+        <Button label="Refresh Material" variant="quiet" disabled={pending}
+          onPress={() => { setAfter(null); setReload(value => value + 1); }} />
       </Panel>
     </>}
   </AppShell>;

@@ -106,9 +106,12 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
                 { id: 'package', version: '1', displayName: 'Fixture language', capabilities: ['text.analyze.v1'] },
               ], availablePlugins: [], codePolicy: 'desktop', catalogConfigured: true,
             } });
-            case 'materials':
+            case 'collection':
               if (state.failList) { state.failList = false; return failure('List unavailable'); }
-              return JSON.stringify({ type: 'materials', page: { items: materials, next: null } });
+              return JSON.stringify({ type: 'collection', result: { state: 'ready', page: {
+                items: materials.map(material => ({ kind: 'material', material, target: null, knowledge: [] })),
+                count: materials.length, next: null, packageRevision: null, knowledgeRevision: 0, materialRevision: 1,
+              } } });
             case 'material':
               if (state.holdOpen) await new Promise<void>(resolve => { state.releaseOpen = resolve; });
               if (state.failOpen) { state.failOpen = false; return failure('Open unavailable'); }
@@ -212,7 +215,7 @@ test('failed opening retries that record without discarding the existing draft o
   await expect(page.getByTestId('material-phrase')).toHaveValue('Second');
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').map(item => item.id)))
     .toEqual(['material-0', 'material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });
 
 test('editor source retry is beside its action and preserves fields until real navigation', async ({ page }, testInfo) => {
@@ -249,7 +252,7 @@ test('list recovery preserves an open draft and repeats only the list request', 
   await page.getByRole('button', { name: 'Retry Material list', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByTestId('material-notes')).toHaveValue('Draft survives list recovery');
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(3);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(3);
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').length)).toBe(1);
 });
 
@@ -281,7 +284,7 @@ test('direct-route open failure leaves the list available and retries the select
   await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeFocused();
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').map(item => item.id)))
     .toEqual(['material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });
 
 test('list source retry repeats the initiating record rather than reloading the list', async ({ page }) => {
@@ -294,5 +297,5 @@ test('list source retry repeats the initiating record rather than reloading the 
   await navigated;
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'return_material_source').map(item => item.id)))
     .toEqual(['material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });
