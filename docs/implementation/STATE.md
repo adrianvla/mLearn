@@ -24,7 +24,125 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: source/content search, then the remaining M10 flows.
+Current task: graph details, then package-supported character views.
+Ledger:52/109 complete. KNW-04's connected evidence implementation is
+verified_for_continuation, not native-platform or maintainer acceptance.
+SRC-10's connected implementation is verified for
+continuation, not platform or maintainer acceptance. Its Watch/cross-source
+closure is committed/pushed as
+`c61df5af66cbf2a1a9b01ce7668333236ed94099`, following Reader2505a044.
+Knowledge evidence trace: the shared projection gives explicit claims
+precedence over the latest active qualifying Review self-report; worked-out,
+assisted and untested responses are not externally validated performance.
+Prediction is currently absent, not an implemented predictor. Review already
+retains frozen admission, grade, attempt conditions, original attempt time and
+Undo activity. Correction replaces the same physical attempt's observations.
+Current claims retain a revision, not timestamps or a lifetime claim history.
+The in-progress bounded read reuses that projection/assessment SQL and exposes
+only16 observations/128KiB per page, exact package/capability snapshot cursors,
+claim revision and the actual assessment-owning attempt. No schema, prediction
+engine or parallel renderer aggregate is added. Owner tests now cover original
+correction provenance and bounded pagination/restart/foreign-cursor/stale-claim
+and long-source contexts. `knowledge-evidence-owner-first.log` passed all133
+storage tests, including the two new paging/payload tests and strengthened
+correction provenance assertions. Its newly unused shared-fixture submit/
+schedule warnings were addressed by exercising those existing practice helpers
+and asserting that evidence inspection creates no scheduler state; existing
+unused-practice warnings in other suites remain unchanged.
+Runtime/client transport is now in source, with strict unknown-page validation,
+shared Review grade/condition guards, immutable query snapshots and source-
+epoch stale-result rejection. Generated contracts now match the Rust source.
+An existing real package/source/practice test now checks shared projection,
+frozen source, claim separation and restart without the executable package.
+The first guarded transport run stopped during core contract compilation
+before generation/tests: available6393085952 minus the2GiB workload budget
+left4245602304 bytes, below the4294967296 reserve. No generated evidence
+contracts appeared. The temporary runner then reported `kill EPERM` on its
+owned process-group cleanup. A subsequent process listing found no surviving
+owned Cargo/rustc/export/guard process; no process was killed by name.
+Fresh footprint4234900608, available7029932032, pressure1,
+swapUsed4689100800, swapOut76471255040. Footprint was stable versus the
+resource-stop sample, not attributed to a model/device workload.
+The transport run is being readmitted only after fresh policy samples; no
+reserve or workload budget is lowered. It must also capture the existing
+Knowledge popover at desktop/narrow widths before presentation edits.
+The readmitted run generated contracts and passed both evidence and both
+correction storage tests, then the live guard stopped during runtime
+compilation at available6141591552/projected3993682600 bytes. Cleanup again
+reported `kill EPERM`; the subsequent bounded process list found no owned
+compiler/guard survivor or large language-server process. OmO footprint rose
+to4899878016, available7926644736, pressure1, swapUsed4360568832,
+swapOut78071758848. This unexplained harness growth is retained, not
+attributed to product/model workloads.
+Verification is split: the small core contract/client checks run separately
+from runtime compilation; runtime/GUI checks remain pending, not waived.
+The Rust integer observation timestamp now explicitly generates a JSON numeric
+TypeScript field, matching transport rather than ts-rs's default BigInt type.
+The client still requires a safe integer; generated source is not hand-edited.
+The separated `knowledge-evidence-client-first.log` passed Rust contract
+generation, typecheck, architecture lint and49 affected client tests, including
+the three new evidence boundary/snapshot/cancellation cases. Final
+footprint1768895616, available7150190592, pressure1, swapUsed4301848576,
+swapOut78071758848; the guard reported safe. The earlier high footprint receded.
+The separated `knowledge-evidence-runtime-first.log` passed all12 real runtime
+Review tests, including evidence restart without the executable package, and
+rebuilt the actual QA host (SHA256517dc8849353b59e54065daf871d191cae8803f165b0a132af5dd0fd3786dd23).
+Pre-edit Knowledge/Inspector captures at1100/390 were inspected before editing.
+The new evidence body reuses Inspector's single bounded scroller and shared
+controls, preserving its source/entry/header/footer. It presents the native
+claim/assessment/model limits, newest-first bounded observations and expandable
+original-condition/material/probe/package/source provenance. Back restores the
+selected capability controls. `knowledge-evidence-ui-first.log` passed typecheck,
+architecture lint, web export and native-backed empty-evidence captures at both
+widths; those captures were inspected. Its final guard sample was safe:
+footprint3740071040, available6838681600, pressure1, swapUsed4226285568,
+swapOut78071758848.
+The deterministic held-receipt regression first failed because evidence shared
+the mutation queue. Evidence now reuses the existing bounded source-read lane:
+two total pending search/evidence reads, source-epoch fencing, no mutation-tail
+occupancy. `knowledge-evidence-held-after.log` passed50 affected client tests;
+typecheck and architecture lint passed. The original failing log is preserved.
+The first captured-Material browser run reached correction/paging/restart, then
+failed an incorrect test expectation: one capability's unknown claim plus other
+assessed capabilities correctly gives the source's native `mixed` rollup, not
+`claimed_unknown`. The test now asserts that actual shared rollup separately
+from the selected capability. The second run completed its light/dark,
+desktop/narrow top/end captures and advanced to source-free browsing, then the
+live guard stopped at available6292570112/projected4144137141 bytes, below the
+unchanged4GiB reserve. No owned runtime/browser/runner/guard survivor was found
+afterward. Subsequent footprint4228920448, available6031998976, pressure1,
+swapUsed4209508352, swapOut78071758848. This is not a complete passing run.
+Final `knowledge-evidence-final.log` passed typecheck, architecture lint, web
+export, both evidence and both correction storage tests, and all3 actual
+native-backed browser workflows. The exact-source QA host SHA256 is
+`f624847d23c6260e27f167d24f2ec01db216418e8239bdc3490ce0e94f36d3ee`.
+Those workflows cover17 real package-admitted physical attempts, correction,
+16+1 paging/refresh, claim/self-report separation, source-backed and source-free
+entry, native restart, failed read/retry and stopped-receipt replacement with
+stale publication rejection, selected-capability Back focus, original-source
+Escape focus and unavailable-package recovery. The12 fresh summary/provenance/
+end captures across Quartz/Dark Quartz and1080/390 widths, plus both error/stop
+captures, were inspected directly. Identifier wrapping and body paging remain
+inside the existing Inspector; header/footer/source identity are retained.
+Final guard sample: footprint1752806528, available6894977024, pressure1,
+swapUsed4134010880, swapOut78071758848; safe with the same2GiB workload and4GiB
+reserve. Earlier transient harness footprint receded without process cleanup.
+The bounded read-only review `st_01a18400` returned APPROVE with no blocking
+findings after inspecting the owners, all14 final captures, both baselines and
+both empty-state captures and referenced test logs. It used the parent's
+explicit `chatgpt-subscription/gpt-6.1-sol` route without escalation, builds,
+devices or edits. `knowledge-evidence-contract-check.log` also passed the exact
+generated-contract consistency check. This checkpoint ships with the connected
+evidence increment based on `fa59ec48`; the tested QA binary identity is above.
+Residual evidence limits: actual native compositor/mobile behavior and
+pending-read Back/unmount GUI interactions are not established by these
+captures; ownership/stale-result guards remain in source and source-free Stop/
+replacement was exercised. The full M10 review remains an open gate.
+No milestone or maintainer acceptance is claimed.
+Source Return mobile40746113030: Android123025217962 passed. The iOS job
+123025218387 was still exercising UI/Rust persistence (step started
+2026-10-28T19:33:26Z) when its first observer expired. Its continuing observer
+was renewed without rerun or another hosted FileProvider diagnostic variant.
 Reader search's verified increment is committed/pushed as
 `2505a044a08574cd2a41283673e025f351a38a8e`; it does not close the remaining
 Watch playback Return work or M10's native/compositor and review gates.
@@ -38,7 +156,26 @@ The test's functional assertions completed; this log does not establish why
 the native process failed or whether shutdown was forced. Retained failure:
 `ci-40738484650-web-failed.log`. No check was weakened or workflow rerun;
 the teardown failure remains an integration concern to diagnose, not a passed
-gate. Mobile remains observed. No workflow was manually rerun.
+gate. Reader mobile40738484551 completed: Android122993371299 passed;
+iOS122993370757 failed at2026-10-28T18:41:24.363399Z with the same deferred
+Watch picker assertion, `id: m01-watch, mp4 is not visible`. Retained log:
+`ci-40738484551-ios-failed.log`. That does not verify downstream iOS flows
+or diagnose the picker. No workflow was manually rerun.
+Source Return checkpointc61df5af desktop40746113011 passed.
+Foundation40746113052 failed only web123020234888:137/138 tests passed;
+the new Watch playback test could not generate its Linux fixture because
+`ffmpeg` was not installed (`FileNotFoundError`). This is an omitted CI
+prerequisite introduced with that test, not a product success or an
+infrastructure waiver. `ci-40746113052-web-failed.log` is retained.
+The bounded Ubuntu prerequisite step now installs ffmpeg alongside existing
+CJK fonts, keeps download/install deadlines and no-download installation, and
+records its actual package version. Ruby/Psych parsed the workflow and
+`git diff --check` passed. Automatic foundation40749937097 completed successfully:
+Rust, web, detector, macOS and Windows jobs passed, including Linux media fixture
+tooling and the complete web suite. `ci-40749937097.log` preserves the exact run.
+The workflow-only repair is committed/pushed separately as
+`fa59ec48c8bf716b3a1bb015993028ddfb168c07`, excluding unfinished Knowledge
+evidence. No assertion, model input or data identity was changed.
 The next guarded baseline captures Watch transcript search at desktop/narrow
 widths using the retained authored video/subtitles and actual native source/
 cue owners. Its browser transport serves those same local video bytes for
@@ -96,7 +233,7 @@ work, not M10 acceptance: native/compositor interaction, the unchanged
 Knowledge teardown failure and independent M10 review remain separate gates.
 Latest verified increment: shared proposal review is committed/pushed as
 `5a9c938cc6325d1791a069ffbd801c2146406512`, based on native generation
-`87c73fe27784f640c6eb445f036c9bb5e709e1cb`. Ledger:50/109 complete.
+`87c73fe27784f640c6eb445f036c9bb5e709e1cb`. That earlier ledger was50/109.
 Local integration passed17 affected client tests, six real Rust-backed GUI
 scenarios, all20 existing desktop/narrow Material editor regressions, typecheck,
 architecture/draft lint and web export. Final log:

@@ -9,11 +9,12 @@ import { createConversationClient } from './conversationClient';
 import { createCollectionClient } from './collectionClient';
 import { isMaterialResponse } from './materialProtocol';
 import { isSourceAnchor } from './sourceProtocol';
+import { isKnowledgeEvidencePage } from './knowledgeProtocol';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
 export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
-import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, KnowledgeEvidenceQuery, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -22,7 +23,7 @@ export interface Transport {
 }
 
 export function createRuntimeClient(transport: Transport) {
-  let tail:Promise<void>=Promise.resolve();let pending=0;let searches=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
+  let tail:Promise<void>=Promise.resolve();let pending=0;let boundedReads=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
   type DisplayRead={readonly command:Request;readonly epoch:number;readonly queuedAt:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
   const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
@@ -59,25 +60,25 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
-    if(command.type==='search_document'){
+    if(command.type==='search_document'||command.type==='knowledge_evidence'){
       // A stopped bounded read may still have an unacknowledged transport
       // receipt. Admit one replacement without blocking source/control work.
-      if(searches>=2)throw new RuntimeError('busy','Source search reads are still pending; retry the search.');
-      const epoch=sourceEpoch;searches++;
+      if(boundedReads>=2)throw new RuntimeError('busy','Bounded source reads are still pending; retry the action.');
+      const epoch=sourceEpoch;boundedReads++;
       try{
         if(cancelInFlight)await cancelInFlight;
         if(epoch!==sourceEpoch)throw cancelled();
         const value=await execute(command);
         if(epoch!==sourceEpoch)throw cancelled();
         return value;
-      }finally{searches--;}
+      }finally{boundedReads--;}
     }
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window'
       ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source'))return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_material_proposal_source','return_review_source','return_source_anchor'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','knowledge_evidence','return_material_source','return_material_proposal_source','return_review_source','return_source_anchor'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -197,6 +198,20 @@ export function createRuntimeClient(transport: Transport) {
       return r.batch;
     },
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
+    async knowledgeEvidence(query:KnowledgeEvidenceQuery) {
+      const original=structuredClone(query);
+      const after=original.after;
+      const response=await request({type:'knowledge_evidence',query:original});
+      if(response.type!=='knowledge_evidence'||!isKnowledgeEvidencePage(response.page)
+        ||response.page.projection.key.packageId!==original.key.packageId
+        ||response.page.projection.key.targetId!==original.key.targetId
+        ||response.page.projection.key.capability!==original.key.capability
+        ||after!==null&&(response.page.projection.revision!==after.revision
+          ||response.page.observations.some(item=>item.sequence>=after.before)
+          ||response.page.next!==null&&response.page.next.identity!==after.identity))
+        throw new RuntimeError('protocol','Malformed or mismatched Knowledge evidence.');
+      return response.page;
+    },
     prepareClaim(key:KnowledgeKey,claim:boolean|null):ClaimChange{return {key,claim,commandId:transport.commandId()};},
     async changeClaim(change:ClaimChange){const r=await watch({type:'change_claim',change});if(r.type!=='claim_changed')throw new RuntimeError('protocol','Missing claim receipt');return r.projection;},
     async snapshot(): Promise<Snapshot> {

@@ -416,6 +416,7 @@ impl Runtime {
             | Request::SetInspectionTrigger { .. }
             | Request::SavePosition { .. }
             | Request::Knowledge { .. }
+            | Request::KnowledgeEvidence { .. }
             | Request::SaveTheme { .. }
             | Request::SaveInlineLevelScale { .. }
             | Request::SaveStarCollapse { .. }) => {

@@ -71,6 +71,67 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     await inspector.getByRole('button', { name: capability.label, exact: true }).click();
     await inspector.getByRole('button', { name: `Claim ${capability.label} known`, exact: true }).click();
     await expect(inspector.getByText(`${capability.label} · claimed known`, { exact: true })).toBeVisible();
+    await inspector.getByRole('button', { name: 'Inspect evidence', exact: true }).click();
+    const evidence = inspector.getByTestId('knowledge-evidence');
+    await expect(evidence.getByText(/^Explicit claim: known/)).toBeVisible();
+    await expect(evidence.getByText('No recorded Review observations for this capability.', { exact: true })).toBeVisible();
+    await expect(evidence.getByText('Prediction: unavailable', { exact: true })).toBeVisible();
+    // Only receipt delivery fails or is held. Successful pages still come from
+    // the real SQLite owner; one stopped receipt cannot block its replacement.
+    let failEvidence = true;
+    let holdEvidence = false;
+    let entered = () => {};
+    let release = () => {};
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const admitted = new Promise<void>(resolve => { entered = resolve; });
+    await page.route(`${backend.url}/invoke`, async route => {
+      const request = route.request().postDataJSON();
+      if (typeof request.args?.request !== 'string'
+        || JSON.parse(request.args.request).type !== 'knowledge_evidence') {
+        await route.continue(); return;
+      }
+      if (failEvidence) {
+        failEvidence = false; await route.abort('failed'); return;
+      }
+      if (holdEvidence) {
+        holdEvidence = false;
+        const response = await route.fetch();
+        entered(); await held; await route.fulfill({ response }); return;
+      }
+      await route.continue();
+    });
+    try {
+      await evidence.getByRole('button', { name: 'Refresh evidence', exact: true }).click();
+      await expect(evidence.getByRole('alert')).toBeVisible();
+      await page.screenshot({ path: info.outputPath('knowledge-evidence-read-error.png') });
+      await evidence.getByRole('button', { name: 'Retry evidence', exact: true }).click();
+      await expect(evidence.getByRole('alert')).toHaveCount(0);
+      await expect(evidence.getByRole('button', { name: 'Refresh evidence', exact: true })).toBeEnabled();
+      holdEvidence = true;
+      await evidence.getByRole('button', { name: 'Refresh evidence', exact: true }).click();
+      await admitted;
+      await evidence.getByRole('button', { name: 'Stop loading evidence', exact: true }).click();
+      await page.screenshot({ path: info.outputPath('knowledge-evidence-stopped.png') });
+      await client.changeClaim(client.prepareClaim({
+        packageId, targetId: next[0].summary.targetId, capability: capability.id,
+      }, false));
+      await evidence.getByRole('button', { name: 'Refresh evidence', exact: true }).click();
+      await expect(evidence.getByText(/^Explicit claim: unknown/)).toBeVisible();
+      const delivered = page.waitForResponse(response => response.url() === `${backend.url}/invoke`
+        && typeof response.request().postDataJSON().args?.request === 'string'
+        && JSON.parse(response.request().postDataJSON().args.request).type === 'knowledge_evidence');
+      release();
+      await (await delivered).finished();
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await expect(evidence.getByText(/^Explicit claim: unknown/)).toBeVisible();
+    } finally {
+      release();
+      await page.unroute(`${backend.url}/invoke`);
+    }
+    await evidence.getByRole('button', { name: 'Back to entry', exact: true }).click();
+    await expect(inspector.getByRole('button', { name: 'Inspect evidence', exact: true })).toBeFocused();
+    await inspector.getByRole('button', { name: `Claim ${capability.label} known`, exact: true }).click();
+    await expect(inspector.getByText(`${capability.label} · claimed known`, { exact: true })).toBeVisible();
     await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
     await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeFocused();

@@ -401,6 +401,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::SetPlaybackRate { .. }
         | Request::SetInspectionTrigger { .. }
         | Request::Knowledge { .. }
+        | Request::KnowledgeEvidence { .. }
         | Request::SaveTheme { .. }
         | Request::SaveInlineLevelScale { .. }
         | Request::SaveStarCollapse { .. }

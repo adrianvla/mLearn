@@ -365,6 +365,9 @@ pub enum Request {
     Knowledge {
         keys: Vec<KnowledgeKey>,
     },
+    KnowledgeEvidence {
+        query: crate::KnowledgeEvidenceQuery,
+    },
     ChangeClaim {
         change: ClaimChange,
     },

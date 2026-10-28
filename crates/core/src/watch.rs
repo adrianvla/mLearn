@@ -84,6 +84,46 @@ model!(KnowledgeKey {
     capability: String
 });
 model!(KnowledgeProjection { key:KnowledgeKey,claim:Option<bool>,assessed:Option<bool>,prediction:Option<f64>,revision:u32,status:String });
+model!(KnowledgeEvidenceCursor {
+    identity: String,
+    before: u32,
+    revision: u32
+});
+model!(KnowledgeEvidenceQuery { key:KnowledgeKey,after:Option<KnowledgeEvidenceCursor> });
+// One row is one capability on one physical attempt. Correction replaces that
+// row; inactive Undo rows are visible provenance, not current assessment.
+model!(KnowledgeObservation {
+    sequence:u32,
+    attempt_id:crate::ReviewAttemptId,
+    session_id:crate::ReviewSessionId,
+    encounter_id:crate::ReviewEncounterId,
+    active:bool,
+    #[cfg_attr(feature="typescript",ts(type="number"))]
+    created_at:i64,
+    material_id:crate::MaterialId,
+    material_revision:u32,
+    package_version:String,
+    package_revision:String,
+    probe_id:String,
+    probe_contract_version:u32,
+    direction:crate::ReviewDirection,
+    conditions:crate::ReviewConditions,
+    grade:crate::ReviewGrade,
+    assessed:Option<bool>,
+    practice:bool,
+    source:Option<crate::SourceAnchor>
+});
+// Projection is the same shared native projection, not a renderer aggregate.
+// The current assessment is the latest qualifying self-report, not external
+// validation. Claims override its displayed status; prediction remains absent
+// until a real predictor exists. Claim timestamps/history are not retained.
+model!(KnowledgeEvidencePage {
+    projection:KnowledgeProjection,
+    claim_revision:Option<u32>,
+    assessed_attempt:Option<crate::ReviewAttemptId>,
+    observations:Vec<KnowledgeObservation>,
+    next:Option<KnowledgeEvidenceCursor>
+});
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]

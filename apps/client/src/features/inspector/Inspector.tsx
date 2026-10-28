@@ -15,6 +15,7 @@ import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Pronunciation } from '../linguistic';
 import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
 import { SourceActions } from '../explanation';
+import { KnowledgeEvidence } from './KnowledgeEvidence';
 export type Inspection = {
     sourceForm: string;
     context: string;
@@ -49,6 +50,8 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     const [retry, setRetry] = useState<ClaimChange | null>(null);
     const [lookupVersion, setLookupVersion] = useState(0);
     const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
+    const [evidenceCapability, setEvidenceCapability] = useState<string | null>(null);
+    const evidenceTrigger = useRef<View>(null);
     const knowledgeTrigger = useRef<View>(null);
     const [showSource, setShowSource] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
@@ -69,6 +72,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
         setBusy(false);
         setRetry(null);
         setExpandedCapability(null);
+        setEvidenceCapability(null);
         setShowSource(false);
         setShowPronunciation(false);
         setSelectedSense(null);
@@ -151,6 +155,8 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                     <Text tone="media" muted variant="caption">
                         Assessed: {activeProjection?.assessed == null ? 'unmeasured' : String(activeProjection.assessed)} · Prediction: {activeProjection?.prediction == null ? 'unavailable' : String(activeProjection.prediction)}
                     </Text>
+                    <Button ref={evidenceTrigger} label="Inspect evidence" variant="media" size="compact" disabled={busy}
+                        onPress={() => { setEvidenceCapability(activeCapability.id); setExpandedCapability(null); }} />
                     {error && retry?.key.capability === activeCapability.id ? <>
                         <Text tone="media" accessibilityRole="alert">{error}</Text>
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
@@ -164,7 +170,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                 accessibilityValue={{ text: claim.label }}
                 accessibilityState={{ expanded: expandedCapability !== null }}
                 disabled={busy || result?.knowledge.claim === 'unavailable'}
-                onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}
+                onPress={() => { setEvidenceCapability(null); setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
                     client={client} tone="media" presentation="actions"
@@ -176,7 +182,14 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
                     explanationDisabledReason={readOnlySourceReason} /> : null}
             </>}>
-            {entry ? <>
+            {entry && evidenceCapability ? <KnowledgeEvidence
+                key={JSON.stringify([packageId, entry.targetId, evidenceCapability])} client={client}
+                knowledgeKey={{ packageId, targetId: entry.targetId, capability: evidenceCapability }}
+                label={entry.capabilities.find(cap => cap.id === evidenceCapability)?.label ?? evidenceCapability}
+                onBack={() => {
+                    setExpandedCapability(evidenceCapability); setEvidenceCapability(null);
+                    requestAnimationFrame(() => evidenceTrigger.current?.focus());
+                }} /> : entry ? <>
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
                 <Row>
                 <Pronunciation presentation={entry.presentation} reading={entry.reading} expanded={showPronunciation} />

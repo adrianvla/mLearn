@@ -214,6 +214,9 @@ pub enum Response {
     Knowledge {
         projections: Vec<KnowledgeProjection>,
     },
+    KnowledgeEvidence {
+        page: crate::KnowledgeEvidencePage,
+    },
     ClaimChanged {
         projection: KnowledgeProjection,
     },

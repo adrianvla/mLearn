@@ -38,6 +38,18 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Knowledge evidence stays inside Inspector's bounded body scroll owner.
+The source-anchored header and shared footer remain in place; evidence replaces
+the dictionary body, not a second modal, sidebar or independent scrolling list.
+Back to entry restores the selected capability's claim controls. Primary action:
+inspect an attempt's details. Reading priorities are the native projection,
+the basis and limits of that projection, then newest-first observations.
+Required content: explicit claim, assessed self-report, prediction availability,
+aggregation rule, claim-history limits, active/undone state, original conditions,
+grade, time, material/probe/package/source provenance, and bounded paging with
+stop/retry/refresh. No confidence score, external-validation claim or fabricated
+claim timeline is added.
+
 Layout: Watch source overlays use the existing bounded media overlay row,
 with live dictionary cards taking remaining width and synchronization at the
 trailing edge even when those cards are closed. At compact widths the same
