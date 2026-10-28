@@ -131,6 +131,28 @@ Unimplemented capabilities or missing trustworthy reference states stay explicit
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
 
+## Knowledge collection, 2026-10-28
+
+Layout: Knowledge - compare bounded lexical results beneath stable search and
+navigation -> the existing AppShell scroll-body shell; scroll owner:
+app-shell-content. Keep the header out of the result scroll, avoid nested
+vertical lists, and stack row columns below700px rather than overflowing.
+
+The isolated reference at `1ab95600bee97017635afe538af4e890e0cded3a`,
+`windows/wordDbEditor/App.tsx` and `WordDbEditorLayout.css`, supplies the dense
+list anatomy: word, translation, level, Knowledge, with12px vertical and16px
+horizontal row insets. Use shared body/caption roles, controls and theme
+materials, not feature-local clickable elements. The captured reference is
+`reference-knowledge-default.png` in the M10 execution evidence root.
+
+Primary action: inspect an entry. Priorities: lexical identity, meaning, then
+the package's level memberships and authoritative capability projections.
+Search, package selection, native sort and bounded page navigation remain
+controls; empty, preparation, unavailable and retry states stay beside them.
+Do not add progress metrics, fabricated source locations or unsupported study
+controls. Source-free inspection reuses Inspector with no SourceAnchor, and
+capture preserves that absence instead of inventing a source.
+
 ## Messenger composition, 2026-10-24
 
 ### Home activity composition

@@ -26,11 +26,107 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: build the shared collection presentation over the verified native
 preparation/read API and typed client, then complete the remaining M10 flows
-and gate. No collection GUI or M10 milestone completion is claimed.
+and gate. The Knowledge GUI increment is locally verified;
+Material collection presentation and the M10 milestone remain incomplete.
 New execution note:
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
 The historical M03–M07 record follows; its older ceiling is not a stop on the
 newly authorized M10–M11 work.
+
+### Knowledge presentation — verified local increment, M10 still open
+
+The new `/knowledge` route reads 24 bounded native targets, exact counts,
+package-selected annotation capability, native ordering and opaque continuation.
+Home and Material link to it. Shared AppShell gains an opt-in edge-to-edge
+content inset; existing callers retain their defaults. LinguisticWord owns
+lexical rendering and activation. Inspector now accepts an absent SourceAnchor:
+source-only actions are absent and ordinary capture preserves `source: null`.
+Messenger's contextual invalidation guard was updated for that explicit type.
+
+Actual isolated reference `1ab95600bee97017635afe538af4e890e0cded3a` was
+captured from My learning at 1100x760 logical pixels. The correct owners are
+`windows/wordDbEditor/App.tsx` and `WordDbEditorLayout.css`, not the unrelated
+conversation-memory browser. Reference and candidate captures are under
+`mlearn-m10-m11.VLSN0zAbpw` in the execution note. Candidate Knowledge was
+inspected at 1100 and 390 widths in light and native-persisted Dark Quartz;
+shared lexical typography and badge stretching were repaired through existing
+owners. Actual Japanese switching, search (`猫`: 147 entries) and descending
+native ordering worked. A duplicated fallback reading beneath shared ruby was
+removed; final desktop and narrow renders retain ruby without the repeated line.
+
+With the complete authenticated corpus profile, source-free `able` lookup,
+Written recognition claim and capture opened the original Material editor.
+Native receipt `material-a0153fb2e38e304e5c8c26e82c3f8b49717a3543f808642d848187f331e8f60e`
+has revision 1, target `wn30:a:00001740:able`, and `source: null`.
+The list deliberately displays the package-selected Meaning projection, not an
+invented aggregate of all capabilities.
+The first real-native `knowledge-native-core.spec.ts` run failed before any
+preparation request: a newly installed package returned `unavailable` with
+`This package has no prepared collection catalog`, while the UI offered Prepare
+only for an already-started `preparing` state. The completed manual-QA profile
+did not expose this defect. The UI now offers preparation in either state when
+the package actually declares a catalog. The unchanged native paging, claim,
+capture and restart regression then passed in 2.0 minutes, including fresh-install
+desktop/narrow captures and an explicit action-presence assertion.
+Later-page claim invalidation was found to dismiss Inspector prematurely.
+The verified repair defers collection refresh until Inspector closes, then
+resets the invalid cursor and restores focus to the real Knowledge heading.
+The real-native regression also verified that path and ordinary trigger focus
+after reopening. Typecheck, ownership lint and export passed on that source.
+The four existing Material source-return tests passed in desktop/narrow projects
+in 2.7 seconds. Those source-bound assertions were not changed.
+
+Final-source typecheck, ownership lint and export passed in run 1299. The only
+product change after the passing native workflow was suppressing the duplicate
+fallback reading when package ruby is present; English's unchanged path reuses
+that workflow evidence. Japanese's affected rendering was inspected at both
+widths: `knowledge-reading-final-1100-dark.png` (2200x1520, DPR 2) and
+`knowledge-reading-final-390-dark.png` (390x844, DPR 1). These are real native
+catalog results, not staged data or consuming-native window/material evidence.
+
+Resource incidents remain findings, not erased by the pass. Guards 1260, 1283,
+1288, 1298 and 1305 stopped for projected headroom; one export mistakenly started
+alongside a returned stop was killed and not counted. All owned processes were
+closed. A 3072 MiB speculative startup forecast held for 30 minutes without
+launching work. The final smaller capture used the original 2048 MiB admission
+and running guard, unchanged 4 GiB reserve, and explicit phase measurements in
+one background job. Its first text probe failed and was corrected to observe
+the actual count element; product code was unchanged.
+
+Final capture 1318 passed and closed browser/native/guard before notification.
+Pre-capture: OmO footprint 1567765608 bytes, available 6650707968, pressure 1,
+flat swap 3710582784, projected headroom 4503224320 above reserve 4294967296.
+Native main-process RSS was 169280 KiB; headless-shell main-process RSS was
+94768 KiB (not whole-tree totals). Post-cleanup available memory was 6958661632
+bytes with unchanged footprint/pressure/swap. PIDs 82822/82824 were absent.
+The original preview PID2637 remains untouched. Full measurements, failed
+attempts and captures are retained in the execution note/root. Unexplained OmO
+physical-footprint growth is not repaired or attributed to product inference.
+
+Material collection presentation, compound filters, remaining M10 flows,
+preparation-control UI recovery/cancellation and consuming-native GUI verification
+remain open. No M10 review/continuation or platform acceptance is claimed.
+
+Final scope audit found that the snapshot callback replaces an explicit missing
+package with the first installed language. A separate short native regression
+now exercises unavailable-scope retention and explicit replacement at desktop
+and narrow widths. Baseline 1320 reproduced the defect: the missing-package URL
+rendered English with no error. The one-line repair retains a nonempty requested
+package ID; only an initially unspecified scope chooses the first language.
+Run 1322 passed typecheck and lint, then export failed because the temporary
+runner supplied an empty `CI` environment value. After unsetting that value,
+1323 passed export and the native error/recovery test in 1.7 seconds. Its
+desktop/narrow captures were inspected: the unavailable scope remains visible,
+controls fit, and explicitly choosing English restores real preparation.
+Owned test processes and guard are closed (1324); memory checks stayed safe.
+The current exported bundle is `index-e75e1b012bad48abcd15c06848270333.js`.
+
+Exact42ff2f4 hosted receipts: foundation40615392019 and desktop40615391965
+passed. Native40615391983: Android122576576230 passed;
+iOS122576576574 failed its original Watch flow at
+`id: m01-watch, mp4 is not visible`. No diagnostic variant or rerun was launched.
+All three observer processes are terminal. This preserves the deferred iOS gap;
+it does not certify the uncommitted collection GUI on either mobile platform.
 
 ### Native collection owner checkpoint — `3a5570d`
 

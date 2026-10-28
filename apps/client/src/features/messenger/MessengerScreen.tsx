@@ -92,7 +92,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     setDirectPerson(null); setToolsOpen(false);
   }, [chat?.id]);
   useEffect(() => {
-    if (!inspection || inspection.sourceAnchor.locator.kind !== 'message') return;
+    if (!inspection?.sourceAnchor || inspection.sourceAnchor.locator.kind !== 'message') return;
     const locator = inspection.sourceAnchor.locator;
     if (locator.conversationId !== messenger.id || !messenger.messages.some(message =>
       message.id === locator.messageId && message.revision === locator.messageRevision)) setInspection(null);

@@ -1,0 +1,226 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, findNodeHandle, Platform, View, useWindowDimensions, type Text as NativeText } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { StyleSheet } from 'react-native-unistyles';
+import type { CollectionPreparationCommand, CollectionPreparationStatus, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
+import { AppShell, Row } from '@mlearn/ui/layout';
+import { Button } from '@mlearn/ui/button';
+import { Text } from '@mlearn/ui/text';
+import { Select } from '@mlearn/ui/select';
+import { TextField } from '@mlearn/ui/text-field';
+import { Badge } from '@mlearn/ui/badge';
+import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { Inspector, type Inspection } from '../inspector';
+import { LinguisticWord } from '../linguistic';
+
+export function KnowledgeScreen() {
+  const host = useRuntime();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ packageId?: string }>();
+  const compact = useWindowDimensions().width < 700;
+  const [packages, setPackages] = useState<PluginSummary[]>([]);
+  const [packageId, setPackageId] = useState(typeof params.packageId === 'string' ? params.packageId : '');
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<CollectionSort>('default');
+  const [after, setAfter] = useState<string | null>(null);
+  const [result, setResult] = useState<CollectionResult | null>(null);
+  const [description, setDescription] = useState<LanguageDescription | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
+  const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [preparation, setPreparation] = useState<CollectionPreparationStatus | null>(null);
+  const preparing = useRef<CollectionPreparationCommand | null>(null);
+  const owner = useRef<object | null>(null);
+  const heading = useRef<NativeText>(null);
+  const inspectionChanged = useRef(false);
+  const loadedQuery = useRef('');
+  const queryKey = JSON.stringify([packageId, query, sort, after]);
+  useFocusEffect(useCallback(() => {
+    if (!host.available) return;
+    const scope = {};
+    owner.current = scope;
+    void Promise.all([host.client.snapshot(), host.client.currentCollectionPreparation()]).then(([snapshot, status]) => {
+      if (owner.current !== scope) return;
+      const languages = snapshot.installedPlugins.filter(item => item.capabilities.includes('text.analyze.v1'));
+      setPackages(languages);
+      // An explicit unavailable scope stays selected until the user replaces it.
+      setPackageId(previous => previous || languages[0]?.id || '');
+      setPreparation(status);
+    }).catch((cause: unknown) => {
+      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+    });
+    return () => { if (owner.current === scope) owner.current = null; };
+  }, [host]));
+  useFocusEffect(useCallback(() => {
+    if (!host.available || !packageId) return;
+    let active = true;
+    setPending(true); setError('');
+    // Refreshing an unchanged page must preserve the Inspector's real trigger
+    // and focus anchor. A different query must never display the old rows.
+    if (loadedQuery.current !== queryKey) {
+      loadedQuery.current = queryKey; setResult(null); setDescription(null);
+    }
+    void Promise.all([host.client.collection({
+      packageId, surface: 'knowledge', filter: { kind: 'text', text: query }, sort, after,
+    }), host.client.describeLanguage(packageId)]).then(([value, language]) => {
+      if (active) { setResult(value); setDescription(language); }
+    })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
+      .finally(() => { if (active) setPending(false); });
+    return () => { active = false; };
+  }, [host, packageId, query, sort, after, queryKey, reload]));
+  useEffect(() => { setInspection(null); }, [packageId, query, sort, after]);
+  async function prepare() {
+    if (!host.available || preparing.current || !packageId) return;
+    const scope = owner.current;
+    const command = host.client.prepareCollection(packageId);
+    preparing.current = command;
+    setPreparation({ command, phase: 'preparing', processed: 0, total: null, message: null });
+    setError('');
+    try {
+      const status = await host.client.prepareCollectionCatalog(command);
+      if (scope && owner.current === scope) {
+        setPreparation(status);
+        setAfter(null); setReload(value => value + 1);
+      }
+    } catch (cause) {
+      if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+    } finally { if (preparing.current === command) preparing.current = null; }
+  }
+  async function preparationControl(cancel: boolean) {
+    if (!host.available || !preparation) return;
+    const scope = owner.current;
+    const command = preparation.command;
+    try {
+      const status = cancel ? await host.client.cancelCollectionPreparation(command.commandId)
+        : await host.client.collectionPreparationStatus(command.commandId);
+      if (scope && owner.current === scope) {
+        setPreparation(status);
+        if (status?.phase === 'succeeded') { setAfter(null); setReload(value => value + 1); }
+      }
+    } catch (cause) {
+      if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+  const currentResult = loadedQuery.current === queryKey ? result : null;
+  const page = currentResult?.state === 'ready' ? currentResult.page : null;
+  const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
+  const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
+  return <AppShell contentInset="none" header={<>
+    <Row><Button label="Home" variant="quiet" size="compact" onPress={() => router.replace('/')} />
+      <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
+      <Button label="Material" variant="quiet" size="compact" onPress={() => router.push('../materials')} /></Row>
+    <Row><Select label="Knowledge language" value={packageId}
+      options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
+      onValueChange={value => { setAfter(null); setPackageId(value); }} />
+      <Select label="Knowledge order" value={sort} options={[
+        { value: 'default', label: 'Package order' },
+        { value: 'label_ascending', label: 'Word A–Z' },
+        { value: 'label_descending', label: 'Word Z–A' },
+        { value: 'due_ascending', label: 'Due first' },
+        { value: 'due_descending', label: 'Due last' },
+      ]} onValueChange={value => {
+        const option = ['default', 'label_ascending', 'label_descending', 'due_ascending', 'due_descending'] as const;
+        const selected = option.find(item => item === value);
+        if (selected) { setAfter(null); setSort(selected); }
+      }} /></Row>
+    <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
+      onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
+      <Button label="Search" icon="search" size="compact" variant="secondary"
+        disabled={pending} onPress={() => { setAfter(null); setQuery(search); }} /></Row>
+  </>}>
+    {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
+      <View style={styles.results} accessibilityLiveRegion="polite">
+        {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
+        {error ? <View style={styles.notice}><Text accessibilityRole="alert">{error}</Text>
+          <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></View> : null}
+        {currentResult?.state === 'unavailable' ? <View style={styles.notice}>
+          <Text>{currentResult.message}</Text>
+          {description?.catalog ? <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId}
+            onPress={() => void prepare()} /> : null}
+        </View> : null}
+        {currentResult?.state === 'preparing' ? <View style={styles.notice}>
+          <Text>Collection preparation required · {currentResult.processed} of {currentResult.total}</Text>
+          <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId} onPress={() => void prepare()} />
+        </View> : null}
+        {preparation?.command.packageId === packageId && !page ? <View style={styles.notice}>
+          <Text>{preparation.phase} · {preparation.processed}{preparation.total === null ? '' : ` of ${preparation.total}`}</Text>
+          {preparation.message ? <Text accessibilityRole="alert">{preparation.message}</Text> : null}
+          {activePreparation ? <Row>
+            <Button label="Refresh preparation status" variant="secondary" onPress={() => void preparationControl(false)} />
+            <Button label="Cancel preparation" variant="quiet" onPress={() => void preparationControl(true)} />
+          </Row> : null}
+        </View> : null}
+        {page ? <>
+          <View style={styles.notice}><Text variant="caption">{page.count} entries</Text></View>
+          {!compact ? <View style={styles.columns}>
+            <View style={styles.word(false)}><Text variant="caption">Word</Text></View>
+            <View style={styles.meaning(false)}><Text variant="caption">Meaning</Text></View>
+            <View style={styles.level(false)}><Text variant="caption">Level</Text></View>
+            <View style={styles.knowledge(false)}><Text variant="caption">Knowledge{capabilityLabel ? ` · ${capabilityLabel}` : ''}</Text></View>
+          </View> : null}
+          {page.items.map(item => {
+            if (item.kind !== 'target') return null;
+            const target = item.target;
+            const projection = item.knowledge.find(value => value.key.capability === description?.annotationCapability);
+            return <View key={target.summary.targetId} testID={`knowledge-target-${target.summary.targetId}`} style={styles.entry(compact)}>
+              <View style={styles.word(compact)}><LinguisticWord text={target.summary.headword} presentation={target.summary.presentation}
+                activation={{ status: projection?.status ?? 'unavailable', inspectionMode: 'click', onActivate: anchor => {
+                  inspectionChanged.current = false;
+                  setInspection({
+                  sourceForm: target.summary.headword, context: '', targets: [target.summary.targetId],
+                  anchor: { ...anchor, restoreFocus: () => {
+                    if (!inspectionChanged.current) { anchor.restoreFocus(); return; }
+                    if (Platform.OS === 'web') heading.current?.focus();
+                    else {
+                      const tag = findNodeHandle(heading.current);
+                      if (tag) AccessibilityInfo.setAccessibilityFocus(tag);
+                    }
+                  } }, sourceAnchor: null, packageRevision: page.packageRevision ?? undefined,
+                }); } }} />
+                {target.summary.reading && !target.summary.presentation?.readings.length
+                  ? <Text variant="caption" muted>{target.summary.reading}</Text> : null}
+              </View>
+              <View style={styles.meaning(compact)}><Text numberOfLines={compact ? 3 : 2}>{target.summary.summary}</Text></View>
+              <View style={styles.level(compact)}><Text variant="caption">{target.levels.map(level => level.level).join(' · ') || '—'}</Text></View>
+              <View style={styles.knowledge(compact)}>
+                {compact && capabilityLabel ? <Text variant="caption" muted>{capabilityLabel}</Text> : null}
+                <Badge label={projection?.status.replaceAll('_', ' ') ?? 'Knowledge unavailable'} />
+              </View>
+            </View>;
+          })}
+          {!page.items.length ? <View style={styles.notice}><Text>No entries match this query.</Text></View> : null}
+          <View style={styles.notice}><Row>
+            <Button label="First Knowledge page" size="compact" variant="secondary" disabled={pending || after === null} onPress={() => setAfter(null)} />
+            <Button label="Next Knowledge page" size="compact" variant="secondary" disabled={pending || page.next === null} onPress={() => setAfter(page.next)} />
+            <Button label="Refresh Knowledge" size="compact" variant="quiet" disabled={pending} onPress={() => setReload(value => value + 1)} />
+          </Row></View>
+        </> : null}
+      </View>
+      {inspection ? <Inspector inspection={inspection} packageId={packageId} client={host.client}
+        onClose={() => {
+          setInspection(null);
+          // A claim can invalidate any cursor or change the sorted membership.
+          // Keep the active Inspector intact, then reload at a real focus target.
+          if (inspectionChanged.current) { setAfter(null); setReload(value => value + 1); }
+        }} onChanged={async () => { inspectionChanged.current = true; }} /> : null}
+    </>}
+  </AppShell>;
+}
+
+const styles = StyleSheet.create(theme => ({
+  search: { flexGrow: 1, flexShrink: 1, minWidth: 0, flexBasis: 220 },
+  results: { gap: 0 },
+  notice: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact, gap: theme.spacing.small },
+  columns: { flexDirection: 'row', paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact,
+    gap: theme.spacing.compact, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderColor: theme.colors.border },
+  entry: (compact: boolean) => ({ flexDirection: compact ? 'column' : 'row', alignItems: compact ? 'stretch' : 'center',
+    gap: compact ? theme.spacing.tiny : theme.spacing.compact, paddingHorizontal: theme.spacing.medium,
+    paddingVertical: theme.spacing.compact, borderBottomWidth: 1, borderColor: theme.colors.border }),
+  word: (compact: boolean) => ({ flex: compact ? undefined : 3, minWidth: 0, alignItems: 'flex-start' }),
+  meaning: (compact: boolean) => ({ flex: compact ? undefined : 5, minWidth: 0 }),
+  level: (compact: boolean) => ({ width: compact ? undefined : 80, minWidth: 0 }),
+  knowledge: (compact: boolean) => ({ flex: compact ? undefined : 2.5, minWidth: 0, alignItems: 'flex-start' }),
+}));

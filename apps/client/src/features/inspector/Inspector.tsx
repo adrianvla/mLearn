@@ -20,7 +20,7 @@ export type Inspection = {
     context: string;
     targets: string[];
     anchor: TextAnchor;
-    sourceAnchor: SourceAnchor;
+    sourceAnchor: SourceAnchor | null;
     packageRevision?: string;
     initialTargetId?: string;
     showContext?: boolean;
@@ -124,7 +124,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     } as const)[result.knowledge.claim] : null;
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
-            opaque={inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
+            opaque={!inspection.sourceAnchor || inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
             onPopoverClose={() => {
                 setExpandedCapability(null);
                 knowledgeTrigger.current?.focus();
@@ -171,10 +171,10 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                     onOpenMaterial={id => {
                         onClose();
-                        router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+                        router.push({ pathname: '../materials', params: { id, ...(inspection.sourceAnchor ? { sourceId: inspection.sourceAnchor.sourceId } : {}) } });
                     }} /> : null}
-                <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
-                    explanationDisabledReason={readOnlySourceReason} />
+                {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
+                    explanationDisabledReason={readOnlySourceReason} /> : null}
             </>}>
             {entry ? <>
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
