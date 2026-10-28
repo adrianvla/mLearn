@@ -346,6 +346,7 @@ impl Runtime {
             | Request::MaterialMedia { .. }
             | Request::Material { .. }
             | Request::UpdateMaterial { .. }
+            | Request::RemoveMaterial { .. }
             | Request::MaterialEligibility { .. }
             | Request::SetCaptureExclusion { .. }
             | Request::ReturnMaterialSource { .. }) => self.material_metadata(

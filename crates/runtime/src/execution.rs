@@ -357,6 +357,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::MaterialMedia { .. }
         | Request::Materials { .. }
         | Request::Material { .. }
+        | Request::RemoveMaterial { .. }
         | Request::MaterialEligibility { .. }
         | Request::SetCaptureExclusion { .. }
         | Request::ReturnMaterialSource { .. }

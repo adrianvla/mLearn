@@ -5,6 +5,70 @@ use mlearn_storage::ProfileStore;
 use support::*;
 
 #[test]
+fn removed_material_does_not_retire_admitted_audio_or_source_continuity() {
+    // Given an active audio encounter which owns its admitted content and bytes.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let asset = AuthoredMedia {
+        id: AuthoredMediaId("admitted-audio".into()),
+        kind: MaterialMediaKind::Audio,
+        name: "clip".into(),
+        mime_type: "audio/wav".into(),
+        byte_length: 123,
+    };
+    store.register_authored_media(&asset).unwrap();
+    let mut item = admission(&mut store, "audio-card");
+    let material = store.material(&item.material_id).unwrap();
+    let mut content = material.content;
+    content.attachments.push(MaterialAttachment {
+        media_id: asset.id.clone(),
+        segment: None,
+        audio_binding: None,
+    });
+    store
+        .update_material(&MaterialEdit {
+            command_id: "attach-audio".into(),
+            id: item.material_id.clone(),
+            expected_revision: material.revision,
+            content,
+            excluded: false,
+            media_imports: vec![],
+        })
+        .unwrap();
+    item.material_revision += 1;
+    item.probe.direction = ReviewDirection::Audio;
+    item.probe.required_media = Some(asset.id.clone());
+    let session = start(
+        &mut store,
+        "audio-session",
+        &[item.clone()],
+        ReviewMode::Continuous,
+    );
+
+    // When the final authored reference is removed and the profile restarts.
+    store
+        .remove_material(&MaterialRemove {
+            command_id: "remove-audio-card".into(),
+            id: item.material_id.clone(),
+            expected_revision: item.material_revision,
+        })
+        .unwrap();
+    drop(store);
+    let store = ProfileStore::open(&path).unwrap();
+
+    // Then the exact admitted encounter/source and required bytes remain recoverable.
+    assert_eq!(store.review_session(&session.id).unwrap(), session);
+    assert_eq!(store.authored_media(&asset.id).unwrap(), asset);
+    assert!(store.unreferenced_authored_media(128).unwrap().is_empty());
+    assert!(matches!(
+        store.forget_authored_media(&asset.id),
+        Err(mlearn_storage::StorageError::Conflict)
+    ));
+    assert!(store.material(&item.material_id).is_err());
+}
+
+#[test]
 fn pause_interrupts_only_nonterminal_audio_and_resume_retains_exact_conditions() {
     for delivery in [
         ReviewDelivery::Pending,
@@ -122,13 +186,15 @@ fn audio_replay_and_assistance_never_become_unassisted_assessment() {
             .exposure_count,
         2
     );
-    assert!(session
-        .encounter
-        .as_ref()
-        .unwrap()
-        .conditions
-        .assistance
-        .contains(&ReviewAssistance::RepeatedExposure));
+    assert!(
+        session
+            .encounter
+            .as_ref()
+            .unwrap()
+            .conditions
+            .assistance
+            .contains(&ReviewAssistance::RepeatedExposure)
+    );
     let session = reveal(&mut store, &session, "reveal");
     // When the learner self-reports Fluent after replay.
     submit(&mut store, &session, "submit");
@@ -213,13 +279,14 @@ fn unfinished_disclosure_survives_switching_sessions_and_due_races_rollback() {
         std::slice::from_ref(&item),
         ReviewMode::Continuous,
     );
-    assert!(peer
-        .encounter
-        .as_ref()
-        .unwrap()
-        .conditions
-        .assistance
-        .contains(&ReviewAssistance::PriorDisclosure));
+    assert!(
+        peer.encounter
+            .as_ref()
+            .unwrap()
+            .conditions
+            .assistance
+            .contains(&ReviewAssistance::PriorDisclosure)
+    );
     let peer = reveal(&mut store, &peer, "peer-reveal");
     submit(&mut store, &peer, "peer-submit");
     // When a stale prepared candidate tries to start after the peer updates its schedule.
@@ -228,14 +295,18 @@ fn unfinished_disclosure_survives_switching_sessions_and_due_races_rollback() {
         session_id: ReviewSessionId("stale".into()),
         mode: ReviewMode::Continuous,
     };
-    assert!(store
-        .review_start(&start, std::slice::from_ref(&item), 102)
-        .is_err());
+    assert!(
+        store
+            .review_start(&start, std::slice::from_ref(&item), 102)
+            .is_err()
+    );
     // Then no receipt/session appears and the existing unfinished task remains exact.
-    assert!(store
-        .review_receipt(&ReviewCommand::Start { start })
-        .unwrap()
-        .is_none());
+    assert!(
+        store
+            .review_receipt(&ReviewCommand::Start { start })
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(store.review_sessions().unwrap().len(), 2);
     assert_eq!(store.review_session(&original.id).unwrap(), original);
     assert!(schedule(&store, &item).is_some());

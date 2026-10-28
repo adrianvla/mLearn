@@ -122,6 +122,9 @@ pub enum Response {
     MaterialWritten {
         outcome: MaterialWriteResult,
     },
+    MaterialRemoved {
+        outcome: crate::MaterialRemoval,
+    },
     MaterialCaptured {
         results: Vec<MaterialCaptureResult>,
     },

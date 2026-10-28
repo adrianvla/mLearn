@@ -62,6 +62,101 @@ fn edit(item: &Material, command: &str) -> MaterialEdit {
 }
 
 #[test]
+fn removal_preserves_receipts_and_claims_without_recreating_authored_material() {
+    // Given a saved target, its edit receipt, a claim and a frozen selection.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let create = capture("create-before-removal");
+    let original = saved(store.create_material(&create).unwrap());
+    let mut change = edit(&original, "edit-before-removal");
+    change.content.notes = "retained until removal".into();
+    let current = saved(store.update_material(&change).unwrap());
+    let key = KnowledgeKey {
+        package_id: create.content.package_id.clone(),
+        target_id: create.content.target_id.clone().unwrap(),
+        capability: "example.language:meaning".into(),
+    };
+    let claim = store
+        .change_claim(&ClaimChange {
+            command_id: "claim-before-removal".into(),
+            key: key.clone(),
+            claim: Some(true),
+        })
+        .unwrap();
+    let selected = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "select-before-removal".into(),
+            source: CollectionSelectionSource::Matching {
+                query: CollectionQuery {
+                    package_id: None,
+                    surface: CollectionSurface::Material,
+                    filter: CollectionFilter::All { filters: vec![] },
+                    sort: CollectionSort::Default,
+                    after: None,
+                },
+            },
+        })
+        .unwrap();
+    let command = MaterialRemove {
+        command_id: "remove-once".into(),
+        id: current.id.clone(),
+        expected_revision: current.revision,
+    };
+    let mut stale = command.clone();
+    stale.expected_revision = original.revision;
+    assert!(matches!(
+        store.remove_material(&stale),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(store.material(&current.id).unwrap(), current);
+    let mut collision = command.clone();
+    collision.command_id = create.command_id.clone();
+    assert!(matches!(
+        store.remove_material(&collision),
+        Err(StorageError::Invalid(_))
+    ));
+
+    // When removed and the same native command is retried after restart.
+    let removed = store.remove_material(&command).unwrap();
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then retries have the original receipt, never a new card or deleted claim.
+    assert_eq!(removed.committed_revision, current.revision + 1);
+    assert_eq!(store.remove_material(&command).unwrap(), removed);
+    assert!(store.material(&current.id).is_err());
+    assert_eq!(store.knowledge(&[key]).unwrap(), vec![claim]);
+    assert!(store.create_material(&create).is_err());
+    assert!(store.update_material(&change).is_err());
+    assert_eq!(
+        store
+            .collection_selection_page(&selected.id, None)
+            .unwrap()
+            .items[0]
+            .item,
+        CollectionItemId::Material {
+            id: current.id.clone()
+        }
+    );
+    let empty = store
+        .materials(&MaterialQuery {
+            after: None,
+            query: "".into(),
+            source_id: None,
+            include_excluded: true,
+        })
+        .unwrap();
+    assert!(empty.items.is_empty());
+    let fresh = saved(
+        store
+            .create_material(&capture("explicitly-add-again"))
+            .unwrap(),
+    );
+    assert_ne!(fresh.id, current.id);
+}
+
+#[test]
 fn receipts_survive_restart_and_reconstruct_current_item_without_reapplying() {
     // Given a saved item followed by two edits.
     let dir = tempfile::tempdir().unwrap();

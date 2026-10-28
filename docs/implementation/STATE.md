@@ -74,6 +74,38 @@ swapOut67667247104, with the unchanged 2GiB workload budget. No
 device/model/server was launched. Bulk mutation/progress/retry UI remains the
 active work; this selection increment does not retire MAT-06.
 
+Selection increment committed/pushed as
+`4ca6474f1512071f56ce5a0070bace7d01f6552b` on `agent/m10-m11`.
+Exact hosted gates are foundation40660669537, desktop40660669326 and
+mobile40660669332, with final-only observers1426–1428; no extra workflow was
+dispatched. The current uncommitted removal increment adds revision-checked,
+idempotent native Material deletion and tombstones so historical create/edit
+receipts cannot recreate deleted authored data. It deliberately retains
+Knowledge and admitted Review state. Shared media cleanup now considers
+retained Review admissions as well as Material references. Schema15 and three
+new owner regressions cover CAS/replay/claims/frozen identity, shared asset
+release and active audio/source continuity after restart. These removal changes
+passed all108 storage tests under guarded run1429, including shared-media and
+admitted-audio restart retention. Log: owned root
+`material-removal-storage-verify.log`. Removal is now exposed through the same
+native metadata and typed Material client boundaries, with an added real-runtime
+CAS/reopen/replay test and client receipt-validation regression; those integration
+changes are not yet verified or connected to the UI. MAT-06 remains open.
+Exact-source 4ca6474 desktop40660669326 passed; the other hosted gates remain
+under their existing observers.
+
+Removal transport run1430 passed all108 storage tests and all five native
+Material integration tests. Its typecheck caught an omitted `material_removed`
+member in the client's response-narrowing union; the union is now corrected.
+Resume1431 passed typecheck, ownership lint and all17 Material client tests;
+the already passing Rust checks were not repeated for this TypeScript-only fix.
+Logs: owned root `material-removal-transport-verify.log` and
+`material-removal-client-recheck.log`. Native/client removal is verified for
+continuation, not connected management UI or milestone acceptance.
+The next bulk-owner step must commit each item mutation and its bulk result in
+the same native transaction; calling a mutation and separately recording success
+would leave a crash window that can invalidate frozen edit preconditions on retry.
+
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;
 no extra workflow was dispatched. The working tree retains only the four

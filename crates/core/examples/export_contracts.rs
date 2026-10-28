@@ -123,6 +123,8 @@ fn main() {
         Material::decl(),
         MaterialCreate::decl(),
         MaterialEdit::decl(),
+        MaterialRemove::decl(),
+        MaterialRemoval::decl(),
         MaterialQuery::decl(),
         MaterialPage::decl(),
         MaterialWriteResult::decl(),

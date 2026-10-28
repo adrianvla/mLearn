@@ -168,6 +168,9 @@ pub enum Request {
     UpdateMaterial {
         command: MaterialEdit,
     },
+    RemoveMaterial {
+        command: crate::MaterialRemove,
+    },
     CaptureMaterials {
         batch: MaterialCaptureBatch,
     },

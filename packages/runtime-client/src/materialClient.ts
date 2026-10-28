@@ -1,5 +1,5 @@
 import type { CaptureExclusion, Material, MaterialCaptureBatch, MaterialCaptureResult, MaterialContent,
-  MaterialCreate, MaterialEdit, MaterialQuery, MaterialTarget, Request } from '@mlearn/contracts';
+  MaterialCreate, MaterialEdit, MaterialQuery, MaterialRemove, MaterialTarget, Request } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
 import { encodedBytes, isMaterialContent, isMaterialResponse } from './materialProtocol';
 
@@ -48,6 +48,15 @@ export function createMaterialClient(request: (command: Request) => Promise<unkn
       content(command.content);
       const r = await read({ type: 'update_material', command });
       if (r.type !== 'material_written' || r.outcome.status !== 'saved' || r.outcome.material.id !== command.id
+        || r.outcome.committedRevision !== command.expectedRevision + 1) throw malformed();
+      return r.outcome;
+    },
+    prepareMaterialRemoval(material: Material): MaterialRemove {
+      return { commandId: commandId(), id: material.id, expectedRevision: material.revision };
+    },
+    async removeMaterial(command: MaterialRemove) {
+      const r = await read({ type: 'remove_material', command });
+      if (r.type !== 'material_removed' || r.outcome.id !== command.id
         || r.outcome.committedRevision !== command.expectedRevision + 1) throw malformed();
       return r.outcome;
     },

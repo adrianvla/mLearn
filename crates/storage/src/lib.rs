@@ -13,6 +13,7 @@ mod material_identity;
 mod material_media;
 mod material_read;
 mod material_receipts;
+mod material_removal;
 mod material_validation;
 mod ocr;
 mod ocr_validation;
@@ -27,7 +28,7 @@ mod view_preferences;
 mod watch;
 pub use material_media::PreparedAuthoredMedia;
 use mlearn_core::{PackageInstallCommand, PluginSummary, Response, ThemeDocument};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::{path::Path, time::Duration};
 pub use watch::SourceReader;
@@ -60,7 +61,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 14 {
+        if version > 15 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -110,6 +111,9 @@ impl ProfileStore {
         }
         if version < 14 {
             collection_selection::migrate(&transaction)?;
+        }
+        if version < 15 {
+            material_removal::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

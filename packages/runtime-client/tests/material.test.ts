@@ -19,6 +19,36 @@ function gate() {
 }
 function isProtocol(error: unknown) { return error instanceof RuntimeError && error.code === 'protocol'; }
 
+test('Material removal retains its retry command and rejects unrelated receipts', async () => {
+  // Given a lost removal receipt for a selected Material revision.
+  let response: unknown = { type: 'material_removed', outcome: { id: material.id, committedRevision: 4 } };
+  const submissions: string[] = [];
+  const client = createRuntimeClient({
+    commandId: () => 'remove-once',
+    execute: async raw => {
+      submissions.push(raw);
+      if (submissions.length === 1) throw new Error('removal receipt lost');
+      return JSON.stringify(response);
+    },
+  });
+  const command = client.prepareMaterialRemoval(material);
+
+  // When the admitted command is retried.
+  await assert.rejects(client.removeMaterial(command), /removal receipt lost/);
+  assert.deepEqual(await client.removeMaterial(command), { id: material.id, committedRevision: 4 });
+
+  // Then replay identity and exact revision are preserved.
+  assert.equal(submissions[0], submissions[1]);
+  for (const outcome of [
+    { id: 'foreign', committedRevision: 4 },
+    { id: material.id, committedRevision: 3 },
+    { id: material.id, committedRevision: 0 },
+  ]) {
+    response = { type: 'material_removed', outcome };
+    await assert.rejects(client.removeMaterial(command), isProtocol);
+  }
+});
+
 test('Material responses reject malformed nested values and invalid UTF-8 coordinates', () => {
   // Given valid native content with a replay receipt older than the current item.
   assert.equal(isMaterialResponse(saved), true);
