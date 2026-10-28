@@ -42,6 +42,16 @@ struct FilterSql<'a> {
     catalog_filter: bool,
 }
 
+pub(crate) struct CollectionSql {
+    pub membership: String,
+    pub values: Vec<Value>,
+    pub catalog_filter: bool,
+    pub id: &'static str,
+    pub package: &'static str,
+    pub due: &'static str,
+    pub label: &'static str,
+}
+
 impl FilterSql<'_> {
     fn bind(&mut self, value: String) -> String {
         self.values.push(Value::Text(value));
@@ -200,6 +210,53 @@ impl FilterSql<'_> {
     }
 }
 
+pub(crate) fn compile_collection(
+    query: &CollectionQuery,
+    metadata: &CollectionDescription,
+) -> Result<CollectionSql, StorageError> {
+    let mut filter = FilterSql {
+        metadata,
+        surface: query.surface,
+        values: vec![match &query.package_id {
+            Some(package_id) => Value::Text(package_id.clone()),
+            None => Value::Null,
+        }],
+        nodes: 0,
+        catalog_filter: false,
+    };
+    let predicate = filter.filter(&query.filter, 0)?;
+    let (from, id, package, due, label) = match query.surface {
+        CollectionSurface::Knowledge => (
+            "collection_targets t",
+            "t.target_id",
+            "t.package_id",
+            "(SELECT MIN(json_extract(s.document,'$.dueAt')) FROM review_schedules s JOIN materials sm ON sm.id=s.material_id WHERE sm.package_id=t.package_id AND sm.target_id=t.target_id AND sm.excluded=0)",
+            "t.sort_label",
+        ),
+        CollectionSurface::Material => (
+            "materials m LEFT JOIN collection_targets t ON t.package_id=m.package_id AND t.target_id=m.target_id",
+            "m.id",
+            "m.package_id",
+            "(SELECT MIN(json_extract(s.document,'$.dueAt')) FROM review_schedules s WHERE s.material_id=m.id)",
+            "json_extract(m.content,'$.phrase')",
+        ),
+    };
+    let package_filter = if query.package_id.is_some() {
+        format!("{package}=?1")
+    } else {
+        "?1 IS NULL".into()
+    };
+    Ok(CollectionSql {
+        membership: format!("FROM {from} WHERE {package_filter} AND ({predicate})"),
+        values: filter.values,
+        catalog_filter: filter.catalog_filter,
+        id,
+        package,
+        due,
+        label,
+    })
+}
+
 fn item(
     db: &Connection,
     surface: CollectionSurface,
@@ -304,204 +361,189 @@ impl ProfileStore {
     }
 
     pub fn collection(&self, query: &CollectionQuery) -> Result<CollectionResult, StorageError> {
-        if let Some(package_id) = &query.package_id {
-            bounded(package_id, 512)?;
-        }
         let tx = self.connection.unchecked_transaction()?;
-        let catalog: Option<(String,String,u32,u32)> = match &query.package_id {
+        let result = read_collection(&tx, query)?;
+        tx.commit()?;
+        Ok(result)
+    }
+}
+
+pub(crate) fn read_collection(
+    tx: &Connection,
+    query: &CollectionQuery,
+) -> Result<CollectionResult, StorageError> {
+    if let Some(package_id) = &query.package_id {
+        bounded(package_id, 512)?;
+    }
+    let catalog: Option<(String,String,u32,u32)> = match &query.package_id {
             Some(package_id) => tx.query_row(
                 "SELECT revision,description,processed,total FROM collection_catalogs WHERE package_id=?1",
                 [package_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
             ).optional()?,
             None => None,
         };
-        let mut preparing = None;
-        let (package_revision, metadata) = match catalog {
-            Some((revision, json, processed, total)) => {
-                if processed != total {
-                    preparing = Some((processed, total));
-                }
-                (
-                    Some(revision),
-                    serde_json::from_str::<CollectionDescription>(&json)?,
-                )
+    let mut preparing = None;
+    let (package_revision, metadata) = match catalog {
+        Some((revision, json, processed, total)) => {
+            if processed != total {
+                preparing = Some((processed, total));
             }
-            None => match query.surface {
-                CollectionSurface::Knowledge => {
-                    return Ok(CollectionResult::Unavailable {
-                        message: "This package has no prepared collection catalog".into(),
-                    });
-                }
-                CollectionSurface::Material => (
-                    None,
-                    CollectionDescription {
-                        capabilities: Vec::new(),
-                        kinds: Vec::new(),
-                        scopes: Vec::new(),
-                        levels: Vec::new(),
-                    },
-                ),
-            },
-        };
-        let mut filter = FilterSql {
-            metadata: &metadata,
-            surface: query.surface,
-            values: vec![match &query.package_id {
-                Some(package_id) => Value::Text(package_id.clone()),
-                None => Value::Null,
-            }],
-            nodes: 0,
-            catalog_filter: false,
-        };
-        let predicate = filter.filter(&query.filter, 0)?;
-        if let Some((processed, total)) = preparing
-            && (query.surface == CollectionSurface::Knowledge || filter.catalog_filter)
-        {
-            return Ok(CollectionResult::Preparing { processed, total });
-        }
-        let (from, id, package, due, label) = match query.surface {
-            CollectionSurface::Knowledge => (
-                "collection_targets t",
-                "t.target_id",
-                "t.package_id",
-                "(SELECT MIN(json_extract(s.document,'$.dueAt')) FROM review_schedules s JOIN materials sm ON sm.id=s.material_id WHERE sm.package_id=t.package_id AND sm.target_id=t.target_id AND sm.excluded=0)",
-                "t.sort_label",
-            ),
-            CollectionSurface::Material => (
-                "materials m LEFT JOIN collection_targets t ON t.package_id=m.package_id AND t.target_id=m.target_id",
-                "m.id",
-                "m.package_id",
-                "(SELECT MIN(json_extract(s.document,'$.dueAt')) FROM review_schedules s WHERE s.material_id=m.id)",
-                "json_extract(m.content,'$.phrase')",
-            ),
-        };
-        let sort = match query.sort {
-            CollectionSort::Default => id,
-            CollectionSort::LabelAscending | CollectionSort::LabelDescending => label,
-            CollectionSort::DueAscending | CollectionSort::DueDescending => due,
-        };
-        let descending = matches!(
-            query.sort,
-            CollectionSort::LabelDescending | CollectionSort::DueDescending
-        );
-        let direction = if descending { "DESC" } else { "ASC" };
-        let comparison = if descending { "<" } else { ">" };
-        let package_filter = match query.package_id {
-            Some(_) => format!("{package}=?1"),
-            None => "?1 IS NULL".into(),
-        };
-        let membership = format!("FROM {from} WHERE {package_filter} AND ({predicate})");
-        let count = tx.query_row(
-            &format!("SELECT COUNT(*) {membership}"),
-            params_from_iter(&filter.values),
-            |r| r.get(0),
-        )?;
-        let knowledge_revision: u32 = tx.query_row(
-            "SELECT revision FROM knowledge_revision WHERE id=1",
-            [],
-            |r| r.get(0),
-        )?;
-        let material_revision: u32 = tx.query_row(
-            "SELECT revision FROM collection_revision WHERE id=1",
-            [],
-            |r| r.get(0),
-        )?;
-        let fingerprint = format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&(
-                &query.package_id,
-                query.surface,
-                &query.filter,
-                query.sort,
-            ))?)
-        );
-        let continuation = if let Some(after) = &query.after {
-            bounded(after, 8192)?;
-            let cursor: Cursor = serde_json::from_str(after)?;
-            let due = matches!(
-                query.sort,
-                CollectionSort::DueAscending | CollectionSort::DueDescending
-            );
-            if cursor.fingerprint != fingerprint
-                || cursor.package_revision != package_revision
-                || cursor.knowledge_revision != knowledge_revision
-                || cursor.material_revision != material_revision
-                || matches!(&cursor.value, CursorValue::Due(_)) != due
-            {
-                return Err(StorageError::Conflict);
-            }
-            let key = cursor.value.sql();
-            let missing = i64::from(matches!(key, Value::Null));
-            filter.values.push(Value::Integer(missing));
-            let missing_parameter = filter.values.len();
-            filter.values.push(key);
-            let key_parameter = filter.values.len();
-            filter.values.push(Value::Text(cursor.id));
-            let id_parameter = filter.values.len();
-            format!(
-                "WHERE ((sort_key IS NULL)>?{missing_parameter} OR ((sort_key IS NULL)=?{missing_parameter} AND (sort_key {comparison} ?{key_parameter} OR (sort_key IS ?{key_parameter} AND item_id {comparison} ?{id_parameter}))))"
+            (
+                Some(revision),
+                serde_json::from_str::<CollectionDescription>(&json)?,
             )
-        } else {
-            String::new()
-        };
-        let sql = format!(
-            "SELECT item_id,sort_key,item_package FROM (SELECT {id} AS item_id,{sort} AS sort_key,{package} AS item_package {membership}) {continuation} ORDER BY (sort_key IS NULL) ASC,sort_key {direction},item_id {direction} LIMIT 25"
-        );
-        let rows = {
-            let mut statement = tx.prepare(&sql)?;
-            statement
-                .query_map(params_from_iter(&filter.values), |r| {
-                    let value = match r.get::<_, Value>(1)? {
-                        Value::Text(value) => CursorValue::Text(value),
-                        Value::Integer(value) => CursorValue::Due(Some(value)),
-                        Value::Null => CursorValue::Due(None),
-                        value => {
-                            return Err(rusqlite::Error::InvalidColumnType(
-                                1,
-                                "sort_key".into(),
-                                value.data_type(),
-                            ));
-                        }
-                    };
-                    Ok((r.get::<_, String>(0)?, value, r.get::<_, String>(2)?))
-                })?
-                .collect::<Result<Vec<_>, _>>()?
-        };
-        let mut page = CollectionPage {
-            items: Vec::new(),
-            count,
-            next: None,
-            package_revision: package_revision.clone(),
-            knowledge_revision,
-            material_revision,
-        };
-        for (index, (id, value, package_id)) in rows.iter().take(24).enumerate() {
-            let previous = page.next.clone();
-            page.items.push(item(&tx, query.surface, package_id, id)?);
-            page.next = if index + 1 < rows.len() {
-                Some(serde_json::to_string(&Cursor {
-                    fingerprint: fingerprint.clone(),
-                    package_revision: package_revision.clone(),
-                    knowledge_revision,
-                    material_revision,
-                    id: id.clone(),
-                    value: value.clone(),
-                })?)
-            } else {
-                None
-            };
-            if serde_json::to_vec(&page)?.len() > 262144 {
-                page.items.pop();
-                page.next = previous;
-                if page.items.is_empty() {
-                    return Err(StorageError::Invalid(
-                        "Collection item exceeds page wire budget".into(),
-                    ));
-                }
-                break;
-            }
         }
-        tx.commit()?;
-        Ok(CollectionResult::Ready { page })
+        None => match query.surface {
+            CollectionSurface::Knowledge => {
+                return Ok(CollectionResult::Unavailable {
+                    message: "This package has no prepared collection catalog".into(),
+                });
+            }
+            CollectionSurface::Material => (
+                None,
+                CollectionDescription {
+                    capabilities: Vec::new(),
+                    kinds: Vec::new(),
+                    scopes: Vec::new(),
+                    levels: Vec::new(),
+                },
+            ),
+        },
+    };
+    let CollectionSql {
+        membership,
+        mut values,
+        catalog_filter,
+        id,
+        package,
+        due,
+        label,
+    } = compile_collection(query, &metadata)?;
+    if let Some((processed, total)) = preparing
+        && (query.surface == CollectionSurface::Knowledge || catalog_filter)
+    {
+        return Ok(CollectionResult::Preparing { processed, total });
     }
+    let sort = match query.sort {
+        CollectionSort::Default => id,
+        CollectionSort::LabelAscending | CollectionSort::LabelDescending => label,
+        CollectionSort::DueAscending | CollectionSort::DueDescending => due,
+    };
+    let descending = matches!(
+        query.sort,
+        CollectionSort::LabelDescending | CollectionSort::DueDescending
+    );
+    let direction = if descending { "DESC" } else { "ASC" };
+    let comparison = if descending { "<" } else { ">" };
+    let count = tx.query_row(
+        &format!("SELECT COUNT(*) {membership}"),
+        params_from_iter(&values),
+        |r| r.get(0),
+    )?;
+    let knowledge_revision: u32 = tx.query_row(
+        "SELECT revision FROM knowledge_revision WHERE id=1",
+        [],
+        |r| r.get(0),
+    )?;
+    let material_revision: u32 = tx.query_row(
+        "SELECT revision FROM collection_revision WHERE id=1",
+        [],
+        |r| r.get(0),
+    )?;
+    let fingerprint = format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&(
+            &query.package_id,
+            query.surface,
+            &query.filter,
+            query.sort,
+        ))?)
+    );
+    let continuation = if let Some(after) = &query.after {
+        bounded(after, 8192)?;
+        let cursor: Cursor = serde_json::from_str(after)?;
+        let due = matches!(
+            query.sort,
+            CollectionSort::DueAscending | CollectionSort::DueDescending
+        );
+        if cursor.fingerprint != fingerprint
+            || cursor.package_revision != package_revision
+            || cursor.knowledge_revision != knowledge_revision
+            || cursor.material_revision != material_revision
+            || matches!(&cursor.value, CursorValue::Due(_)) != due
+        {
+            return Err(StorageError::Conflict);
+        }
+        let key = cursor.value.sql();
+        let missing = i64::from(matches!(key, Value::Null));
+        values.push(Value::Integer(missing));
+        let missing_parameter = values.len();
+        values.push(key);
+        let key_parameter = values.len();
+        values.push(Value::Text(cursor.id));
+        let id_parameter = values.len();
+        format!(
+            "WHERE ((sort_key IS NULL)>?{missing_parameter} OR ((sort_key IS NULL)=?{missing_parameter} AND (sort_key {comparison} ?{key_parameter} OR (sort_key IS ?{key_parameter} AND item_id {comparison} ?{id_parameter}))))"
+        )
+    } else {
+        String::new()
+    };
+    let sql = format!(
+        "SELECT item_id,sort_key,item_package FROM (SELECT {id} AS item_id,{sort} AS sort_key,{package} AS item_package {membership}) {continuation} ORDER BY (sort_key IS NULL) ASC,sort_key {direction},item_id {direction} LIMIT 25"
+    );
+    let rows = {
+        let mut statement = tx.prepare(&sql)?;
+        statement
+            .query_map(params_from_iter(&values), |r| {
+                let value = match r.get::<_, Value>(1)? {
+                    Value::Text(value) => CursorValue::Text(value),
+                    Value::Integer(value) => CursorValue::Due(Some(value)),
+                    Value::Null => CursorValue::Due(None),
+                    value => {
+                        return Err(rusqlite::Error::InvalidColumnType(
+                            1,
+                            "sort_key".into(),
+                            value.data_type(),
+                        ));
+                    }
+                };
+                Ok((r.get::<_, String>(0)?, value, r.get::<_, String>(2)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    let mut page = CollectionPage {
+        items: Vec::new(),
+        count,
+        next: None,
+        package_revision: package_revision.clone(),
+        knowledge_revision,
+        material_revision,
+    };
+    for (index, (id, value, package_id)) in rows.iter().take(24).enumerate() {
+        let previous = page.next.clone();
+        page.items.push(item(tx, query.surface, package_id, id)?);
+        page.next = if index + 1 < rows.len() {
+            Some(serde_json::to_string(&Cursor {
+                fingerprint: fingerprint.clone(),
+                package_revision: package_revision.clone(),
+                knowledge_revision,
+                material_revision,
+                id: id.clone(),
+                value: value.clone(),
+            })?)
+        } else {
+            None
+        };
+        if serde_json::to_vec(&page)?.len() > 262144 {
+            page.items.pop();
+            page.next = previous;
+            if page.items.is_empty() {
+                return Err(StorageError::Invalid(
+                    "Collection item exceeds page wire budget".into(),
+                ));
+            }
+            break;
+        }
+    }
+    Ok(CollectionResult::Ready { page })
 }

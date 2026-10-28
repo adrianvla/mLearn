@@ -276,6 +276,20 @@ pub enum Request {
     Collection {
         query: crate::CollectionQuery,
     },
+    CreateCollectionSelection {
+        command: crate::CollectionSelectionCreate,
+    },
+    CollectionSelection {
+        id: crate::CollectionSelectionId,
+    },
+    CollectionSelections,
+    CollectionSelectionPage {
+        id: crate::CollectionSelectionId,
+        after: Option<String>,
+    },
+    ReleaseCollectionSelection {
+        id: crate::CollectionSelectionId,
+    },
     PrepareCollection {
         command: crate::CollectionPreparationCommand,
     },

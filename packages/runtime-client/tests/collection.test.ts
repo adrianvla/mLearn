@@ -11,6 +11,61 @@ const query: CollectionQuery = {
   after: null,
 };
 
+test('frozen selection retries retain the command and reject foreign or unbounded pages', async () => {
+  // Given a selection receipt lost once at the transport boundary.
+  const selected = {
+    id: 'selection-1', packageId: query.packageId, packageRevision: 'revision-one',
+    targetCount: 65, materialCount: 0,
+  };
+  const entry = {
+    item: { kind: 'target', targetId: 'entry-1' }, packageId: query.packageId,
+    packageRevision: 'revision-one', materialRevision: null,
+  };
+  const submissions: string[] = [];
+  let response: unknown = { type: 'collection_selection', selection: selected };
+  const client = createRuntimeClient({
+    commandId: () => 'select-once',
+    execute: async raw => {
+      const request: unknown = JSON.parse(raw);
+      if (request && typeof request === 'object' && 'type' in request
+        && request.type === 'create_collection_selection') {
+        submissions.push(raw);
+        if (submissions.length === 1) throw new Error('selection receipt lost');
+      }
+      return JSON.stringify(response);
+    },
+  });
+  const command = client.prepareCollectionSelection({ kind: 'matching', query });
+
+  // When the same admitted command is retried.
+  await assert.rejects(client.createCollectionSelection(command), /selection receipt lost/);
+  assert.deepEqual(await client.createCollectionSelection(command), selected);
+
+  // Then identity is retained and page validation cannot accept a foreign or full corpus.
+  assert.equal(submissions[0], submissions[1]);
+  assert.deepEqual(await client.collectionSelection(selected.id), selected);
+  response = { type: 'collection_selections', selections: [selected] };
+  assert.deepEqual(await client.collectionSelections(), [selected]);
+  response = { type: 'collection_selections', selections: Array.from({ length: 9 }, () => selected) };
+  await assert.rejects(client.collectionSelections(), { code: 'protocol' });
+  response = { type: 'collection_selection_page', id: selected.id, page: { items: [entry], next: null } };
+  assert.deepEqual(await client.collectionSelectionPage(selected.id), { items: [entry], next: null });
+  for (const invalid of [
+    { type: 'collection_selection_page', id: 'foreign', page: { items: [entry], next: null } },
+    { type: 'collection_selection_page', id: selected.id, page: { items: Array.from({ length: 65 }, () => entry), next: null } },
+    { type: 'collection_selection_page', id: selected.id, page: { items: [{ ...entry, materialRevision: 2 }], next: null } },
+  ]) {
+    response = invalid;
+    await assert.rejects(client.collectionSelectionPage(selected.id), { code: 'protocol' });
+  }
+  response = { type: 'collection_selection', selection: { ...selected, id: 'foreign' } };
+  await assert.rejects(client.collectionSelection(selected.id), { code: 'protocol' });
+  response = { type: 'collection_selection_released', id: 'foreign' };
+  await assert.rejects(client.releaseCollectionSelection(selected.id), { code: 'protocol' });
+  response = { type: 'collection_selection_released', id: selected.id };
+  await client.releaseCollectionSelection(selected.id);
+});
+
 test('collection controls and reads bypass preparation and retain its replay identity', { timeout: 5000 }, async () => {
   // Given a native preparation held at the transport boundary.
   let release = () => {};

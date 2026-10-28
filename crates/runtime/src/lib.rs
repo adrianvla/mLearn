@@ -219,6 +219,36 @@ impl Runtime {
         use execution::Failure;
         match request {
             Request::Collection { query } => self.collection_query(query),
+            Request::CreateCollectionSelection { command } => {
+                self.create_collection_selection(command)
+            }
+            Request::CollectionSelection { id } => Ok(Response::CollectionSelection {
+                selection: self
+                    .store
+                    .collection_selection(&id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+            }),
+            Request::CollectionSelections => Ok(Response::CollectionSelections {
+                selections: self
+                    .store
+                    .collection_selections()
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+            }),
+            Request::CollectionSelectionPage { id, after } => {
+                Ok(Response::CollectionSelectionPage {
+                    page: self
+                        .store
+                        .collection_selection_page(&id, after.as_deref())
+                        .map_err(|error| Failure::Operation(error.to_string()))?,
+                    id,
+                })
+            }
+            Request::ReleaseCollectionSelection { id } => {
+                self.store
+                    .release_collection_selection(&id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?;
+                Ok(Response::CollectionSelectionReleased { id })
+            }
             Request::Snapshot => {
                 let (revision, theme) = self
                     .store

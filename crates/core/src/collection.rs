@@ -345,3 +345,22 @@ pub struct CollectionSelection {
     pub target_count: u32,
     pub material_count: u32,
 }
+
+/// Frozen identity and edit preconditions, not a live query projection.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionSelectionEntry {
+    pub item: CollectionItemId,
+    pub package_id: String,
+    pub package_revision: Option<String>,
+    pub material_revision: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionSelectionPage {
+    pub items: Vec<CollectionSelectionEntry>,
+    pub next: Option<String>,
+}

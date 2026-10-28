@@ -24,8 +24,8 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: verify actual native modifier delivery while extending the
-verified collection/filter owners with bulk operations and remaining M10 flows.
+Current task: extend the verified collection/filter owners with stable native
+selections, bulk operations and remaining M10 flows.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -35,6 +35,44 @@ New execution note:
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
 The historical M03–M07 record follows; its older ceiling is not a stop on the
 newly authorized M10–M11 work.
+
+2026-10-28 selection increment (bulk actions incomplete): the
+existing core frozen-selection contract is reused, with native SQLite snapshots
+of identities and Material/package edit revisions, bounded identity pages,
+explicit release, eight live handles and one million retained identities total.
+Normal collection reads and snapshot creation share one SQL predicate compiler.
+Schema14 preserves selection receipts across restart and retains released-command
+digests so a retry cannot silently select new membership. Four new storage
+regressions cover filter/edit/restart stability, exact explicit membership,
+release/capacity/retry and incomplete-catalog/cursor rejection. The initial
+fixture incorrectly restarted a partially populated catalog; it now completes
+the actual saved package cursor instead. Guarded run1414 passed all105 storage
+tests, including all17 collection tests. Existing unused `practice` fixture
+warnings remain. Log: owned root `selection-storage-verify.log`.
+
+Selection request/response dispatch, Rust-generated contract exports and typed
+client methods/guards are now verified together, not yet connected to the
+management UI. Bounded listing exposes retained handles after restart so a
+lost renderer cannot exhaust the eight-handle allowance permanently. Run1420
+passed all105 storage tests, both native-runtime collection tests, all five
+client collection tests, typecheck and ownership lint. The native transport test
+exercises create/replay/reopen/list/page/release and rejects an uninstalled
+Knowledge package. Log: owned root `selection-recovery-idle-verify.log`.
+Generated contracts were produced from Rust, not hand-edited. Mobile/native
+application verification remains pending; these are native-owner/transport
+receipts, not GUI acceptance.
+
+Run1415 generated contracts and then ended during storage
+compilation with runner cleanup `kill EPERM`; no Cargo/rustc/resource-guard or
+owned native QA process survived the subsequent process inventory. The runner
+now avoids signalling an already exited child and preserves guard-stop samples.
+Run1419 exposed another group-signal EPERM after a guard stop: projected headroom
+4229021696 bytes was below the unchanged 4294967296-byte reserve. No owned
+verification process survived inspection. The successful idle run1420 ended at
+footprint1770173544, available7294713856, pressure1, swapUsed4414767104 and
+swapOut67667247104, with the unchanged 2GiB workload budget. No
+device/model/server was launched. Bulk mutation/progress/retry UI remains the
+active work; this selection increment does not retire MAT-06.
 
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;

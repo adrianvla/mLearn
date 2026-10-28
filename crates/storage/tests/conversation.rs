@@ -216,7 +216,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
             .unwrap(),
-        13
+        14
     );
     assert_eq!(
         db.query_row(
@@ -227,7 +227,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
         .unwrap(),
         1
     );
-    db.pragma_update(None, "user_version", 14).unwrap();
+    db.pragma_update(None, "user_version", 15).unwrap();
     drop(db);
     assert!(ProfileStore::open(&path).is_err());
 }

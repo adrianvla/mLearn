@@ -375,6 +375,11 @@ impl Runtime {
                 Ok(Prepared::Immediate(Box::new(response?)))
             }
             request @ (Request::Collection { .. }
+            | Request::CreateCollectionSelection { .. }
+            | Request::CollectionSelection { .. }
+            | Request::CollectionSelections
+            | Request::CollectionSelectionPage { .. }
+            | Request::ReleaseCollectionSelection { .. }
             | Request::Snapshot
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }

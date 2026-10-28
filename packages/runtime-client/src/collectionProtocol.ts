@@ -32,6 +32,24 @@ function item(value: unknown): boolean {
     default: return false;
   }
 }
+function selection(value: unknown): boolean {
+  return object(value) && text(value.id, 128)
+    && (value.packageId === null || text(value.packageId, 512))
+    && (value.packageRevision === null || text(value.packageRevision, 512))
+    && uint(value.targetCount, 1000000) && uint(value.materialCount, 1000000)
+    && (value.targetCount === 0 || value.materialCount === 0);
+}
+function selectionEntry(value: unknown): boolean {
+  if (!object(value) || !object(value.item) || !text(value.packageId, 512)
+    || !(value.packageRevision === null || text(value.packageRevision, 512))) return false;
+  switch (value.item.kind) {
+    case 'target':
+      return text(value.item.targetId, 512) && value.materialRevision === null;
+    case 'material':
+      return text(value.item.id, 512) && uint(value.materialRevision) && value.materialRevision > 0;
+    default: return false;
+  }
+}
 export function isCollectionPreparationStatus(value: unknown): value is CollectionPreparationStatus {
   if (!object(value) || !object(value.command) || !text(value.command.commandId, 128)
     || !text(value.command.packageId, 128) || !uint(value.processed, 1000000)
@@ -51,6 +69,14 @@ export function isCollectionPreparationStatus(value: unknown): value is Collecti
 export function isCollectionResponse(value: unknown): value is Response {
   if (!object(value)) return false;
   switch (value.type) {
+    case 'collection_selection': return selection(value.selection);
+    case 'collection_selections': return list(value.selections, 8, selection);
+    case 'collection_selection_released': return text(value.id, 128);
+    case 'collection_selection_page':
+      return text(value.id, 128) && object(value.page)
+        && list(value.page.items, 64, selectionEntry)
+        && (value.page.next === null || text(value.page.next, 512))
+        && encodedBytes(value.page) <= 131072;
     case 'collection_preparation':
       return value.status === null || isCollectionPreparationStatus(value.status);
     case 'collection': {

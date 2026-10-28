@@ -17,6 +17,19 @@ pub enum Response {
     Collection {
         result: crate::CollectionResult,
     },
+    CollectionSelection {
+        selection: crate::CollectionSelection,
+    },
+    CollectionSelections {
+        selections: Vec<crate::CollectionSelection>,
+    },
+    CollectionSelectionPage {
+        id: crate::CollectionSelectionId,
+        page: crate::CollectionSelectionPage,
+    },
+    CollectionSelectionReleased {
+        id: crate::CollectionSelectionId,
+    },
     CollectionPreparation {
         status: Option<crate::CollectionPreparationStatus>,
     },

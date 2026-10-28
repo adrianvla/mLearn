@@ -329,6 +329,50 @@ impl Drop for Transfer {
 }
 
 impl Runtime {
+    pub(super) fn create_collection_selection(
+        &mut self,
+        command: mlearn_core::CollectionSelectionCreate,
+    ) -> Result<Response, Failure> {
+        if let Some(selection) = self
+            .store
+            .collection_selection_receipt(&command)
+            .map_err(|error| Failure::Operation(error.to_string()))?
+        {
+            return Ok(Response::CollectionSelection { selection });
+        }
+        let query = match &command.source {
+            mlearn_core::CollectionSelectionSource::Matching { query }
+            | mlearn_core::CollectionSelectionSource::Items { query, .. } => query,
+        };
+        // Apply the same installed-package/revision authority as normal browsing.
+        match self.collection_query(query.clone())? {
+            Response::Collection {
+                result: mlearn_core::CollectionResult::Ready { .. },
+            } => {}
+            Response::Collection {
+                result: mlearn_core::CollectionResult::Unavailable { message },
+            } => {
+                return Err(Failure::Operation(message));
+            }
+            Response::Collection {
+                result: mlearn_core::CollectionResult::Preparing { .. },
+            } => {
+                return Err(Failure::Operation("Collection is still preparing".into()));
+            }
+            _ => return Err(Failure::Operation("Unexpected collection response".into())),
+        }
+        let selection = self
+            .store
+            .create_collection_selection(&command)
+            .map_err(|error| match error {
+                mlearn_storage::StorageError::Conflict => {
+                    Failure::Protocol("conflict", error.to_string())
+                }
+                error => Failure::Operation(error.to_string()),
+            })?;
+        Ok(Response::CollectionSelection { selection })
+    }
+
     pub(super) fn collection_query(
         &mut self,
         query: mlearn_core::CollectionQuery,
@@ -424,6 +468,96 @@ mod tests {
             Response::CollectionPreparation { status } => status,
             other => panic!("Expected native preparation status, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn frozen_selection_transport_retains_receipts_and_releases_after_reopen() {
+        use mlearn_core::{CollectionSelectionCreate, CollectionSelectionSource};
+        // Given the real metadata transport without an installed language package.
+        let directory = tempfile::tempdir().unwrap();
+        let profile = directory.path().join("profile");
+        let open_empty = || {
+            RuntimeExecutor::new(
+                Runtime::open(&profile, CodePolicy::MobileBundled, None, vec![]).unwrap(),
+            )
+        };
+        let executor = open_empty();
+        let command = CollectionSelectionCreate {
+            command_id: "transport-selection".into(),
+            source: CollectionSelectionSource::Matching {
+                query: CollectionQuery {
+                    package_id: None,
+                    surface: CollectionSurface::Material,
+                    filter: CollectionFilter::All { filters: vec![] },
+                    sort: CollectionSort::Default,
+                    after: None,
+                },
+            },
+        };
+        let selected = match call(
+            &executor,
+            Request::CreateCollectionSelection {
+                command: command.clone(),
+            },
+        ) {
+            Response::CollectionSelection { selection } => selection,
+            other => panic!("Expected a native selection receipt: {other:?}"),
+        };
+        drop(executor);
+
+        // When the native owner restarts and receives the original command again.
+        let executor = open_empty();
+        let replay = call(
+            &executor,
+            Request::CreateCollectionSelection {
+                command: command.clone(),
+            },
+        );
+
+        // Then the frozen handle persists, bounded reads work, and release is final.
+        assert!(
+            matches!(replay, Response::CollectionSelection { selection } if selection == selected)
+        );
+        assert!(matches!(
+            call(&executor, Request::CollectionSelections),
+            Response::CollectionSelections { selections } if selections == vec![selected.clone()]
+        ));
+        assert!(matches!(
+            call(&executor, Request::CollectionSelectionPage { id: selected.id.clone(), after: None }),
+            Response::CollectionSelectionPage { id, page } if id == selected.id && page.items.is_empty() && page.next.is_none()
+        ));
+        assert!(matches!(
+            call(&executor, Request::ReleaseCollectionSelection { id: selected.id.clone() }),
+            Response::CollectionSelectionReleased { id } if id == selected.id
+        ));
+        assert!(matches!(
+            call(&executor, Request::CreateCollectionSelection { command }),
+            Response::Error { .. }
+        ));
+        assert!(matches!(
+            call(&executor, Request::CollectionSelections),
+            Response::CollectionSelections { selections } if selections.is_empty()
+        ));
+        assert!(matches!(
+            call(
+                &executor,
+                Request::CreateCollectionSelection {
+                    command: CollectionSelectionCreate {
+                        command_id: "uninstalled-targets".into(),
+                        source: CollectionSelectionSource::Matching {
+                            query: CollectionQuery {
+                                package_id: Some("org.missing".into()),
+                                surface: CollectionSurface::Knowledge,
+                                filter: CollectionFilter::All { filters: vec![] },
+                                sort: CollectionSort::Default,
+                                after: None,
+                            }
+                        },
+                    },
+                }
+            ),
+            Response::Error { .. }
+        ));
     }
 
     #[test]

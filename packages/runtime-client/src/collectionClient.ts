@@ -1,4 +1,7 @@
-import type { CollectionPreparationCommand, CollectionQuery, Request, Response } from '@mlearn/contracts';
+import type {
+  CollectionPreparationCommand, CollectionQuery, CollectionSelectionCreate,
+  CollectionSelectionSource, Request, Response,
+} from '@mlearn/contracts';
 import { isCollectionResponse } from './collectionProtocol';
 import { RuntimeError } from './errors';
 
@@ -16,6 +19,41 @@ export function createCollectionClient(request: Execute, commandId: () => string
     return response.status;
   }
   return {
+    prepareCollectionSelection(source: CollectionSelectionSource): CollectionSelectionCreate {
+      return { source, commandId: commandId() };
+    },
+    async createCollectionSelection(command: CollectionSelectionCreate) {
+      const response = await request({ type: 'create_collection_selection', command });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selection')
+        throw new RuntimeError('protocol', 'Malformed frozen selection.');
+      return response.selection;
+    },
+    async collectionSelection(id: string) {
+      const response = await request({ type: 'collection_selection', id });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selection'
+        || response.selection.id !== id)
+        throw new RuntimeError('protocol', 'Mismatched frozen selection.');
+      return response.selection;
+    },
+    async collectionSelections() {
+      const response = await request({ type: 'collection_selections' });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selections')
+        throw new RuntimeError('protocol', 'Malformed retained selections.');
+      return response.selections;
+    },
+    async collectionSelectionPage(id: string, after: string | null = null) {
+      const response = await request({ type: 'collection_selection_page', id, after });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selection_page'
+        || response.id !== id)
+        throw new RuntimeError('protocol', 'Malformed frozen selection page.');
+      return response.page;
+    },
+    async releaseCollectionSelection(id: string) {
+      const response = await request({ type: 'release_collection_selection', id });
+      if (!isCollectionResponse(response) || response.type !== 'collection_selection_released'
+        || response.id !== id)
+        throw new RuntimeError('protocol', 'Mismatched selection release.');
+    },
     async collection(query: CollectionQuery) {
       const response = await request({ type: 'collection', query });
       if (!isCollectionResponse(response) || response.type !== 'collection')
