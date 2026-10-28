@@ -1,4 +1,4 @@
-import type { AnalyzedToken, PackageInstallStatus, Response } from '@mlearn/contracts';
+import type { AnalyzedToken, CollectionDescription, LexicalSummary, PackageInstallStatus, Response } from '@mlearn/contracts';
 type RecordValue = Record<string, unknown>;
 function object(v: unknown): v is RecordValue { return !!v && typeof v === 'object' && !Array.isArray(v); }
 const string = (v: unknown): v is string => typeof v === 'string' && v.length <= 32768;
@@ -9,6 +9,25 @@ function list(v: unknown, limit: number, guard: (v: unknown) => boolean): boolea
 function source(v: unknown): boolean { return object(v) && ['id','title','mediaPath','mediaRevision','packageId','packageVersion'].every(k=>string(v[k])) && optionalString(v.subtitlePath) && optionalString(v.subtitleRevision) && integer(v.positionMs) && integer(v.durationMs) && integer(v.subtitleOffsetRevision) && Number.isInteger(v.subtitleOffsetMs) && Math.abs(Number(v.subtitleOffsetMs))<=86400000 && typeof v.playbackRate==='number' && v.playbackRate>=0.5 && v.playbackRate<=2 && typeof v.inspectionTrigger==='string' && ['click','immediate','delayed','modifier'].includes(v.inspectionTrigger); }
 function cue(v: unknown): boolean { return object(v) && integer(v.index) && integer(v.startMs) && integer(v.endMs) && Number(v.endMs)>Number(v.startMs) && string(v.text); }
 function capability(v: unknown): boolean { return object(v) && string(v.id) && string(v.label); }
+function levelMetadata(v: unknown): boolean {
+ return object(v)&&string(v.scaleId)&&v.scaleId.includes(':')&&v.scaleId.length<=512
+  &&string(v.level)&&v.level.length>0&&v.level.length<=128&&string(v.label)&&v.label.length>0&&v.label.length<=512
+  &&integer(v.rank)
+  &&string(v.attribution)&&v.attribution.length>0&&v.attribution.length<=2048;
+}
+function inlineLevel(v: unknown): boolean {
+ return levelMetadata(v)&&object(v)&&Number(v.rank)>=1&&Number(v.rank)<=7;
+}
+export function isCollectionDescription(v: unknown): v is CollectionDescription {
+ const label=(value:unknown)=>object(value)&&string(value.id)&&value.id.includes(':')&&value.id.length<=512
+  &&string(value.label)&&value.label.length>0&&value.label.length<=256
+  &&(value.color===null||string(value.color)&&value.color.length>0&&value.color.length<=64)
+  &&string(value.attribution)&&value.attribution.length>0&&value.attribution.length<=2048;
+ return object(v)&&list(v.capabilities,32,capability)&&Array.isArray(v.capabilities)&&v.capabilities.length>0
+  &&list(v.kinds,64,label)&&Array.isArray(v.kinds)&&v.kinds.length>0&&list(v.scopes,128,label)
+  &&list(v.levels,256,level=>levelMetadata(level)&&object(level)&&string(level.label)&&level.label.length<=256)
+  &&new TextEncoder().encode(JSON.stringify(v)).length<=65536;
+}
 function levelScale(v: unknown): boolean {
  return object(v)&&string(v.id)&&v.id.includes(':')&&v.id.length<=512
   &&string(v.label)&&v.label.length>0&&v.label.length<=128
@@ -49,13 +68,15 @@ function presentation(v: unknown, text: string): boolean {
    &&Number(r.end)<=text.length*4&&string(r.text)&&r.text.length>0&&r.text.length<=512&&attribution(r.attribution)
    &&(r.base===undefined||r.base===null||string(r.base)&&r.base.length>0&&r.base.length<=512))
   &&list(v.labels,16,l=>object(l)&&namespaced(l.id)&&string(l.label)&&l.label.length>0&&l.label.length<=512&&color(l.color)&&attribution(l.attribution))
-  &&(v.levels===undefined||v.levels===null||list(v.levels,16,l=>object(l)&&namespaced(l.scaleId)
-   &&string(l.level)&&l.level.length>0&&l.level.length<=128&&string(l.label)&&l.label.length>0&&l.label.length<=512
-   &&integer(l.rank)&&Number(l.rank)>=1&&Number(l.rank)<=7&&attribution(l.attribution)))
+  &&(v.levels===undefined||v.levels===null||list(v.levels,16,inlineLevel))
   &&list(v.contours,16,c=>object(c)&&namespaced(c.id)&&string(c.reading)&&c.reading.length>0&&string(c.label)
    &&color(c.color)&&attribution(c.attribution)&&(c.followingHeight===null||typeof c.followingHeight==='number'&&Number.isFinite(c.followingHeight)&&c.followingHeight>=0&&c.followingHeight<=1)
    &&list(c.units,64,u=>object(u)&&string(u.text)&&u.text.length>0&&u.text.length<=32&&typeof u.height==='number'&&Number.isFinite(u.height)&&u.height>=0&&u.height<=1)
    &&Array.isArray(c.units)&&c.units.length>0);
+}
+export function isLexicalSummary(v: unknown): v is LexicalSummary {
+ return object(v)&&string(v.targetId)&&string(v.headword)&&optionalString(v.reading)
+  &&string(v.summary)&&Array.from(v.summary).length<=512&&presentation(v.presentation,v.headword);
 }
 function entry(v:unknown):boolean {
  return object(v)&&['targetId','headword','partOfSpeech','definition','attribution'].every(k=>string(v[k]))
@@ -80,12 +101,12 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'cue_position':return object(v.position) && string(v.position.sourceId) && string(v.position.subtitleRevision) && integer(v.position.cueIndex) && integer(v.position.positionMs);
  case 'position_saved':return true;
  case 'language':return object(v.description) && string(v.description.language) && string(v.description.label) && string(v.description.annotationCapability) && string(v.description.attribution) && list(v.description.capabilities,8,capability)
-  &&(v.description.levelScales===undefined||v.description.levelScales===null||list(v.description.levelScales,16,levelScale));
+  &&(v.description.levelScales===undefined||v.description.levelScales===null||list(v.description.levelScales,16,levelScale))
+  &&(v.description.catalog===undefined||v.description.catalog===null||isCollectionDescription(v.description.catalog));
  case 'entry':return entry(v.entry)&&string(v.packageVersion)&&revision(v.packageRevision)&&targetKnowledge(v.knowledge);
  case 'dictionary':return object(v.batch)&&['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k]))
   &&revision(v.batch.packageRevision)&&list(v.batch.items,6,item=>object(item)&&(item.state==='unavailable'&&string(item.targetId)&&string(item.message)
-   ||item.state==='available'&&object(item.summary)&&string(item.summary.targetId)&&string(item.summary.headword)&&optionalString(item.summary.reading)
-   &&string(item.summary.summary)&&Array.from(item.summary.summary).length<=512&&presentation(item.summary.presentation,item.summary.headword)));
+   ||item.state==='available'&&isLexicalSummary(item.summary)));
  case 'knowledge':return list(v.projections,256,projection);
  case 'claim_changed':return projection(v.projection);
  case 'analysis':return object(v.batch) && ['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k])) && revision(v.batch.packageRevision) && list(v.batch.knowledge,256,projection) && list(v.batch.annotations,8192,a=>object(a)&&integer(a.cueIndex)&&integer(a.tokenStart)&&string(a.status)) && list(v.batch.cues,16,a=>object(a)&&cue(a.cue)&&list(a.tokens,512,isAnalyzedToken));

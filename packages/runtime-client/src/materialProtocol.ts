@@ -66,6 +66,7 @@ function material(value: unknown) {
       && (item.segment === null || item.segment.startMs < item.segment.endMs
         || assets.some(asset => object(asset) && asset.id === item.mediaId && asset.kind === 'image')));
 }
+export { material as isMaterial };
 function target(value: unknown) { return object(value) && text(value.packageId) && text(value.targetId); }
 function eligibility(value: unknown) {
   if (!object(value) || !target(value.target) || !object(value.availability)) return false;

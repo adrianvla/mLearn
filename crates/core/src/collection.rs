@@ -266,6 +266,36 @@ pub enum CollectionResult {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionPreparationCommand {
+    pub command_id: String,
+    pub package_id: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum CollectionPreparationPhase {
+    Preparing,
+    Cancelling,
+    Succeeded,
+    Cancelled,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CollectionPreparationStatus {
+    pub command: CollectionPreparationCommand,
+    pub phase: CollectionPreparationPhase,
+    pub processed: u32,
+    pub total: Option<u32>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct CollectionSelectionId(pub String);

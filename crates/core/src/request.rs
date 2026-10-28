@@ -273,6 +273,20 @@ pub enum Request {
         #[serde(rename = "packageId")]
         package_id: String,
     },
+    Collection {
+        query: crate::CollectionQuery,
+    },
+    PrepareCollection {
+        command: crate::CollectionPreparationCommand,
+    },
+    CollectionPreparationStatus {
+        #[serde(rename = "commandId")]
+        command_id: Option<String>,
+    },
+    CancelCollectionPreparation {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
     InspectTarget {
         #[serde(rename = "packageId")]
         package_id: String,

@@ -1,6 +1,7 @@
 mod analysis;
 mod capture;
 pub mod catalog;
+mod collection;
 mod conversation;
 mod conversation_execution;
 mod conversation_provider;
@@ -217,6 +218,7 @@ impl Runtime {
     fn metadata(&mut self, request: Request) -> Result<Response, execution::Failure> {
         use execution::Failure;
         match request {
+            Request::Collection { query } => self.collection_query(query),
             Request::Snapshot => {
                 let (revision, theme) = self
                     .store

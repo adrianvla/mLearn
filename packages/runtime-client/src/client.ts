@@ -4,6 +4,7 @@ import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
 import { createConversationClient } from './conversationClient';
+import { createCollectionClient } from './collectionClient';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
@@ -100,6 +101,7 @@ export function createRuntimeClient(transport: Transport) {
     return response.status;
   }
   return {
+    ...createCollectionClient(request, () => transport.commandId(), execute),
     ...createConversationClient(request, () => transport.commandId(), execute),
     ...createMaterialClient(request, () => transport.commandId()),
     ...createReviewClient(request, () => transport.commandId()),

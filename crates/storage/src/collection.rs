@@ -261,6 +261,21 @@ fn item(
 }
 
 impl ProfileStore {
+    pub fn collection_catalog_revision(
+        &self,
+        package_id: &str,
+    ) -> Result<Option<String>, StorageError> {
+        bounded(package_id, 512)?;
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT revision FROM collection_catalogs WHERE package_id=?1",
+                [package_id],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
     pub fn collection_description(
         &self,
         package_id: &str,

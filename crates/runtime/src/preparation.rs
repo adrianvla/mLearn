@@ -9,6 +9,12 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
         match request {
+            Request::PrepareCollection { .. }
+            | Request::CollectionPreparationStatus { .. }
+            | Request::CancelCollectionPreparation { .. } => Err(Failure::Protocol(
+                "requires_executor",
+                "Collection task control requires the shared native executor".into(),
+            )),
             Request::Conversation { command } => self.prepare_conversation(command, cancellation),
             Request::ImportImageCollection {
                 paths,
@@ -368,7 +374,8 @@ impl Runtime {
                 cancellation.check()?;
                 Ok(Prepared::Immediate(Box::new(response?)))
             }
-            request @ (Request::Snapshot
+            request @ (Request::Collection { .. }
+            | Request::Snapshot
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }
             | Request::Materials { .. }

@@ -1,12 +1,12 @@
 use crate::{
-    guest::{GuestOutput, GuestWork, Prepared},
     Runtime,
+    guest::{GuestOutput, GuestWork, Prepared},
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex, TryLockError,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -86,11 +86,22 @@ impl Drop for CallPermit<'_> {
 pub struct RuntimeExecutor {
     pub(super) runtime: Arc<Mutex<Runtime>>,
     conversations: crate::conversation_execution::ConversationOwner,
+    collections: crate::collection::CollectionOwner,
     pub(super) guest: Mutex<()>,
     admitted: AtomicUsize,
     cancellation: Arc<AtomicU64>,
 }
 impl RuntimeExecutor {
+    #[cfg(test)]
+    pub(crate) fn observe_collection(
+        &self,
+    ) -> (
+        std::sync::mpsc::Receiver<u32>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        self.collections.observe()
+    }
+
     #[cfg(test)]
     pub(crate) fn observe_generation(
         &self,
@@ -106,6 +117,7 @@ impl RuntimeExecutor {
         Self {
             runtime: Arc::new(Mutex::new(runtime)),
             conversations: crate::conversation_execution::ConversationOwner::default(),
+            collections: crate::collection::CollectionOwner::default(),
             guest: Mutex::new(()),
             admitted: AtomicUsize::new(0),
             cancellation,
@@ -132,6 +144,17 @@ impl RuntimeExecutor {
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
         let request = match request {
+            Request::PrepareCollection { command } => {
+                return self
+                    .collections
+                    .prepare(&self.runtime, &self.guest, command);
+            }
+            Request::CollectionPreparationStatus { command_id } => {
+                return self.collections.status(command_id.as_deref(), false);
+            }
+            Request::CancelCollectionPreparation { command_id } => {
+                return self.collections.status(Some(&command_id), true);
+            }
             Request::Conversation { command } => match command {
                 command @ (mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }
                 | mlearn_core::ConversationCommand::AnalyzeMessageSource { .. }) => {
@@ -300,7 +323,11 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InvokePlugin { .. }
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
-        Request::Snapshot
+        Request::Collection { .. }
+        | Request::PrepareCollection { .. }
+        | Request::CollectionPreparationStatus { .. }
+        | Request::CancelCollectionPreparation { .. }
+        | Request::Snapshot
         | Request::ImagePage { .. }
         | Request::ImageReaderSettings { .. }
         | Request::SaveImageReaderSettings { .. }

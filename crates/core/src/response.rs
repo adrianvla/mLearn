@@ -14,6 +14,12 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
+    Collection {
+        result: crate::CollectionResult,
+    },
+    CollectionPreparation {
+        status: Option<crate::CollectionPreparationStatus>,
+    },
     Conversation {
         result: crate::ConversationResult,
     },
