@@ -763,7 +763,7 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   // Capture is a primary Inspector action, not content below a long entry.
   await expect(footer.getByRole('button', { name: 'Capture this context: 東京', exact: true })).toBeInViewport();
   const actions = footer.getByRole('button');
-  await expect(actions).toHaveCount(6);
+  await expect(actions).toHaveCount(7);
   const geometry = await actions.evaluateAll(nodes => nodes.filter(node =>
     node.getAttribute('aria-label') !== 'Capture options').map(node => {
     const rect = node.getBoundingClientRect();
@@ -785,7 +785,8 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   await expect(captureOptions).toBeFocused();
   const explain = footer.getByRole('button', { name: 'Explain', exact: true });
   if (width === 1080) await expect(explain).toBeInViewport();
-  for (const action of [explain, footer.getByRole('button', { name: 'Copy context', exact: true })]) {
+  for (const action of [explain, footer.getByRole('button', { name: 'Copy context', exact: true }),
+    footer.getByRole('button', { name: 'Propose Material', exact: true })]) {
     await action.focus();
     const trailing = await action.boundingBox();
     const viewport = await footer.boundingBox();

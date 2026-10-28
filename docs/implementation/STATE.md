@@ -24,10 +24,10 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: checkpoint the verified source-grounded Material proposal UI,
-then source/content search and the remaining M10 flows.
-Latest verified increment: this checkpoint's shared proposal review, based on
-pushed native generation `87c73fe27784f640c6eb445f036c9bb5e709e1cb`.
+Current task: source/content search, then the remaining M10 flows.
+Latest verified increment: shared proposal review is committed/pushed as
+`5a9c938cc6325d1791a069ffbd801c2146406512`, based on native generation
+`87c73fe27784f640c6eb445f036c9bb5e709e1cb`. Ledger:50/109 complete.
 Local integration passed17 affected client tests, six real Rust-backed GUI
 scenarios, all20 existing desktop/narrow Material editor regressions, typecheck,
 architecture/draft lint and web export. Final log:
@@ -38,6 +38,50 @@ recorded runs. This is verified for continuation, not M10 acceptance.
 Native/compositor interaction on the new controls and the independent M10
 review remain integration gates. Existing platform discrepancies below remain
 unresolved; the new GUI evidence is not a claim about native window materials.
+Exact-source proposal CI: desktop40722951356 passed. Foundation40722951324
+failed only its web job122938476762:131 tests passed, while the two Inspector
+footer layout cases still expected six actions after Propose Material made
+seven. The retained failed log is `ci-40722951324-web-failed.log`; this is an
+omitted stale test update caused by the proposal increment, not infrastructure.
+The test now expects all seven and extends its keyboard/scroll reachability
+assertions to Propose Material, retaining all original geometry/material checks.
+Windows job122941995691 passed its actual theme/OCR steps; that does not explain
+the earlier intermittent input-loss evidence. Mobile40722951303 is still
+observed read-only by run1541; no workflow was rerun.
+
+Source-search owner trace: Watch already searches literal subtitle text through
+`transcript_page` and navigates real cue indexes; Messenger already searches
+retained history through `ReadMessages`. Reader has no text/content-search
+owner. The new work extends document storage and the existing shared
+`return_source_anchor`, rather than adding a parallel universal search store.
+Native Reader-search contracts/storage passed run1544
+(`document-search-owner-first.log`): all16 document and16 OCR owner tests,
+including the five new cases. Its new unused macro doc-comment warning was
+fixed as an ordinary comment, not suppressed. The implementation provides:
+explicit canonical-text versus saved-recognition scope,16 bounded source hits,
+64-row/1MiB scan quanta, UTF-8 source coordinates, immutable source/package/query
+cursor binding, OCR-revision invalidation and explicit missing-page coverage.
+Search does not invoke recognition or a provider, and no index/schema or
+whole-source renderer copy was added. Five new owner regressions reuse the
+existing document/OCR fixtures for pagination/restart, late matches, stale
+coordinates/packages and missing/corrected recognition. Reader GUI and
+cross-surface Return verification are still unimplemented.
+Runtime/client dispatch is now in source with strict search-page validation and
+one generic ReturnSourceAnchor action reusing the existing native source owner.
+Native and client tests cover actual imported Unicode spans, forged quotations,
+false scan progress, immutable query admission and replaced-source receipt
+rejection. Rust contract generation must run before TypeScript checks; current
+missing-type diagnostics reflect that pending generated output, not hand-edited
+contracts. The next guarded serial run also verifies the corrected Inspector
+footer tests against the retained proposal export. Guarded run1546 passed
+in `document-search-transport-first.log`: Rust-generated contracts, all131
+storage tests,12 actual runtime document tests,58 affected typed-client tests,
+typecheck, architecture lint and both Inspector footer layouts. The footer
+captures were inspected; all original one-row/material/keyboard assertions
+remain, including keyboard access to the new seventh action. Existing ts-rs
+serde-attribute diagnostics and unused `practice` test-fixture warnings remain;
+the new macro doc-comment warning is gone. Reader search is still not connected
+to the GUI, and native/compositor/M10 acceptance remains open.
 The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
 guarded run1460 passed its owner/runtime/client checks. Shared native selection
