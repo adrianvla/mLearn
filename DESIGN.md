@@ -131,6 +131,31 @@ Unimplemented capabilities or missing trustworthy reference states stay explicit
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
 
+## Material collection, 2026-10-28
+
+Layout: Material - compare authored items without nested list panels ->
+AppShell scroll-body shell with an intrinsic wrapping card grid; scroll owner:
+app-shell-content. The isolated running reference is
+`windows/flashcards/App.tsx` at `1ab95600bee97017635afe538af4e890e0cded3a`.
+Its populated captures show 280 px minimum tracks, 16 px gaps and 24 px grid
+and card insets. At 1100 px its 220 px sidebar leaves two 408 px cards.
+At 390 px it has one 334 px card after padding and scrollbar. Preserve the
+single-column intent, not its clipped narrow bulk controls. Do not introduce
+nested vertical scrolling or stretch a lone final card across empty columns.
+
+Primary action: Add Material. Priorities: phrase and reading, meaning/context,
+then edit and source-return actions. Required content: native exact count,
+search, order, excluded/source filters, creation language, page navigation,
+refresh, editor, pending/error/retry and source return. Shared controls retain
+accessible labels and native touch targets. Use Panel's spacious material,
+entryTitle/caption/body Text roles and semantic spacing; feature code owns only
+the grid and wrapping geometry. Do not copy unsupported legacy speech, Sync,
+Generate or Suggested actions, or infer Knowledge status from authored data.
+The existing functional native-backed desktop/narrow captures are the before
+set; the populated reference images are `reference-material-filled-*-dark.png`
+in the current M10 execution evidence root. Native compositor material parity
+is not established by the transparent reference CDP canvas.
+
 ## Knowledge collection, 2026-10-28
 
 Layout: Knowledge - compare bounded lexical results beneath stable search and

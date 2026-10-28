@@ -1,5 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, findNodeHandle, Platform, type Text as NativeText, type View } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Platform, View, type Text as NativeText } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import type {} from '@mlearn/theme/runtime';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import type { CollectionFilter, CollectionResult, CollectionSort, Material, MaterialContent, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Panel, Row } from '@mlearn/ui/layout';
@@ -29,6 +31,10 @@ function focus(target: View | NativeText | null | undefined) {
 }
 
 export function MaterialScreen() {
+  const { theme } = useUnistyles();
+  const [gridWidth, setGridWidth] = useState(0);
+  const columns = Math.max(1, Math.floor((gridWidth + theme.spacing.medium) / (280 + theme.spacing.medium)));
+  const cardWidth = gridWidth ? (gridWidth - (columns - 1) * theme.spacing.medium) / columns : undefined;
   const host = useRuntime();
   const router = useRouter();
   const params = useLocalSearchParams<{ sourceId?: string; id?: string }>();
@@ -161,12 +167,12 @@ export function MaterialScreen() {
         <Button label="Retry returning to source" onPress={() => void returnSource(returning.material, location)} /></> : null}
     </> : null;
   }
-  return <AppShell header={<>
-    <Row><Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
+  return <AppShell contentInset="none" navigation={<>
       <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
-      <Button label="Knowledge" variant="quiet" size="compact"
-        onPress={() => router.push({ pathname: '../knowledge', params: { packageId } })} /></Row>
-    {host.available ? <Row>
+      <Button label="Home" variant="navigation" size="compact" onPress={() => router.replace('/')} />
+      <Button label="Knowledge" variant="navigation" size="compact"
+        onPress={() => router.push({ pathname: '../knowledge', params: { packageId } })} />
+    {host.available ? <>
       <Select label="New Material language" value={packageId} options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
         onValueChange={setPackageId} />
       <Button label="Add Material" testID="material-add" ref={node => { if (node) triggers.current.set('add', node); else triggers.current.delete('add'); }}
@@ -175,15 +181,30 @@ export function MaterialScreen() {
           setReturning(previous => previous?.location === 'editor' ? null : previous);
           setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add' });
         }} />
-      <Select label="Material order" value={sort} options={orders} onValueChange={value => {
+    </> : null}
+  </>} header={<>
+    {host.available ? <Row>
+      <View style={styles.search}><TextField label="Search Material" testID="material-search" value={search}
+        placeholder="Search Material" onChangeText={setSearch} maxLength={2048} variant="search"
+        onSubmitEditing={() => { setAfter(null); setQuery(search); setReload(value => value + 1); }} /></View>
+      <Button label="Search Material" testID="material-search-submit" size="compact" variant="secondary" disabled={pending}
+        onPress={() => { setAfter(null); setQuery(search); setReload(value => value + 1); }} />
+      <Select label="Material order" value={sort} options={orders} size="compact" onValueChange={value => {
         const selected = orders.find(item => item.value === value);
         if (selected) { setAfter(null); setSort(selected.value); }
       }} />
+      {page ? <Text variant="caption" muted>{page.items.length} of {page.count} items</Text> : null}
+    </Row> : null}
+    {host.available ? <Row>
+      <Button label="Include excluded" variant="secondary" size="compact" accessibilityState={{ selected: includeExcluded }}
+        onPress={() => { setAfter(null); setIncludeExcluded(value => !value); }} />
+      {sourceId ? <Button label="This source only" variant="secondary" size="compact" accessibilityState={{ selected: sourceOnly }}
+        onPress={() => { setAfter(null); setSourceOnly(value => !value); }} /> : null}
     </Row> : null}
   </>}>
-    {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
+    {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       {opening?.trigger === null ? openStatus(opening.id) : null}
-      {editor ? <Panel>
+      {editor ? <View style={styles.notice}><Panel>
         <Row><Text ref={heading} variant="section" accessibilityRole="header" accessible tabIndex={-1}
           onLayout={() => {
             if (Platform.OS !== 'web' && focusedEditor.current !== editor.key) {
@@ -207,41 +228,53 @@ export function MaterialScreen() {
             setAfter(null);
             setReload(value => value + 1);
           }} />
-      </Panel> : null}
-      <Panel>
-        <TextField label="Search Material" testID="material-search" value={search} onChangeText={setSearch} maxLength={2048} variant="search" />
-        <Row><Button label="Search Material" testID="material-search-submit" disabled={pending} onPress={() => { setAfter(null); setQuery(search); setReload(value => value + 1); }} />
-          <Button label="Include excluded" variant="secondary" accessibilityState={{ selected: includeExcluded }}
-            onPress={() => { setAfter(null); setIncludeExcluded(value => !value); }} />
-          {sourceId ? <Button label="This source only" variant="secondary" accessibilityState={{ selected: sourceOnly }}
-            onPress={() => { setAfter(null); setSourceOnly(value => !value); }} /> : null}
-        </Row>
+      </Panel></View> : null}
+      <View style={styles.notice}>
         {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
         {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
           onPress={() => { setAfter(null); setReload(value => value + 1); }} /></> : null}
         {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
         {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
-        {page ? <Text variant="caption" muted>{page.items.length} of {page.count} items</Text> : null}
-        {page?.items.map(item => item.kind === 'material' ? <Panel key={item.material.id} inset="compact">
-          <Text selectable variant="section">{item.material.content.phrase}</Text>
-          <Text selectable>{item.material.content.meaning}</Text>
+      </View>
+      <View style={styles.gridInset}>
+      <View style={styles.grid} onLayout={event => setGridWidth(event.nativeEvent.layout.width)}>
+        {page?.items.map(item => item.kind === 'material' ? <View key={item.material.id}
+          testID={`material-card-${item.material.id}`} style={{ width: cardWidth ?? '100%', minWidth: 0 }}>
+        <Panel inset="spacious">
+          <View style={styles.copy}>
+          {item.material.content.reading ? <Text selectable variant="detail" muted>{item.material.content.reading}</Text> : null}
+          <Text selectable variant="entryTitle">{item.material.content.phrase}</Text>
+          </View>
+          <Text selectable variant="caption" muted>{item.material.content.meaning}</Text>
           {item.material.content.context ? <Text selectable muted>{item.material.content.context}</Text> : null}
-          <Row>{item.material.excluded ? <Badge label="Excluded" /> : null}
-            <Button label={`Edit ${item.material.content.phrase}`} variant="secondary" disabled={!!opening?.pending}
+          <View style={styles.actions}><Row>{item.material.excluded ? <Badge label="Excluded" variant="label" /> : null}
+            <Button label="Edit" accessibilityLabel={`Edit ${item.material.content.phrase}`} variant="secondary" size="compact" disabled={!!opening?.pending}
               ref={node => { if (node) triggers.current.set(item.material.id, node); else triggers.current.delete(item.material.id); }}
               busy={opening?.id === item.material.id && opening.pending} onPress={() => void open(item.material.id, item.material.id)} />
-            {item.material.content.source ? <Button label={`Return to source: ${item.material.content.phrase}`} disabled={!!returning?.pending}
+            {item.material.content.source ? <Button label="Return to source" accessibilityLabel={`Return to source: ${item.material.content.phrase}`} size="compact" disabled={!!returning?.pending}
               busy={returning?.location === item.material.id && returning.pending}
-              variant="quiet" onPress={() => void returnSource(item.material, item.material.id)} /> : null}</Row>
+              variant="quiet" onPress={() => void returnSource(item.material, item.material.id)} /> : null}</Row></View>
           {opening?.trigger === item.material.id ? openStatus(item.material.id) : null}
           {returnStatus(item.material.id)}
-        </Panel> : null)}
+        </Panel></View> : null)}
+      </View>
+      </View>
+      <View style={styles.notice}>
         {!pending && page?.items.length === 0 ? <Text>No Material matches this query.</Text> : null}
         <Row><Button label="First Material page" variant="secondary" disabled={pending || after === null} onPress={() => setAfter(null)} />
           <Button label="Next Material page" variant="secondary" disabled={pending || page?.next == null} onPress={() => setAfter(page?.next ?? null)} /></Row>
         <Button label="Refresh Material" variant="quiet" disabled={pending}
           onPress={() => { setAfter(null); setReload(value => value + 1); }} />
-      </Panel>
+      </View>
     </>}
   </AppShell>;
 }
+
+const styles = StyleSheet.create(theme => ({
+  search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  notice: { paddingHorizontal: theme.spacing.large, gap: theme.spacing.small },
+  gridInset: { padding: theme.spacing.large },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.medium, alignItems: 'flex-start' },
+  copy: { gap: 0 },
+  actions: { paddingTop: theme.spacing.medium, alignItems: 'flex-end' },
+}));

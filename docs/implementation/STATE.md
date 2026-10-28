@@ -24,9 +24,11 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: build the shared collection presentation over the verified native
-preparation/read API and typed client, then complete the remaining M10 flows
-and gate. The Knowledge GUI increment is committed/pushed at
+Current task: extend the verified collection API/presentation with compound
+filters, bulk operations and remaining M10 flows, then the milestone gate.
+The Material grid has passing local functional/layout evidence; consuming-native
+GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
+The Knowledge GUI increment is committed/pushed at
 `8eec14d991542ece155812fc87b1b0cf8db49c05` on draft PR45 and locally verified;
 Material collection presentation and the M10 milestone remain incomplete.
 New execution note:
@@ -61,6 +63,138 @@ Before a new deliberate Material reference capture, revision
 rechecked, ports 3000/7752/7753/9229 were free, and only selected settings from
 the retained isolated profile were inspected: selected UI, Dark Quartz,
 Japanese, OCR/voice/LLM disabled. Nothing was automatically restarted.
+The functional Material increment is committed/pushed at
+`34da32d4f1d7896efaab04702f0ed77cda7f44f2`. Its foundation 40632466774 and
+desktop 40632466768 gates passed; mobile 40632466908 remains pending.
+Older 8eec14d mobile 40629230832 failed. Android job 122621426915 passed.
+iOS job 122621426713 failed `Exercise actual iOS UI and Rust persistence`;
+its retrieved log confirms the unchanged Watch assertion at 04:48:54 UTC on
+October 28: `id: m01-watch, mp4 is not visible`. Fixture-copy commands appear
+in that same failed-step log. No diagnostic variant or rerun was launched.
+Read-only final-verdict observer 1343 remains active for 34da32d.
+
+Deliberate reference job 1339 reached the real Material view, then its explicit
+pre-capture resource check rejected projected headroom 3613737876 below the
+unchanged 4294967296 reserve (OmO footprint 3562108008, pressure 1).
+It closed the owned app/process group, browser, servers and guard; 1341 confirmed
+no matching processes. No image or visual pass is claimed. Intermediate CI
+notifications have been silenced in replacement observers, and the next attempt
+will be launched last, after setup is complete, with a stronger 2560 MiB startup
+forecast and unchanged 1536 MiB running policy/4 GiB reserve. The normal isolated
+reference launch, real bridge window action, event subscriptions, measurements
+and cleanup are owned by `material-reference-capture.mjs` in the execution root.
+No product UI changed after its inspected passing render.
+Reference retry 1346 passed with stable physical footprint about 1.46 GB,
+pressure 1, flat/declining swap and 4.93/5.10 GB projected headroom. It closed
+all owned processes before notification; 1347 confirmed absence. Both actual
+empty-state images were inspected. At 1100x760 logical pixels the sidebar is
+220 px and toolbar is 880x89 with 24 px padding; at 390x844 the closed navigation
+uses a 49 px header and the toolbar is 177 px tall. No card geometry is claimed
+from an empty library.
+
+The next deliberate capture uses the same helper's `filled` mode: add only
+three fixtures through the reference's real modal and persisted authoring path,
+then measure/capture the actual cards at both widths. Existing empty images and
+profile data are preserved. The legacy Input's unattached visual label was
+confirmed in source; automation targets the actual placeholder-bearing control,
+not a DOM/state patch. Do not reproduce that accessibility defect in v3.
+Launch remains the last action under the stronger startup forecast and unchanged
+running policy; inspect results only after its owned cleanup.
+Filled attempt 1348 stayed healthy but failed before any authoring because its
+snapshot-metadata matcher did not identify Add Card. Its owned processes closed
+and 1349 confirmed absence. The driver now uses supported CSS locators rooted
+in the source-verified sidebar, actual form and actual modal footer. The fields,
+save action, persisted-card witness and all resource checks are unchanged.
+Filled job 1350 successfully authored and persisted the three fixtures through
+the real form. Its inspected desktop capture confirms two 408 px card columns,
+16 px gaps, 24 px grid/card padding, 12 px card radius, 24/36 lexical text,
+12/12 ruby and 14/19.6 translation text. The narrow image caught the responsive
+drawer mid-transition and is not valid final layout evidence. The driver now
+awaits the actual Web Animations completion after resize, bounded by a failure
+deadline, before measurement; it does not disable animation or stage the DOM.
+Job 1350 closed owned processes and kept pressure 1 with declining swap and
+4.76–4.80 GB phase headroom. The underlying OmO allocation remains unexplained.
+Settled capture 1351 passed and its narrow image was inspected: sidebar fully
+closed at x=-280, one 334 px card column. The legacy narrow bulk toolbar clips;
+that defect is not a responsive target. Cleanup receipt 1352 confirmed no owned
+reference processes/listeners. Material's first layout change now uses spacious
+shared Panels in a measured-width wrapping grid, shared entryTitle/caption Text
+roles, visible authored reading and compact real actions. Search/order/count
+and filters moved into the existing bounded header. No second visual edit
+may precede rendering/inspection at desktop and narrow widths. LSP reports no
+MaterialScreen errors; guarded typecheck/lint/export/native regression plus the
+existing Material interaction suite are next. Final sidebar/compositor fidelity
+and consuming-native verification remain open.
+Verification 1353 stopped before commands began: its first resource sample
+projected 3863592960 bytes headroom, below the unchanged 4 GiB reserve.
+No test/build result or rendered layout is claimed. The retry first waits for
+the existing admission policy's three safe samples, then runs the same guarded
+serial checks. Workload forecast and reserve are unchanged.
+Run 1354 passed typecheck, lint/architecture, web export and the actual native
+collection workflow (2.5 seconds). Both resulting images were inspected before
+the next visual edit: cards reflowed without overflow, but navigation/creation
+still occupied the main toolbar instead of the reference sidebar. The next
+change moves those existing controls into AppShell's existing navigation slot;
+it does not create alternate controls or state owners. At the intermediate
+test notification OmO footprint rose to 3239195776 bytes and the guard stopped
+before the editor suite (headroom 3373616918, pressure 1, unchanged swap).
+The suite is not claimed passing for this source. Retry notifications are
+final-only to avoid waking the active model during serial verification.
+AppShell's shared 200 px navigation differs from the reference's 220 px rail;
+native window/compositor and matched Japanese dark-state evidence stay open.
+Run 1355 completed with exit 0: typecheck, lint/architecture, export, native
+collection workflow (2.1 seconds), and all 20 existing Material interaction
+tests (8.1 seconds). Its desktop and narrow images were inspected: two card
+columns beside navigation on desktop, one column below wrapped navigation and
+controls at 390 px, with no clipping. Cleanup 1356 found no owned test/guard
+processes; `git diff --check` passed. This is native-core browser evidence,
+not consuming-native GUI certification. The final guard sample was pressure 1,
+footprint 1550005376, headroom 7021690880. Swap increased to 4594073600 and
+swapOut to 60105834496 during this interval; cause is not attributed or resolved.
+The fresh post-cleanup sample was footprint 3095262336, available 7175651328,
+pressure 1 and swapUsed 4577296384. Further substantial work requires fresh
+stable admission; no devices/models have been started.
+Committed 34da32d mobile run 40632466908 finished failed: Android job
+122638181427 passed; iOS job 122638181218 failed the actual UI/persistence
+step. Foundation/desktop passed. Exact iOS assertion retrieval is in 1358;
+no rerun or diagnostic variant has been dispatched.
+The retrieved assertion differs from the older missing-row failure:
+at 05:38:43 UTC on October 28, `Watch Inspector Knowledge and native source
+resume` failed after 6m32s with `Element not found: Text matching regex:
+Open local video, Enabled`. This remains an unresolved consuming-iOS failure.
+Next capture reuses the retained Japanese native profile, authors only three
+real Material fixtures through the normal editor, and captures the normal
+persisted dark theme at desktop/narrow widths. Its helper closes browser,
+native QA host and guard before final-only notification; the existing user
+preview on 4173 is read-only and remains untouched.
+Capture 1359 closed its owned workloads but failed before authoring because
+the reference driver assumed a Japanese option `aria-label` the actual web
+primitive does not retain. The primitive's installed source confirms an
+Item/textValue boundary. The retry reads actual rendered option text and ID,
+requires a unique Japanese option and clicks that existing node. This is a
+driver repair, not a product failure or a staged state; no dark image is yet
+claimed. Its resource samples stayed safe with flat swapOut and declining swap.
+Capture 1360 established the actual menu labels `English` and
+`Japanese · 日本語`; neither option has an ID. It again closed without
+authoring. Stop extending CSS assumptions: the separate Material capture now
+uses the installed Playwright accessibility locators from the passing native
+suite, selecting the real `/Japanese/` option and exercising the same editor.
+No dependencies, renderer DOM or native data are patched for capture.
+Capture 1361 completed with exit 0 through the existing Playwright accessibility
+harness. Both native-persisted Dark Quartz images were inspected after owned
+cleanup: two 418 px columns at 1100 and one 342 px column at 390, authored
+readings/meanings visible, long existing `able` definition wrapping correctly.
+The retained earlier `able` Material is preserved: the real count is four,
+not an artificially matched three. Three Japanese fixtures were authored through
+the normal editor. No metadata/content was fabricated for the screenshots.
+Phase headroom was 5.41 GB, pressure 1, flat swapOut 60256894976 and declining
+swap at cleanup; OmO footprint 3657561216 remains unexplained. Diff/cleanup
+1362 and 1363 inspected the actual product change; no owned capture processes
+remained. Functional tests are from 1355; no product edit followed those tests.
+This connected increment is `verified_for_continuation`, not full visual or
+native acceptance. Sidebar width (200 versus 220), native materials and broader
+M10 controls remain explicit follow-up gates; no M11 transition is authorized
+until M10 passes its gates. Continue compound filter membership next.
 
 ### Knowledge presentation — verified local increment, M10 still open
 
