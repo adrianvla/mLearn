@@ -35,6 +35,35 @@ test('Material collections preserve exact counts and native order through paging
     await page.goto('/materials');
     await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath('material-collection-desktop.png') });
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await page.getByText('Loading filter options…', { exact: true }).waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: 'Group 1 add condition', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Condition 2 text', exact: true }).fill('entry-0');
+    await page.getByRole('button', { name: 'Group 1 add group', exact: true }).click();
+    await page.getByRole('button', { name: 'Group 3 add condition', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Condition 4 text', exact: true }).fill('entry-1');
+    await page.getByRole('button', { name: 'Group 3 add condition', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Condition 5 text', exact: true }).fill('entry-19');
+    await page.getByRole('button', { name: 'Condition 5 negated', exact: true }).click();
+    await page.getByRole('combobox', { name: /^Group 1 matching:/ }).click();
+    await page.getByRole('option', { name: 'Match any', exact: true }).click();
+    await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+    await expect(page.getByText('19 of 19 items', { exact: true })).toBeVisible();
+    for (let index = 0; index < 19; index++)
+      await expect(page.getByRole('button', { name: `Edit entry-${String(index).padStart(2, '0')}`, exact: true })).toBeAttached();
+    await expect(page.getByRole('button', { name: 'Edit entry-19', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('material-compound-filters-desktop.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Apply filters', exact: true }).scrollIntoViewIfNeeded();
+    const applyBounds = await page.getByRole('button', { name: 'Apply filters', exact: true }).boundingBox();
+    if (!applyBounds) throw new Error('Filter action has no visible bounds');
+    expect(applyBounds.x).toBeGreaterThanOrEqual(0);
+    expect(applyBounds.x + applyBounds.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: info.outputPath('material-compound-filters-phone.png') });
+    await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+    await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await page.setViewportSize({ width: 1080, height: 900 });
     await page.getByRole('combobox', { name: /^Material order:/ }).click();
     await page.getByRole('option', { name: 'Text A–Z', exact: true }).click();
     for (const material of saved.slice(0, 24))
@@ -63,6 +92,29 @@ test('Material collections preserve exact counts and native order through paging
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: /^Edit entry-/ }).first()).toBeInViewport();
     await page.screenshot({ path: info.outputPath('material-collection-phone.png') });
+    await page.getByRole('button', { name: 'Include excluded', exact: true }).click();
+    await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await page.getByRole('button', { name: 'Group 1 add condition', exact: true }).click();
+    await page.getByRole('combobox', { name: /^Condition 2 type:/ }).click();
+    await page.getByRole('option', { name: 'Material state', exact: true }).click();
+    await page.getByRole('combobox', { name: /^Condition 2 Material state:/ }).click();
+    await page.getByRole('option', { name: 'Excluded', exact: true }).click();
+    await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+    await expect(page.getByText('1 of 1 items', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit entry-24', exact: true })).toBeAttached();
+    await page.getByRole('button', { name: 'Condition 2 negated', exact: true }).click();
+    await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+    await expect(page.getByText('24 of 51 items', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Edit entry-24', exact: true })).toHaveCount(0);
+    const remove = page.getByRole('button', { name: 'Remove condition 2', exact: true });
+    await remove.focus();
+    await remove.press('Enter');
+    await expect(page.getByRole('button', { name: 'Group 1 add condition', exact: true })).toBeFocused();
+    await expect(page.getByText('24 of 51 items', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+    await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath('material-filter-keyboard-phone.png') });
   } finally {
     await backend.close();
   }

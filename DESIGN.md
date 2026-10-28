@@ -133,6 +133,24 @@ Update this file during implementation with actual reference-derived component c
 
 ## Material collection, 2026-10-28
 
+Collection filters use the same disclosure/editor on Knowledge and Material.
+Primary action within the editor: Apply filters. Native membership/counts are
+the result, not renderer evaluation. Preserve nested Match all/Match any groups,
+per-group/condition Not, removal and explicit Clear; search and current
+source/exclusion controls remain conjunctive outside the draft expression.
+Package metadata owns scope, level, entity-kind and capability choices.
+Recent native video/document records own source labels, with an explicit
+recent-source limit. Material collection language is separate from creation
+language; all-language saved content remains the default and remains readable
+without a catalog. Changing collection language clears incompatible conditions.
+Layout: compound filter editor - nested Boolean conditions in bounded shell
+controls -> wrapping rows with neutral group indentation; scroll owner:
+AppShell header (compact), results remain in app-shell-content. Do not port
+legacy token parsing/evaluation into React or use raw feature-local controls.
+The pre-filter Material captures are the baseline; expanded desktop/narrow
+capture and actual native predicate/count checks are required before another
+visible change.
+
 Layout: Material - compare authored items without nested list panels ->
 AppShell scroll-body shell with an intrinsic wrapping card grid; scroll owner:
 app-shell-content. The isolated running reference is

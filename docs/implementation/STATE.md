@@ -24,8 +24,8 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: extend the verified collection API/presentation with compound
-filters, bulk operations and remaining M10 flows, then the milestone gate.
+Current task: extend the verified collection/filter owners with bulk operations
+and remaining M10 flows, then the milestone gate.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -224,6 +224,113 @@ Diff/cleanup 1372 confirmed the two SQL changes, unchanged original assertions
 and no owned test/guard process. Post-cleanup footprint 3604460672, available
 6744621056, pressure 1, swapUsed 4524736512, swapOut 60321775616.
 This repairs native membership; the compound-filter controls are still pending.
+The native repair is committed/pushed at
+`92ad607aa053afcde49fbd303c6b849f0ab50701`. Exact hosted gates are foundation
+40640874535, desktop 40640874478 and mobile 40640874659, under final-only
+observer 1377. Earlier 77c58abb observation 1369 is retained, not canceled.
+
+Compound-filter implementation now has one shared CollectionFilters editor
+consumed by both Knowledge and Material, using existing shared controls.
+Draft all/any/not composition is presentation state; native SQL still owns
+membership. Package metadata supplies scope/level/kind/capability choices;
+bounded recent sources/documents supply source labels. Material adds a distinct
+collection language, retaining all-language browsing and its creation language.
+Apply/clear/language changes reset opaque paging and reject stale results.
+The UI retains native expression bounds with room for existing screen scope;
+no language-code dispatch or whole-profile evaluation was added.
+Knowledge/Material LSP found no errors; the new editor's freshness timeout is
+not a clean diagnostic. The existing real Material regression now exercises
+nested OR/AND/NOT: 19 exact entries, excludes entry-19, clears to 52, and captures
+expanded desktop/narrow controls before continuing original persistence checks.
+Render and inspect this connected change before any further visual edit.
+Run 1378 passed typecheck, then ownership lint stopped before export/render:
+Material imported the editor through Knowledge's private implementation path.
+The editor now has one `features/collection` owner and public index, consumed
+by both screens through that entry point. No ownership rule was changed.
+Rerun the same guarded checks/captures; no rendered-filter pass is yet claimed.
+Run 1379 passed typecheck, ownership lint, export, the real compound-filter/
+paging/edit/restart test (3.2 seconds) and all 20 Material interaction tests
+(8.4 seconds). Both expanded desktop/narrow images were inspected: the
+19-entry nested OR/AND/NOT query has exact membership, clear returns 52, and
+Apply/Clear remain reachable within the compact header's scrolling region.
+No further product UI edit followed those captures.
+The next serial QA reuses the retained prepared Japanese native profile, not
+a new corpus export. It selects collection language separately, applies a
+real package level and its negation on source-free Material, then level/scope/
+Knowledge predicates on Knowledge. Expected counts come from independent
+bounded native queries using the actual package metadata, not renderer
+evaluation. It captures both consumers at desktop/narrow widths in the
+persisted dark theme, then closes owned browser/native host/guard.
+Saved-source choice UI is still awaiting a real source-backed flow; existing
+Rust coverage is not being substituted for that remaining surface check.
+QA 1380 passed using actual package metadata: JLPT N1 Material count 0,
+negated level count 3; Knowledge JLPT N1 + JMdict + untracked Written
+recognition count 3093, matching independent bounded native queries.
+All four dark desktop/narrow captures were inspected. Compact controls use
+the existing independently scrolling header; the next captures explicitly
+scroll Apply into view rather than implying the truncated header is expanded
+evidence. Headroom stayed about 5.0 GB, pressure 1, flat swapOut and declining
+swap; owned cleanup completed before notification.
+The remaining source check will reuse the retained actual m01 MP4/SRT, obtain
+its real native cue and save that exact excerpt through the existing native
+Material command in the isolated QA profile. Source IDs, media/subtitle
+revisions and byte selection derive from that receipt, not fabricated anchors.
+It will exercise positive/negated saved-source UI membership and source-free
+retention. It also adds count-changing scope-negation/claimed-known cases to
+the Japanese UI check, so unchanged positive counts alone cannot certify the
+scope/state controls. No new media/model conversion or corpus export is needed.
+Source QA 1381 saved the exact real cue and rendered its positive count 1,
+but negation returned 0 and omitted source-free Material. Receipt 1382 found
+the cause: the reused `target/debug/examples/runtime_browser_qa` was built
+at 01:30:14+0100, before the SQL source edit at 06:52:46+0100. Its old SHA256
+was `7241b87ebf9b514d69e0b7dc98118a8bbf17033ae1eaeabe10c96ba74b17658c`.
+The storage test binary was current; this consuming QA executable was not.
+Do not count 1380/1381 as integration proof of the native SQL repair.
+Both positive source images were inspected after owned cleanup, but the full
+source workflow remains failed until rebuilt/retested. The guarded runner now
+explicitly builds `cargo build -p mlearn-runtime --example runtime_browser_qa`
+with one Cargo job before browser QA; source mode records the resulting hash
+and repeats the affected source and discriminating Knowledge flows. No product
+assertions or profile data were changed to hide this failure.
+Fresh-source QA 1383 passed after a 5.52-second serial runtime rebuild.
+Executable SHA256:
+`86f12be63649ce00e071ed37b8a7b4368e43a57b7878f1aa8fa6360b59ca1305`.
+Real saved-source filter count 1 and negated count 4 now agree with native
+membership and retain source-free Japanese Material. Source receipt:
+`material-5ea00ceee177058ca2c600c9931e60c534c44dd0e4bc77d0aa3d0193b7cc0e72`,
+cue 0, subtitle revision
+`f4f15b8c43016470724075b3e2b5ba9f0c32ffbb94fcf5a00d2bef2e8d6b710d`.
+Japanese scope negation and claimed-known selection each changed the count
+from 3093 to 0; restoring untracked returned 3093. New negative-source and
+Knowledge captures were inspected at both widths with compact Apply visible.
+Headroom stayed 4.86–5.11 GB, pressure 1, flat swap/swapOut; cleanup completed.
+The final targeted test addition exercises Excluded/Not Excluded via the actual
+shared selector after restart, then removes the focused condition with Enter
+and requires focus on the surviving group action. Run against unchanged UI
+first; no focus repair or passing claim is made yet. Only this changed native
+regression runs, reusing the already verified export and fresh QA executable.
+Run 1384 confirmed Excluded count 1 and negated count 51 after restart,
+then failed at line 113: removing the focused condition with Enter left the
+surviving group Add condition action inactive. The failure screenshot was
+inspected. The shared editor now retains live group-action refs, drops them
+on unmount and restores focus/accessibility focus to the surviving parent
+after removal. It does not apply an unsubmitted draft as a side effect.
+Both editor and test LSP diagnostics are clean. Re-export and rerun the
+unchanged regression plus the affected Material interaction suite next;
+package/source counts remain reusable because no predicate translation changed.
+Final filter run 1385 passed typecheck, ownership lint, export, current-source
+native QA build, the expanded native workflow (4.6 seconds), and all 20 existing
+Material interactions (8.5 seconds). The unchanged keyboard assertion now
+passes; removal keeps the applied 51-entry result until Apply explicitly
+returns all 52. The final narrow keyboard capture was inspected.
+Cleanup/diff receipt 1386 found no owned verification/browser/native/guard
+process and clean whitespace; the four original untracked files are preserved.
+Final guard: footprint 1552249984, pressure 1, headroom 5073305600, declining
+swapUsed 4222681088 and unchanged swapOut 60321775616. OmO allocation remains
+unexplained, not resolved by these bounded passing runs.
+Collection-filter behavior is `verified_for_continuation` (47/108 tracked items
+done), not M10/native GUI/visual acceptance. Next: bulk stable selection,
+supported add/edit/exclude/remove receipts, then grounded proposal review.
 
 ### Knowledge presentation — verified local increment, M10 still open
 

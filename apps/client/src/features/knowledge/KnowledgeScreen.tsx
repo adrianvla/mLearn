@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Platform, View, useWindowDimensions, type Text as NativeText } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native-unistyles';
-import type { CollectionPreparationCommand, CollectionPreparationStatus, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionPreparationCommand, CollectionPreparationStatus, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -12,6 +12,7 @@ import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Inspector, type Inspection } from '../inspector';
 import { LinguisticWord } from '../linguistic';
+import { CollectionFilters } from '../collection';
 
 export function KnowledgeScreen() {
   const host = useRuntime();
@@ -23,6 +24,7 @@ export function KnowledgeScreen() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<CollectionSort>('default');
+  const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
   const [after, setAfter] = useState<string | null>(null);
   const [result, setResult] = useState<CollectionResult | null>(null);
   const [description, setDescription] = useState<LanguageDescription | null>(null);
@@ -36,7 +38,7 @@ export function KnowledgeScreen() {
   const heading = useRef<NativeText>(null);
   const inspectionChanged = useRef(false);
   const loadedQuery = useRef('');
-  const queryKey = JSON.stringify([packageId, query, sort, after]);
+  const queryKey = JSON.stringify([packageId, query, filter, sort, after]);
   useFocusEffect(useCallback(() => {
     if (!host.available) return;
     const scope = {};
@@ -63,15 +65,15 @@ export function KnowledgeScreen() {
       loadedQuery.current = queryKey; setResult(null); setDescription(null);
     }
     void Promise.all([host.client.collection({
-      packageId, surface: 'knowledge', filter: { kind: 'text', text: query }, sort, after,
+      packageId, surface: 'knowledge', filter: { kind: 'all', filters: [{ kind: 'text', text: query }, filter] }, sort, after,
     }), host.client.describeLanguage(packageId)]).then(([value, language]) => {
       if (active) { setResult(value); setDescription(language); }
     })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
       .finally(() => { if (active) setPending(false); });
     return () => { active = false; };
-  }, [host, packageId, query, sort, after, queryKey, reload]));
-  useEffect(() => { setInspection(null); }, [packageId, query, sort, after]);
+  }, [host, packageId, query, filter, sort, after, queryKey, reload]));
+  useEffect(() => { setInspection(null); }, [packageId, query, filter, sort, after]);
   async function prepare() {
     if (!host.available || preparing.current || !packageId) return;
     const scope = owner.current;
@@ -114,7 +116,7 @@ export function KnowledgeScreen() {
       <Button label="Material" variant="quiet" size="compact" onPress={() => router.push('../materials')} /></Row>
     <Row><Select label="Knowledge language" value={packageId}
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
-      onValueChange={value => { setAfter(null); setPackageId(value); }} />
+      onValueChange={value => { setAfter(null); setFilter({ kind: 'all', filters: [] }); setPackageId(value); }} />
       <Select label="Knowledge order" value={sort} options={[
         { value: 'default', label: 'Package order' },
         { value: 'label_ascending', label: 'Word A–Z' },
@@ -130,6 +132,8 @@ export function KnowledgeScreen() {
       onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
       <Button label="Search" icon="search" size="compact" variant="secondary"
         disabled={pending} onPress={() => { setAfter(null); setQuery(search); }} /></Row>
+    {host.available && packageId ? <CollectionFilters key={packageId} client={host.client} packageId={packageId}
+      value={filter} onApply={value => { setAfter(null); setFilter(value); }} /> : null}
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.results} accessibilityLiveRegion="polite">

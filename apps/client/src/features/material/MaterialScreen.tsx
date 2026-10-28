@@ -13,6 +13,7 @@ import { Badge } from '@mlearn/ui/badge';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialEditor } from './MaterialEditor';
 import { emptyMaterial } from './content';
+import { CollectionFilters } from '../collection';
 
 const orders = [
   { value: 'default', label: 'Default order' },
@@ -46,6 +47,8 @@ export function MaterialScreen() {
   const [includeExcluded, setIncludeExcluded] = useState(false);
   const [result, setResult] = useState<CollectionResult | null>(null);
   const [sort, setSort] = useState<CollectionSort>('default');
+  const [collectionPackageId, setCollectionPackageId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
   const page = result?.state === 'ready' ? result.page : null;
   const [packages, setPackages] = useState<PluginSummary[]>([]);
   const [packageId, setPackageId] = useState('');
@@ -62,7 +65,7 @@ export function MaterialScreen() {
   const heading = useRef<NativeText>(null);
   const collectionHeading = useRef<NativeText>(null);
   const loadedQuery = useRef('');
-  const queryKey = JSON.stringify([after, query, sort, sourceId, sourceOnly, includeExcluded]);
+  const queryKey = JSON.stringify([after, query, filter, collectionPackageId, sort, sourceId, sourceOnly, includeExcluded]);
   const restore = useRef<string | null>(null);
   const focusedEditor = useRef<string | null>(null);
   const opened = useRef('');
@@ -89,12 +92,12 @@ export function MaterialScreen() {
     let active = true;
     setPending(true); setError('');
     if (loadedQuery.current !== queryKey) setResult(null);
-    const filters: CollectionFilter[] = [];
+    const filters: CollectionFilter[] = [filter];
     if (query) filters.push({ kind: 'text', text: query });
     if (!includeExcluded) filters.push({ kind: 'material', state: 'not_excluded' });
     if (sourceOnly && sourceId) filters.push({ kind: 'source', sourceId });
     void Promise.all([
-      host.client.collection({ packageId: null, surface: 'material',
+      host.client.collection({ packageId: collectionPackageId, surface: 'material',
         filter: { kind: 'all', filters }, sort, after }),
       host.client.snapshot(),
     ]).then(([value, snapshot]) => {
@@ -106,7 +109,7 @@ export function MaterialScreen() {
       if (active) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
-  }, [host, after, query, sort, sourceId, sourceOnly, includeExcluded, reload, queryKey]));
+  }, [host, after, query, filter, collectionPackageId, sort, sourceId, sourceOnly, includeExcluded, reload, queryKey]));
   const open = useCallback(async (id: string, trigger: string | null) => {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
@@ -196,11 +199,18 @@ export function MaterialScreen() {
       {page ? <Text variant="caption" muted>{page.items.length} of {page.count} items</Text> : null}
     </Row> : null}
     {host.available ? <Row>
+      <Select label="Material collection language" value={collectionPackageId ?? '*'} size="compact"
+        options={[{ value: '*', label: 'All languages' }, ...packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))]}
+        onValueChange={value => {
+          setAfter(null); setFilter({ kind: 'all', filters: [] }); setCollectionPackageId(value === '*' ? null : value);
+        }} />
       <Button label="Include excluded" variant="secondary" size="compact" accessibilityState={{ selected: includeExcluded }}
         onPress={() => { setAfter(null); setIncludeExcluded(value => !value); }} />
       {sourceId ? <Button label="This source only" variant="secondary" size="compact" accessibilityState={{ selected: sourceOnly }}
         onPress={() => { setAfter(null); setSourceOnly(value => !value); }} /> : null}
     </Row> : null}
+    {host.available ? <CollectionFilters key={collectionPackageId ?? '*'} client={host.client} packageId={collectionPackageId}
+      sourceId={sourceId} value={filter} onApply={value => { setAfter(null); setFilter(value); }} /> : null}
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       {opening?.trigger === null ? openStatus(opening.id) : null}
