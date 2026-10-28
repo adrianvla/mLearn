@@ -2,9 +2,11 @@ import type {
   MaterialContent, MaterialProposal, MaterialProposalAcceptance, MaterialProposalDecision,
   MaterialProposalQuery, MaterialProposalReceipt, MaterialProposalReview, MaterialReference,
   MaterialSuggestion, Request, Response,
+  MaterialGenerationBasis, MaterialGenerationStart, MaterialGenerationReport,
 } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
-import { encodedBytes, isMaterialContent, isMaterialResponse } from './materialProtocol';
+import { encodedBytes, isMaterialContent, isMaterialResponse, isSourceAnchor } from './materialProtocol';
+import { isConversationGeneration, isConversationResponse } from './conversationProtocol';
 
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -57,12 +59,28 @@ function basis(value: MaterialContent) {
       source.text, Object.entries(source.locator).sort(([a], [b]) => a.localeCompare(b))],
   ]);
 }
-type ProposalResponse = Extract<Response, { type: 'material_proposals' | 'material_proposal' | 'material_proposal_reviewed' }>;
+function generationReport(value: unknown): value is MaterialGenerationReport {
+  return object(value) && text(value.commandId, 128) && isConversationGeneration(value.generation)
+    && text(value.label, 2048) && typeof value.maximum === 'number' && Number.isInteger(value.maximum)
+    && value.maximum >= 1 && value.maximum <= 8 && typeof value.collected === 'boolean'
+    && Array.isArray(value.proposalIds) && value.proposalIds.length <= value.maximum
+    && value.proposalIds.every(id => text(id, 128)) && new Set(value.proposalIds).size === value.proposalIds.length
+    && Array.isArray(value.errors) && value.errors.length <= value.maximum + 1
+    && value.errors.every(error => text(error, 1200))
+    && (value.collected || value.proposalIds.length === 0 && value.errors.length === 0);
+}
+type ProposalResponse = Extract<Response, { type: 'material_proposals' | 'material_proposal' | 'material_proposal_reviewed'
+  | 'material_generation' | 'material_generations' }>;
 function response(value: unknown): value is ProposalResponse {
   if (!object(value)) return false;
   switch (value.type) {
     case 'material_proposal': return proposal(value.proposal);
     case 'material_proposal_reviewed': return receipt(value.receipt);
+    case 'material_generation': return generationReport(value.report);
+    case 'material_generations':
+      return object(value.page) && Array.isArray(value.page.items) && value.page.items.length <= 12
+        && value.page.items.every(generationReport) && (value.page.next === null || text(value.page.next, 128))
+        && encodedBytes(value.page.items) <= 196608;
     case 'material_proposals':
       return object(value.page) && Array.isArray(value.page.items) && value.page.items.length <= 12
         && value.page.items.every(proposal) && (value.page.next === null || text(value.page.next, 128))
@@ -71,14 +89,51 @@ function response(value: unknown): value is ProposalResponse {
   }
 }
 
-export function createMaterialProposalClient(request: (command: Request) => Promise<unknown>, commandId: () => string) {
+export function createMaterialProposalClient(request: (command: Request) => Promise<unknown>, commandId: () => string,
+  control: (command: Request) => Promise<unknown> = request) {
   const malformed = () => new RuntimeError('protocol', 'Malformed or mismatched Material proposal response.');
   async function read(command: Request) {
-    const value = await request(command);
+    const execute = command.type === 'material_generation' || command.type === 'material_generations'
+      || command.type === 'collect_material_generation' ? control : request;
+    const value = await execute(command);
     if (!response(value)) throw malformed();
     return value;
   }
   return {
+    prepareMaterialGeneration(basis: MaterialGenerationBasis, instruction: string, maximum = 4): MaterialGenerationStart {
+      if (!Number.isInteger(maximum) || maximum < 1 || maximum > 8
+        || new TextEncoder().encode(instruction).length > 2048
+        || (basis.kind === 'source' ? !isSourceAnchor(basis.source) : !text(basis.material.id) || !revision(basis.material.revision)))
+        throw new RuntimeError('invalid_request', 'Choose source text or existing Material and request 1–8 proposals.');
+      return { commandId: commandId(), basis: structuredClone(basis), instruction, maximum };
+    },
+    async generateMaterial(command: MaterialGenerationStart) {
+      const r = await control({ type: 'conversation', command: { action: 'generate_material', command: structuredClone(command) } });
+      if (!isConversationResponse(r) || r.result.kind !== 'generation' || r.result.generation.retryOf !== null) throw malformed();
+      const started = r.result.generation;
+      const status = await read({ type: 'material_generation', id: started.id });
+      if (status.type !== 'material_generation' || status.report.commandId !== command.commandId
+        || status.report.maximum !== command.maximum || status.report.generation.id !== started.id
+        || status.report.generation.conversationId !== started.conversationId) throw malformed();
+      return status.report;
+    },
+    async materialGeneration(id: string) {
+      const r = await read({ type: 'material_generation', id });
+      if (r.type !== 'material_generation' || r.report.generation.id !== id) throw malformed();
+      return r.report;
+    },
+    async materialGenerations(after: string | null = null) {
+      const r = await read({ type: 'material_generations', after });
+      if (r.type !== 'material_generations'
+        || r.page.items.some((item, index) => item.generation.id <= (index === 0 ? after ?? '' : r.page.items[index - 1].generation.id))
+        || r.page.next !== null && r.page.next !== r.page.items.at(-1)?.generation.id) throw malformed();
+      return r.page;
+    },
+    async collectMaterialGeneration(id: string) {
+      const r = await read({ type: 'collect_material_generation', id });
+      if (r.type !== 'material_generation' || r.report.generation.id !== id || !r.report.collected) throw malformed();
+      return r.report;
+    },
     async materialProposals(query: MaterialProposalQuery) {
       const r = await read({ type: 'material_proposals', query });
       if (r.type !== 'material_proposals'

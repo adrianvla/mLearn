@@ -107,7 +107,7 @@ export function createRuntimeClient(transport: Transport) {
     ...createConversationClient(request, () => transport.commandId(), execute),
     ...createMaterialClient(request, () => transport.commandId()),
     ...createMaterialBulkClient(execute, () => transport.commandId()),
-    ...createMaterialProposalClient(request, () => transport.commandId()),
+    ...createMaterialProposalClient(request, () => transport.commandId(), execute),
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),
     ...createOcrClient(request, () => transport.commandId()),

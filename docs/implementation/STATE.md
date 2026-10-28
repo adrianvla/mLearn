@@ -26,7 +26,7 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: source-grounded generated/suggested Material proposal review,
 then the remaining M10 flows.
-Latest checkpoint: `134fac93f6b5f21da269856fee48e8187341b303` is pushed with
+Latest checkpoint: `42d13e665d656b7d088ecec32da6ada727e17758` is pushed with
 the verified native bulk engine, selection amendments, typed client and shared
 selection/bulk UI.
 The consumer-boundary increment adds immutable row amendments,
@@ -39,13 +39,14 @@ five-scenario native GUI and 20 desktop/narrow Material regressions pass,
 including Retry/Clear, alongside authentic Japanese addition outcomes.
 This bulk increment is verified for continuation; M10 native/compositor,
 independent-review and remaining feature gates are still open.
-The uncommitted proposal owner adds source/existing-Material-grounded text
+The committed proposal owner adds source/existing-Material-grounded text
 drafts, immutable identity, editable fields, explicit accept/reject and atomic
 Material/receipt publication. Its six new persistence tests and all123 storage
 tests pass. Native dispatch, Rust-generated contracts and a typed client passed
 integration checks, including the repaired cross-language replacement regression.
-Shared native generation lifecycle and the
-actual review UI remain unimplemented; MAT-07 and M10 are not complete.
+Shared native generation integration is now uncommitted and verified at its
+native/storage/client boundaries; the
+actual review UI remains unimplemented. MAT-07 and M10 are not complete.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -655,6 +656,54 @@ increment, not generated-provider behavior, GUI completion or MAT-07 acceptance.
 Next integration must reuse the existing native generation worker, provider
 settings/session credential, trace and cancellation owners, not add another
 queue or a renderer-owned parser/admission path.
+
+Native proposal checkpoint42d13e66 is committed/pushed on the existing stacked
+draft. Exact desktop40703061791 passed; mobile40703061767 remains under its
+existing observer. Foundation40703061724 passed Rust/web/OCR/macOS but failed
+Windows122871010373 at2026-10-28T14:27:12Z during actual native theme input:
+expected Dark Quartz JSON, received unchanged Slate JSON. The runner reported
+the expected clipboard/focused editor. This is an observed input-loss failure,
+not a diagnosed cause or an overall foundation pass. Its failed job log was
+retrieved; no diagnostic variant, workflow rerun or local device was launched.
+
+The uncommitted generation integration reuses ConversationOwner's single
+provider worker, session credential, settings, bounded SSE transport, trace,
+explicit retry and cancellation. New source/Material generation admission and
+its marker commit in the existing conversation receipt transaction. Schema19
+adds only bounded generation-review metadata; actual submitted input/output
+stay in the existing conversation content owner. Ordinary conversation text or
+an edited purpose cannot authorize proposal admission.
+Native collection is explicit and atomic after complete/failed/interrupted
+output, preserves good JSON lines with per-candidate failures, rejects invented
+dictionary/source fields, and derives UTF-8 quote occurrences from the original
+selection. Cancelled/invalidated work cannot be collected. Existing Material
+revisions fence generation publication and replacement collection; retry keeps
+the original inputs and uses the same worker. No automatic learner evidence or
+Material acceptance is introduced.
+Three new SQLite scenarios cover partial UTF-8 grounding/restart/retry,
+collection rollback/replay and stale/cancelled admission. Three event-driven
+native HTTP/SSE tests exercise actual common-provider generation/collection/
+acceptance, shared worker admission/cancellation and missing-provider retention.
+Two typed-client tests cover held/lost admission receipts, independent control
+and bounded/correlated recovery reports. None is run yet. Native diagnostics are
+clean; generated TypeScript is stale until the next guarded integration run.
+The review UI and real app/provider-fixture workflows remain open.
+
+Shared generation run1517 passed Rust contract generation, all126 storage tests,
+all six native conversation/provider tests (including the three new generation
+cases), both native proposal tests, all five native Material tests, typecheck,
+ownership lint and all43 targeted client tests. Log:
+`material-generation-native-verify.log`. These tests use the actual shared
+native HTTP/SSE worker and event subscriptions, not a renderer parser or mocked
+state transitions. Source quotes/UTF-8 occurrence ranges, partial failures,
+explicit collection/acceptance, exact replay, provider absence, shared worker
+admission and cancellation are verified. No application UI is yet connected.
+Final sample: footprint1634792576, available7031128064, pressure1,
+swapUsed4001038336, swapOut71340490752; the guard retains its 2GiB workload and
+4GiB reserve. Historical OmO allocation/swap growth remains unresolved.
+The next visible increment must reuse the existing shared Material editor/control
+owners, expose saved proposals and retained generation recovery without an
+optional provider, and verify real desktop/narrow source-grounded workflows.
 
 Exact selection910aac71 iOS122818462698 failed at
 2026-10-28T13:38:50Z: `Assertion is false: id: m01-watch, mp4 is not visible`.

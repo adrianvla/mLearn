@@ -126,6 +126,64 @@ fn draft(value: &MaterialContent, replaces: bool) -> Result<(), StorageError> {
     Ok(())
 }
 
+pub(super) fn suggest(
+    db: &Connection,
+    command: &MaterialSuggestion,
+    generation: Option<&GenerationId>,
+) -> Result<MaterialProposalReceipt, StorageError> {
+    bounded(&command.command_id, 128)?;
+    let payload = match generation {
+        None => serde_json::to_vec(&("suggest", command))?,
+        Some(id) => serde_json::to_vec(&("generated", command, id))?,
+    };
+    let digest = Sha256::digest(payload);
+    if let Some(receipt) = previous(db, &command.command_id, &digest)? {
+        return Ok(receipt);
+    }
+    draft(&command.content, command.replaces.is_some())?;
+    if let Some(reference) = &command.replaces {
+        let original = read_material(db, &reference.id)?;
+        if original.revision != reference.revision {
+            return Err(StorageError::Conflict);
+        }
+        let mut identity = original.content;
+        identity.attachments.clear();
+        identity.phrase.clone_from(&command.content.phrase);
+        identity.reading.clone_from(&command.content.reading);
+        identity.meaning.clone_from(&command.content.meaning);
+        identity.context.clone_from(&command.content.context);
+        identity.notes.clone_from(&command.content.notes);
+        identity.examples.clone_from(&command.content.examples);
+        if identity != command.content {
+            return Err(StorageError::Invalid(
+                "A replacement proposal cannot change source or dictionary identity".into(),
+            ));
+        }
+    }
+    let count: u32 = db.query_row(
+        "SELECT COUNT(*) FROM material_proposals WHERE pending=1",
+        [],
+        |row| row.get(0),
+    )?;
+    if count >= 128 {
+        return Err(StorageError::Invalid(
+            "Review pending Material proposals before adding more".into(),
+        ));
+    }
+    let proposal = MaterialProposal {
+        id: MaterialProposalId(format!(
+            "proposal-{:x}",
+            Sha256::digest(command.command_id.as_bytes())
+        )),
+        revision: 1,
+        content: command.content.clone(),
+        replaces: command.replaces.clone(),
+        generation_id: generation.cloned(),
+        state: MaterialProposalState::Pending,
+    };
+    persist(db, &command.command_id, &digest, proposal, None)
+}
+
 impl ProfileStore {
     pub fn material_proposal(
         &self,
@@ -147,56 +205,10 @@ impl ProfileStore {
         &mut self,
         command: &MaterialSuggestion,
     ) -> Result<MaterialProposalReceipt, StorageError> {
-        bounded(&command.command_id, 128)?;
-        let digest = Sha256::digest(serde_json::to_vec(&("suggest", command))?);
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if let Some(receipt) = previous(&tx, &command.command_id, &digest)? {
-            return Ok(receipt);
-        }
-        draft(&command.content, command.replaces.is_some())?;
-        if let Some(reference) = &command.replaces {
-            let original = read_material(&tx, &reference.id)?;
-            if original.revision != reference.revision {
-                return Err(StorageError::Conflict);
-            }
-            let mut identity = original.content;
-            identity.attachments.clear();
-            identity.phrase.clone_from(&command.content.phrase);
-            identity.reading.clone_from(&command.content.reading);
-            identity.meaning.clone_from(&command.content.meaning);
-            identity.context.clone_from(&command.content.context);
-            identity.notes.clone_from(&command.content.notes);
-            identity.examples.clone_from(&command.content.examples);
-            if identity != command.content {
-                return Err(StorageError::Invalid(
-                    "A replacement proposal cannot change source or dictionary identity".into(),
-                ));
-            }
-        }
-        let count: u32 = tx.query_row(
-            "SELECT COUNT(*) FROM material_proposals WHERE pending=1",
-            [],
-            |row| row.get(0),
-        )?;
-        if count >= 128 {
-            return Err(StorageError::Invalid(
-                "Review pending Material proposals before adding more".into(),
-            ));
-        }
-        let proposal = MaterialProposal {
-            id: MaterialProposalId(format!(
-                "proposal-{:x}",
-                Sha256::digest(command.command_id.as_bytes())
-            )),
-            revision: 1,
-            content: command.content.clone(),
-            replaces: command.replaces.clone(),
-            generation_id: None,
-            state: MaterialProposalState::Pending,
-        };
-        let receipt = persist(&tx, &command.command_id, &digest, proposal, None)?;
+        let receipt = suggest(&tx, command, None)?;
         tx.commit()?;
         Ok(receipt)
     }

@@ -120,3 +120,47 @@ pub struct MaterialProposalPage {
     pub items: Vec<MaterialProposal>,
     pub next: Option<MaterialProposalId>,
 }
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum MaterialGenerationBasis {
+    Source { source: crate::SourceAnchor },
+    Material { material: MaterialReference },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialGenerationStart {
+    pub command_id: String,
+    pub basis: MaterialGenerationBasis,
+    pub instruction: String,
+    pub maximum: u8,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialGenerationReport {
+    pub command_id: String,
+    pub generation: crate::ConversationGeneration,
+    pub label: String,
+    pub maximum: u8,
+    /// Collection is an explicit, atomic review admission, never learner evidence.
+    pub collected: bool,
+    pub proposal_ids: Vec<MaterialProposalId>,
+    pub errors: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialGenerationPage {
+    pub items: Vec<MaterialGenerationReport>,
+    pub next: Option<GenerationId>,
+}

@@ -388,6 +388,9 @@ impl Runtime {
             | Request::Materials { .. }
             | Request::Material { .. }
             | Request::MaterialProposals { .. }
+            | Request::MaterialGeneration { .. }
+            | Request::MaterialGenerations { .. }
+            | Request::CollectMaterialGeneration { .. }
             | Request::MaterialProposal { .. }
             | Request::SuggestMaterial { .. }
             | Request::ReviewMaterialProposal { .. }

@@ -1,7 +1,7 @@
 use crate::{Runtime, execution::Failure};
 use mlearn_core::*;
 
-fn storage(error: mlearn_storage::StorageError) -> Failure {
+pub(super) fn storage(error: mlearn_storage::StorageError) -> Failure {
     let code = if matches!(error, mlearn_storage::StorageError::Conflict) {
         "conflict"
     } else {
@@ -17,6 +17,18 @@ impl Runtime {
         epoch: u64,
     ) -> Result<Response, Failure> {
         match request {
+            Request::MaterialGeneration { id } => Ok(Response::MaterialGeneration {
+                report: self.store.material_generation(&id).map_err(storage)?,
+            }),
+            Request::MaterialGenerations { after } => Ok(Response::MaterialGenerations {
+                page: self
+                    .store
+                    .material_generations(after.as_ref())
+                    .map_err(storage)?,
+            }),
+            Request::CollectMaterialGeneration { id } => Ok(Response::MaterialGeneration {
+                report: self.collect_material_generation(&id)?,
+            }),
             Request::MaterialProposals { query } => Ok(Response::MaterialProposals {
                 page: self.store.material_proposals(&query).map_err(storage)?,
             }),

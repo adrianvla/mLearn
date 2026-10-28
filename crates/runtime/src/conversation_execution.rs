@@ -80,6 +80,7 @@ impl ConversationOwner {
         match command {
             command @ (ConversationCommand::SendTurn { .. }
             | ConversationCommand::RetryGeneration { .. }
+            | ConversationCommand::GenerateMaterial { .. }
             | ConversationCommand::Explain { .. }) => self.start(runtime, command),
             ConversationCommand::SetSessionCredential { credential } => {
                 if credential.as_ref().is_some_and(|value| {
@@ -167,6 +168,7 @@ impl ConversationOwner {
             ConversationCommand::SendTurn { turn } => turn.command_id.clone(),
             ConversationCommand::RetryGeneration { retry } => retry.command_id.clone(),
             ConversationCommand::Explain { command_id, .. } => command_id.clone(),
+            ConversationCommand::GenerateMaterial { command } => command.command_id.clone(),
             _ => return Err(Failure::Operation("Expected a generation action".into())),
         };
         let secret = self.credential.lock().map_err(|_| poisoned())?.clone();
@@ -308,7 +310,8 @@ impl ConversationOwner {
                 GenerationStatus::Pending | GenerationStatus::Streaming
             ) {
                 let mut owner = runtime.lock().map_err(|_| poisoned())?;
-                if let Err(error) = validate_origins(&owner, &active.sources) {
+                if let Err(error) = validate_origins(&owner, &active.generation_id, &active.sources)
+                {
                     let generation = owner
                         .store
                         .finish_conversation_generation(&GenerationFinish {
@@ -416,6 +419,9 @@ fn prompt_request(
     config: &ConversationProviderSettings,
     secret: Option<String>,
 ) -> Result<(ProviderRequest, String, Vec<SourceAnchor>), ProviderError> {
+    runtime
+        .validate_material_generation(&context.generation.id)
+        .map_err(|error| ProviderError::Publication(error.to_string()))?;
     let response = runtime
         .store
         .read_conversation_message(&context.generation.assistant_message_id)
@@ -528,7 +534,7 @@ fn run_request(
                 .checked_add(1)
                 .ok_or("Generation sequence exhausted")?;
             let mut owner = runtime.lock().map_err(|_| "Native runtime lock poisoned")?;
-            validate_origins(&owner, sources).map_err(|error| error.to_string())?;
+            validate_origins(&owner, id, sources).map_err(|error| error.to_string())?;
             owner
                 .store
                 .append_conversation_delta(&GenerationDelta {
@@ -605,7 +611,7 @@ fn run_request(
         return Ok(());
     }
     let result = result.and_then(|response| {
-        validate_origins(&owner, sources)
+        validate_origins(&owner, id, sources)
             .map_err(|error| ProviderError::Publication(error.to_string()))?;
         Ok(response)
     });
@@ -635,7 +641,12 @@ fn receipt(id: &GenerationId, phase: &str) -> String {
     )
 }
 
-fn validate_origins(runtime: &Runtime, sources: &[SourceAnchor]) -> Result<(), Failure> {
+fn validate_origins(
+    runtime: &Runtime,
+    id: &GenerationId,
+    sources: &[SourceAnchor],
+) -> Result<(), Failure> {
+    runtime.validate_material_generation(id)?;
     for source in sources {
         runtime.validate_capture_source(source)?;
     }

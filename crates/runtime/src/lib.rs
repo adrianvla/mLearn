@@ -16,6 +16,7 @@ mod language;
 mod linguistic;
 mod material;
 mod material_bulk;
+mod material_generation;
 mod material_media;
 mod material_proposal;
 mod material_source;
@@ -359,6 +360,9 @@ impl Runtime {
                 Ok(Response::Saved { revision })
             }
             request @ (Request::MaterialProposals { .. }
+            | Request::MaterialGeneration { .. }
+            | Request::MaterialGenerations { .. }
+            | Request::CollectMaterialGeneration { .. }
             | Request::MaterialProposal { .. }
             | Request::SuggestMaterial { .. }
             | Request::ReviewMaterialProposal { .. }

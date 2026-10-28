@@ -165,6 +165,15 @@ pub enum Request {
     MaterialProposals {
         query: crate::MaterialProposalQuery,
     },
+    MaterialGeneration {
+        id: crate::GenerationId,
+    },
+    MaterialGenerations {
+        after: Option<crate::GenerationId>,
+    },
+    CollectMaterialGeneration {
+        id: crate::GenerationId,
+    },
     MaterialProposal {
         id: crate::MaterialProposalId,
     },

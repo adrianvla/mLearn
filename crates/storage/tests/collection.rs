@@ -1047,7 +1047,7 @@ fn schema_twelve_catalog_rebuild_preserves_material_claims_and_receipts() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        18
+        19
     );
 }
 

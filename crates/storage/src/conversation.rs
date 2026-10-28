@@ -1,6 +1,6 @@
-use crate::{ProfileStore, StorageError, conversation_read::*};
+use crate::{conversation_read::*, ProfileStore, StorageError};
 use mlearn_core::*;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
@@ -67,6 +67,7 @@ fn command_identity(command: &ConversationCommand) -> Option<&str> {
         | ConversationCommand::Explain { command_id, .. } => Some(command_id),
         ConversationCommand::SendTurn { turn } => Some(&turn.command_id),
         ConversationCommand::RetryGeneration { retry } => Some(&retry.command_id),
+        ConversationCommand::GenerateMaterial { command } => Some(&command.command_id),
         ConversationCommand::ListContacts { .. }
         | ConversationCommand::GetContact { .. }
         | ConversationCommand::ListConversations { .. }
@@ -492,6 +493,9 @@ fn execute(
         } => R::Generation {
             generation: admit_explanation(db, command_id, source, instruction)?,
         },
+        C::GenerateMaterial { command } => R::Generation {
+            generation: crate::material_generation::admit(db, command)?,
+        },
         C::SetSessionCredential { .. }
         | C::AnalyzeVisibleMessages { .. }
         | C::AnalyzeMessageSource { .. } => {
@@ -510,31 +514,7 @@ fn admit_explanation(
 ) -> Result<ConversationGeneration, StorageError> {
     // Runtime has already validated source identity/selection and provider
     // readiness. Only related content is admitted in this receipt transaction.
-    let participant = ContactId(CONVERSATION_EXPLANATION_CONTACT_ID.into());
-    let exists: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM conversation_contacts WHERE id=?1)",
-        [&participant.0],
-        |r| r.get(0),
-    )?;
-    if exists {
-        if contact(db, &participant)?.archived {
-            return Err(invalid(
-                "Restore the archived Assistant contact before requesting an explanation",
-            ));
-        }
-    } else {
-        let assistant = Contact {
-            id: participant.clone(),
-            revision: 1,
-            name: "Assistant".into(),
-            description: "Software assistant for contextual language explanations.".into(),
-            archived: false,
-        };
-        db.execute(
-            "INSERT INTO conversation_contacts VALUES(?1,?2)",
-            params![participant.0, serde_json::to_string(&assistant)?],
-        )?;
-    }
+    let participant = assistant(db)?;
     let digest = format!("{:x}", Sha256::digest(command_id.as_bytes()));
     let owner = Conversation {
         id: ConversationId(format!("explanation-{digest}")),
@@ -570,6 +550,35 @@ fn admit_explanation(
             sources: vec![source.clone()],
         },
     )
+}
+
+pub(super) fn assistant(db: &Connection) -> Result<ContactId, StorageError> {
+    let participant = ContactId(CONVERSATION_EXPLANATION_CONTACT_ID.into());
+    let exists: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM conversation_contacts WHERE id=?1)",
+        [&participant.0],
+        |r| r.get(0),
+    )?;
+    if exists {
+        if contact(db, &participant)?.archived {
+            return Err(invalid(
+                "Restore the archived Assistant contact before requesting generation",
+            ));
+        }
+    } else {
+        let assistant = Contact {
+            id: participant.clone(),
+            revision: 1,
+            name: "Assistant".into(),
+            description: "Software assistant for contextual language explanations.".into(),
+            archived: false,
+        };
+        db.execute(
+            "INSERT INTO conversation_contacts VALUES(?1,?2)",
+            params![participant.0, serde_json::to_string(&assistant)?],
+        )?;
+    }
+    Ok(participant)
 }
 
 fn mutate_message(

@@ -369,6 +369,9 @@ pub enum ConversationCommand {
         source: SourceAnchor,
         instruction: String,
     },
+    GenerateMaterial {
+        command: crate::MaterialGenerationStart,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

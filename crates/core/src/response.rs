@@ -126,6 +126,12 @@ pub enum Response {
     MaterialProposals {
         page: crate::MaterialProposalPage,
     },
+    MaterialGeneration {
+        report: crate::MaterialGenerationReport,
+    },
+    MaterialGenerations {
+        page: crate::MaterialGenerationPage,
+    },
     MaterialProposal {
         proposal: crate::MaterialProposal,
     },
