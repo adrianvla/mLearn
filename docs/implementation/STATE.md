@@ -24,8 +24,9 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: connect native collection/catalog preparation to real package
-producers and the typed client, then complete the remaining M10 flows and gate.
+Current task: build the shared collection presentation over the verified native
+preparation/read API and typed client, then complete the remaining M10 flows
+and gate. No collection GUI or M10 milestone completion is claimed.
 New execution note:
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
 The historical M03–M07 record follows; its older ceiling is not a stop on the
@@ -191,11 +192,70 @@ language/collection operation. Its production owner `runtime/src/catalog.rs`
 has identical blob51ea8ba6 at8a4f350 and98ba; no assertion or product HTTP code
 was changed to hide it. This remains an open platform/test finding, not a
 passing full runtime suite. Source98ba real desktop CI passed40603221290;
-native-mobile40603221308 is still observed, with no diagnostic variant.
+native-mobile40603221308 completed: Android122536239924 passed; original
+iOS122536239666 failed the deferred `m01-watch, mp4 is not visible` assertion.
+Its observers are closed, with no diagnostic variant.
 
 Guard1222 is stopped. Post-run footprint4182144128, RSS3275128832,
 available6568738816, pressure1, swapUsed4078108672, swapOut50273304576.
 Native preparation/client flows remain the next implementation work.
+
+### Native collection API and full corpora — `f3eea3c`, `3b9d49a`
+
+`f3eea3c` connects bounded native queries, package preparation, replayable command
+identity, independent status/cancel and generated typed clients. One native
+controller reuses the host blocking call, existing three-call admission and
+per-page guest admission; no scheduler, worker pool or database is duplicated.
+Publication checks package revision and shares the cancellation boundary.
+Authored Material remains readable without complete optional metadata.
+
+Actual DesktopDownloaded/authenticated-fixture QA through that typed client
+prepared all206978 English targets in110846ms and all218923 Japanese targets
+in278227ms. Both returned48 distinct identities across two sorted24-row query
+pages, exact untracked counts, unchanged pages after process restart and an
+identical replayed preparation outcome. English scopes counted146347 nouns,
+25047 verbs,30004 adjectives and5580 adverbs. Japanese's JMdict scope counted
+218923; package-owned JLPT memberships counted N1:3093,N2:1708,N3:1646,
+N4:610,N5:648. Compound level/untracked/unsaved counts matched; authored Material
+was genuinely empty. This is native-owner/transport evidence, not rendered GUI,
+mobile binary or maintainer acceptance.
+
+The initial Japanese24-entry page failed at18744 entries, cursor
+`entry/1207490`, on the unchanged64M fuel allowance. Its profile is retained.
+An exact source-window probe failed at24 and passed at12 using35.8M fuel;
+all24 single-entry probes passed. `3b9d49a` caps the package-owned effective
+page at12, advances Japanese to0.1.9 and preserves the native fuel guard.
+No core language branch, retry shim, source/model pin or assertion was changed.
+The complete fresh-profile run above proves the repaired corpus, not only the
+original failing window. Japanese Wasm SHA256 is
+`3c4d10904acd2b814830d809f164a4d67bdf1befd2589c85609c3a33892b8cd4`;
+English remains50166a12 and both dictionary asset hashes remain unchanged.
+
+Passing serial checks: storage100, runtime library52, ABI1 offline1, real
+Japanese runtime2, Japanese plugin27 and typed-client69 tests. The native
+commit-event test proves cancellation at24, restart/resume at48 and isolation
+from an old cancel command. Project typecheck, architecture and contract
+freshness pass. Existing ts-rs attribute and vendored Sudachi lifetime warnings
+remain visible, not suppressed. The earlier isolated Darwin HTTP shutdown
+failure and Windows native input failure above remain unresolved.
+
+Published a1d6092 automatic evidence: real desktop40605543357 passed.
+Foundation40605543383 Rust, web, detector and macOS passed; Windows theme
+job122545898220 failed `Incomplete native theme input` despite focused-editor
+telemetry. Mobile40605543386 Android122559113179 passed; original
+iOS122559112784 failed the deferred `m01-watch, mp4 is not visible` assertion.
+All source-a1d6092 observers are terminal and closed. These receipts do not
+certify the newer native collection API on mobile or close retained M07 gaps.
+
+All local QA hosts/fixture servers and guards are stopped. Before the repaired
+run, an idle OmO allocation spiked to13.313GB footprint with pressure2 after the
+probe had exited; no product/device workload is blamed. Its cause is still
+unexplained. Fresh admission subsequently showed stable footprint/pressure/swap.
+Final footprint2768860288, RSS7733395456, available7625752576, pressure1,
+swapUsed5432737792, swapOut52846051328; disk18604348KiB available.
+Continue fresh admission and bounded reads, not an RSS/peak-only decision.
+Queued-admission cancellation and actual collection UI/platform workflows
+remain part of the open M10 verification scope.
 
 ## Active authorization — sequential M03–M07 implementation
 
