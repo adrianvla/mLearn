@@ -26,14 +26,19 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: extend the verified collection/filter owners with stable native
 selections, bulk operations and remaining M10 flows.
-Latest checkpoint: `f074bc701cb6093bfe768c5a28ee5773ae4ccad3` is pushed with
-the verified native bulk engine, selection amendments and typed client, not a completed management UI.
+Latest checkpoint: `910aac71216c70178f477a1c3c4249336e471db2` is pushed with
+the verified native bulk engine, selection amendments, typed client and shared
+selection UI, not completed bulk management.
 The consumer-boundary increment adds immutable row amendments,
 bounded visible membership, readable result labels and Schema17 retirement;
-guarded run1460 passed its owner/runtime/client checks. The current uncommitted
-UI increment connects native selection controls to Knowledge and Material.
-Its first export/capture and recovery checks passed; bulk-action controls and complete
-four-action workflows are still unimplemented.
+guarded run1460 passed its owner/runtime/client checks. Shared native selection
+controls on Knowledge and Material passed export/capture and recovery checks.
+The current uncommitted bulk-action composition connects those handles to
+confirmation, live control, retained jobs and bounded result pages. Final
+five-scenario native GUI and 20 desktop/narrow Material regressions pass,
+including Retry/Clear, alongside authentic Japanese addition outcomes.
+This bulk increment is verified for continuation; M10 native/compositor,
+independent-review and remaining feature gates are still open.
 The Material grid has passing local functional/layout evidence; consuming-native
 GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
 The Knowledge GUI increment is committed/pushed at
@@ -345,6 +350,234 @@ available6600294400, pressure1, swapUsed3986948096, swapOut67667247104,
 projected headroom4452810752. Fresh LSP diagnostics for
 the new test timed out; this is not reported as a clean diagnostic. All product
 UI diagnostics remain clean. MAT-06 and the milestone remain incomplete.
+
+Shared selection UI committed/pushed as
+`910aac71216c70178f477a1c3c4249336e471db2`. Its desktop40685089659 and
+foundation40685089644 passed; mobile40685089625 remains under its final-only observer.
+The f074bc70 mobile observer timed out without a workflow verdict. Its actual
+readback showed Android122783458222 passed and iOS122783457953 still running;
+a final-only observer was renewed, not the workflow. No native device was
+launched and no iOS diagnostic variant was dispatched.
+
+Uncommitted `CollectionBulkActions` now uses the existing typed native worker
+for add/edit/exclude/include/remove, confirmation with frozen scope, recovery,
+status/cancel/retry, bounded per-item results and result release. The first
+typecheck/lint/export passed and all four affected product UI diagnostics were
+clean. Render log: owned-root `management-bulk-ui-first-render.log`.
+The same-session Knowledge capture hit projected headroom4258463744 below the
+unchanged4294967296 reserve. The next split-session attempt released each
+browser/native owner before the next consumer; Material captured, but Knowledge
+still hit4276436992 at footprint2884220032, available6423920640, pressure1,
+swapUsed3986948096 and unchanged swapOut67667247104. Log:
+`management-bulk-ui-split-render.log`. No complete bulk UI render gate passed.
+Material screenshots exposed capture focus/scroll framing, not evidence of
+missing controls; the helper now focuses/reveals the leading selection control.
+Capture tags preserve the earlier verified selection evidence.
+
+The new bulk native-UI regression is written but not run. It holds delivery of
+an already committed start receipt, exercises the independent cancel/status
+channel, then checks stale revision refusal, reselection, exclusion/inclusion,
+destructive confirmation focus, removal labels and restart retention.
+Cancellation publication and exact-opener focus remain explicit review concerns
+to reproduce/fix before any bulk checkpoint; no passing workflow is claimed.
+
+Knowledge-only capture succeeded after three samples with at least7GB available
+(extra launch margin, not a reduced guard). Active desktop/narrow frames were
+inspected: `bulk-controls-framed-selection-active-knowledge-final-{1100,390}-dark.png`.
+The real218923-entry catalog, frozen selection and add/distinct/recovery controls
+remained contained. Log: `management-bulk-knowledge-render.log`. After cleanup:
+footprint1631777920, available7262912512, pressure1, swapUsed3936616448,
+swapOut67667247104. Material's final framing and functional dialogs still need
+fresh evidence; earlier clipped capture positions are not a visual pass.
+
+The first bulk GUI regression run is active with serial typecheck/lint/export:
+owned-root `management-bulk-regression-baseline.log`. It must establish the
+held-receipt cancellation and destructive-focus behavior before repairs.
+The new test's fresh LSP diagnostic timed out; no clean test diagnostic is claimed.
+That first run stopped before any check/test command launched: the new guard's
+initial sample had projected headroom4292673536, just below the unchanged
+4294967296 reserve, with OmO footprint4158944384. No owned verification process
+survived inspection. There is no test assertion verdict. The continuation adds
+the same measured7GB/three-sample launch cushion that admitted the successful
+Knowledge capture, then retains the original2GiB workload/4GiB guard throughout.
+Do not do concurrent local work during that run or call this memory incident
+resolved. Next log: `management-bulk-regression-admitted.log`.
+That admitted run passed typecheck, ownership lint and web export, then stopped
+at the resource guard after the single regression started. It has no assertion
+verdict. The intermediate `Architecture boundaries passed` match woke the model
+during verification; that unwanted wake is now removed by using only the final
+MATERIAL_COLLECTION sentinel. No memory root cause is inferred from timing.
+Stopped sample: footprint4021302400, available6370885632, pressure1,
+projected headroom3560547105 including growth662854879, unchanged swap.
+No owned verification process survived inspection. The test-only continuation
+reuses the passing, unchanged export/checks and waits for the same7GB launch
+cushion. Next log: `management-bulk-regression-final-only.log`.
+The final-only test continuation reached a real assertion failure with healthy
+resources: native control reported `completed · 3 of 3 processed`, but
+`Cancel bulk operation` still had count1 instead of0 while the original start
+response remained held. This is a reproduced UI publication bug, not a resource
+failure. Log: `management-bulk-regression-final-only.log`; first trace/results
+remain in owned-root `bulk-ui-tests/results`. Its automatic failure screenshot
+was taken after teardown had closed the backend, so its fetch/write errors are
+not accepted as additional product findings.
+
+The minimal repair retires a matching local submission only after native terminal
+cancellation acknowledgement, and makes late start/retry responses verify their
+operation token before publishing. It also clears the invalidated read's loading
+flag before control. Product diagnostics are clean; the repaired test has not
+yet run. The next export/test uses separate `bulk-ui-tests/cancellation-fix`
+artifacts and `management-bulk-cancellation-fix.log`. Remaining review concerns:
+exact opener focus on destructive confirmation, truthful Knowledge actions
+before any selection exists, and cursor reset if a retained job disappears.
+Cancellation-fix run passed typecheck/lint/export and the prior terminal-status/
+Cancel-absence assertions. It then failed in the test harness:
+`route.fulfill: Route is already handled!`, while the next exclusion was
+submitting. The test removed interception before the held handler finished.
+It now uses `unrouteAll({ behavior: 'wait' })` before advancing, and guarantees
+native cleanup in a nested finally. Product assertions were not weakened.
+Trace/log remain in `bulk-ui-tests/cancellation-fix` and
+`management-bulk-cancellation-fix.log`. The test-only continuation will use
+`bulk-ui-tests/route-drain` and `management-bulk-route-drain.log`.
+The f074bc70 mobile observer has now finished with failure; Android was already
+verified passing, so retain the iOS verdict and retrieve its exact failed-step
+evidence after the serial local regression, without rerunning the workflow.
+Route-drain run passed held-receipt/terminal acknowledgement, stale revision
+refusal, fresh reselection, exclusion and inclusion. It then reproduced
+destructive-dialog focus loss: `Remove selected` was inactive after Cancel change.
+The shared confirmation target was always the Edit/Add ref. The repair retains
+the actual Add/Edit/Exclude/Include/Remove opener before opening each proposal.
+The pre-fix removal dialog capture was inspected; it shows the real frozen
+three-item scope and retention/no-undo consequences, not a staged modal.
+Log/artifacts remain `management-bulk-route-drain.log` and
+`bulk-ui-tests/route-drain`. The next run rebuilds the changed product source
+and preserves separate `bulk-ui-tests/focus-fix` evidence. Its fresh product
+LSP check timed out, so typecheck still needs to confirm the edit.
+Focus-fix run passed typecheck, ownership lint, export and the complete native
+Material GUI regression in3.0s. It verified held-response control, exact focus
+return, stale-revision refusal, edit/exclude/include/remove receipts, retained
+removal labels and native restart. All three removal/confirmation desktop/
+narrow captures were inspected under `bulk-ui-tests/focus-fix`. Log:
+`management-bulk-focus-fix.log`. Final sample: footprint1682797696,
+available6842941440, pressure1, swapUsed3928227840, unchanged swapOut67667247104.
+Bulk add through Knowledge, result retry/release UI and remaining recovery
+boundaries are not yet a completed four-action gate.
+
+Two focused regressions now protect the remaining concrete recovery concerns:
+the existing unavailable-Knowledge test checks truthful add-only actions before
+any selection, and a new real25-item/two-job case clears the selected job from
+another consumer before Next results. Its surviving job must reset to page1.
+These tests are about to run against the current unmodified product logic;
+no assertion was weakened and no full-catalog preparation is required.
+Both boundary regressions failed specifically as predicted: the replacement
+job's First-result-page action stayed enabled (foreign cursor retained), and
+empty Knowledge had no disabled Add-selected action because it incorrectly
+rendered Material-edit actions. Baseline log/artifacts:
+`management-bulk-boundary-baseline.log`, `bulk-ui-tests/boundary-baseline`.
+The small fixes now choose actions from the explicit collection surface and
+reset the cursor when the retained job identity changes. The next guarded run
+rebuilds these changes, repeats the complete Material workflow and both boundary
+cases, and captures empty Knowledge/recovery and narrow removal confirmation.
+No test expectations were relaxed. Next log:
+`management-bulk-boundary-fix.log`; artifacts `bulk-ui-tests/boundary-fix`.
+Boundary-fix run passed typecheck, ownership lint, export and all three native
+GUI scenarios in5.6s. Empty Knowledge, narrow destructive confirmation and
+replacement-job recovery frames were inspected. Final sample:
+footprint1681896576, available6845399040, pressure1, swapUsed3928227840,
+unchanged swapOut67667247104. The cursor scenario is now extended to exercise
+the real Retry-unfinished and Clear-results controls, explicit selection release
+and released-command replay without changing authored revisions; that extension
+is not yet run.
+
+The retained-corpus helper now has a package-grounded bulk-add probe using the
+actual Japanese search/results, not synthetic target records. It will drive
+default addition, a duplicate attempt and explicit distinct addition, inspect
+their native receipts/content/source absence, clear each job through the UI,
+compare learner-state projections, restart the native owner and replay cleared
+commands without rebuilding results. It preserves the isolated corpus/profile
+and any new authored records; no model/device or Python inference is involved.
+Helper syntax passed; actual execution is pending. Next log:
+`management-bulk-japanese-add.log`, with separate `bulk-add-*` capture tags.
+
+Exact f074bc70 mobile40678063651: Android122783458222 passed;
+iOS122783457953 failed the Watch assertion at2026-10-28T12:33:13Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+Log: `ios-f074bc70-failure.log`. The earlier observer timeout was not a verdict.
+No diagnostic variant, rerun, platform waiver or local device launch was made.
+The first real Japanese add created `愛猫`, target`jmdict:1151020`,
+Material`material-c25bba474af3b03b7839f5806f587f7c3dd93abe50a13f610fe6f577b82167e9`,
+revision1, from command`8be3735f-bc2e-4f18-82a1-e015bfcd09d4`. Its native
+receipt had `reused:false`, a real default sense and no source association.
+The next add returned that same ID/revision with `reused:true`, not a duplicate.
+The helper's expectation was wrong. Read-only SQLite receipts and the existing
+Material identity/policy tests confirm exact-origin reuse is intentional and
+preserves authored edits. No backend identity, duplicate policy or assertion
+was changed to fit the probe. The failed job remains retained as evidence.
+Native binary SHA256:8a11d5e95899a3a9a4d117bdfd6c1a8d403e35ca82e56ea227fc9889444f6136.
+
+The bulk UI now labels native reused outcomes as Reused rather than Saved, and
+its confirmation explains exact reuse separately from other matching entries.
+The corrected probe checks default/reuse/duplicate/distinct as four separate
+outcomes. For a genuine different-origin duplicate, it will bind only the
+explicitly identified QA-created Material above to an authored one-word
+`bulk-add-source.txt` functional fixture containing its actual headword.
+The real document parser supplies source ID/revisions/block/UTF-8 coordinates;
+the existing native edit owner accepts that association. This is an authored
+functional input, not fabricated reference-corpus data or a staged UI.
+Other profile content and prior failed receipts remain untouched.
+The subsequent source-free add must report a duplicate, and explicit distinct
+must create a new item. Restart checks include the deliberate fixture edit.
+Learner comparison covers key/claim/assessment/prediction/status, not incidental
+projection revision. Next log: `management-bulk-japanese-outcomes.log`.
+
+That corrected Japanese run passed typecheck, ownership lint, web export and
+real native default/reuse/different-origin duplicate/distinct workflows. Its
+default attempt reused the item retained from the earlier successful creation;
+it is not a second new-create verdict. Reuse preserved the same ID/revision1;
+different-origin addition reported one duplicate; distinct created
+`material-bdf54ef722daada20ce23a44355c6bbcf1bc7759bb3749469a9357a49295fbd0`.
+Native restart retained authored content, Knowledge claim/assessment/prediction/
+status stayed unchanged, and cleared-command replay did not rebuild results.
+Provider requests remained zero. Desktop/narrow reuse/result and confirmation
+captures under `bulk-outcomes-*` were inspected; browser/native owners closed.
+Cleanup sample: footprint1723888744, available7590445056, pressure1,
+swapUsed3928227840, unchanged swapOut67667247104.
+
+Final serial regression run1499 stopped during the second of five native GUI
+scenarios at the unchanged resource guard, not a test assertion. The Material
+editor suite did not start; the newly extended Retry/Clear case has no verdict.
+Log: `management-bulk-final-regressions.log`; artifacts `bulk-ui-tests/final`.
+Stop sample: footprint3709564008, available6264913920, pressure1,
+projected headroom4117430272 below reserve4294967296. No owned browser/native
+QA/guard process survived inspection. Post-stop footprint4938691688,
+available8313896960, swapUsed4973658112 and swapOut69005623296 demonstrate
+unexplained OmO growth and swap increase, not a resolved resource incident.
+Bounded vmmap showed footprint4.4GiB, historical peak14.4GiB, App-Specific
+Tag1 resident4.1GiB/dirty2.4GiB; eval heap was about51MB, external26MB.
+The tag owner remains unidentified. Pause substantial verification while
+investigating; do not relax the 2GiB workload reservation or 4GiB reserve,
+restart devices/models, or attribute this allocation to them.
+
+Idle-only monitor1500 observed 12 samples over55s: footprint fell from
+4669273192 to1609659520, available rose from7691075584 to9582444544,
+pressure stayed1 and swapOut stayed69005623296. It relaunched nothing.
+The tagged allocation owner remains unidentified; stabilization is not a fix.
+With fresh headroom and unchanged safeguards, run1501 passed all five targeted
+native GUI scenarios in11.4s and all20 existing desktop/narrow Material editor
+checks in8.4s. This includes the extended Retry/Clear controls, native selection
+release, released-command replay and unchanged authored revisions/exclusion.
+Log: `management-bulk-final-stable.log`; artifacts `bulk-ui-tests/final-stable`
+and `bulk-ui-tests/final-stable-editor`. Final recovery-phone and destructive
+confirmation-desktop frames were inspected against the earlier final-source
+dark desktop/narrow addition and light Material captures. These are real native
+owner/browser flows, not native compositor or platform acceptance.
+Final guard sample: footprint1612854400, available7515422720, pressure1,
+swapUsed4872994816, unchanged swapOut69005623296, projected headroom5367939072.
+No Rust/protocol source changed after the117-storage/26-client passing boundary
+checkpoint; those checks are reused, not falsely reported rerun.
+
+910aac71 mobile40685089625 observer timed out; actual readback has
+Android122818463123 passing and iOS122818462698 still running. Renew only its
+final-verdict observer, not the workflow.
 
 Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
 40629230889 also passed; mobile 40629230832 is pending under observer 1330;

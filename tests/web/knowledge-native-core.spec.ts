@@ -148,6 +148,13 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.getByRole('option', { name: 'English', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Select items', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Add selected to Material', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Edit selected', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Remove selected', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('knowledge-empty-selection-phone.png') });
+    await page.setViewportSize({ width: 1080, height: 900 });
+    await page.screenshot({ path: info.outputPath('knowledge-empty-selection-desktop.png') });
   } finally {
     await backend.close();
   }

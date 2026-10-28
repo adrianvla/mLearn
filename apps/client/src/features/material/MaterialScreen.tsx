@@ -219,7 +219,8 @@ export function MaterialScreen() {
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
-        ready={!!page && !pending} surface="material" packages={packages} /></View>
+        ready={!!page && !pending} surface="material" packages={packages} client={host.client}
+        onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
       {opening?.trigger === null ? openStatus(opening.id) : null}
       {editor ? <View style={styles.notice}><Panel>
         <Row><Text ref={heading} variant="section" accessibilityRole="header" accessible tabIndex={-1}

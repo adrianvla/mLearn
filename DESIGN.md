@@ -194,6 +194,19 @@ The fresh selection-before-material/knowledge captures at1100/390 widths in
 the current execution root are the before set. Actual native membership,
 refresh, restart and lost-receipt behavior must be exercised after integration.
 
+Bulk changes reuse this same selected handle. Primary action in the confirmation
+dialog: apply the named change to its frozen count. Addition states the package
+default-sense/source-free behavior; distinct creation is explicit. Editing
+replaces one chosen authored field, with empty replacement deliberate. Exclusion
+does not change Knowledge; removal warns that authored content is deleted while
+learner evidence and admitted Review work remain. Cancel is a separate action,
+never an Enter default for removal. Retained jobs expose real progress, per-item
+labels/outcomes, bounded pages, cancellation, explicit retry and result release.
+No automatic restart/resume or fake progress. Results and errors remain beside
+their operation. Layout: bulk controls/results - bounded recovery beside the
+initiating selection -> shared wrapping Rows and Dialog, not a new full-height
+pane; scroll owner: app-shell-content, with Dialog owning its own modal body.
+
 Layout: Knowledge - compare bounded lexical results beneath stable search and
 navigation -> the existing AppShell scroll-body shell; scroll owner:
 app-shell-content. Keep the header out of the result scroll, avoid nested

@@ -1,16 +1,20 @@
 import type { PluginSummary } from '@mlearn/contracts';
+import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Row, Stack } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import type { useCollectionSelection } from './useCollectionSelection';
+import { CollectionBulkActions } from './CollectionBulkActions';
 
-export function CollectionSelectionControls({ state, count, ready, surface, packages }: {
+export function CollectionSelectionControls({ state, count, ready, surface, packages, client, onChanged }: {
   readonly state: ReturnType<typeof useCollectionSelection>;
   readonly count: number;
   readonly ready: boolean;
   readonly surface: 'knowledge' | 'material';
   readonly packages: readonly PluginSummary[];
+  readonly client: RuntimeClient;
+  readonly onChanged: () => void;
 }) {
   const retained = state.retained.filter(value => surface === 'knowledge'
     ? value.materialCount === 0 : value.targetCount === 0);
@@ -42,6 +46,7 @@ export function CollectionSelectionControls({ state, count, ready, surface, pack
       {state.error ? <Text accessibilityRole="alert">{state.error}</Text> : null}
       {state.attempt && !state.pending ? <Button label="Retry selection" variant="secondary"
         size="compact" onPress={state.retry} /> : null}
+      <CollectionBulkActions client={client} selection={state.selection} blocked={state.blocked} surface={surface} onChanged={onChanged} />
     </> : null}
   </Stack>;
 }

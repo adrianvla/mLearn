@@ -142,7 +142,8 @@ export function KnowledgeScreen() {
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.results} accessibilityLiveRegion="polite">
         <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
-          ready={!!page && !pending} surface="knowledge" packages={packages} /></View>
+          ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
+          onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
         {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
         {error ? <View style={styles.notice}><Text accessibilityRole="alert">{error}</Text>
           <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></View> : null}
