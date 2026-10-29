@@ -25,12 +25,12 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: render and verify the first graph/character/Inspector UI increment,
-then repair the independent all-language Material catalog-revision finding.
+using the native host with the repaired all-language catalog-revision boundary.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair is verified for continuation. Graph
 presentation still lacks a successful real reference capture. Neither UI task
-is complete. Ledger:62/121 complete; added tasks track independent audits,
+is complete. Ledger:63/121 complete; added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
@@ -413,6 +413,31 @@ The installed CLI supports `--max-workers`; the export-only retry
 retaining the original2GiB reservation and4GiB reserve. Its log is
 `/tmp/mlearn-parallel-ulw.M8JsP2/graph-ui-single-export.log`. Do not repeat the
 already-passing focused checks merely because export was interrupted.
+The one-worker/512MiB-heap export completed successfully (`GRAPH_UI_SINGLE_EXPORT_EXIT0`).
+The actual UI host's first admission observer was cancelled while still held;
+it had not started catalog preparation or an application. Root took the concrete
+native collection defect first rather than overlapping substantial workloads.
+
+The native graph/character checkpoint is committed/pushed as
+`0cc16256d186676fc67124e98d535d52fe5f3238`; the first UI increment remains
+uncommitted and visually unverified. Exact-source desktop40806767438 passed;
+foundation40806767205 and mobile40806767161 remain in progress, observed by
+`mon_ACFED8FP4TVRGC19`/`bash_1744`. No workflow variant was launched.
+All-language Material revision checking now uses the same installed-package
+authority as scoped browsing, evicting only mismatched rebuildable catalogs.
+The real compiled-package regression in `collection-revision-before.log` failed
+on `target.is_none()` before the repair. `collection-revision-after.log` passes
+all4 collection owner cases, including the replacement/reopen flow, preserved
+authored Material, independent claim, bulk unavailable-package recovery and
+committed-cursor cancellation/resume. Cargo debug1 retains assertions/overflow
+checks and one job. Source diagnostics passed; each completed owned analyzer
+and its verified helpers were released before compilation, not run alongside it.
+The follow-up native host rebuild and full persisted character catalog/UI host
+are subscribed as `mon_KEG7M0ZN5JE9SWM7`/`bash_1753`, log
+`/tmp/mlearn-parallel-ulw.M8JsP2/graph-repaired-ui-host.log`.
+Two further read-only lanes are active: independent first-increment UI semantics
+audit83 and concrete package grammar content/validator preparation84. M11 product
+integration remains gated; no rendered UI or full-catalog pass is implied.
 
 Temporary project LSP settings did not reliably prevent the automatic analyzer
 and were removed, along with the temporary Rust probe. No persisted tooling

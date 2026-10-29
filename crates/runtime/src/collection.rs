@@ -1,16 +1,16 @@
 //! Collection preparation uses the host's existing blocking call and admission.
 //! Only one command is active; each page releases guest and Runtime ownership.
 use crate::{
-    Installed, Runtime,
     execution::{Cancellation, Failure},
+    Installed, Runtime,
 };
 use mlearn_core::{
     CollectionCatalogPage, CollectionCatalogRequest, CollectionPreparationCommand,
     CollectionPreparationPhase, CollectionPreparationStatus, Response,
 };
 use std::sync::{
-    Arc, Mutex,
     atomic::{AtomicU64, Ordering},
+    Arc, Mutex,
 };
 
 #[derive(Default)]
@@ -383,31 +383,38 @@ impl Runtime {
         &mut self,
         query: mlearn_core::CollectionQuery,
     ) -> Result<Response, Failure> {
-        if let Some(id) = &query.package_id {
-            match self.installed.get(id) {
-                Some(package) => {
-                    let current_revision = package.revision()?;
-                    if self
-                        .store
-                        .collection_catalog_revision(id)
-                        .map_err(|error| Failure::Operation(error.to_string()))?
-                        .is_some_and(|revision| revision != current_revision)
-                    {
-                        // Rebuildable metadata cannot claim to describe a new package.
-                        // Authored Material and learner state are never evicted here.
-                        self.store
-                            .evict_collection_catalog(id)
-                            .map_err(|error| Failure::Operation(error.to_string()))?;
-                    }
-                }
-                None if query.surface == mlearn_core::CollectionSurface::Knowledge => {
-                    return Ok(Response::Collection {
-                        result: mlearn_core::CollectionResult::Unavailable {
-                            message: "Install the selected language package".into(),
-                        },
-                    });
-                }
-                None => {}
+        if query.surface == mlearn_core::CollectionSurface::Knowledge
+            && query
+                .package_id
+                .as_ref()
+                .is_some_and(|id| !self.installed.contains_key(id))
+        {
+            return Ok(Response::Collection {
+                result: mlearn_core::CollectionResult::Unavailable {
+                    message: "Install the selected language package".into(),
+                },
+            });
+        }
+        for (id, package) in &self.installed {
+            if query
+                .package_id
+                .as_ref()
+                .is_some_and(|selected| selected != id)
+            {
+                continue;
+            }
+            let current_revision = package.revision()?;
+            if self
+                .store
+                .collection_catalog_revision(id)
+                .map_err(|error| Failure::Operation(error.to_string()))?
+                .is_some_and(|revision| revision != current_revision)
+            {
+                // All-language Material also projects cached target metadata.
+                // Evict only rebuildable data; authored content and claims survive.
+                self.store
+                    .evict_collection_catalog(id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?;
             }
         }
         let result = self.store.collection(&query).map_err(|error| match error {
@@ -423,7 +430,7 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BundledPlugin, RuntimeExecutor, catalog::Manifest};
+    use crate::{catalog::Manifest, BundledPlugin, RuntimeExecutor};
     use mlearn_core::{
         CollectionFilter, CollectionQuery, CollectionResult, CollectionSort, CollectionSurface,
         Request,
@@ -432,13 +439,20 @@ mod tests {
     use std::{path::Path, time::Duration};
 
     fn open(profile: &Path) -> RuntimeExecutor {
+        open_version(profile, None)
+    }
+
+    fn open_version(profile: &Path, version: Option<&str>) -> RuntimeExecutor {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
         let manifests: Vec<Manifest> =
             serde_json::from_slice(&std::fs::read(root.join("bundle.json")).unwrap()).unwrap();
-        let manifest = manifests
+        let mut manifest = manifests
             .into_iter()
             .find(|manifest| manifest.id == "org.mlearn.english")
             .unwrap();
+        if let Some(version) = version {
+            manifest.version = version.into();
+        }
         let code = std::fs::read(root.join(&manifest.code.path)).unwrap();
         let assets = manifest
             .assets
@@ -474,6 +488,166 @@ mod tests {
             Response::CollectionPreparation { status } => status,
             other => panic!("Expected native preparation status, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn all_language_material_browsing_rejects_catalog_from_previous_package_revision() {
+        use mlearn_core::*;
+        // Given real package metadata cached with a linked authored Material
+        // and an independent learner claim under the original package revision.
+        let directory = tempfile::tempdir().unwrap();
+        let profile = directory.path().join("profile");
+        let executor = open(&profile);
+        let package_id = "org.mlearn.english";
+        let Response::Language { description } = call(
+            &executor,
+            Request::DescribeLanguage {
+                package_id: package_id.into(),
+            },
+        ) else {
+            panic!("Expected actual package metadata");
+        };
+        let Response::PluginResult { output } = call(
+            &executor,
+            Request::InvokePlugin {
+                plugin_id: package_id.into(),
+                capability: "collection.targets.v1".into(),
+                input: serde_json::json!({"after":null,"limit":1}),
+            },
+        ) else {
+            panic!("Expected actual package targets");
+        };
+        let page: CollectionCatalogPage = serde_json::from_value(output).unwrap();
+        let target = page.items[0].clone();
+        let Response::Entry {
+            entry,
+            package_revision,
+            ..
+        } = call(
+            &executor,
+            Request::InspectTarget {
+                package_id: package_id.into(),
+                target_id: target.summary.target_id.clone(),
+                expected_revision: None,
+            },
+        )
+        else {
+            panic!("Expected actual target");
+        };
+        {
+            let mut runtime = executor.runtime.lock().unwrap();
+            runtime
+                .store
+                .begin_collection_catalog(
+                    package_id,
+                    &package_revision,
+                    &description.catalog.unwrap(),
+                    1,
+                )
+                .unwrap();
+            runtime
+                .store
+                .put_collection_catalog_page(
+                    package_id,
+                    &package_revision,
+                    0,
+                    None,
+                    &CollectionCatalogPage {
+                        items: vec![target.clone()],
+                        next: None,
+                        total: 1,
+                    },
+                )
+                .unwrap();
+        }
+        let key = KnowledgeKey {
+            package_id: package_id.into(),
+            target_id: entry.target_id.clone(),
+            capability: target.capabilities[0].clone(),
+        };
+        assert!(matches!(
+            call(
+                &executor,
+                Request::ChangeClaim {
+                    change: ClaimChange {
+                        command_id: "catalog-replacement-claim".into(),
+                        key: key.clone(),
+                        claim: Some(true),
+                    },
+                },
+            ),
+            Response::ClaimChanged { .. }
+        ));
+        let Response::MaterialWritten {
+            outcome: MaterialWriteResult::Saved { material, .. },
+        } = call(
+            &executor,
+            Request::CreateMaterial {
+                command: MaterialCreate {
+                    command_id: "catalog-replacement-material".into(),
+                    distinct: false,
+                    media_imports: vec![],
+                    content: MaterialContent {
+                        package_id: package_id.into(),
+                        target_id: Some(entry.target_id),
+                        package_revision: Some(package_revision),
+                        sense: None,
+                        phrase: entry.headword,
+                        reading: entry.reading.unwrap_or_default(),
+                        meaning: entry.definition,
+                        context: String::new(),
+                        notes: "Authored content survives metadata eviction".into(),
+                        examples: vec![],
+                        source: None,
+                        attachments: vec![],
+                    },
+                },
+            },
+        )
+        else {
+            panic!("Expected linked Material");
+        };
+        let query = CollectionQuery {
+            package_id: None,
+            surface: CollectionSurface::Material,
+            filter: CollectionFilter::All { filters: vec![] },
+            sort: CollectionSort::Default,
+            after: None,
+        };
+        assert!(matches!(
+            call(&executor, Request::Collection { query: query.clone() }),
+            Response::Collection { result: CollectionResult::Ready { page } }
+                if matches!(&page.items[0], CollectionItem::Material { target: Some(_), .. })
+        ));
+        drop(executor);
+
+        // When the bundled package is replaced before any package-scoped query.
+        let executor = open_version(&profile, Some("catalog-replacement-2"));
+        let Response::Collection {
+            result: CollectionResult::Ready { page },
+        } = call(&executor, Request::Collection { query })
+        else {
+            panic!("Expected saved Material without requiring a rebuilt catalog");
+        };
+
+        // Then all-language browsing keeps authored content and learner state,
+        // but never publishes the previous package's metadata/capability list.
+        assert_eq!(page.count, 1);
+        let CollectionItem::Material {
+            material: reopened,
+            target,
+            knowledge,
+        } = &page.items[0]
+        else {
+            panic!("Expected Material");
+        };
+        assert_eq!(reopened, &material);
+        assert!(target.is_none());
+        assert!(knowledge.is_empty());
+        assert!(matches!(
+            call(&executor, Request::Knowledge { keys: vec![key] }),
+            Response::Knowledge { projections } if projections[0].claim == Some(true)
+        ));
     }
 
     #[test]
@@ -887,15 +1061,13 @@ mod tests {
 
             // When resumed, the next committed page starts at the saved cursor.
             assert_eq!(committed.recv_timeout(Duration::from_secs(10)).unwrap(), 48);
-            assert!(
-                status(call(
-                    &executor,
-                    Request::CancelCollectionPreparation {
-                        command_id: command.command_id.clone()
-                    },
-                ))
-                .is_none()
-            );
+            assert!(status(call(
+                &executor,
+                Request::CancelCollectionPreparation {
+                    command_id: command.command_id.clone()
+                },
+            ))
+            .is_none());
             call(
                 &executor,
                 Request::CancelCollectionPreparation {
