@@ -41,7 +41,7 @@ export function MaterialScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ sourceId?: string; id?: string }>();
   const sourceId = typeof params.sourceId === 'string' ? params.sourceId : null;
-  const [sourceOnly, setSourceOnly] = useState(!!sourceId);
+  const [sourceOnly, setSourceOnly] = useState(true);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [after, setAfter] = useState<string | null>(null);

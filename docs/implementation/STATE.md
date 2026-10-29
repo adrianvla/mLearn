@@ -34,7 +34,9 @@ repaired in `486c507`, with exact-source hosted checks and after captures below.
 Fresh receipts confirm restored Material entry and changed package selection.
 Rapid Home return's renderer request-admission defect is repaired and verified
 against exact-source hosted checks and fresh captures below. Active-workspace
-return and explicit source-parameter preservation remain open; NAV-02 is incomplete.
+Reader return is verified; explicit source-entry preservation remains open.
+CI is asynchronous relative to independent engineering: the current ready-work
+queue and disjoint review/prerequisite lanes are recorded below. NAV-02 is incomplete.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -1064,7 +1066,12 @@ unexplained and is not attributed to an app/device/model.
 Reader repair `38b303c26be642cce4f99b27564a12dc6bad7546` passed
 foundation40889446715: web123501935901 reports141 passed in11.4minutes;
 the other four foundation jobs and real desktop40889446716 passed.
-Mobile40889446765 is still running. Exact web log `38b303c-web.log` and
+Mobile40889446765 is terminal: Android123501935053 passed; iOS123501935467
+failed at14:46:06Z with `Element not found: Text matching regex: Open local
+video, Enabled`, after authored fixture export succeeded at14:40:38Z.
+Retained `mobile-38b303c-failed.log`; no diagnostic variant or unchanged rerun
+was launched. This preserves the unresolved platform gate, not a Reader cause.
+Exact web log `38b303c-web.log` and
 artifact12905646121 (`38b303c-web-inspection.zip`) are retained. Selectively
 extracted all four new Reader/return PNGs and `navigation-activity-return.json`
 to `38b303c-activity-evidence/`. Directly inspected both widths: the source
@@ -1086,6 +1093,49 @@ Its runtime result remains unverified; fresh hosted evidence must precede repair
 Fresh test-file LSP diagnostics and diff/whitespace checks are clean.
 Post-batch OmO footprint3461MB, peak14GB, RSS7474976KiB, pressure1,
 swap4756.19MiB. No local application or substantial verification was started.
+The source-only probe is committed/pushed as
+`f43440cbea5e907e06293d6050e6c8885bf7e851`; foundation40893592752 is
+terminal: web123516588708 failed atline315, expected the retained Knowledge
+draft and received empty;140 cases passed in12.3minutes. The other four jobs
+passed. Its source-entry receipt proves the saved Children Material anchor
+and first native source filter are correct; subsequent Knowledge presentation
+was replaced. Directly inspected both actual1080 frames from artifact12906698513
+under `/tmp/mlearn-orchestration.JNbU5h/f43440c-source-evidence/`, with the
+exact failed log and original artifact retained in that owned root.
+
+Inspector's saved-Material entry now uses existing `dismissTo('/materials')`
+with its exact id/sourceId rather than pushing another management subtree.
+Material's source-only preference defaults on even if the retained screen
+first mounted without a source; no filter is added without an actual sourceId,
+and explicit user toggling remains retained. The existing source-only query
+guard is unchanged. No new store, route nonce, limit or deadline was introduced.
+Both edited files have clean fresh LSP diagnostics. The unchanged real regression
+and fresh1080/390 frames must verify this candidate before another UI edit;
+no runtime pass is claimed yet.
+
+### Asynchronous engineering ready queue — 2026-10-29
+
+The maintainer explicitly corrected CI-induced global stalls. Root continues
+independent engineering whenever only a dependent verification is pending.
+Current HEAVY execution notepad:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-orchestration-20261029.XXXXXX.md.DBKdm39MMr`.
+Four independent source-only/report lanes were launched beside root navigation
+work: graph/Knowledge audit1882e, persistence audit1882f, M11 contract/fixture
+prerequisites18830 and activity-lifetime audit18831. None watches CI or launches
+local compilers/devices. M11 product integration remains gated on M10.
+Persistence audit returned two concrete client/native bounds mismatches, not
+executed failures: byte-bounded native extension maps versus client32-key cap,
+and frozen-selection64-row output versus its131072-byte consumer limit.
+Root will verify/reproduce each in its existing owner suite before repair.
+Reports and exact lane receipts are under `/tmp/mlearn-orchestration.JNbU5h/reports/`.
+
+An isolated Messenger regression lane is preparing one disjoint existing test.
+Automatic isolation failed on an invalid ignored legacy cache `.git` file;
+no cache was edited. A detached source-only worktree at
+`/tmp/mlearn-orchestration.JNbU5h/messenger-worktree` was created at exactf43440cb
+instead, with explicit ownership and no shared branch edits. Root retains all
+product/navigation/STATE commits and serial workload admission. PR45 readback is
+OPEN/DRAFT, headagent/m10-m11, baseagent/m01; PR44 remains preserved/unmerged.
 
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted
