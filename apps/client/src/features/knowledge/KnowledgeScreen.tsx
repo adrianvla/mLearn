@@ -24,10 +24,13 @@ export function KnowledgeScreen() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<CollectionSort>('default');
+  const [entityKind, setEntityKind] = useState('');
+  const [layout, setLayout] = useState<'list' | 'grid'>('list');
   const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
   const [after, setAfter] = useState<string | null>(null);
   const [result, setResult] = useState<CollectionResult | null>(null);
-  const [description, setDescription] = useState<LanguageDescription | null>(null);
+  const [described, setDescribed] = useState<{ packageId: string; value: LanguageDescription } | null>(null);
+  const description = described?.packageId === packageId ? described.value : null;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
@@ -38,10 +41,13 @@ export function KnowledgeScreen() {
   const heading = useRef<NativeText>(null);
   const inspectionChanged = useRef(false);
   const loadedQuery = useRef('');
-  const queryKey = JSON.stringify([packageId, query, filter, sort, after]);
+  const queryKey = JSON.stringify([packageId, query, filter, entityKind, sort, after]);
   const collectionQuery = useMemo<CollectionQuery>(() => ({
-    packageId, surface: 'knowledge', filter: { kind: 'all', filters: [{ kind: 'text', text: query }, filter] }, sort, after: null,
-  }), [packageId, query, filter, sort]);
+    packageId, surface: 'knowledge', filter: { kind: 'all', filters: [
+      { kind: 'text', text: query }, filter,
+      ...(entityKind ? [{ kind: 'entity_kind' as const, id: entityKind }] : []),
+    ] }, sort, after: null,
+  }), [packageId, query, filter, entityKind, sort]);
   const currentResult = loadedQuery.current === queryKey ? result : null;
   const page = currentResult?.state === 'ready' ? currentResult.page : null;
   const visibleItems = useMemo<CollectionItemId[]>(() => page?.items.flatMap(item => item.kind === 'target'
@@ -66,20 +72,30 @@ export function KnowledgeScreen() {
   useFocusEffect(useCallback(() => {
     if (!host.available || !packageId) return;
     let active = true;
+    void host.client.describeLanguage(packageId).then(value => {
+      if (active) setDescribed({ packageId, value });
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+    });
+    return () => { active = false; };
+  }, [host, packageId, reload]));
+  useFocusEffect(useCallback(() => {
+    if (!host.available || !packageId) return;
+    let active = true;
     setPending(true); setError('');
     // Refreshing an unchanged page must preserve the Inspector's real trigger
     // and focus anchor. A different query must never display the old rows.
     if (loadedQuery.current !== queryKey) {
-      loadedQuery.current = queryKey; setResult(null); setDescription(null);
+      loadedQuery.current = queryKey; setResult(null);
     }
-    void Promise.all([host.client.collection({ ...collectionQuery, after }), host.client.describeLanguage(packageId)]).then(([value, language]) => {
-      if (active) { setResult(value); setDescription(language); }
+    void host.client.collection({ ...collectionQuery, after }).then(value => {
+      if (active) setResult(value);
     })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
       .finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, packageId, collectionQuery, after, queryKey, reload]));
-  useEffect(() => { setInspection(null); }, [packageId, query, filter, sort, after]);
+  useEffect(() => { setInspection(null); }, [packageId, query, filter, entityKind, sort, after]);
   async function prepare() {
     if (!host.available || preparing.current || !packageId) return;
     const scope = owner.current;
@@ -120,11 +136,11 @@ export function KnowledgeScreen() {
       <Button label="Material" variant="quiet" size="compact" onPress={() => router.push('../materials')} /></Row>
     <Row><Select label="Knowledge language" value={packageId}
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
-      onValueChange={value => { setAfter(null); setFilter({ kind: 'all', filters: [] }); setPackageId(value); }} />
+      onValueChange={value => { setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value); }} />
       <Select label="Knowledge order" value={sort} options={[
         { value: 'default', label: 'Package order' },
-        { value: 'label_ascending', label: 'Word A–Z' },
-        { value: 'label_descending', label: 'Word Z–A' },
+        { value: 'label_ascending', label: 'Entry A–Z' },
+        { value: 'label_descending', label: 'Entry Z–A' },
         { value: 'due_ascending', label: 'Due first' },
         { value: 'due_descending', label: 'Due last' },
       ]} onValueChange={value => {
@@ -132,6 +148,14 @@ export function KnowledgeScreen() {
         const selected = option.find(item => item === value);
         if (selected) { setAfter(null); setSort(selected); }
       }} /></Row>
+    <Row>
+      {description?.catalog?.kinds.length ? <Select label="Knowledge entity kind" value={entityKind}
+        options={[{ value: '', label: 'All entry kinds' }, ...description.catalog.kinds.map(kind => ({ value: kind.id, label: kind.label }))]}
+        onValueChange={value => { setAfter(null); setEntityKind(value); }} /> : null}
+      <Select label="Knowledge layout" value={layout} options={[
+        { value: 'list', label: 'List' }, { value: 'grid', label: 'Grid' },
+      ]} onValueChange={value => { if (value === 'list' || value === 'grid') setLayout(value); }} />
+    </Row>
     <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
       onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
       <Button label="Search" icon="search" size="compact" variant="secondary"
@@ -166,18 +190,21 @@ export function KnowledgeScreen() {
         </View> : null}
         {page ? <>
           <View style={styles.notice}><Text variant="caption">{page.count} entries</Text></View>
-          {!compact ? <View style={styles.columns}>
-            <View style={styles.word(false)}><Text variant="caption">Word</Text></View>
+          {!compact && layout === 'list' ? <View style={styles.columns}>
+            <View style={styles.word(false)}><Text variant="caption">Entry</Text></View>
             <View style={styles.meaning(false)}><Text variant="caption">Meaning</Text></View>
             <View style={styles.level(false)}><Text variant="caption">Level</Text></View>
             <View style={styles.knowledge(false)}><Text variant="caption">Knowledge{capabilityLabel ? ` · ${capabilityLabel}` : ''}</Text></View>
           </View> : null}
+          <View style={layout === 'grid' ? styles.grid : undefined}>
           {page.items.map(item => {
             if (item.kind !== 'target') return null;
             const target = item.target;
-            const projection = item.knowledge.find(value => value.key.capability === description?.annotationCapability);
-            return <View key={target.summary.targetId} testID={`knowledge-target-${target.summary.targetId}`} style={styles.entry(compact)}>
-              <View style={styles.word(compact)}><LinguisticWord text={target.summary.headword} presentation={target.summary.presentation}
+            const projection = item.knowledge.find(value => target.capabilities.includes(value.key.capability)
+              && value.key.capability === description?.annotationCapability);
+            return <View key={target.summary.targetId} testID={`knowledge-target-${target.summary.targetId}`}
+              style={layout === 'grid' ? styles.gridEntry : styles.entry(compact)}>
+              <View style={styles.word(compact || layout === 'grid')}><LinguisticWord text={target.summary.headword} presentation={target.summary.presentation}
                 activation={{ status: projection?.status ?? 'unavailable', inspectionMode: 'click', onActivate: anchor => {
                   inspectionChanged.current = false;
                   setInspection({
@@ -191,21 +218,26 @@ export function KnowledgeScreen() {
                     }
                   } }, sourceAnchor: null, packageRevision: page.packageRevision ?? undefined,
                 }); } }} />
-                {target.summary.reading && !target.summary.presentation?.readings.length
+                {layout === 'list' && target.summary.reading && !target.summary.presentation?.readings.length
                   ? <Text variant="caption" muted>{target.summary.reading}</Text> : null}
               </View>
-              <View style={styles.meaning(compact)}><Text numberOfLines={compact ? 3 : 2}>{target.summary.summary}</Text></View>
-              <View style={styles.level(compact)}><Text variant="caption">{target.levels.map(level => level.level).join(' · ') || '—'}</Text></View>
-              <View style={styles.knowledge(compact)}>
+              {layout === 'list' ? <>
+                <View style={styles.meaning(compact)}><Text numberOfLines={compact ? 3 : 2}>{target.summary.summary}</Text></View>
+                <View style={styles.level(compact)}><Text variant="caption">{target.levels.map(level => level.level).join(' · ') || '—'}</Text></View>
+              </> : null}
+              <View style={styles.knowledge(compact || layout === 'grid')}>
                 {selection.enabled ? <Button label="Select" accessibilityLabel={`Select ${target.summary.headword}`}
                   variant="secondary" size="compact" disabled={!selection.canToggle}
                   accessibilityState={{ selected: selection.selected({ kind: 'target', targetId: target.summary.targetId }) }}
                   onPress={() => selection.toggle({ kind: 'target', targetId: target.summary.targetId })} /> : null}
-                {compact && capabilityLabel ? <Text variant="caption" muted>{capabilityLabel}</Text> : null}
-                <Badge label={projection?.status.replaceAll('_', ' ') ?? 'Knowledge unavailable'} />
+                {layout === 'list' ? <>
+                  {compact && capabilityLabel ? <Text variant="caption" muted>{capabilityLabel}</Text> : null}
+                  <Badge label={projection?.status.replaceAll('_', ' ') ?? 'Knowledge unavailable'} />
+                </> : null}
               </View>
             </View>;
           })}
+          </View>
           {!page.items.length ? <View style={styles.notice}><Text>No entries match this query.</Text></View> : null}
           <View style={styles.notice}><Row>
             <Button label="First Knowledge page" size="compact" variant="secondary" disabled={pending || after === null} onPress={() => setAfter(null)} />
@@ -228,6 +260,13 @@ export function KnowledgeScreen() {
 const styles = StyleSheet.create(theme => ({
   search: { flexGrow: 1, flexShrink: 1, minWidth: 0, flexBasis: 220 },
   results: { gap: 0 },
+  // The collection page remains the only data window and AppShell owns scrolling.
+  // Shared inline controls retain activation, Knowledge color and focus semantics.
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.tiny,
+    paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small },
+  gridEntry: { width: 96, maxWidth: '100%', minWidth: 0, padding: theme.spacing.small,
+    gap: theme.spacing.tiny, borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: theme.radius, backgroundColor: theme.colors.background },
   notice: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact, gap: theme.spacing.small },
   columns: { flexDirection: 'row', paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact,
     gap: theme.spacing.compact, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderColor: theme.colors.border },

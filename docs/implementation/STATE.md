@@ -30,7 +30,7 @@ The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair is verified for continuation. Graph
 presentation still lacks a successful real reference capture. Neither UI task
-is complete. Ledger:63/121 complete; added tasks track independent audits,
+is complete. Ledger:64/124 complete; added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
@@ -438,6 +438,98 @@ are subscribed as `mon_KEG7M0ZN5JE9SWM7`/`bash_1753`, log
 Two further read-only lanes are active: independent first-increment UI semantics
 audit83 and concrete package grammar content/validator preparation84. M11 product
 integration remains gated; no rendered UI or full-catalog pass is implied.
+The repaired native checkpoint is committed/pushed as
+`ef2f7e2baa5358fb56f2e7b31b47689d7aa9145c`. Full persisted Japanese preparation
+subsequently passed232031 total entries and13108 characters in the retained QA
+profile. Real Omowright interaction selected the package's Character kind,
+switched Grid/List and searched橋 to one actual result. First desktop Knowledge,
+character-grid and graph captures plus a390CSS/DPR3 graph capture were inspected
+under `/tmp/mlearn-parallel-ulw.M8JsP2`. Narrow document width stayed390, with
+header and Inspector body scroll owners. This is first-render evidence, not
+reference parity: raw graph IDs and repeated attribution crowd the detail;
+both themes, scrolling/focus and failure states remain open.
+Capture browser lifetimes are now bounded to one eval call with finally-close;
+cross-cell preparation tabs disappeared and must not be retried unchanged.
+The UI host received explicit stop and exited0; native81667 is confirmed absent.
+
+Audit83 found two concrete UI defects: kind controls disappear during a changed
+collection query and stay unavailable after collection failure; graph Knowledge
+does not refresh after an Inspector claim. The first is now repaired: package-keyed
+description loads independently of collection rows and survives query failure.
+The initial regression was guard-cancelled; the next attempt deadlocked because
+setup page.evaluate returned the pending event Promise. Its confirmed orphaned
+test descendants were released. Corrected before-fix regression exited1 with
+the kind selector absent; the same case passed after the repair. Typecheck,
+ownership lint and one-worker export exited0 in `character-filter-after.log`.
+Inspected real native-backed desktop and phone grid captures are
+`kind-recovery-desktop-1440.png` and `kind-recovery-phone-grid.png`; the latter is
+1170x2532 at390CSS pixels, with no horizontal overflow. Navigation reset an
+earlier emulation attempt to1440; `kind-recovery-iphone-14.png` is not phone
+evidence. Apply emulation after navigation and verify actual viewport.
+
+The second finding is reproduced in the real native-backed Inspector: Reading
+claim changed to unknown in the adjustment while the graph still displayed
+claimed known, with unchanged graph text. Capture:
+`graph-claim-stale-native-before.png`. A real GraphDetails scenario was added to
+the existing Inspector harness. Both automated before-fix attempts were
+resource-interrupted after four navigation cases passed; neither is an assertion
+failure receipt. The real native workflow is the before-fix evidence. Inspector
+now includes native capability/projection revisions in the graph lifetime key.
+The resulting five scenarios/six tests, typecheck, lint and one-worker export
+all passed in `graph-claim-after.log`; source diagnostics were clean.
+The first post-fix native UI run was guard-stopped during character filtering,
+before verifying the claim. Native91500 is confirmed absent and the browser
+closed in finally. Post-fix native verification is still incomplete.
+`mon_PDV1RHRHKTX14T15`/`bash_1781` passed its stricter2560MiB admission,
+but the native host92331 was immediately stopped by the original running guard:
+OmO footprint12678804608, pressure2, available2976251904, swap5412159488 and
+swapOut98674147328. The host had reported ready; no browser was launched and
+no post-fix native claim pass is established. Native92331 is confirmed absent.
+The original2048MiB guard and4294967296-byte host reserve remain unchanged.
+No replacement workload is registered after this recurrent unexplained spike.
+About32 seconds later, footprint recovered to5284426880, available8095367168,
+pressure1, swap5592252416 and swapOut99030401024. Bounded vmmap showed4.9GiB
+current/14.4GiB peak with App-Specific Tag1 dominating. This is not a diagnosis
+or a memory fix; native application/model attribution is unsupported.
+The recovery question timed out; the maintainer directed continuation on best
+judgment without asking it again. Local builds/native hosts/browsers remain
+paused. The existing foundation workflow already builds the real Rust QA host
+and runs all `tests/web`, so the connected regression is being moved to that
+ordinary hosted path without changing workflows or weakening assertions.
+`inspector-graph-native-core.spec.ts` uses an isolated profile and genuine
+WordNet graph: claim refresh, separate sibling Knowledge, source-preserving
+navigation/Return, restart persistence, and bounded desktop/narrow captures.
+Its fixture is authored text `run`. This new regression is unrun locally;
+the diagnostics request timed out, not passed. Its hosted result and visual
+captures must be inspected before closing the repair or graph UI tasks.
+The next source checkpoint includes the initial graph/character UI and these
+regressions with CI explicitly pending, not milestone acceptance.
+At the stop, OmO footprint4816925824 and available6422822912 produced projected
+headroom4275339264 below that reserve. A bounded eval heap reading was26.6MB,
+not process-wide accounting or a diagnosis of the4.8GB physical footprint.
+Native UI host89485 was explicitly stopped and exited0;
+capture browsers closed in finally. Audit84 returned five proposed package-owned grammar
+targets/fifteen real task definitions with original examples and bounded
+accepted/rejected/unassessed validators, not shipped content or M11 integration.
+
+Exact0cc foundation40806767205 passed. Latest ef2 desktop40807702149 failed
+at `tests/desktop/native-smoke.mjs:614`: Shift-assisted pointer-entry
+`entry.trusted` expectedtrue but receivedundefined with `{"timedOut":true}`.
+The exact log is `desktop-ef2-failed.log`; the key event had passed and the
+pointer entry did not arrive. Cause remains unestablished. Preserve its assertions
+and native-input discrepancy rather than calling it a catalog regression or
+changing unrelated tests. Latest ef2 foundation40807702124 is in progress and
+mobile40807702147 pending, watched by `mon_8S7QTFZFRTFVFDM2`/`bash_1757`.
+Exact0cc mobile40806767161 is now terminal: Android123227475709 passed;
+iOS123227475469 failed its actual UI flow at2026-10-29T03:24:38Z,
+`Element not found: Text matching regex: Open local video, Enabled`.
+The exact failed log is `mobile-ios-0cc-failed.log`; this remains an unresolved
+native Watch workflow failure, not an M10 character pass or a proven catalog
+regression. The0cc observer completed. Exact ef2 foundation40807702124 passed;
+its mobile run remains in progress after the old observer reached its deadline.
+A single exact-run read showed iOS123244267916 and Android123244268145 both
+in progress. Replacement observer `mon_T5R2SA8F9836R25P`/`bash_1784` watches
+that same run40807702147; no workflow was rerun.
 
 Temporary project LSP settings did not reliably prevent the automatic analyzer
 and were removed, along with the temporary Rust probe. No persisted tooling
