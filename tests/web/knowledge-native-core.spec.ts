@@ -270,6 +270,52 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await page.getByRole('button', { name: 'Material', exact: true }).click();
       await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
     }
+    // A deliberate source-bearing entry must use its actual saved Material
+    // without replacing the previously retained management presentation.
+    const sourceEntryReceipts = [];
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
+      await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+      await expect(inspector).toBeVisible();
+      if (width === 1080) {
+        await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
+        await expect(inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true })).toBeVisible();
+      } else {
+        await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+      }
+      const entered = page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+        const payload = response.request().postDataJSON();
+        if (typeof payload.args?.request !== 'string') return false;
+        const request = JSON.parse(payload.args.request);
+        return request.type === 'collection' && request.query.surface === 'material';
+      });
+      const [sourceReceipt] = await Promise.all([entered, width === 1080
+        ? inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true }).click()
+        : page.getByRole('menuitem', { name: 'Open saved Children', exact: true }).click()]);
+      await sourceReceipt.finished();
+      await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue('Children');
+      const saved = await client.materials({ after: null, query: '', sourceId: document.source.id, includeExcluded: true });
+      expect(saved.items).toHaveLength(1);
+      expect(saved.items[0].content.source?.sourceId).toBe(document.source.id);
+      await expect(page).toHaveURL(new RegExp(`sourceId=${document.source.id}`));
+      const request = JSON.parse(sourceReceipt.request().postDataJSON().args.request);
+      expect(request.query.filter.filters).toContainEqual({ kind: 'source', sourceId: document.source.id });
+      await page.screenshot({ path: info.outputPath(`navigation-source-material-${width}.png`) });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      const after = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
+      sourceEntryReceipts.push({ width, sourceId: document.source.id, materialId: saved.items[0].id,
+        query: request.query, knowledgeAfterSourceEntry: after, url: page.url() });
+      await writeFile(info.outputPath('navigation-source-entry.json'), JSON.stringify(sourceEntryReceipts));
+      await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-source-entry.png`) });
+      await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
+    }
     await backend.crashRestart();
     await page.goto('/knowledge');
     const known = page.getByTestId(`knowledge-target-${target.summary.targetId}`)

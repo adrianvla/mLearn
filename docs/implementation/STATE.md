@@ -1061,6 +1061,32 @@ Current OmO footprint3682MB, historical peak14GB, RSS8274352KiB, pressure1,
 swap4996.19MiB; no substantial local workload was admitted. Swap growth remains
 unexplained and is not attributed to an app/device/model.
 
+Reader repair `38b303c26be642cce4f99b27564a12dc6bad7546` passed
+foundation40889446715: web123501935901 reports141 passed in11.4minutes;
+the other four foundation jobs and real desktop40889446716 passed.
+Mobile40889446765 is still running. Exact web log `38b303c-web.log` and
+artifact12905646121 (`38b303c-web-inspection.zip`) are retained. Selectively
+extracted all four new Reader/return PNGs and `navigation-activity-return.json`
+to `38b303c-activity-evidence/`. Directly inspected both widths: the source
+remains readable and the returned Knowledge draft/descending order/Grid/page
+remain intact without blank or overlapping controls. The unchanged test also
+asserts the same24 target identities and Material draft. Both native
+saved/resumed document checkpoints match exactly. This is the regression's
+red/green connected evidence, not completion of other activity/source routes.
+Pre-image-batch OmO footprint3041MB, peak14GB, RSS9155280KiB,
+pressure1, swap4764.19MiB; no substantial local workload was started.
+
+The next source-only baseline extends that same real workflow through Reader
+Inspector's existing Capture/Open saved action. It checks the actual document
+source ID, saved Material anchor and native source-filter query, then returns
+to Knowledge/Material and asserts their retained unsubmitted drafts at1080/390.
+Native receipts and source-editor/return captures are recorded before the draft
+assertions. No route producer or Material scope owner is changed by this probe.
+Its runtime result remains unverified; fresh hosted evidence must precede repair.
+Fresh test-file LSP diagnostics and diff/whitespace checks are clean.
+Post-batch OmO footprint3461MB, peak14GB, RSS7474976KiB, pressure1,
+swap4756.19MiB. No local application or substantial verification was started.
+
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted
 management state and explicit source parameters still need real workflow
