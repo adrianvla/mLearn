@@ -38,6 +38,18 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Home, Knowledge and Material retain their existing shared compositions
+inside one lazy management tab navigator with no additional visible tab bar.
+The existing navigation controls switch those routes instead of constructing
+replacement collection screens. The root Stack still owns Reader, Watch,
+Review, Messenger and Settings; preserving management views must not retain
+activity media or inference work under a new tab lifetime. Query drafts,
+collection controls, paging and editor input remain presentation state in their
+existing screens, not a new store or saved-setting authority. The primary action,
+content hierarchy, materials, typography and scroll owners stay with those
+screens. Before captures are the four navigation PNGs from exact `32f9b18`,
+foundation 40849011822, showing searches cleared after a route switch.
+
 Layout: Knowledge evidence stays inside Inspector's bounded body scroll owner.
 The source-anchored header and shared footer remain in place; evidence replaces
 the dictionary body, not a second modal, sidebar or independent scrolling list.

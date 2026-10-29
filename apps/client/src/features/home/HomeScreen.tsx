@@ -78,8 +78,8 @@ export function HomeScreen() {
       <Row>
         <Button label="Settings" icon="settings" size="compact" variant="quiet" onPress={() => router.push('/settings')} />
         <Button label="Knowledge" size="compact" variant="quiet"
-          onPress={() => router.push({ pathname: '../knowledge', params: { packageId: selected } })} />
-        <Button label="Material" size="compact" variant="quiet" onPress={() => router.push('../materials')} />
+          onPress={() => router.navigate({ pathname: '/knowledge', params: { packageId: selected } })} />
+        <Button label="Material" size="compact" variant="quiet" onPress={() => router.navigate('/materials')} />
         <Button label="Get language packages" icon="package" size="compact" variant="quiet"
           onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
       </Row>

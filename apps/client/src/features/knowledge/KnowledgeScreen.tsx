@@ -131,9 +131,9 @@ export function KnowledgeScreen() {
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
   return <AppShell contentInset="none" header={<>
-    <Row><Button label="Home" variant="quiet" size="compact" onPress={() => router.replace('/')} />
+    <Row><Button label="Home" variant="quiet" size="compact" onPress={() => router.navigate('/')} />
       <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
-      <Button label="Material" variant="quiet" size="compact" onPress={() => router.push('../materials')} /></Row>
+      <Button label="Material" variant="quiet" size="compact" onPress={() => router.navigate('/materials')} /></Row>
     <Row><Select label="Knowledge language" value={packageId}
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
       onValueChange={value => { setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value); }} />

@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import type { CollectionQuery } from '@mlearn/contracts';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
@@ -160,31 +161,54 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     expect(materials.items[0].content).toMatchObject({
       targetId: target.summary.targetId, source: null, packageRevision: first.page.packageRevision,
     });
-    // Record the current real route lifecycle before repairing NAV-02. These
-    // drafts are presentation state, not saved settings or learner evidence.
-    // This diagnostic receipt is not an assertion that restoration works.
+    // When switching management routes, retain unsaved presentation state and
+    // the actual bounded page, without creating another native data authority.
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     const materialDraft = 'NAV-02 unsubmitted Material search';
     const knowledgeDraft = 'NAV-02 unsubmitted Knowledge search';
-    await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(materialDraft);
-    await page.screenshot({ path: info.outputPath('navigation-material-before.png') });
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
-    await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(knowledgeDraft);
-    await page.screenshot({ path: info.outputPath('navigation-knowledge-before.png') });
-    await page.getByRole('button', { name: 'Material', exact: true }).click();
-    const materialAfterSwitch = await page.getByRole('textbox', { name: 'Search Material', exact: true }).inputValue();
-    await page.screenshot({ path: info.outputPath('navigation-material-after-switch.png') });
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
-    const knowledgeAfterSwitch = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
-    await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(knowledgeDraft);
-    await page.getByRole('button', { name: 'Home', exact: true }).click();
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
-    const knowledgeAfterHome = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
-    await page.screenshot({ path: info.outputPath('navigation-knowledge-after-home.png') });
-    await info.attach('navigation-baseline.json', {
-      body: JSON.stringify({ materialDraft, materialAfterSwitch, knowledgeDraft, knowledgeAfterSwitch, knowledgeAfterHome }),
-      contentType: 'application/json',
-    });
+    const navigationReceipts: {
+      readonly width: number; readonly materialAfterSwitch: string;
+      readonly knowledgeAfterSwitch: string; readonly knowledgeAfterHome: string;
+    }[] = [];
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(materialDraft);
+      await page.screenshot({ path: info.outputPath(`navigation-material-${width}-before.png`) });
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await page.getByRole('combobox', { name: /^Knowledge order:/ }).click();
+      await page.getByRole('option', { name: 'Entry Z–A', exact: true }).click();
+      await page.getByRole('combobox', { name: /^Knowledge layout:/ }).click();
+      await page.getByRole('option', { name: 'Grid', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Next Knowledge page', exact: true })).toBeEnabled();
+      await page.getByRole('button', { name: 'Next Knowledge page', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'First Knowledge page', exact: true })).toBeEnabled();
+      const rows = page.locator('[data-testid^="knowledge-target-"]');
+      const identities = await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')));
+      expect(identities).toHaveLength(24);
+      await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(knowledgeDraft);
+      await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-before.png`) });
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
+      const materialAfterSwitch = await page.getByRole('textbox', { name: 'Search Material', exact: true }).inputValue();
+      await page.screenshot({ path: info.outputPath(`navigation-material-${width}-after-switch.png`) });
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
+      const knowledgeAfterSwitch = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
+      await expect(page.getByRole('combobox', { name: /^Knowledge order:/ })).toContainText('Entry Z–A');
+      await expect(page.getByRole('combobox', { name: /^Knowledge layout:/ })).toContainText('Grid');
+      await expect(page.getByRole('button', { name: 'First Knowledge page', exact: true })).toBeEnabled();
+      expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))).toEqual(identities);
+      const knowledgeAfterHome = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
+      await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-home.png`) });
+      navigationReceipts.push({ width, materialAfterSwitch, knowledgeAfterSwitch, knowledgeAfterHome });
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+    }
+    const navigationReceipt = JSON.stringify({ materialDraft, knowledgeDraft, navigationReceipts });
+    await writeFile(info.outputPath('navigation-restoration.json'), navigationReceipt);
+    await info.attach('navigation-restoration.json', { body: navigationReceipt, contentType: 'application/json' });
     await backend.crashRestart();
     await page.goto('/knowledge');
     const known = page.getByTestId(`knowledge-target-${target.summary.targetId}`)

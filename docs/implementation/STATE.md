@@ -28,6 +28,8 @@ Current task: preserve navigation between Home, Knowledge, Material and active
 tasks without resetting their existing owners. Substantial local
 verification is paused after the latest unexplained OmO allocation growth;
 remaining connected scenarios must use the ordinary hosted verification path.
+The management-only tab boundary is now implemented in source; its fresh hosted
+restoration assertions and desktop/narrow captures have not run yet.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -688,8 +690,14 @@ The full native-backed tests also verify separate sibling claims, source-bound
 Material, deeper navigation/Return focus, character Capture -> Material -> Review,
 and native crash/restart/resume. These close the three implementation tasks as
 verified_for_continuation. M10 real-platform QA and independent review remain
-open. Mobile 40844656393 is still running under the existing exact-source
-observer; no rerun, variant or cancellation was requested.
+open. Mobile 40844656393 is terminal: Android job 123349084519 passed; iOS job
+123349084310 failed its original Watch flow at 2026-10-29T09:22:31Z:
+`Element not found: Text matching regex: Open local video, Enabled`.
+The authored H.264/AAC fixture exported successfully before this failure.
+Exact failed-step log `mobile-4f0c788-failed.log` is retained in the existing
+scratch root. This matches a previously retained failure surface, not a diagnosis
+of its cause or a passing iOS gate. Observer 1869 completed; no rerun, variant or
+cancellation was requested.
 
 NAV-02 trace: the root is currently a Stack. Home pushes new Knowledge/Material
 screens; Knowledge and Material push one another, while their Home actions
@@ -714,6 +722,40 @@ No local execution was launched. A bounded post-inspection native sample reporte
 OmO PID 82251 RSS 8743344 KiB, rounded physical footprint 3.7G (historical peak
 14.4G), pressure 1 and swap used 4041.19 MiB. This lower current footprint does
 not establish a diagnosis or admission for substantial workloads.
+
+Exact `32f9b18641ba3520caa60f55ec8f0b834252dd84` foundation 40849011822 is
+terminal: web 123363527117, Rust, detector and macOS passed; Windows
+123366120536 failed its original native-theme input check. At
+2026-10-29T09:37:41Z it reported `Incomplete native theme input` while restoring
+Quartz: the editor retained Dark Quartz despite reported keyboard focus and
+correct clipboard. The exact `32f9b18-failed.log` is retained. This is another
+observed input failure, not a diagnosed cause, a product repair or a passing
+Windows gate.
+
+Web artifact 12888190121 is retained as `32f9b18-web-inspection.zip`. All four
+navigation PNGs were selectively extracted and directly inspected under
+`32f9b18-navigation-evidence/`: the original unsubmitted Material/Knowledge
+searches are visible before navigation and blank after revisiting. The after
+frames also show collection loading; they prove the lost local input, not a
+completed refreshed result. Successful traces and in-memory JSON attachments
+were not present in the uploaded artifact. Do not invent that missing receipt.
+
+The repair moves only Home/Knowledge/Material into a lazy management Tabs
+group with no added visible tab bar, retaining the root Stack and existing
+RuntimeProvider. Their existing controls now navigate to those stable routes.
+Reader/Watch/Review/Messenger/Settings remain outside that preserved subtree.
+No domain cache, settings persistence or new resource owner was added.
+The real Knowledge scenario now asserts search draft restoration after switching
+and Home, plus unchanged sort/grid/cursor and bounded target membership at
+1080/390. It writes its bounded JSON receipt into the uploaded test-results
+directory, alongside eight fresh captures. Explicit package/source parameter
+changes and repeated Material entry still require verification before NAV-02
+closure; neither is inferred from draft preservation.
+Local route declarations initially lacked Knowledge and were stale. They were
+regenerated through Expo CLI's own `setupTypedRoutes` owner, without Metro,
+a server, dependency installation or hand edits to generated types. The
+generator exited 0, and all eight touched TypeScript files have no LSP
+diagnostics. No fresh application render or hosted execution is claimed yet.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative

@@ -182,9 +182,9 @@ export function MaterialScreen() {
   }
   return <AppShell contentInset="none" navigation={<>
       <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
-      <Button label="Home" variant="navigation" size="compact" onPress={() => router.replace('/')} />
+      <Button label="Home" variant="navigation" size="compact" onPress={() => router.navigate('/')} />
       <Button label="Knowledge" variant="navigation" size="compact"
-        onPress={() => router.push({ pathname: '../knowledge', params: { packageId } })} />
+        onPress={() => router.navigate({ pathname: '/knowledge', params: { packageId } })} />
     {host.available ? <>
       <Select label="New Material language" value={packageId} options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
         onValueChange={setPackageId} />
