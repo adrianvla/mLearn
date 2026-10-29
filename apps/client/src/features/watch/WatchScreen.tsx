@@ -512,6 +512,7 @@ function WatchWorkspace() {
     const inspector = inspection && window && host.available ? (
         <Inspector key={JSON.stringify([inspection.sourceAnchor, inspection.targets, inspection.initialTargetId])}
             inspection={inspection} packageId={window.source.packageId} client={host.client}
+            onBeforeOpenMaterial={pauseAndSave}
             onChanged={changedInspection} onClose={() => { setInspection(null); setReturnedSelection(null); }} />
     ) : null;
     const overlayTop = insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8);

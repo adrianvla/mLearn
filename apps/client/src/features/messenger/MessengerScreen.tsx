@@ -158,7 +158,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     {wide || rail ? <View style={styles.rail(wide, windowControlsWidth)}>
       <View style={styles.railHeader}><Row>
         <Button label="Home" icon="arrowLeft" iconOnly variant="quiet" size="compact" disabled={messenger.busy}
-          onPress={() => void messenger.act({ origin: 'rail', run: async () => { await messenger.persistDraft(); router.replace('/'); } })} />
+          onPress={() => void messenger.act({ origin: 'rail', run: async () => { await messenger.persistDraft(); router.dismissTo('/'); } })} />
         <View style={styles.grow}><Text variant="heading">{tab === 'chats' ? 'Chats' : 'People'}</Text></View>
         {tab === 'chats' ? <ConversationEditor key={`new:${messenger.id}`} actions={actions} conversation={null}
           people={messenger.contacts} languages={messenger.languages} onSaved={openCreated}
@@ -347,6 +347,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
         {messenger.error && messenger.origin === 'history' ? <Button label="Reload conversation" variant="secondary" onPress={messenger.reload} /> : null}</View> : null}
     </View> : null}
     {inspection && chat ? <Inspector inspection={inspection} packageId={chat.packageId} client={client}
+      onBeforeOpenMaterial={messenger.persistDraft}
       onChanged={async () => { messenger.retryAnalysis(); }} onClose={() => setInspection(null)} /> : null}
     {materialId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
       materialId={materialId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}

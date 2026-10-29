@@ -349,6 +349,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 }} />
         </> : null}
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
+            onBeforeOpenMaterial={reader.persist}
             onChanged={async () => {
                 const identity = current.current;
                 if (imageMode) await imageReader.refreshKnowledge();

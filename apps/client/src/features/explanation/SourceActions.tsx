@@ -25,11 +25,12 @@ const running = (generation: ConversationGeneration | null) =>
   generation?.status === 'pending' || generation?.status === 'streaming';
 
 /** Presentation lifetime only; the shared native generation owner owns the job. */
-export function SourceActions({ client, source, tone = 'content', explanationDisabledReason }: {
+export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false }: {
   readonly client: RuntimeClient;
   readonly source: SourceAnchor;
   readonly tone?: 'content' | 'media';
   readonly explanationDisabledReason?: string;
+  readonly disabled?: boolean;
 }) {
   const host = useRuntime();
   const router = useRouter();
@@ -260,7 +261,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         description="Feedback is linked to the original source, not learner evidence."
         trigger={<Button label="Explain" variant={variant} size="compact"
           tone={tone === 'media' ? 'info' : undefined} icon={tone === 'media' ? 'conversation' : undefined}
-          disabled={!selected || !!explanationDisabledReason} />}>
+          disabled={disabled || !selected || !!explanationDisabledReason} />}>
         <Text selectable>{selected}</Text>
         <Button label={contextOpen ? 'Hide original context' : 'Show original context'} variant="quiet"
           accessibilityState={{ expanded: contextOpen }} onPress={() => setContextOpen(value => !value)} />
@@ -293,11 +294,11 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
           }} />
         </Row>
       </Dialog>
-      <Button label="Copy selected text" variant={variant} size="compact" disabled={!selected}
+      <Button label="Copy selected text" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => void copy(selected)} />
-      <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
+      <Button label="Copy context" variant={variant} size="compact" disabled={disabled || !source.text}
         onPress={() => void copy(source.text)} />
-      <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={!selected}
+      <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => setProposalsOpen(true)} />
     </Row>
     <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}

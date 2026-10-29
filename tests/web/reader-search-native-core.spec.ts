@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -17,6 +17,83 @@ async function installEnglish(page: Page) {
 function requestOf(payload: { args?: { request?: string } }) {
   return payload.args?.request ? JSON.parse(payload.args.request) : null;
 }
+
+test('Reader keeps failed checkpoint recovery before saved-Material departure', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const profile = info.outputPath('profile');
+  await mkdir(profile, { recursive: true });
+  const backend = await startRuntimeBrowserQa({ profile });
+  let rejectCheckpoints = true;
+  let failedCheckpoints = 0;
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await installEnglish(page);
+    const client = createRuntimeClient({
+      commandId: randomUUID,
+      execute: request => backend.invoke('runtime_execute', { request }),
+    });
+    const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
+    const original = document.source.appearance.fontSize;
+    const isCheckpoint = (request: Request) => request.url() === `${backend.url}/invoke`
+      && request.method() === 'POST'
+      && requestOf(request.postDataJSON())?.type === 'checkpoint_document'
+      && requestOf(request.postDataJSON())?.checkpoint.sourceId === document.source.id;
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/reader?id=${encodeURIComponent(document.source.id)}`);
+    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await page.route(`${backend.url}/invoke`, async route => {
+      if (rejectCheckpoints && isCheckpoint(route.request())) {
+        failedCheckpoints += 1;
+        await route.abort('failed');
+      } else await route.continue();
+    });
+
+    // A real appearance change is dirty while native checkpoints are unavailable.
+    const appearanceFailed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
+    await page.getByRole('button', { name: 'View options', exact: true }).click();
+    await page.getByRole('button', { name: 'Larger text', exact: true }).click();
+    await appearanceFailed;
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Retry saving position', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    const inspector = page.getByTestId('inspector-panel');
+    await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
+    const saved = inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true });
+    await expect(saved).toBeVisible();
+    const departureFailed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
+    await saved.click();
+    await departureFailed;
+    const sourceAfterFailure = (await client.resumeDocument(document.source.id)).source;
+    await writeFile(info.outputPath('reader-material-departure-failure.json'), JSON.stringify({
+      sourceId: document.source.id, originalFontSize: original, wantedFontSize: original + 2,
+      sourceAfterFailure, failedCheckpoints, url: page.url(), inspectorVisible: await inspector.isVisible(),
+    }));
+    await page.screenshot({ path: info.outputPath('reader-material-departure-failure-390.png') });
+    await expect(page).toHaveURL(new RegExp(`/reader\\?id=${document.source.id}`));
+    await expect(inspector.getByRole('alert')).toBeVisible();
+    expect(sourceAfterFailure.appearance.fontSize).toBe(original);
+
+    // Explicit recovery saves the same dirty source before departure is retried.
+    rejectCheckpoints = false;
+    await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
+    const persisted = page.waitForResponse(response => isCheckpoint(response.request()));
+    await page.getByRole('button', { name: 'Retry saving position', exact: true }).click();
+    await (await persisted).finished();
+    await expect(page.getByRole('button', { name: 'Retry saving position', exact: true })).toHaveCount(0);
+    expect((await client.resumeDocument(document.source.id)).source.appearance.fontSize).toBe(original + 2);
+    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Open saved Children', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue('Children');
+    expect(new URL(page.url()).searchParams.get('sourceId')).toBe(document.source.id);
+    await page.screenshot({ path: info.outputPath('reader-material-departure-recovered-390.png') });
+  } finally {
+    rejectCheckpoints = false;
+    await page.unroute(`${backend.url}/invoke`);
+    await backend.close();
+  }
+});
 
 test('Reader search opens the actual source span and returns to the saved reading position after native restart', async ({ page }, info) => {
   const backend = await startRuntimeBrowserQa({

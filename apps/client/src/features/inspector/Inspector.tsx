@@ -34,6 +34,7 @@ type InspectorProps = {
     client: RuntimeClient;
     onChanged: () => Promise<void>;
     onClose: () => void;
+    onBeforeOpenMaterial?: () => Promise<void>;
     readOnlySourceReason?: string;
 };
 export function Inspector(props: InspectorProps) {
@@ -44,7 +45,7 @@ export function Inspector(props: InspectorProps) {
         inspection.sourceAnchor, inspection.sourceForm, inspection.context, inspection.targets,
         inspection.initialTargetId])} {...props} />;
 }
-function InspectorSession({ inspection, packageId, client, onChanged, onClose, readOnlySourceReason }: InspectorProps) {
+function InspectorSession({ inspection, packageId, client, onChanged, onClose, onBeforeOpenMaterial, readOnlySourceReason }: InspectorProps) {
     const router = useRouter();
     const host = useRuntime();
     const [selectedSense, setSelectedSense] = useState<LexicalSense | null>(null);
@@ -61,6 +62,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
     const entry = result?.entry ?? null;
     const knowledge = result?.knowledge.projections ?? [];
     const scope = useRef<object | null>(null);
+    const openingMaterial = useRef<object | null>(null);
+    const [materialError, setMaterialError] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState<ClaimChange | null>(null);
@@ -89,6 +92,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
         let active = true;
         const owner = {};
         scope.current = owner;
+        setMaterialError('');
         setError('');
         setResult(null);
         setBusy(false);
@@ -111,6 +115,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
     function navigate(targets: string[]) {
         // Invalidate the previous lookup/claim before React runs effect cleanup.
         scope.current = null;
+        setMaterialError('');
         setResult(null);
         setError('');
         setRetry(null);
@@ -120,6 +125,32 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
         setCaptureOpen(false);
         navigationFocus.current = true;
         setHistory(targets);
+    }
+    function close() {
+        scope.current = null;
+        onClose();
+    }
+    async function openMaterial(id: string) {
+        const owner = scope.current;
+        if (!owner || busy || openingMaterial.current === owner) return;
+        openingMaterial.current = owner;
+        setBusy(true);
+        setMaterialError('');
+        try {
+            await onBeforeOpenMaterial?.();
+            if (scope.current !== owner) return;
+            close();
+            if (inspection.sourceAnchor) {
+                router.dismissTo({ pathname: '/materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+            } else {
+                router.navigate({ pathname: '/materials', params: { id } });
+            }
+        } catch (cause) {
+            if (scope.current === owner) setMaterialError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (openingMaterial.current === owner) openingMaterial.current = null;
+            if (scope.current === owner) setBusy(false);
+        }
     }
     function inspectGraphTarget(nextTargetId: string) {
         if (busy || nextTargetId === targetId) return;
@@ -168,7 +199,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
         mixed: { label: 'Mixed', tone: 'neutral', icon: 'circle' },
     } as const)[result.knowledge.claim] : null;
     return (
-        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
+        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={close} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
             opaque={!inspection.sourceAnchor || inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
             onPopoverClose={() => {
                 setExpandedCapability(null);
@@ -221,18 +252,14 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
                 onPress={() => { setEvidenceCapability(null); setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                    client={client} tone="media" presentation="actions"
+                    client={client} tone="media" presentation="actions" disabled={busy}
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
-                    onOpenMaterial={id => {
-                        onClose();
-                        if (inspection.sourceAnchor) {
-                            router.dismissTo({ pathname: '/materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
-                        } else {
-                            router.navigate({ pathname: '/materials', params: { id } });
-                        }
-                    }} /> : null}
+                    onOpenMaterial={id => void openMaterial(id)} /> : null}
+                {busy && openingMaterial.current === scope.current ? <Text tone="media" variant="caption"
+                    accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
+                {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
-                    explanationDisabledReason={readOnlySourceReason} /> : null}
+                    disabled={busy} explanationDisabledReason={readOnlySourceReason} /> : null}
             </>}>
             {entry && evidenceCapability ? <KnowledgeEvidence
                 key={JSON.stringify([packageId, entry.targetId, evidenceCapability])} client={client}
