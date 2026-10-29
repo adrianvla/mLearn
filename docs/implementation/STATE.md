@@ -31,7 +31,8 @@ remaining connected scenarios must use the ordinary hosted verification path.
 The management-only tab boundary passed its fresh hosted restoration assertions
 and eight desktop/narrow captures. The original retained-editor regression is
 repaired in `486c507`, with exact-source hosted checks and after captures below.
-Explicit changed-package and closed-editor re-entry remain under investigation.
+The changed-package probe still needs a usable receipt; the demonstrated
+closed-editor re-entry repair is in source and awaits hosted verification.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -803,8 +804,14 @@ Exact repair `486c50766d65fd90a2f7cc47e2c9ce47b916df9c` foundation
 40857907374 passed all five jobs, including typecheck/lint and all 141 web
 cases in 17.9 minutes (web 123393458599). This includes the unchanged original
 accepted-replacement assertions, the added unsaved-editor tab switch and native
-revision 2 check. Real desktop integration 40857907413 passed; mobile
-40857907407 remains independently pending under observer 1902.
+revision 2 check. Real desktop integration 40857907413 passed. Mobile
+40857907407 is terminal: Android 123394753785 passed; iOS 123394753531 failed
+its original Watch flow at 2026-10-29T11:24:45Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+The authored H.264/AAC fixture exported first. This is a different assertion
+from the earlier enabled-button lookup, not proof of its cause or repair.
+Retained exact `mobile-486c507-failed.log`; observers 1902/1915 completed.
+No diagnostic rerun or new variant was launched; iOS acceptance remains open.
 Retained `486c507-web.log` and artifact 12891592225 as
 `486c507-web-inspection.zip`. Selectively extracted and directly inspected all
 11 relevant PNGs: eight draft/navigation before/after frames, explicit saved
@@ -832,6 +839,33 @@ Small capture batches recorded OmO footprint 3.8G before / 4.0G after, pressure
 level 1 throughout, RSS 9179312 / 7993712 KiB and swap 4678.25 / 4518.25 MiB.
 Peak footprint remains 14.4G. This does not diagnose the allocation or admit
 local app/browser/device/build workloads; none were restarted.
+
+Baseline `b6e42a18d18271404ae4deb15be157e6c288fab3` foundation 40863487839
+is terminal: Rust, detector and both desktop jobs passed; web 123412296832
+reported 140 passed in 18.2 minutes and one failed scope probe. Its new selector
+waited for literal `Japanese` at line 305, but the actual installed option is
+`Japanese · 日本語`. This is a test error, not evidence of a package-navigation
+failure; no scope JSON was produced. Retained `b6e42a1-failed.log`, artifact
+12893717769 as `b6e42a1-web-inspection.zip`, and the selectively extracted
+context, failed frame and completed closed-editor PNG/JSON under
+`b6e42a1-navigation-evidence/`. Both PNGs were directly inspected.
+
+The completed same-ID receipt has `editorVisible: false` on a Material URL
+containing the exact saved ID, after its collection receipt and enabled Edit
+control. The frame shows its saved card but no editor. Closing had left both
+the opened-ID guard and selected route ID behind. The repair clears those two
+pieces of presentation state when the user closes the editor; it does not
+reload on every focus, change saved content or discard an open draft on ordinary
+navigation. The former diagnostic is now a real regression asserting the
+reopened editor and exact phrase at 1080/390, with fresh captures/receipts.
+The scope probe now selects Home options by the existing authoritative package
+test IDs instead of guessing their labels. Its diagnostic status is unchanged;
+no Knowledge/package-scope product repair is claimed.
+
+Both touched TypeScript files have clean LSP diagnostics and the full code diff
+and whitespace check pass. Fresh hosted execution and after captures remain
+required before another presentation-source change. No timeout, original
+assertion, resource limit or model pin was relaxed.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative

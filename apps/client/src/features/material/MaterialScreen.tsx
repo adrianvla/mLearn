@@ -240,6 +240,8 @@ export function MaterialScreen() {
           }}>{editor.material ? 'Edit Material' : 'Add Material'}</Text>
           <Button label="Close editor" variant="quiet" onPress={() => {
             restore.current = editor.trigger;
+            opened.current = '';
+            router.setParams({ id: undefined });
             openRequest.current = null; setOpening(null);
             if (returning?.location === 'editor') { returnRequest.current = null; setReturning(null); }
             focusedEditor.current = null; setEditor(null);

@@ -163,31 +163,33 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     });
     // When switching management routes, retain unsaved presentation state and
     // the actual bounded page, without creating another native data authority.
+    const reentryReceipts = [];
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
+      await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+      const materialReentry = page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+        const payload = response.request().postDataJSON();
+        if (typeof payload.args?.request !== 'string') return false;
+        const request = JSON.parse(payload.args.request);
+        return request.type === 'collection' && request.query.surface === 'material';
+      });
+      const [materialReentryReceipt] = await Promise.all([
+        materialReentry, page.getByText(`Open saved ${target.summary.headword}`, { exact: true }).click(),
+      ]);
+      await materialReentryReceipt.finished();
+      await expect(page.getByRole('heading', { name: 'Material', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: `Edit ${target.summary.headword}`, exact: true })).toBeEnabled();
+      await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue(target.summary.headword);
+      reentryReceipts.push({ width, materialId: materials.items[0].id, editorVisible: true, url: page.url() });
+      await page.screenshot({ path: info.outputPath(`material-closed-reentry-${width}.png`) });
+    }
+    await writeFile(info.outputPath('material-closed-reentry.json'), JSON.stringify(reentryReceipts));
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
-    await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
-    await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
-    const materialReentry = page.waitForResponse(response => {
-      if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
-      const payload = response.request().postDataJSON();
-      if (typeof payload.args?.request !== 'string') return false;
-      const request = JSON.parse(payload.args.request);
-      return request.type === 'collection' && request.query.surface === 'material';
-    });
-    const [materialReentryReceipt] = await Promise.all([
-      materialReentry, page.getByText(`Open saved ${target.summary.headword}`, { exact: true }).click(),
-    ]);
-    await materialReentryReceipt.finished();
-    await expect(page.getByRole('heading', { name: 'Material', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: `Edit ${target.summary.headword}`, exact: true })).toBeEnabled();
-    // Diagnostic baseline only: record the deliberate same-ID re-entry before
-    // repairing it; the existing native/retention assertions below stay intact.
-    const reopened = await page.getByRole('heading', { name: 'Edit Material', exact: true }).isVisible();
-    await writeFile(info.outputPath('material-closed-reentry.json'), JSON.stringify({
-      materialId: materials.items[0].id, editorVisible: reopened, url: page.url(),
-    }));
-    await page.screenshot({ path: info.outputPath('material-closed-reentry.png') });
-    if (reopened) await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     const materialDraft = 'NAV-02 unsubmitted Material search';
     const knowledgeDraft = 'NAV-02 unsubmitted Knowledge search';
     const navigationReceipts: {
@@ -298,11 +300,11 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
     await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
     const scopeReceipts = [];
-    for (const scope of [{ width: 1080, language: 'Japanese' }, { width: 390, language: 'English' }]) {
+    for (const scope of [{ width: 1080, packageId: 'org.mlearn.japanese' }, { width: 390, packageId: 'org.mlearn.english' }]) {
       await page.setViewportSize({ width: scope.width, height: 900 });
       await page.getByRole('button', { name: 'Home', exact: true }).click();
       await page.getByRole('combobox', { name: /^Source language:/ }).click();
-      await page.getByRole('option', { name: scope.language, exact: true }).click();
+      await page.getByTestId(`language-${scope.packageId}`).click();
       const entered = page.waitForResponse(response => {
         if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
         const payload = response.request().postDataJSON();
