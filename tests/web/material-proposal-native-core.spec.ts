@@ -289,7 +289,7 @@ test('rejected proposals remain inspectable after restart without a provider or 
   } finally { await backend.close(); }
 });
 
-test('opening an accepted replacement explicitly reloads the saved revision instead of the old editor draft', async ({ page }) => {
+test('opening an accepted replacement explicitly reloads the saved revision instead of the old editor draft', async ({ page }, info) => {
   const backend = await startRuntimeBrowserQa({
     profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/proposal-open-${randomUUID()}`,
   });
@@ -307,6 +307,9 @@ test('opening an accepted replacement explicitly reloads the saved revision inst
     await page.goto('/materials');
     await page.getByRole('button', { name: 'Edit bird', exact: true }).click();
     await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Unsubmitted old draft.');
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Unsubmitted old draft.');
     await page.getByRole('button', { name: 'Propose changes to saved Material', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Material proposals', exact: true });
     await dialog.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Accepted replacement meaning.');
@@ -322,6 +325,12 @@ test('opening an accepted replacement explicitly reloads the saved revision inst
     await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted replacement meaning.');
     await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Saved note.');
     expect((await client.material(saved.material.id)).revision).toBe(2);
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('textbox', { name: 'Meaning', exact: true }).scrollIntoViewIfNeeded();
+      await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted replacement meaning.');
+      await page.screenshot({ path: info.outputPath(`material-explicit-reentry-${width}.png`) });
+    }
   } finally { await backend.close(); }
 });
 

@@ -28,8 +28,9 @@ Current task: preserve navigation between Home, Knowledge, Material and active
 tasks without resetting their existing owners. Substantial local
 verification is paused after the latest unexplained OmO allocation growth;
 remaining connected scenarios must use the ordinary hosted verification path.
-The management-only tab boundary is now implemented in source; its fresh hosted
-restoration assertions and desktop/narrow captures have not run yet.
+The management-only tab boundary passed its fresh hosted restoration assertions
+and eight desktop/narrow captures. An original Material re-entry test exposed
+a retained-editor regression; its owner repair is now in source, not yet verified.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -756,6 +757,41 @@ regenerated through Expo CLI's own `setupTypedRoutes` owner, without Metro,
 a server, dependency installation or hand edits to generated types. The
 generator exited 0, and all eight touched TypeScript files have no LSP
 diagnostics. No fresh application render or hosted execution is claimed yet.
+
+Exact `191726ce6e5020b0724501bcab0e5cabad136bf6` foundation 40853931224 is
+terminal with web job 123380049070 failing one original regression:
+`material-proposal-native-core.spec.ts:322` expected the accepted replacement
+meaning but read the old editor's empty meaning. The other 140 web cases passed
+in 11.7 minutes, including the new real navigation restoration assertions and
+the graph/character scenarios. Rust, detector and both foundation desktop jobs
+passed; real desktop integration 40853931257 also passed. Mobile 40853931366
+remains separately watched by observer 1891. Preserve that pending result.
+
+Retained `191726c-failed.log`, artifact 12888724571 as
+`191726c-web-inspection.zip`, and selectively extracted the eight navigation
+PNGs/JSON receipt plus the original failed Material frame/context/trace under
+`191726c-navigation-evidence/`. All nine PNGs were directly inspected.
+The navigation receipt confirms both drafts at both widths, with the original
+assertions also checking sort/grid/cursor and the same bounded 24 target IDs.
+The failed frame has the accepted meaning on the saved card while the editor
+still holds its earlier content. Bounded trace metadata and selected JSON blobs
+under `191726c-material-trace/` show the initial Material read returning revision
+1, the native proposal receipt committing revision 2, and no new native read
+after the explicit Open saved Material click.
+
+The preserved screen's opened-ID guard no longer implies that a same-ID
+navigation is a request to reload its committed content. The repair makes
+MaterialProposalReview delegate explicit saved/existing entry opening to its
+actual caller: MaterialScreen uses its existing native `open` owner directly;
+SourceActions uses its router boundary. No copy of loading/retry/editor state,
+new native store, route nonce or automatic replacement of unsaved drafts was
+added. The original failing assertions remain unchanged. That same regression
+now additionally checks an unsaved editor draft surviving ordinary tab switching
+and captures explicit revision reload at 1080/390.
+Three touched files have clean LSP diagnostics; MaterialProposalReview's fresh
+diagnostics timed out twice and are not counted as passing. Full diff/whitespace
+checks pass. Fresh hosted typecheck, the original regression and after captures
+are still required; NAV-02 remains in progress.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative

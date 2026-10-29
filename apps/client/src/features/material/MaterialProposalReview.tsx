@@ -16,7 +16,7 @@ import { MaterialGenerationControls } from './MaterialGenerationControls';
 import { emptyMaterial } from './content';
 
 /** Unsubmitted fields live here; proposal identity, review and receipts stay native-owned. */
-export function MaterialProposalReview({ client, open, onOpenChange, focusTarget, seed, source, onChanged }: {
+export function MaterialProposalReview({ client, open, onOpenChange, focusTarget, seed, source, onChanged, onOpenMaterial }: {
   readonly client: RuntimeClient;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -24,6 +24,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
   readonly seed: Material | null;
   readonly source?: SourceAnchor;
   readonly onChanged?: () => void;
+  readonly onOpenMaterial: (id: string) => void;
 }) {
   const router = useRouter();
   const [page, setPage] = useState<MaterialProposalPage | null>(null);
@@ -181,7 +182,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
         onPress={() => {
           if (proposal.state.state === 'accepted') {
             onOpenChange(false);
-            router.push({ pathname: '../materials', params: { id: proposal.state.materialId } });
+            onOpenMaterial(proposal.state.materialId);
           }
         }} /> : null}
       {feedback ? <Text accessibilityLiveRegion="polite" testID="material-proposal-result">{feedback}</Text> : null}
@@ -193,7 +194,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
       </Row> : null}
       {duplicates.length ? <View style={styles.stack}>
         {duplicates.map(id => <Button key={id} label="Open existing Material" detail={id} variant="secondary" disabled={busy}
-          onPress={() => { onOpenChange(false); router.push({ pathname: '../materials', params: { id } }); }} />)}
+          onPress={() => { onOpenChange(false); onOpenMaterial(id); }} />)}
         {!proposal?.replaces ? <Button label="Keep proposal distinct" disabled={busy || !!retry}
           onPress={() => review({ kind: 'accept', distinct: true })} /> : null}
       </View> : null}

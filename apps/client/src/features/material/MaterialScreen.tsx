@@ -303,6 +303,7 @@ export function MaterialScreen() {
       </View>
       <MaterialProposalReview client={host.client} open={proposalsOpen} onOpenChange={setProposalsOpen}
         seed={proposalSeed} focusTarget={() => proposalFocus.current ?? proposalTrigger.current}
+        onOpenMaterial={id => void open(id, null)}
         onChanged={() => { setAfter(null); setReload(value => value + 1); }} />
     </>}
   </AppShell>;
