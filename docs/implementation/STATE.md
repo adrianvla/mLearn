@@ -31,8 +31,9 @@ remaining connected scenarios must use the ordinary hosted verification path.
 The management-only tab boundary passed its fresh hosted restoration assertions
 and eight desktop/narrow captures. The original retained-editor regression is
 repaired in `486c507`, with exact-source hosted checks and after captures below.
-Fresh receipts now demonstrate both a Material focus-publication failure and
-a changed-package mismatch. Their connected owner repairs await hosted checks.
+Fresh receipts confirm restored Material entry and changed package selection.
+Rapid Home return still exhausts renderer request admission; its focused-loader
+repair awaits hosted checks. NAV-02 remains incomplete.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -871,7 +872,14 @@ Exact `8d3ccd3e56e3634eada7c630865456de071a2242` foundation 40867693534
 failed web 123426520043 with 140 passed in 12.9 minutes. The unchanged
 closed-editor regression reached `Edit able` still busy after its 5-second
 assertion budget. Rust, detector, both foundation desktop jobs and real desktop
-40867693509 passed. Mobile 40867693648 remains independently watched by 1923.
+40867693509 passed. Mobile 40867693648 is terminal: Android 123426521430
+passed; iOS 123426521162 failed its original Watch flow at
+2026-10-29T12:40:40Z:
+`Element not found: Id matching regex: DOC.sidebar.item.On My iPhone`.
+The authored H.264/AAC fixture exported first. Retained exact
+`mobile-8d3ccd3-failed.log`; observers 1923/1947 completed. This is distinct
+from the preceding file-row and enabled-button assertions; no cause or repair
+is inferred, and no diagnostic rerun or variant was launched.
 Retained `8d3ccd3-failed.log`, artifact 12895437499 as
 `8d3ccd3-web-inspection.zip`, and selectively extracted three PNGs, scope JSON,
 failure context and failing trace under `8d3ccd3-navigation-evidence/`.
@@ -932,6 +940,57 @@ build or inference workload was started. Both edited JavaScript files' fresh
 LSP diagnostics timed out and are not counted as passing. Full diff/whitespace
 checks pass; hosted lint and the real failing workflow remain required.
 No product UI source changed after d15558aa.
+
+The d15558aa web failure is now narrowed: Material re-entry passes at 1080/390,
+both changed-package entries match the actual requested native package and
+installed label, and the eight draft/sort/grid/page frames remain intact. The
+final local-picker/Home return shows `Native request queue is full; retry the
+action.` before its English collection dispatch. The guard is the unchanged
+eight-slot admission in `packages/runtime-client/src/client.ts:79`.
+Bounded final trace reads show a 702.941ms Japanese describe followed by queued
+Japanese collection, Home snapshot/recent-source/recent-document reads executing
+after Home blur, then Knowledge snapshot/selection reads. Admitted requests
+drain, but the rejected foreground collection has no receipt to await. The
+test's 30-second timeout is not evidence of a slow collection or installation.
+
+Directly inspected 14 current relevant frames in batches of one/two: two
+reopened editors, two correct package scopes, eight retention comparisons,
+the native Home preimage and the queue-failure frame. Durable re-entry and
+navigation JSON receipts were read. The first two scope receipts were previously
+lost because their write followed the final failing step.
+OmO footprint stayed 4.8G before/after this batch (peak 14.4G), pressure 1;
+RSS 5510032/5723344 KiB, swap 3860.75/3812.75 MiB. No substantial local
+verification was admitted; the allocation remains undiagnosed.
+
+The Home candidate retains its existing focus lease but admits its three reads
+sequentially, checking that lease between reads. The shared client already
+serializes them; pre-admitting off-screen follow-ups was filling its bounded
+queue. No admission limit, retry, new store or UI delay was added.
+The original scope-return assertions remain, now with a held real Home snapshot
+receipt to make blur/admission ordering deliberate rather than dependent on
+package execution speed. Request events must show no off-screen recent-source
+or recent-document follow-up; the foreground scope must still complete. Gates
+are subscribed before input and released in cleanup, with no sleeps. First-two
+scope receipts are persisted before the last step and its successful receipt
+is appended only after assertions. Home LSP diagnostics are clean; the test's
+fresh diagnostics timed out and are not counted as passing. Full code diff and
+whitespace checks pass; hosted execution and fresh captures remain required.
+
+The diagnostic-only a571cb87 real desktop run 40874832765 passed; it does not
+explain or erase the earlier d15558aa timeout on identical UI/deadlines. Its
+foundation 40874832751 failed web 123453596679 in the same final scope-return
+response wait at line 344 (140 passed, 17.8 minutes); the other four jobs passed.
+Retained `a571cb8-foundation-failed.log`; observer 1957 completed. Its UI and
+scope-test source match d15558aa, so no duplicate 258MB capture download was
+needed for the same observed failure.
+No iOS variant or unchanged native rerun was launched. After this repair's
+evidence, active-workspace return and explicit source-parameter preservation
+still need verification before closing NAV-02.
+
+Read-only return-control audit found Reader and Messenger Home actions replacing
+the root route, while Watch has a distinct back/fallback path. Their persisted
+management state and explicit source parameters still need real workflow
+verification; no change to those callers or claim of equivalence was made.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative
