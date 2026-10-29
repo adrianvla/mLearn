@@ -1162,8 +1162,47 @@ their local checkpoint recovery owners, and identifies Review audio-departure,
 remaining Home/unavailable recovery and hidden polling/playback scenarios.
 These are registered ready tasks, not passing runtime findings or acceptance.
 Root will reproduce them in their actual existing suites. M11 preparation remains
-independent and product integration remains gated. Current expanded ledger adds16
-ready-work/cleanup units to the original125:70 completed,1 dropped,70 open of141.
+independent and product integration remains gated. Current expanded ledger adds18
+ready-work/cleanup units to the original125:75 completed,1 dropped,67 open of143.
+
+The frozen-selection omission is now reproduced and repaired, independently of
+pending913b5b86 CI. Applied the isolated worker's tests before its owner change.
+`CARGO_BUILD_JOBS=1 cargo test --locked -p mlearn-storage --test collection frozen_selection_pages_budget_escaped_revision_bytes_without_skipping_entries -- --exact`
+failed the actual serialized-page131072-byte assertion atline370 after real
+65-Material freeze/reopen (1.60s build,0.10s test). The owner now admits an encoded
+prefix within the unchanged byte/64-row limits, including cursor overhead,
+retaining the preceding accepted identity when deferring the next row.
+No frozen data, selection identity, revision or transaction behavior changed.
+The full existing collection suite then passed22/22, zero ignored/filtered,
+0.50s after3.83s build. This includes the new native33-field catalog/reopen case
+and all prior membership/replay/filter/migration cases.
+Both Rust files' diagnostics and full diff/whitespace checks are clean.
+Automatic tool formatting also normalized existing assertion/import layout;
+no original assertion was removed or weakened. Logs:
+`selection-owner-before.log`, `selection-owner-after.log` in the orchestration root.
+
+One local Cargo job was deliberately admitted only after the original three
+fresh2560MiB samples passed with4GiB reserve, then guarded at2048MiB.
+The completed owned Rust diagnostics trees70032/70077/70078 and
+70949/70993/70994 were identified by parent/cwd and released before each build;
+no unrelated process was touched. Both running guards were stopped when their
+test exited. Post-run process readback showed no Cargo/rustc/analyzer.
+OmO physical5267486160, available8348598272, pressure1, swap6265241600;
+growth remains undiagnosed, not attributed to app/device/model. Original limits
+and resource policy were not relaxed.
+
+All initial independent audits and M11 prerequisites have returned. Root read
+and parsed both scratch JSON files with explicit full ranges:5 topics,15 tasks,
+40 response cases,26 unique native scenarios, disjoint finite accepted/rejected
+sets. Files are `reports/m11-prerequisites.md`, `m11-grammar-vectors.json` and
+`m11-session-vectors.json` under the orchestration root. These are concrete
+future package/native fixtures, not registered targets, executed validators,
+approved content distribution or an accepted calibration policy. M11 integration
+remains gated. Messenger regression source is integrated with clean diagnostics
+but runtime UNRUN. Review audio source/test patches returned in their separate
+checkout and await root reproduction/integration; operation-scoped bounded-read
+cancellation design is actively being narrowed against actual native admission.
+READY work continues; pending CI blocks only its dependent render/evidence step.
 
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted

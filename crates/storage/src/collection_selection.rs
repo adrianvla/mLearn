@@ -1,10 +1,10 @@
 use crate::{
-    ProfileStore, StorageError,
-    collection::{CollectionSql, compile_collection, read_collection},
+    collection::{compile_collection, read_collection, CollectionSql},
     material_validation::bounded,
+    ProfileStore, StorageError,
 };
 use mlearn_core::*;
-use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
+use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -497,7 +497,7 @@ impl ProfileStore {
         }
         let tx = self.connection.unchecked_transaction()?;
         selection(&tx, id)?;
-        let mut rows = {
+        let rows = {
             let mut statement = tx.prepare(
                 "SELECT item_id,package_id,package_revision,material_revision
                  FROM collection_selection_entries
@@ -522,17 +522,36 @@ impl ProfileStore {
                 })?
                 .collect::<Result<Vec<_>, _>>()?
         };
-        let next = if rows.len() > 64 {
-            rows.truncate(64);
-            rows.last().map(|row| match &row.item {
-                CollectionItemId::Material { id } => id.0.clone(),
-                CollectionItemId::Target { target_id } => target_id.clone(),
-            })
-        } else {
-            None
+        let row_count = rows.len();
+        let mut page = CollectionSelectionPage {
+            items: Vec::new(),
+            next: None,
         };
+        for (index, row) in rows.into_iter().take(64).enumerate() {
+            let previous = page.next.clone();
+            page.next = if index + 1 < row_count {
+                Some(match &row.item {
+                    CollectionItemId::Material { id } => id.0.clone(),
+                    CollectionItemId::Target { target_id } => target_id.clone(),
+                })
+            } else {
+                None
+            };
+            page.items.push(row);
+            // Include escaped strings and the continuation in the wire budget.
+            if serde_json::to_vec(&page)?.len() > 131072 {
+                page.items.truncate(page.items.len() - 1);
+                page.next = previous;
+                if page.items.is_empty() {
+                    return Err(StorageError::Invalid(
+                        "Selection item exceeds page wire budget".into(),
+                    ));
+                }
+                break;
+            }
+        }
         tx.commit()?;
-        Ok(CollectionSelectionPage { items: rows, next })
+        Ok(page)
     }
 
     pub fn release_collection_selection(

@@ -97,26 +97,17 @@ fn amended_selection_keeps_frozen_preconditions_and_projects_only_requested_memb
             id: MaterialId(format!("material-{index}")),
         })
         .collect::<Vec<_>>();
-    assert!(
-        store
-            .collection_selection_membership(
-                &amended.id,
-                None,
-                CollectionSurface::Material,
-                &oversized
-            )
-            .is_err()
-    );
-    assert!(
-        store
-            .collection_selection_membership(
-                &amended.id,
-                None,
-                CollectionSurface::Material,
-                &[item(0), item(0)]
-            )
-            .is_err()
-    );
+    assert!(store
+        .collection_selection_membership(&amended.id, None, CollectionSurface::Material, &oversized)
+        .is_err());
+    assert!(store
+        .collection_selection_membership(
+            &amended.id,
+            None,
+            CollectionSurface::Material,
+            &[item(0), item(0)]
+        )
+        .is_err());
     let overlap = CollectionSelectionCreate {
         command_id: "overlap".into(),
         source: CollectionSelectionSource::Amend {
@@ -206,18 +197,16 @@ fn removing_frozen_targets_survives_catalog_eviction_without_cross_package_alias
             .collect::<Vec<_>>(),
         vec![false, true]
     );
-    assert!(
-        store
-            .collection_selection_membership(
-                &amended.id,
-                Some("other.package"),
-                CollectionSurface::Knowledge,
-                &keys
-            )
-            .unwrap()
-            .iter()
-            .all(|row| !row.selected)
-    );
+    assert!(store
+        .collection_selection_membership(
+            &amended.id,
+            Some("other.package"),
+            CollectionSurface::Knowledge,
+            &keys
+        )
+        .unwrap()
+        .iter()
+        .all(|row| !row.selected));
     let add = CollectionSelectionCreate {
         command_id: "add-without-catalog".into(),
         source: CollectionSelectionSource::Amend {
@@ -230,19 +219,17 @@ fn removing_frozen_targets_survives_catalog_eviction_without_cross_package_alias
     assert!(store.create_collection_selection(&add).is_err());
     let mut foreign_query = selection_query;
     foreign_query.package_id = Some("other.package".into());
-    assert!(
-        store
-            .create_collection_selection(&CollectionSelectionCreate {
-                command_id: "foreign-amendment".into(),
-                source: CollectionSelectionSource::Amend {
-                    selection_id: amended.id,
-                    query: foreign_query,
-                    add: vec![],
-                    remove: vec![item(1)],
-                },
-            })
-            .is_err()
-    );
+    assert!(store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "foreign-amendment".into(),
+            source: CollectionSelectionSource::Amend {
+                selection_id: amended.id,
+                query: foreign_query,
+                add: vec![],
+                remove: vec![item(1)],
+            },
+        })
+        .is_err());
 }
 
 #[test]
@@ -319,6 +306,99 @@ fn frozen_selection_survives_filter_changes_retry_and_reopen() {
 }
 
 #[test]
+fn frozen_selection_pages_budget_escaped_revision_bytes_without_skipping_entries() {
+    // Given 65 admitted Materials whose revisions expand sixfold in JSON.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let revision = "\u{0001}".repeat(512);
+    let mut expected = BTreeMap::new();
+    for index in 0..65 {
+        let saved = store
+            .create_material(&MaterialCreate {
+                command_id: format!("escaped-revision-{index}"),
+                distinct: true,
+                media_imports: vec![],
+                content: MaterialContent {
+                    package_id: PACKAGE.into(),
+                    target_id: None,
+                    package_revision: Some(revision.clone()),
+                    sense: None,
+                    phrase: format!("Independent phrase {index}"),
+                    reading: "".into(),
+                    meaning: "".into(),
+                    context: "".into(),
+                    notes: "".into(),
+                    examples: vec![],
+                    attachments: vec![],
+                    source: None,
+                },
+            })
+            .unwrap();
+        let MaterialWriteResult::Saved { material, .. } = saved else {
+            panic!("Expected admitted Material");
+        };
+        expected.insert(material.id.0, material.revision);
+    }
+    let mut selection_query = query(
+        CollectionSurface::Material,
+        CollectionFilter::All { filters: vec![] },
+    );
+    selection_query.package_id = None;
+    let selected = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "freeze-escaped-revisions".into(),
+            source: CollectionSelectionSource::Matching {
+                query: selection_query,
+            },
+        })
+        .unwrap();
+    assert_eq!(selected.material_count, 65);
+    drop(store);
+
+    // When traversing the persisted snapshot after reopening the real store.
+    let store = ProfileStore::open(&path).unwrap();
+    assert_eq!(store.collection_selection(&selected.id).unwrap(), selected);
+    let mut after = None;
+    let mut actual = BTreeMap::new();
+    for _ in 0..65 {
+        let page = store
+            .collection_selection_page(&selected.id, after.as_deref())
+            .unwrap();
+
+        // Then the complete wire page fits and continuation skips no identity.
+        assert!(serde_json::to_vec(&page).unwrap().len() <= 131072);
+        assert!(!page.items.is_empty());
+        assert!(page.items.len() <= 64);
+        if let Some(next) = &page.next {
+            let CollectionItemId::Material { id } = &page.items.last().unwrap().item else {
+                panic!("Expected frozen Material identity");
+            };
+            assert_eq!(next, &id.0);
+        }
+        for entry in page.items {
+            assert_eq!(entry.package_id, PACKAGE);
+            assert_eq!(entry.package_revision.as_deref(), Some(revision.as_str()));
+            let CollectionItemId::Material { id } = entry.item else {
+                panic!("Expected frozen Material identity");
+            };
+            assert!(
+                actual
+                    .insert(id.0, entry.material_revision.unwrap())
+                    .is_none(),
+                "Frozen identity was returned more than once"
+            );
+        }
+        after = page.next;
+        if after.is_none() {
+            break;
+        }
+    }
+    assert!(after.is_none(), "Frozen traversal must terminate");
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn explicit_selection_rejects_missing_filtered_duplicate_and_wrong_kind_items() {
     // Given a prepared catalog and an explicit selection inside the even scope.
     let directory = tempfile::tempdir().unwrap();
@@ -371,11 +451,9 @@ fn explicit_selection_rejects_missing_filtered_duplicate_and_wrong_kind_items() 
         ),
         ("oversized", vec![target_id(0); 257]),
     ] {
-        assert!(
-            store
-                .create_collection_selection(&command(id, items))
-                .is_err()
-        );
+        assert!(store
+            .create_collection_selection(&command(id, items))
+            .is_err());
     }
     assert!(matches!(
         store.create_collection_selection(&command("explicit", vec![target_id(4)])),
@@ -411,20 +489,16 @@ fn releasing_selection_frees_capacity_without_resurrecting_retry() {
 
     // Then capacity returns, released handles fail, and retries cannot select new data.
     assert!(store.collection_selection(&retained[0].id).is_err());
-    assert!(
-        store
-            .collection_selection_page(&retained[0].id, None)
-            .is_err()
-    );
+    assert!(store
+        .collection_selection_page(&retained[0].id, None)
+        .is_err());
     assert!(store.create_collection_selection(&command(0)).is_err());
     assert_eq!(store.collection_selections().unwrap().len(), 7);
-    assert!(
-        store
-            .collection_selections()
-            .unwrap()
-            .iter()
-            .all(|item| item.id != retained[0].id)
-    );
+    assert!(store
+        .collection_selections()
+        .unwrap()
+        .iter()
+        .all(|item| item.id != retained[0].id));
     assert!(store.create_collection_selection(&command(8)).is_ok());
     store.release_collection_selection(&retained[0].id).unwrap();
 }
@@ -460,19 +534,15 @@ fn selecting_an_incomplete_catalog_or_page_cursor_does_not_freeze_a_prefix() {
     };
 
     // When the incomplete collection or an opaque page cursor is used for selection.
-    assert!(
-        store
-            .create_collection_selection(&command(selection_query.clone()))
-            .is_err()
-    );
+    assert!(store
+        .create_collection_selection(&command(selection_query.clone()))
+        .is_err());
     selection_query.after = Some("cursor".into());
 
     // Then neither input can establish partial collection membership.
-    assert!(
-        store
-            .create_collection_selection(&command(selection_query))
-            .is_err()
-    );
+    assert!(store
+        .create_collection_selection(&command(selection_query))
+        .is_err());
     store
         .put_collection_catalog_page(
             PACKAGE,
@@ -705,11 +775,10 @@ fn saved_material_remains_readable_while_catalog_filters_are_preparing() {
     // Then authored rows stay readable, but metadata predicates cannot count a prefix.
     assert_eq!(page.count, 2);
     assert_eq!(page.items.len(), 2);
-    assert!(
-        page.items
-            .iter()
-            .all(|item| matches!(item, CollectionItem::Material { .. }))
-    );
+    assert!(page
+        .items
+        .iter()
+        .all(|item| matches!(item, CollectionItem::Material { .. })));
     assert_eq!(
         store
             .collection(&query(
@@ -762,21 +831,19 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
     ));
     let mut malformed = target(1);
     malformed.capabilities.push("other.package:injected".into());
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-one",
-                1,
-                Some("lemma/漢字:2"),
-                &CollectionCatalogPage {
-                    items: vec![malformed],
-                    next: None,
-                    total: 2,
-                }
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            1,
+            Some("lemma/漢字:2"),
+            &CollectionCatalogPage {
+                items: vec![malformed],
+                next: None,
+                total: 2,
+            }
+        )
+        .is_err());
     drop(store);
     // When the real owner resumes after restart.
     let mut store = ProfileStore::open(&path).unwrap();
@@ -919,6 +986,59 @@ fn metadata_only_catalog_targets_resume_without_implicit_knowledge() {
 }
 
 #[test]
+fn catalog_extension_fields_preserve_native_byte_bounded_contract_after_reopen() {
+    // Given an admitted target with 33 small namespaced extension fields.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let mut expected = target(0);
+    expected.extensions = (0..33)
+        .map(|index| {
+            (
+                format!("{PACKAGE}:field-{index:02}"),
+                serde_json::json!(index),
+            )
+        })
+        .collect();
+    assert!(serde_json::to_vec(&expected).unwrap().len() <= 16384);
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 1)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![expected.clone()],
+                next: None,
+                total: 1,
+            },
+        )
+        .unwrap();
+    drop(store);
+
+    // When the native collection is read after reopening.
+    let store = ProfileStore::open(&path).unwrap();
+    let page = ready(
+        &store,
+        &query(
+            CollectionSurface::Knowledge,
+            CollectionFilter::All { filters: vec![] },
+        ),
+    );
+
+    // Then every field survives without an additional key-count restriction.
+    assert_eq!((page.count, page.items.len()), (1, 1));
+    let CollectionItem::Target { target, .. } = &page.items[0] else {
+        panic!("Expected catalog target");
+    };
+    assert_eq!(target.extensions.len(), 33);
+    assert_eq!(target, &expected);
+}
+
+#[test]
 fn level_filters_use_all_source_memberships_not_only_inline_display() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
@@ -984,21 +1104,19 @@ fn level_filters_use_all_source_memberships_not_only_inline_display() {
     store
         .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
         .unwrap();
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-two",
-                0,
-                None,
-                &CollectionCatalogPage {
-                    items: vec![invalid],
-                    next: None,
-                    total: 1
-                }
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-two",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![invalid],
+                next: None,
+                total: 1
+            }
+        )
+        .is_err());
     assert_eq!(
         store
             .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
@@ -1027,17 +1145,9 @@ fn opaque_catalog_progress_rejects_stalls_and_replayed_pages_atomically() {
         next: first.next.clone(),
         total: 3,
     };
-    assert!(
-        store
-            .put_collection_catalog_page(
-                PACKAGE,
-                "revision-one",
-                1,
-                first.next.as_deref(),
-                &stalled
-            )
-            .is_err()
-    );
+    assert!(store
+        .put_collection_catalog_page(PACKAGE, "revision-one", 1, first.next.as_deref(), &stalled)
+        .is_err());
     assert!(matches!(
         store.put_collection_catalog_page(PACKAGE, "revision-one", 0, None, &first),
         Err(StorageError::Conflict)
