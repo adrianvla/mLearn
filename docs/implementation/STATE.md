@@ -24,17 +24,46 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: preserve navigation between Home, Knowledge, Material and active
-tasks without resetting their existing owners. Substantial local
-verification is paused after the latest unexplained OmO allocation growth;
-remaining connected scenarios must use the ordinary hosted verification path.
+Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+Latest product checkpoint `5a540c88` preserves Messenger's retained management
+workspace and waits for the existing Reader/image, Watch and Messenger source
+save owner before Inspector opens saved Material. Failed saves retain the source,
+Inspector and explicit recovery; Close invalidates a pending navigation intent.
+Shared capture/source controls expose the pending disabled state.
+Two real-Rust-backend departure regressions failed before repair and passed after
+repair, including desktop/narrow draft restoration, native conversation/history/
+analysis continuity, failed document checkpoint retention and explicit recovery.
+Final client typecheck, ownership lint and diff checks passed. Four desktop/narrow
+captures were inspected; the Inspector footer intentionally scrolls horizontally.
+Evidence and both raw fixture profiles are preserved at
+`.mlearn/m10/nav02-departure-5a540c88/`. The local rendered diff precedes one final
+disabled-prop forwarding line in an unexercised non-actions row; exact-final-source
+hosted confirmation remains pending, not inferred from the local captures.
+
+Substantial local work remains serial under fresh physical-footprint/pressure/
+swap/headroom admission. A separate guard watcher tripped during that passing
+UI run without automatically stopping it; this orchestration defect is explicit,
+not a passing resource gate. No QA processes/listener remained afterward.
+The owned `guarded-workload.mjs` now starts a workload immediately after three
+healthy samples and automatically terminates its owned process groups on unsafe
+measurement. Its real-process probes verified a detached child was stopped,
+an unrelated sibling survived, and failed admission launched no workload.
+Final typecheck/lint ran through that supervisor with no guard stop. Original
+resource evaluation and the four-GiB reserve were unchanged; no device was restarted.
+
+The preceding `c92fb10` foundation and macOS/Windows desktop jobs passed.
+Its mobile jobs did not pass: Android's Watch flow lost Maestro's device server
+during hierarchy collection; iOS could not find `m01-watch, mp4`. Existing logs/
+artifacts are retained; no diagnostic variant or unchanged workflow was rerun.
+Do not substitute these failures for product assertions or silently close them.
 The management-only tab boundary passed its fresh hosted restoration assertions
 and eight desktop/narrow captures. The original retained-editor regression is
 repaired in `486c507`, with exact-source hosted checks and after captures below.
 Fresh receipts confirm restored Material entry and changed package selection.
 Rapid Home return's renderer request-admission defect is repaired and verified
 against exact-source hosted checks and fresh captures below. Active-workspace
-Reader return is verified; explicit source-entry preservation remains open.
+Reader return and the focused source-entry failure/recovery path are verified;
+the remaining active-task/hidden-work lifecycle and native scenarios remain open.
 CI is asynchronous relative to independent engineering: the current ready-work
 queue and disjoint review/prerequisite lanes are recorded below. NAV-02 is incomplete.
 The pinned publisher metadata defect is repaired. The mixed character
@@ -44,12 +73,19 @@ passing targeted evidence. Graph details, package-driven character views/learnin
 entry and Inspector deeper navigation are now verified_for_continuation against
 exact `4f0c788` hosted tests and all 25 fresh captures. This is implementation
 closure, not native-platform parity, independent milestone review or maintainer
-acceptance. Ledger:69 completed,1 dropped,55 open out of125 tracked;
-added tasks track independent audits,
-M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
+acceptance. The live task ledger tracks the remaining integration, platform,
+review and ownership-proven cleanup work rather than retiring inherited M07 gaps.
+The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
-and serial substantial workloads. M11 product integration remains gated on M10.
+and serial substantial workloads. Returned cancellable-client source has
+48 passing owner tests after root repaired uncertain-receipt slot reuse,
+terminal cleanup and typed native Busy handling; it is not integrated into hosts.
+The native lease/gate tests remain uncompiled. Private FFI/desktop control wiring
+is in progress, with generated bindings and genuine native Stop still unverified.
+M11's scratch finite reference matched all 40 original and 14 adversarial cases,
+but executed zero package/native session scenarios and granted no learner evidence.
+M11 product integration remains gated on M10.
 The execution record is
 `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-mlearn-20261028.XXXXXX.md.sfqTwzdUNN`;
 new scratch root `/tmp/mlearn-parallel-ulw.M8JsP2`.
