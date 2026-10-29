@@ -24,17 +24,19 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: finish graph/character/Inspector presentation and the character
-learning entry through the existing Material/Review owners. Substantial local
+Current task: preserve navigation between Home, Knowledge, Material and active
+tasks without resetting their existing owners. Substantial local
 verification is paused after the latest unexplained OmO allocation growth;
 remaining connected scenarios must use the ordinary hosted verification path.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
-passing targeted evidence. Character Capture -> Material -> Review now has
-passing hosted native-backed evidence. Source-property presentation still needs
-fresh rendered verification; neither UI task is closed. Ledger:66 completed,1 dropped,
-58 open out of125 tracked; added tasks track independent audits,
+passing targeted evidence. Graph details, package-driven character views/learning
+entry and Inspector deeper navigation are now verified_for_continuation against
+exact `4f0c788` hosted tests and all 25 fresh captures. This is implementation
+closure, not native-platform parity, independent milestone review or maintainer
+acceptance. Ledger:69 completed,1 dropped,55 open out of125 tracked;
+added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
@@ -669,6 +671,49 @@ expand/collapse unchanged. Both touched TypeScript files have no LSP diagnostics
 and diff whitespace checks pass. Local execution remains paused for unexplained
 OmO allocation growth; this source change still needs fresh hosted tests/captures.
 Character and graph tasks remain open.
+
+The structured-detail increment is committed/pushed as
+`4f0c78815c3f005197690686a2b80349c0215265`. Foundation 40844656408 and real
+desktop integration 40844656413 passed. Exact web job 123349084514 passed the
+extended graph presentation regression, typecheck, ownership lint, export and
+all 141 web cases in 14.8 minutes. The graph/character spec took 8.1 minutes.
+Its exact log is `4f0c788-web.log`; artifact 12884819393 is retained as
+`4f0c788-web-inspection.zip`. All 25 extracted English/character PNGs were
+directly decoded and inspected under `4f0c788-graph-evidence/`.
+Both themes at 1080/390 show the scalar English definitions preserved, technical
+character records absent from the ordinary facts, source disclosure available,
+bounded Inspector header/footer, related-target actions and native page controls.
+The character Review frame still presents the actual character probe.
+The full native-backed tests also verify separate sibling claims, source-bound
+Material, deeper navigation/Return focus, character Capture -> Material -> Review,
+and native crash/restart/resume. These close the three implementation tasks as
+verified_for_continuation. M10 real-platform QA and independent review remain
+open. Mobile 40844656393 is still running under the existing exact-source
+observer; no rerun, variant or cancellation was requested.
+
+NAV-02 trace: the root is currently a Stack. Home pushes new Knowledge/Material
+screens; Knowledge and Material push one another, while their Home actions
+replace the current route. Collection query/filter/layout/paging lives in each
+screen instance. This leaves route restoration unverified and can recreate
+collection presentation rather than revisit it. Inspect the pinned router's
+route identity and existing activity focus/persistence owners before changing
+the shell; do not introduce another domain store. A bounded read-only lifetime
+audit returned: Reader already releases source/OCR/viewports on blur, whereas
+Watch media, Review audio and Messenger polling do not all have equivalent
+focus-scoped lifetimes. Keep those activity workspaces outside any preserved
+management-tab boundary. This is caller-source evidence, not observed background
+playback or a new activity-lifecycle implementation.
+No navigation implementation has changed yet. The existing genuine Knowledge
+scenario now records unsubmitted search drafts before and after
+Knowledge/Material/Home switching, with four baseline captures and a bounded
+`navigation-baseline.json` receipt. It preserves all existing assertions and
+does not assert or claim that restoration works. Retrieve that ordinary hosted
+baseline before repairing the route boundary and adding restoration assertions.
+The diagnostic file has no LSP diagnostics and diff whitespace checks pass.
+No local execution was launched. A bounded post-inspection native sample reported
+OmO PID 82251 RSS 8743344 KiB, rounded physical footprint 3.7G (historical peak
+14.4G), pressure 1 and swap used 4041.19 MiB. This lower current footprint does
+not establish a diagnosis or admission for substantial workloads.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative
