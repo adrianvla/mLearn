@@ -32,8 +32,9 @@ The management-only tab boundary passed its fresh hosted restoration assertions
 and eight desktop/narrow captures. The original retained-editor regression is
 repaired in `486c507`, with exact-source hosted checks and after captures below.
 Fresh receipts confirm restored Material entry and changed package selection.
-Rapid Home return still exhausts renderer request admission; its focused-loader
-repair awaits hosted checks. NAV-02 remains incomplete.
+Rapid Home return's renderer request-admission defect is repaired and verified
+against exact-source hosted checks and fresh captures below. Active-workspace
+return and explicit source-parameter preservation remain open; NAV-02 is incomplete.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -986,6 +987,42 @@ needed for the same observed failure.
 No iOS variant or unchanged native rerun was launched. After this repair's
 evidence, active-workspace return and explicit source-parameter preservation
 still need verification before closing NAV-02.
+
+Home repair `84a02fa38e7cb238f1625d227f10d51025068b49` passed foundation
+40880351787: web123469888829 reports 141 passed in18.5minutes, including the
+held real Home snapshot regression with zero off-screen recent-read requests.
+Unit tests, typecheck, lint, web build, Rust/contracts, detector and both
+desktop build/OCR jobs passed. Real desktop integration40880351909 also passed.
+Mobile40880351754 is still in progress; no native parity is claimed.
+Artifact12901586854 is retained as `84a02fa-web-inspection.zip` under the
+existing scratch root; the passing web log is `84a02fa-web.log`.
+
+Directly inspected all15 relevant fresh PNGs, one/two per batch: eight
+Knowledge/Material draft and page-restoration comparisons, two reopened saved
+editors, two accepted-replacement editors, two explicit-package entries and the
+formerly failing narrow Home-after-local-choice return. No blank or overlapping
+navigation output appeared. Existing long English grid-word wrapping remains,
+not a new visual-conformity claim. Read all three structured receipts:
+both reopened editors are visible, both widths retain the unsubmitted drafts,
+and all three requested packages match the native collection query and selector.
+The last receipt is English after a local Japanese choice and explicit Home
+return; the former queue error is absent. Extracted evidence is
+`84a02fa-navigation-evidence/test-results/` in the same scratch root.
+OmO PID82251 footprint3965/3528MB before/after the image batch, historical
+peak14GB, pressure1, RSS9174752/8646048KiB and swap3825.56/3785.50MiB.
+The lower current footprint does not explain prior growth. No local app,
+browser, device, server, model or substantial verification workload was launched.
+This closes the demonstrated Home admission regression, not NAV-02 or M10.
+
+The next source-only probe extends the existing genuine Knowledge workflow,
+without changing presentation or routing: open the real continuity document
+through Home, save its Reader checkpoint, return through Reader's Home action,
+then assert the retained Knowledge draft/order/grid/exact24-item page and Material
+draft at1080/390. Actual checkpoint and return-state receipts are written before
+the restoration assertions, with fresh Reader/return captures. This baseline is
+unrun; it must establish the activity boundary before any return-control repair.
+No local browser/build/device run is admitted for it. Hosted typecheck and the
+connected scenario remain required; prior test-file LSP timeouts are not passes.
 
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted

@@ -2,6 +2,7 @@
 import { test, expect, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import type { CollectionQuery } from '@mlearn/contracts';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
@@ -235,6 +236,40 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     const navigationReceipt = JSON.stringify({ materialDraft, knowledgeDraft, navigationReceipts });
     await writeFile(info.outputPath('navigation-restoration.json'), navigationReceipt);
     await info.attach('navigation-restoration.json', { body: navigationReceipt, contentType: 'application/json' });
+    // An activity leaves the management subtree, then returns through its real
+    // checkpointing action. Its return must not replace the retained subtree.
+    const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), packageId);
+    const activityReceipts = [];
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      const rows = page.locator('[data-testid^="knowledge-target-"]');
+      const identities = await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')));
+      expect(identities).toHaveLength(24);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Save position', exact: true }).click();
+      const saved = (await client.resumeDocument(document.source.id)).source.position;
+      expect(saved).not.toBeNull();
+      await page.screenshot({ path: info.outputPath(`navigation-reader-${width}.png`) });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      const after = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
+      activityReceipts.push({ width, sourceId: document.source.id, saved,
+        resumed: (await client.resumeDocument(document.source.id)).source.position,
+        knowledgeAfterReader: after, url: page.url() });
+      await writeFile(info.outputPath('navigation-activity-return.json'), JSON.stringify(activityReceipts));
+      await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-reader.png`) });
+      await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
+      await expect(page.getByRole('combobox', { name: /^Knowledge order:/ })).toContainText('Entry Z–A');
+      await expect(page.getByRole('combobox', { name: /^Knowledge layout:/ })).toContainText('Grid');
+      await expect(page.getByRole('button', { name: 'First Knowledge page', exact: true })).toBeEnabled();
+      expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))).toEqual(identities);
+      expect((await client.resumeDocument(document.source.id)).source.position).toEqual(saved);
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
+    }
     await backend.crashRestart();
     await page.goto('/knowledge');
     const known = page.getByTestId(`knowledge-target-${target.summary.targetId}`)
