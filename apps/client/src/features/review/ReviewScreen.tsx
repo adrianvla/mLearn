@@ -48,6 +48,7 @@ function ReviewWorkspace({ client, media }: {
   const [returning, setReturning] = useState(false);
   const returnLock = useRef(false);
   const [returnError, setReturnError] = useState('');
+  const audio = useRef<{ readonly cancel: () => Promise<void> } | null>(null);
 
   function publish(value: ReviewSession) {
     current.current = value;
@@ -133,6 +134,35 @@ function ReviewWorkspace({ client, media }: {
     if (!saved) throw new RuntimeError('unavailable', 'Audio delivery could not be saved. Retry the Review save.');
   }, [client]);
 
+  async function home() {
+    if (flight.current || failedCommand.current || returnLock.current) return;
+    const active = scope.current;
+    if (!active) return;
+    const value = current.current;
+    const encounterId = value?.encounter?.id;
+    returnLock.current = true; setReturning(true);
+    try {
+      // Keep the existing command/retry owner live until this attempt drains.
+      await audio.current?.cancel();
+      if (scope.current !== active || failedCommand.current) return;
+      const latest = current.current;
+      if (latest?.id !== value?.id || latest?.encounter?.id !== encounterId) return;
+      // A retried uncertain Started write can outlive its stopped audio owner.
+      // Settle its acknowledged condition through the same delivery callback.
+      if (latest?.state === 'active' && latest.encounter
+        && (latest.encounter.conditions.delivery === 'pending' || latest.encounter.conditions.delivery === 'started')) {
+        await delivery(latest.encounter.id, 'interrupted');
+      }
+      if (scope.current === active && !failedCommand.current
+        && current.current?.id === value?.id && current.current?.encounter?.id === encounterId) router.dismissTo('/');
+    } catch (cause) {
+      if (scope.current === active && !failedCommand.current) setError(messageOf(cause));
+    } finally {
+      returnLock.current = false;
+      if (scope.current) setReturning(false);
+    }
+  }
+
   async function open(id: string) {
     if (flight.current || failedCommand.current || loading || returnLock.current) return;
     const active = scope.current;
@@ -151,7 +181,7 @@ function ReviewWorkspace({ client, media }: {
     }
   }
   async function start(finite: boolean) {
-    if (flight.current || failedCommand.current || loading) return;
+    if (flight.current || failedCommand.current || loading || returnLock.current) return;
     const value = await execute(client.prepareReviewStart(finite ? { kind: 'finite', limit: Number(limit) } : { kind: 'continuous' }));
     if (value && scope.current) router.setParams({ sessionId: value.id });
   }
@@ -215,8 +245,8 @@ function ReviewWorkspace({ client, media }: {
   const purpose = session?.mode.kind === 'practice' ? 'Word Practice' : 'Review';
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
-    <Button label="Home" variant="quiet" disabled={pending || returning}
-      onPress={() => router.replace('/')} />
+    <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
+      onPress={() => void home()} />
     <Text variant="heading" accessibilityRole="header">{purpose}</Text>
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} reviewed` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
@@ -249,7 +279,7 @@ function ReviewWorkspace({ client, media }: {
             <View style={styles.face} testID="review-cue">
               <Text variant="caption" muted>{encounter.direction === 'audio' ? 'Listen' : encounter.direction === 'focused' ? 'Focused recall' : 'Recall'}</Text>
               <Text selectable align="center" variant={encounter.direction === 'focused' ? 'reviewFocused' : 'reviewCue'}>{encounter.cue}</Text>
-              {encounter.requiredMedia ? <ReviewAudio key={encounter.id} encounter={encounter} media={media}
+              {encounter.requiredMedia ? <ReviewAudio ref={audio} key={encounter.id} encounter={encounter} media={media}
                 disabled={blocked} onDelivery={delivery} /> : null}
               {encounter.conditions.revealed && encounter.answer !== null ?
                 <Text testID="review-answer" selectable align="center" variant="reviewExample">{encounter.answer}</Text> : null}

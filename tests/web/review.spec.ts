@@ -98,6 +98,7 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
             installedPlugins: [], availablePlugins: [], codePolicy: 'desktop', catalogConfigured: true,
           } });
           if (request.type === 'review_sessions') return JSON.stringify({ type: 'review_sessions', sessions: state.session ? [state.session] : [] });
+          if (request.type === 'recent_sources') return JSON.stringify({ type: 'sources', sources: [] });
           if (request.type === 'review_session') return JSON.stringify({ type: 'review_session', session: state.session });
           if (request.type !== 'review') return failure(`Unexpected Review request: ${request.type}`);
           const command: ReviewCommand = request.command;
@@ -192,6 +193,95 @@ test('selected Word Practice opens its admitted session and resumes without star
 });
 
 for (const playing of [false, true]) {
+  test(`Home persists interrupted ${playing ? 'started' : 'ready'} audio before removing Review`, async ({ page }, info) => {
+    // Given the exact ready or playing encounter, without a learner response.
+    await start(page, playing || info.project.name.endsWith('dark'), false, true);
+    await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeEnabled();
+    if (playing) {
+      const started = page.waitForFunction(() => window.__reviewTest.session?.encounter?.conditions.delivery === 'started');
+      await page.locator('video').evaluate(async element => {
+        if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
+        await element.play();
+      });
+      await started;
+      await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
+    }
+    const before = await page.evaluate(() => window.__reviewTest.session);
+    // When Home removes the activity, without first reopening the session.
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page).toHaveURL(`${origin}/`);
+    // Then interruption is already durable and no retrieval evidence is invented.
+    const after = await page.evaluate(() => window.__reviewTest.session);
+    expect(after?.encounter?.conditions.delivery).toBe('interrupted');
+    expect(after?.id).toBe(before?.id);
+    expect(after?.state).toBe('active');
+    expect(after?.encounter?.id).toBe(before?.encounter?.id);
+    expect(after?.encounter?.conditions.exposureCount).toBe(before?.encounter?.conditions.exposureCount);
+    expect(after?.completed).toBe(before?.completed);
+    expect(await submitCount(page)).toBe(0);
+    expect(await page.evaluate(() => window.__reviewTest.commands.filter(command =>
+      command.kind === 'delivery' && command.delivery === 'interrupted').length)).toBe(1);
+    await expect(page.locator('video')).toHaveCount(0);
+  });
+
+  test(`Home gates ${playing ? 'started' : 'ready'} audio departure on the terminal save and preserves retry`, async ({ page }, info) => {
+    // Given audio whose terminal delivery acknowledgement can be held and failed.
+    await start(page, playing || info.project.name.endsWith('dark'), false, true);
+    await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeEnabled();
+    if (playing) {
+      const started = page.waitForFunction(() => window.__reviewTest.session?.encounter?.conditions.delivery === 'started');
+      await page.locator('video').evaluate(async element => {
+        if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
+        await element.play();
+      });
+      await started;
+    }
+    const home = page.getByRole('button', { name: 'Home', exact: true });
+    await expect(home).toBeEnabled();
+    const before = await page.evaluate(() => window.__reviewTest.session);
+    await page.evaluate(() => { window.__reviewTest.hold = true; window.__reviewTest.fail = true; });
+    // When Home requests interruption, the held acknowledgement owns departure.
+    await home.click();
+    await expect(page.getByText('Saving Review…', { exact: true })).toBeVisible();
+    await expect(home).toBeDisabled();
+    await expect(page).toHaveURL(/\/review(?:\?|$)/);
+    await expect(page.getByTestId('review-cue')).toBeVisible();
+    await expect(page.locator('video')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__reviewTest.session?.encounter?.conditions.delivery))
+      .toBe(playing ? 'started' : 'pending');
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: info.outputPath(`home-audio-${playing ? 'dark' : 'light'}-${width}-pending.png`) });
+    }
+    await page.evaluate(() => { window.__reviewTest.hold = false; window.__reviewTest.release?.(); });
+    // Then failure retains the activity and retry reuses the identical command.
+    const retry = page.getByRole('button', { name: 'Retry Review save', exact: true });
+    await expect(retry).toBeEnabled();
+    await expect(page.getByText('Review write unavailable', { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(/\/review(?:\?|$)/);
+    await expect(home).toBeDisabled();
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: info.outputPath(`home-audio-${playing ? 'dark' : 'light'}-${width}-failure.png`) });
+    }
+    await retry.click();
+    await expect(home).toBeEnabled();
+    const terminal = await page.evaluate(() => window.__reviewTest.commands.filter(command =>
+      command.kind === 'delivery' && command.delivery === 'interrupted'));
+    expect(terminal).toHaveLength(2);
+    expect(terminal[0]).toEqual(terminal[1]);
+    await home.click();
+    await expect(page).toHaveURL(`${origin}/`);
+    const after = await page.evaluate(() => window.__reviewTest.session);
+    expect(after?.encounter?.conditions.delivery).toBe('interrupted');
+    expect(after?.encounter?.id).toBe(before?.encounter?.id);
+    expect(after?.encounter?.conditions.exposureCount).toBe(before?.encounter?.conditions.exposureCount);
+    expect(after?.completed).toBe(before?.completed);
+    expect(await submitCount(page)).toBe(0);
+    expect(await page.evaluate(() => window.__reviewTest.commands.filter(command =>
+      command.kind === 'delivery' && command.delivery === 'interrupted'))).toEqual(terminal);
+  });
+
   test(`session Pause interrupts ${playing ? 'started' : 'ready'} audio and leaves Resume usable`, async ({ page }, info) => {
     await start(page, info.project.name.endsWith('dark'), false, true);
     await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeVisible();

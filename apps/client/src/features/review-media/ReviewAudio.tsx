@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { View } from 'react-native';
 import type { AuthoredMediaId, ReviewDelivery, ReviewEncounter, ReviewEncounterId } from '@mlearn/contracts';
 import { RuntimeError } from '@mlearn/runtime-client';
@@ -8,6 +8,7 @@ import { AttachmentPlayer } from '../material';
 import { createReviewAudioDelivery, type AudioState, type ReviewAudioDelivery } from './delivery';
 
 export type ReviewAudioProps = {
+  readonly ref?: Ref<Pick<ReviewAudioDelivery, 'cancel'>>;
   readonly encounter: ReviewEncounter;
   readonly media: { readonly uri: (id: AuthoredMediaId) => Promise<string> } | null;
   readonly disabled?: boolean;
@@ -20,7 +21,7 @@ export function ReviewAudio(props: ReviewAudioProps) {
   return <EncounterAudio key={props.encounter.id} {...props} mediaId={props.encounter.requiredMedia} />;
 }
 
-function EncounterAudio({ encounter, media, mediaId, disabled = false, onDelivery }: ReviewAudioProps & {
+function EncounterAudio({ ref, encounter, media, mediaId, disabled = false, onDelivery }: ReviewAudioProps & {
   readonly mediaId: string;
 }) {
   const [attempt, setAttempt] = useState(0);
@@ -30,6 +31,8 @@ function EncounterAudio({ encounter, media, mediaId, disabled = false, onDeliver
   initialDelivery.current = encounter.conditions.delivery;
   const callback = useRef(onDelivery);
   callback.current = onDelivery;
+  // Departure awaits this attempt while its encounter's persistence scope is live.
+  useImperativeHandle(ref, () => ({ cancel: async () => { await owner.current?.cancel(); } }), []);
   useEffect(() => {
     const delivery = createReviewAudioDelivery({
       encounterId: encounter.id, mediaId,

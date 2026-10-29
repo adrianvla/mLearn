@@ -25,7 +25,7 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
-Latest product checkpoint `5a540c88` preserves Messenger's retained management
+Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
 save owner before Inspector opens saved Material. Failed saves retain the source,
 Inspector and explicit recovery; Close invalidates a pending navigation intent.
@@ -92,7 +92,7 @@ review and ownership-proven cleanup work rather than retiring inherited M07 gaps
 The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
-and serial substantial workloads. This provisional cancellation source checkpoint
+and serial substantial workloads. Provisional cancellation checkpoint `eb077ac9`
 extends `519df6e1`; its engineering and independent-review gates remain open.
 Its earlier isolated
 client owner run passed50 tests after root repaired uncertain-receipt slot reuse,
@@ -135,15 +135,33 @@ navigation. The new graph scenario failed on an incorrect new root-source label
 assertion and a held-route cleanup race; both test defects were corrected without
 changing product code. The corrected rerun was automatically stopped during
 browser startup before any scenario completed. A subsequent one-hour read-only
-4096MiB admission watch timed out; local work remains held, without lowering the
+4096MiB admission watch timed out; that local run remained held, without lowering the
 four-GiB reserve or restarting workloads. The19
 successful-scenario captures were inspected at desktop/narrow widths, including
 both evidence themes and expanded provenance. Existing Inspector footer scrolling
 and retained visual/platform gaps are not waived; native-shell functionality is
-not claimed. The remaining graph and application-host checks move to the existing
-source-bound foundation/mobile/desktop workflows on this provisional checkpoint.
-No new workflow or deferred iOS diagnostic variant is introduced. This is not
-verification of the corrected graph scenario, mobile hosts or M10 closure.
+not claimed. Exact `eb077ac9` hosted web123763515779 and real desktop40963943223
+passed. Foundation40963943227 failed Rust123763515784 at the unchanged persistent
+guest cancellation assertion in `language-host/tests/resources.rs:140`; dependent
+desktop jobs were skipped, not passed. Unconditional early cancellation had
+preserved the cancelled owner's cache. Repair `f3e7366a` restores source-only
+eviction while preserving nonwaiting operation-scoped cancellation. All22
+language-host tests and70 runtime caller tests pass after repair, warning-free
+with no ignored tests. Mobile40963943258 still awaits its terminal receipt.
+New exact-source hosted verification and independent review remain required.
+No deferred iOS diagnostic variant or milestone acceptance is introduced.
+
+Review Home departure is now verified_for_continuation in the shared web app.
+The new regression failed with delivery still `pending` after Home removed Review,
+while the existing Pause control passed. Home now awaits the actual audio owner's
+terminal write through the existing departure/command owner before returning to
+retained Home. Held or failed writes keep Review and the identical Retry command;
+session, encounter, exposure and grading meaning are preserved. Normal typecheck,
+ownership lint,11 audio-owner tests and all13 Review web scenarios passed on fresh
+export `219225d61d656a13e338de4b0f00de01`. All18 PNGs were decoded, dimension-checked
+and inspected, including1080/390 pending/error states in light/dark. Evidence is in
+the retained orchestration root's `review-home-*` logs/results. Native audio/OS
+lifecycle parity, the other Home exits and M10 milestone gates remain open.
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
 M11 product integration remains gated on M10.
