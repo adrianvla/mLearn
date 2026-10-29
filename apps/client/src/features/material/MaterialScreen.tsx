@@ -84,16 +84,6 @@ export function MaterialScreen() {
   const visibleItems = useMemo<CollectionItemId[]>(() => page?.items.flatMap(item => item.kind === 'material'
     ? [{ kind: 'material' as const, id: item.material.id }] : []) ?? [], [page]);
   const selection = useCollectionSelection(host.available ? host.client : null, collectionQuery, visibleItems);
-  useFocusEffect(useCallback(() => {
-    if (!host.available) return;
-    const scope = {}; owner.current = scope;
-    return () => {
-      if (owner.current === scope) {
-        owner.current = null; openRequest.current = null; returnRequest.current = null;
-        setOpening(null); setReturning(null);
-      }
-    };
-  }, [host]));
   useLayoutEffect(() => {
     if (editor) {
       if (Platform.OS === 'web') focus(heading.current);
@@ -140,8 +130,16 @@ export function MaterialScreen() {
     } finally { if (openRequest.current === request) openRequest.current = null; }
   }, [host]);
   useFocusEffect(useCallback(() => {
+    if (!host.available) return;
+    const scope = {}; owner.current = scope;
     if (typeof params.id === 'string' && opened.current !== params.id) void open(params.id, null);
-  }, [params.id, open]));
+    return () => {
+      if (owner.current === scope) {
+        owner.current = null; openRequest.current = null; returnRequest.current = null;
+        setOpening(null); setReturning(null);
+      }
+    };
+  }, [host, params.id, open]));
   async function returnSource(material: Material, location: string) {
     if (!host.available || returnRequest.current) return;
     const scope = owner.current;

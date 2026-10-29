@@ -21,6 +21,7 @@ export function KnowledgeScreen() {
   const compact = useWindowDimensions().width < 700;
   const [packages, setPackages] = useState<PluginSummary[]>([]);
   const [packageId, setPackageId] = useState(typeof params.packageId === 'string' ? params.packageId : '');
+  const appliedRoutePackage = useRef(params.packageId);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<CollectionSort>('default');
@@ -42,6 +43,13 @@ export function KnowledgeScreen() {
   const inspectionChanged = useRef(false);
   const loadedQuery = useRef('');
   const queryKey = JSON.stringify([packageId, query, filter, entityKind, sort, after]);
+  useEffect(() => {
+    if (appliedRoutePackage.current === params.packageId) return;
+    appliedRoutePackage.current = params.packageId;
+    if (typeof params.packageId !== 'string' || params.packageId === packageId) return;
+    setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind('');
+    setPackageId(params.packageId);
+  }, [params.packageId, packageId]);
   const collectionQuery = useMemo<CollectionQuery>(() => ({
     packageId, surface: 'knowledge', filter: { kind: 'all', filters: [
       { kind: 'text', text: query }, filter,
@@ -136,7 +144,10 @@ export function KnowledgeScreen() {
       <Button label="Material" variant="quiet" size="compact" onPress={() => router.navigate('/materials')} /></Row>
     <Row><Select label="Knowledge language" value={packageId}
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
-      onValueChange={value => { setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value); }} />
+      onValueChange={value => {
+        setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value);
+        router.setParams({ packageId: value });
+      }} />
       <Select label="Knowledge order" value={sort} options={[
         { value: 'default', label: 'Package order' },
         { value: 'label_ascending', label: 'Entry A–Z' },

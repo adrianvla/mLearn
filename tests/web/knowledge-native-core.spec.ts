@@ -261,6 +261,10 @@ test('an unavailable explicit package requires a replacement choice instead of c
   const backend = await startRuntimeBrowserQa({
     profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/knowledge-scope-${randomUUID()}`,
   });
+  const client = createRuntimeClient({
+    commandId: randomUUID,
+    execute: request => backend.invoke('runtime_execute', { request }),
+  });
   try {
     // Given: English is available, but the requested package is not installed.
     await attachRuntimeBrowserQa(page, backend.url);
@@ -292,15 +296,21 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.setViewportSize({ width: 1080, height: 900 });
     await page.screenshot({ path: info.outputPath('knowledge-empty-selection-desktop.png') });
 
-    // Observe a changed explicit Home scope on the already-mounted Knowledge
-    // route. No Japanese catalog preparation or fabricated language is needed.
+    // Explicit Home scope replaces a different retained scope, without preparing
+    // a second catalog or guessing the installed package's display label.
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
     await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
+    const installed = (await client.snapshot()).installedPlugins;
+    const scopes = [{ width: 1080, packageId: 'org.mlearn.japanese' }, { width: 390, packageId: 'org.mlearn.english' }].map(scope => {
+      const language = installed.find(item => item.id === scope.packageId);
+      if (!language) throw new Error(`Expected installed package ${scope.packageId}`);
+      return { ...scope, label: language.displayName ?? language.id };
+    });
     const scopeReceipts = [];
-    for (const scope of [{ width: 1080, packageId: 'org.mlearn.japanese' }, { width: 390, packageId: 'org.mlearn.english' }]) {
+    for (const scope of scopes) {
       await page.setViewportSize({ width: scope.width, height: 900 });
       await page.getByRole('button', { name: 'Home', exact: true }).click();
       await page.getByRole('combobox', { name: /^Source language:/ }).click();
@@ -310,7 +320,8 @@ test('an unavailable explicit package requires a replacement choice instead of c
         const payload = response.request().postDataJSON();
         if (typeof payload.args?.request !== 'string') return false;
         const request = JSON.parse(payload.args.request);
-        return request.type === 'collection' && request.query.surface === 'knowledge';
+        return request.type === 'collection' && request.query.surface === 'knowledge'
+          && request.query.packageId === scope.packageId;
       });
       const [receipt] = await Promise.all([
         entered, page.getByRole('button', { name: 'Knowledge', exact: true }).click(),
@@ -318,6 +329,7 @@ test('an unavailable explicit package requires a replacement choice instead of c
       await receipt.finished();
       await expect(page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true })).toBeVisible();
       await expect(page.getByText('Loading Knowledge…', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('combobox', { name: `Knowledge language: ${scope.label}`, exact: true })).toBeVisible();
       scopeReceipts.push({
         ...scope, url: page.url(),
         firstQueryPackageId: JSON.parse(receipt.request().postDataJSON().args.request).query.packageId,
@@ -325,6 +337,25 @@ test('an unavailable explicit package requires a replacement choice instead of c
       });
       await page.screenshot({ path: info.outputPath(`knowledge-home-scope-${scope.width}.png`) });
     }
+    await page.getByRole('combobox', { name: /^Knowledge language:/ }).click();
+    await page.getByRole('option', { name: scopes[0].label, exact: true }).click();
+    await expect(page).toHaveURL(/packageId=org\.mlearn\.japanese/);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    const returned = page.waitForResponse(response => {
+      if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+      const payload = response.request().postDataJSON();
+      if (typeof payload.args?.request !== 'string') return false;
+      const request = JSON.parse(payload.args.request);
+      return request.type === 'collection' && request.query.surface === 'knowledge'
+        && request.query.packageId === 'org.mlearn.english';
+    });
+    const [returnedReceipt] = await Promise.all([
+      returned, page.getByRole('button', { name: 'Knowledge', exact: true }).click(),
+    ]);
+    await returnedReceipt.finished();
+    await expect(page.getByRole('combobox', { name: `Knowledge language: ${scopes[1].label}`, exact: true })).toBeVisible();
+    await expect(page.getByText('Loading Knowledge…', { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('knowledge-home-after-local-choice-390.png') });
     await writeFile(info.outputPath('knowledge-home-scope.json'), JSON.stringify(scopeReceipts));
   } finally {
     await backend.close();

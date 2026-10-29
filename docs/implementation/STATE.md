@@ -31,8 +31,8 @@ remaining connected scenarios must use the ordinary hosted verification path.
 The management-only tab boundary passed its fresh hosted restoration assertions
 and eight desktop/narrow captures. The original retained-editor regression is
 repaired in `486c507`, with exact-source hosted checks and after captures below.
-The changed-package probe still needs a usable receipt; the demonstrated
-closed-editor re-entry repair is in source and awaits hosted verification.
+Fresh receipts now demonstrate both a Material focus-publication failure and
+a changed-package mismatch. Their connected owner repairs await hosted checks.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -866,6 +866,44 @@ Both touched TypeScript files have clean LSP diagnostics and the full code diff
 and whitespace check pass. Fresh hosted execution and after captures remain
 required before another presentation-source change. No timeout, original
 assertion, resource limit or model pin was relaxed.
+
+Exact `8d3ccd3e56e3634eada7c630865456de071a2242` foundation 40867693534
+failed web 123426520043 with 140 passed in 12.9 minutes. The unchanged
+closed-editor regression reached `Edit able` still busy after its 5-second
+assertion budget. Rust, detector, both foundation desktop jobs and real desktop
+40867693509 passed. Mobile 40867693648 remains independently watched by 1923.
+Retained `8d3ccd3-failed.log`, artifact 12895437499 as
+`8d3ccd3-web-inspection.zip`, and selectively extracted three PNGs, scope JSON,
+failure context and failing trace under `8d3ccd3-navigation-evidence/`.
+All three frames were directly inspected.
+
+The scope receipt now proves a real mismatch: requested/URL package
+`org.mlearn.japanese`, but the completed native Knowledge query and selector
+remain English. Returning with explicit English remains English. The Material
+trace's final native read returned the correct saved revision in 2.29ms,
+before collection (3.761ms) and snapshot (2.907ms), yet Opening Material remains
+after the assertion. Read bounded final network records and six selected blobs
+under `8d3ccd3-reentry-trace/`; this is not evidence of slow native loading.
+Installed useFocusEffect can run a changed callback immediately for an already
+focused route, independently of existing focus listeners. The owner-ref value
+was not instrumented; do not claim that scalar was directly observed.
+
+The candidate combines Material focus-scope admission and explicit route
+opening in the same existing callback, retaining cleanup and stale-publication
+guards. Knowledge applies a changed explicit package only once, clears its
+package-bound filter/cursor, and reflects a local language choice in route
+parameters so later explicit Home entry cannot retain the wrong selection.
+Unchanged scope does not reset drafts, order, layout or cursor. No second native
+owner, route nonce, navigation store or new dependency was introduced.
+The scope regression now awaits the exact requested native package, checks its
+authoritative installed label at both widths, and returns from a local picker
+change through Home. The earlier closed-editor assertions are unchanged.
+
+Both product files have clean LSP diagnostics. The test was clean before the
+literal-dot URL-regex correction; fresh diagnostics then timed out twice and
+are not claimed as passing. Full diff/whitespace checks pass. Fresh hosted
+typecheck, original regressions and captures remain required; no native/read
+timeout, model pin or original assertion was relaxed.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative
