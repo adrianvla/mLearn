@@ -29,8 +29,9 @@ tasks without resetting their existing owners. Substantial local
 verification is paused after the latest unexplained OmO allocation growth;
 remaining connected scenarios must use the ordinary hosted verification path.
 The management-only tab boundary passed its fresh hosted restoration assertions
-and eight desktop/narrow captures. An original Material re-entry test exposed
-a retained-editor regression; its owner repair is now in source, not yet verified.
+and eight desktop/narrow captures. The original retained-editor regression is
+repaired in `486c507`, with exact-source hosted checks and after captures below.
+Explicit changed-package and closed-editor re-entry remain under investigation.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
@@ -765,7 +766,12 @@ meaning but read the old editor's empty meaning. The other 140 web cases passed
 in 11.7 minutes, including the new real navigation restoration assertions and
 the graph/character scenarios. Rust, detector and both foundation desktop jobs
 passed; real desktop integration 40853931257 also passed. Mobile 40853931366
-remains separately watched by observer 1891. Preserve that pending result.
+is terminal: Android 123380049624 passed; iOS 123380049746 failed its original
+Watch flow at 2026-10-29T10:31:28Z:
+`Element not found: Text matching regex: Open local video, Enabled`.
+The authored H.264/AAC fixture exported first. Exact failed-step log
+`mobile-191726c-failed.log` is retained. Observer 1891 completed; this result
+does not certify or diagnose the separately pending `486c507` repair.
 
 Retained `191726c-failed.log`, artifact 12888724571 as
 `191726c-web-inspection.zip`, and selectively extracted the eight navigation
@@ -792,6 +798,40 @@ Three touched files have clean LSP diagnostics; MaterialProposalReview's fresh
 diagnostics timed out twice and are not counted as passing. Full diff/whitespace
 checks pass. Fresh hosted typecheck, the original regression and after captures
 are still required; NAV-02 remains in progress.
+
+Exact repair `486c50766d65fd90a2f7cc47e2c9ce47b916df9c` foundation
+40857907374 passed all five jobs, including typecheck/lint and all 141 web
+cases in 17.9 minutes (web 123393458599). This includes the unchanged original
+accepted-replacement assertions, the added unsaved-editor tab switch and native
+revision 2 check. Real desktop integration 40857907413 passed; mobile
+40857907407 remains independently pending under observer 1902.
+Retained `486c507-web.log` and artifact 12891592225 as
+`486c507-web-inspection.zip`. Selectively extracted and directly inspected all
+11 relevant PNGs: eight draft/navigation before/after frames, explicit saved
+revision editors at 1080/390, and the existing source-return recovery frame.
+Both explicit editors contain the accepted meaning, the drafts/order/grid/page
+remain intact, and recovery feedback remains beside its action. These captures
+are Linux Rust-host/browser evidence, not native-window or mobile parity.
+The durable JSON receipt retains exact draft values at both widths. Hosted
+typecheck also supplies the missing compilation check after the earlier local
+LSP freshness timeout.
+
+The next source-preserving baseline extends only the two existing real Knowledge
+scenarios: reopen the same saved target through Inspector's existing-Material
+action after closing its editor; and enter an already-mounted Knowledge route
+with a different real package selected on Home. It subscribes to collection
+receipts before navigation, waits for owning pending state, and writes PNG/JSON
+observations without claiming these new paths work or weakening any original
+assertion. The source-scope probe installs the existing pinned Japanese package
+but does not prepare another Japanese catalog. No product source changes until
+these observations have been read. The edited test has clean LSP diagnostics
+and whitespace checks. Its ordinary push affects foundation only; desktop/mobile
+workflow paths exclude this web-test-only change.
+
+Small capture batches recorded OmO footprint 3.8G before / 4.0G after, pressure
+level 1 throughout, RSS 9179312 / 7993712 KiB and swap 4678.25 / 4518.25 MiB.
+Peak footprint remains 14.4G. This does not diagnose the allocation or admit
+local app/browser/device/build workloads; none were restarted.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative

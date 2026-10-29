@@ -164,6 +164,30 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     // When switching management routes, retain unsaved presentation state and
     // the actual bounded page, without creating another native data authority.
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
+    await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+    const materialReentry = page.waitForResponse(response => {
+      if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+      const payload = response.request().postDataJSON();
+      if (typeof payload.args?.request !== 'string') return false;
+      const request = JSON.parse(payload.args.request);
+      return request.type === 'collection' && request.query.surface === 'material';
+    });
+    const [materialReentryReceipt] = await Promise.all([
+      materialReentry, page.getByText(`Open saved ${target.summary.headword}`, { exact: true }).click(),
+    ]);
+    await materialReentryReceipt.finished();
+    await expect(page.getByRole('heading', { name: 'Material', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Edit ${target.summary.headword}`, exact: true })).toBeEnabled();
+    // Diagnostic baseline only: record the deliberate same-ID re-entry before
+    // repairing it; the existing native/retention assertions below stay intact.
+    const reopened = await page.getByRole('heading', { name: 'Edit Material', exact: true }).isVisible();
+    await writeFile(info.outputPath('material-closed-reentry.json'), JSON.stringify({
+      materialId: materials.items[0].id, editorVisible: reopened, url: page.url(),
+    }));
+    await page.screenshot({ path: info.outputPath('material-closed-reentry.png') });
+    if (reopened) await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     const materialDraft = 'NAV-02 unsubmitted Material search';
     const knowledgeDraft = 'NAV-02 unsubmitted Knowledge search';
     const navigationReceipts: {
@@ -265,6 +289,41 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.screenshot({ path: info.outputPath('knowledge-empty-selection-phone.png') });
     await page.setViewportSize({ width: 1080, height: 900 });
     await page.screenshot({ path: info.outputPath('knowledge-empty-selection-desktop.png') });
+
+    // Observe a changed explicit Home scope on the already-mounted Knowledge
+    // route. No Japanese catalog preparation or fabricated language is needed.
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
+    await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
+    const scopeReceipts = [];
+    for (const scope of [{ width: 1080, language: 'Japanese' }, { width: 390, language: 'English' }]) {
+      await page.setViewportSize({ width: scope.width, height: 900 });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('combobox', { name: /^Source language:/ }).click();
+      await page.getByRole('option', { name: scope.language, exact: true }).click();
+      const entered = page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+        const payload = response.request().postDataJSON();
+        if (typeof payload.args?.request !== 'string') return false;
+        const request = JSON.parse(payload.args.request);
+        return request.type === 'collection' && request.query.surface === 'knowledge';
+      });
+      const [receipt] = await Promise.all([
+        entered, page.getByRole('button', { name: 'Knowledge', exact: true }).click(),
+      ]);
+      await receipt.finished();
+      await expect(page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true })).toBeVisible();
+      await expect(page.getByText('Loading Knowledge…', { exact: true })).toHaveCount(0);
+      scopeReceipts.push({
+        ...scope, url: page.url(),
+        firstQueryPackageId: JSON.parse(receipt.request().postDataJSON().args.request).query.packageId,
+        selectedLanguage: await page.getByRole('combobox', { name: /^Knowledge language:/ }).textContent(),
+      });
+      await page.screenshot({ path: info.outputPath(`knowledge-home-scope-${scope.width}.png`) });
+    }
+    await writeFile(info.outputPath('knowledge-home-scope.json'), JSON.stringify(scopeReceipts));
   } finally {
     await backend.close();
   }
