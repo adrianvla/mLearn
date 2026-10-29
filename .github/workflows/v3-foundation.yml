@@ -12,7 +12,10 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Includes full cold preparation of the pinned 232031-target Japanese
+    # package, followed by the existing suite and native interruption checks.
+    # Keep the fixture/setup and assertion deadlines bounded independently.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under test

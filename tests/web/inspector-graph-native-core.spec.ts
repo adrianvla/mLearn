@@ -127,13 +127,14 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
 });
 
 test('packaged characters retain their identity from Knowledge through Material and scheduled Review', async ({ page }, info) => {
-  test.setTimeout(300_000);
+  test.setTimeout(900_000);
   const backend = await startRuntimeBrowserQa({ profile: info.outputPath('character-profile') });
   const client = createRuntimeClient({
     commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
   });
   const packageId = 'org.mlearn.japanese';
   const targetId = 'kanjidic:6a4b';
+  const failures: unknown[] = [];
   try {
     // Given the authenticated, pinned package and a freshly prepared real
     // catalog, all character data and capabilities come from that package.
@@ -148,7 +149,27 @@ test('packaged characters retain their identity from Knowledge through Material 
     if (!kind) throw new Error('The pinned Japanese package does not declare its character catalog');
     await page.goto(`/knowledge?packageId=${packageId}`);
     const preparationStarted = performance.now();
-    await page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true }).click();
+    // Full-package ingestion is a cold setup operation, not a UI publication
+    // deadline: the retained native baseline already takes 278s for JMdict.
+    // Subscribe before admission and retain the unchanged visible-count check
+    // after the real native receipt, without sleeping or polling for progress.
+    const [preparationResponse] = await Promise.all([
+      page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST')
+          return false;
+        const envelope: unknown = response.request().postDataJSON();
+        if (envelope === null || typeof envelope !== 'object' || !('args' in envelope))
+          return false;
+        const args = envelope.args;
+        if (args === null || typeof args !== 'object' || !('request' in args) || typeof args.request !== 'string')
+          return false;
+        const request: unknown = JSON.parse(args.request);
+        return request !== null && typeof request === 'object'
+          && 'type' in request && request.type === 'prepare_collection';
+      }, { timeout: 720_000 }),
+      page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true }).click(),
+    ]);
+    expect(preparationResponse.ok()).toBe(true);
     await expect(page.getByText('232031 entries', { exact: true })).toBeVisible({ timeout: 120_000 });
     await info.attach('character-catalog.json', {
       body: JSON.stringify({ packageId, preparationMs: performance.now() - preparationStarted }),
@@ -252,7 +273,25 @@ test('packaged characters retain their identity from Knowledge through Material 
     expect(backend.metadata().providerRequests).toBe(0);
     await page.getByRole('button', { name: 'Pause', exact: true }).click();
     await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+  } catch (error) {
+    failures.push(error);
   } finally {
-    await backend.close();
+    // A failed UI assertion must not leave its real preparation running or
+    // have its original error replaced by the native shutdown deadline.
+    try {
+      const preparation = await client.currentCollectionPreparation();
+      if (preparation?.phase === 'preparing' || preparation?.phase === 'cancelling')
+        await client.cancelCollectionPreparation(preparation.command.commandId);
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await backend.close();
+    } catch (error) {
+      failures.push(error);
+    }
   }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1)
+    throw new AggregateError(failures, 'Character workflow and native cleanup failed', { cause: failures[0] });
 });

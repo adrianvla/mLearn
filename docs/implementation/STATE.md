@@ -32,7 +32,8 @@ The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
 passing targeted evidence. Character source-property presentation and learning
-entry remain open; neither UI task is closed. Ledger:66/124 complete; added tasks track independent audits,
+entry remain open; neither UI task is closed. Ledger:66 completed,1 dropped,
+58 open out of125 tracked; added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
@@ -598,15 +599,21 @@ No other workflow was dispatched. Owned preview2637 was verified as
 confirmed its exit and no4173 listener. Exports, native artifacts and profiles
 remain intact.
 
-The next character scenario is a CI candidate in the existing native Inspector
+The character scenario was committed/pushed as
+`f1c7b2eff42b0a5097852180c7e5094b29590304` in the existing native Inspector
 web spec, not part of9a or a passing workflow. It uses a fresh genuine
 Japanese package/profile, cold catalog preparation, character grid/detail
 captures in both themes/widths, Capture -> Material -> scheduled Review,
 explicit character target/Material bindings, and pause/crash/restart/resume.
 It adds no mocked Knowledge, graph, grading or catalog. Final file diagnostics
-are clean, but the scenario has NOT run. Its genuine workflow must be executed
-on the ordinary hosted path; the preceding mobile build is now terminal, so
-the next push will not cancel that verification. No further visual change has been
+were clean. Foundation40833812757 ran it and failed before reaching character
+views: the full cold import did not finish before the new test's120-second
+deadline. The other140 web cases, Rust, detector and macOS passed.
+Windows123315797625 independently failed its final Slate paste with
+`Incomplete native theme input`; the editor retained Dark Quartz despite
+reported focus and correct clipboard. Preserve `f1-windows-failed.log`;
+the retained input discrepancy is not repaired or attributed to this test.
+No further visual change has been
 made; retain a complete character before set before altering record/qualifier
 presentation. Both graph and character tasks remain open.
 
@@ -615,6 +622,33 @@ the small eval heap, not the unexplained process allocation: final footprint
 5214237824, available6403538944, pressure1, swap5092671488 and
 swapOut101593956352. This is not a memory repair or admission for another
 local workload. Current work continues through source inspection and hosted CI.
+
+The exact f1 trace exposes the primary count timeout at line152; forced native
+shutdown15 seconds later masked it. Artifact12880378417 is retained as
+`f1-web-inspection.zip`; only the failed context/frame/trace and its SQLite/WAL
+were extracted. Read-only inspection found232031 total and51912 committed
+targets, cursor `entry/1552970`. Installation took2.8s. This is a progressing
+import, not proof of a deadlock or an incorrect total. The existing native
+baseline below already records278227ms for218923 Japanese targets: imposing
+120 seconds on the complete cold setup was an invalid new test assumption,
+not an established product latency requirement.
+
+The repair subscribes to the actual preparation HTTP receipt before clicking,
+with a bounded720-second cold-setup deadline and900-second test deadline.
+The original exact232031/13108 counts and120-second UI-publication assertion
+remain unchanged after that native receipt. The existing foundation web job
+allows40 minutes for this new full-corpus setup plus the unchanged suite;
+no steps, source/model pins, fuel/memory/data limits or assertions are removed.
+Failure cleanup queries the existing native preparation owner, cancels active
+work, closes the host and preserves the primary error alongside cleanup errors.
+TypeScript diagnostics and native Bun YAML parsing pass; YAML LSP is absent,
+and no dependency was installed. These repairs still need hosted execution.
+
+A single source-only audit returned concrete redundant JSON conversion and
+statement-preparation opportunities, but no measured speedup. No speculative
+Rust optimization or fuel/batch change was applied. The newly added throughput
+task was dropped after recovering the earlier timing evidence, not marked as a
+product repair. Native resource and cancellation assertions remain requirements.
 
 Exact0cc foundation40806767205 passed. Latest ef2 desktop40807702149 failed
 at `tests/desktop/native-smoke.mjs:614`: Shift-assisted pointer-entry
