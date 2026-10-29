@@ -109,6 +109,8 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     const eligibilityControl: Window['__imageEligibilityControl'] = { hold: false,
       entered: new Promise<void>(resolve => { markEligibility = resolve; }) };
     const imageUriControl = { available: true };
+    let nextRead = 0;
+    const boundedReads = new Map<string, { completion: Promise<void> | null; cancelled: boolean }>();
     const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
     Object.assign(window, {
       isTauri: true, __MLEARN_MEDIA_BASE__: 'http://127.0.0.1/fixture-media/', __imageReaderRequests: requests,
@@ -120,10 +122,39 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
       __TAURI_INTERNALS__: {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
         transformCallback: () => 1, unregisterCallback: () => {},
-        invoke: async (command: string, args: Record<string, unknown>) => {
+        invoke: async function invoke(command: string, args: Record<string, unknown>): Promise<unknown> {
           if (command === 'plugin:event|listen') return 1;
           if (command === 'window_material_active') return false;
           if (command === 'cancel_source_open') return;
+          if (command === 'begin_bounded_read') {
+            if (boundedReads.size >= 2) throw { code: 'busy', message: 'Fixture read capacity is occupied' };
+            const id = `fixture-read-${++nextRead}`;
+            boundedReads.set(id, { completion: null, cancelled: false });
+            return id;
+          }
+          if (command === 'cancel_bounded_read') {
+            const id = String(args.id), ticket = boundedReads.get(id);
+            if (!ticket) return;
+            ticket.cancelled = true;
+            if (ticket.completion) await ticket.completion;
+            else boundedReads.delete(id);
+            return;
+          }
+          if (command === 'execute_bounded_read') {
+            const id = String(args.id), ticket = boundedReads.get(id);
+            if (!ticket || ticket.completion) throw { code: 'invalid_bounded_read', message: 'Fixture read is not available' };
+            if (JSON.parse(String(args.request)).type !== 'search_document') {
+              boundedReads.delete(id);
+              throw new Error('This image fixture supports only saved-recognition search');
+            }
+            const execution = invoke('runtime_execute', args);
+            ticket.completion = execution.then(() => {}, () => {});
+            try {
+              const value = await execution;
+              if (ticket.cancelled) throw { code: 'cancelled', message: 'Fixture read cancelled' };
+              return value;
+            } finally { boundedReads.delete(id); }
+          }
           if (command === 'ocr_providers') return JSON.stringify([provider]);
           if (command === 'pick_images') {
             requests.push({ type: command, folder: args.folder }); markPicker();

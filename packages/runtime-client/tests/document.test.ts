@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DocumentCheckpoint, DocumentSearchPage, DocumentSearchQuery, DocumentWindow, SourceAnchor } from '@mlearn/contracts';
-import { createRuntimeClient, RuntimeError } from '../src/client.ts';
+import { RuntimeError } from '../src/client.ts';
+import { createBoundedReadTestClient as createRuntimeClient } from './boundedReadFixture.ts';
 
 function document(): DocumentWindow {
   return {

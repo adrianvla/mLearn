@@ -54,17 +54,27 @@ function nativeHost(binary, profile, trust) {
       return;
     }
     pending.delete(response.id);
-    if (typeof response.error === 'string') waiter.reject(new Error(response.error));
-    else waiter.resolve(response.value);
+    if (Object.hasOwn(response, 'error')) {
+      if (typeof response.error === 'string') waiter.reject(new Error(response.error));
+      else if (response.error && typeof response.error === 'object'
+        && typeof response.error.code === 'string' && typeof response.error.message === 'string')
+        waiter.reject(response.error);
+      else waiter.reject(new Error('Malformed native QA error'));
+    } else waiter.resolve(response.value);
   });
   return {
     child, ready,
     invoke(command, args) {
-      if (pending.size >= 32) return Promise.reject(new Error('Native QA transport is full'));
+      const lane = ['begin_bounded_read', 'cancel_bounded_read', 'cancel_source_open'].includes(command)
+        ? command : 'ordinary';
+      const limit = lane === 'ordinary' ? 32 : lane === 'cancel_source_open' ? 1 : 2;
+      if ([...pending.values()].filter(waiter => waiter.lane === lane).length >= limit)
+        return Promise.reject({ code: 'busy', message: 'Native QA transport lane is full' });
       const id = ++next;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        child.stdin.write(`${JSON.stringify({ id, command, request: args?.request ?? null })}\n`, error => {
+        pending.set(id, { resolve, reject, lane });
+        child.stdin.write(`${JSON.stringify({ id, command, request: args?.request ?? null,
+          read_id: args?.id ?? null })}\n`, error => {
           if (error) { pending.delete(id); reject(error); }
         });
       });
@@ -131,10 +141,12 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
       const value = JSON.parse(body);
       if (request.url === '/invoke') {
         if (typeof value.command !== 'string') throw new Error('Missing native command');
-        if (value.command === 'runtime_execute') {
+        if (value.command === 'runtime_execute' || value.command === 'execute_bounded_read') {
           const command = JSON.parse(value.args.request);
           const key = command.type === 'conversation' ? `conversation:${command.command.action}` : command.type;
           counts.set(key, (counts.get(key) ?? 0) + 1);
+        } else if (['begin_bounded_read', 'cancel_bounded_read', 'cancel_source_open'].includes(value.command)) {
+          counts.set(value.command, (counts.get(value.command) ?? 0) + 1);
         }
         const result = await core.invoke(value.command, value.args);
         if (!response.destroyed) {
@@ -165,7 +177,10 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
     } catch (error) {
       if (!response.destroyed) {
         response.writeHead(500, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+        const coded = error && typeof error === 'object'
+          && typeof error.code === 'string' && typeof error.message === 'string';
+        response.end(JSON.stringify({ error: coded ? { code: error.code, message: error.message }
+          : error instanceof Error ? error.message : String(error) }));
       }
     }
   });
@@ -229,7 +244,12 @@ export async function attachRuntimeBrowserQa(page, url) {
             body: JSON.stringify({ command, args }),
           });
           const result = await response.json();
-          if (!response.ok || typeof result.error === 'string') throw new Error(result.error ?? 'Native QA transport failed');
+          if (!response.ok || Object.hasOwn(result, 'error')) {
+            if (result.error && typeof result.error === 'object'
+              && typeof result.error.code === 'string' && typeof result.error.message === 'string')
+              throw result.error;
+            throw new Error(result.error ?? 'Native QA transport failed');
+          }
           return result.value;
         },
       },

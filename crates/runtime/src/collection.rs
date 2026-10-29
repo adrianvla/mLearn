@@ -2,6 +2,7 @@
 //! Only one command is active; each page releases guest and Runtime ownership.
 use crate::{
     execution::{Cancellation, Failure},
+    guest_gate::GuestGate,
     Installed, Runtime,
 };
 use mlearn_core::{
@@ -91,7 +92,7 @@ impl CollectionOwner {
     pub(super) fn prepare(
         &self,
         runtime: &Mutex<Runtime>,
-        guest: &Mutex<()>,
+        guest: &GuestGate,
         command: CollectionPreparationCommand,
     ) -> Result<Response, Failure> {
         if command.command_id.is_empty()
@@ -174,7 +175,7 @@ impl Transfer {
     fn page(
         &self,
         package: &Installed,
-        guest: &Mutex<()>,
+        guest: &GuestGate,
         after: Option<String>,
     ) -> Result<CollectionCatalogPage, Failure> {
         let _admission = guest.lock().map_err(|_| poisoned())?;
@@ -203,7 +204,7 @@ impl Transfer {
         Ok(page)
     }
 
-    fn run(&self, runtime: &Mutex<Runtime>, guest: &Mutex<()>) -> Result<(), Failure> {
+    fn run(&self, runtime: &Mutex<Runtime>, guest: &GuestGate) -> Result<(), Failure> {
         let command = self
             .entry
             .status

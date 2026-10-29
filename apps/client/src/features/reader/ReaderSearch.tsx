@@ -29,15 +29,16 @@ export function ReaderSearch({ client, source, scope, position, compact, disable
     const [navigating, setNavigating] = useState(false);
     const [error, setError] = useState('');
     const [status, setStatus] = useState('');
-    const operation = useRef<object | null>(null);
+    const operation = useRef<AbortController | null>(null);
     const live = useRef(true);
     const retry = useRef<{ text: string; after: DocumentSearchCursor | null } | null>(null);
     useEffect(() => {
         live.current = true;
-        return () => { live.current = false; operation.current = null; };
+        return () => { live.current = false; operation.current?.abort(); operation.current = null; };
     }, []);
 
     function stop() {
+        operation.current?.abort();
         operation.current = null; setPending(false); setStatus('Search stopped. Search again to restart.');
     }
     async function search(query: string, after: DocumentSearchCursor | null = null) {
@@ -45,17 +46,17 @@ export function ReaderSearch({ client, source, scope, position, compact, disable
         if (!query.length || new TextEncoder().encode(query).length > 1024) {
             setError('Enter search text of at most 1024 UTF-8 bytes.'); return;
         }
-        const owner = {}; operation.current = owner;
+        const owner = new AbortController(); operation.current = owner;
         setPending(true); setError(''); setStatus('');
         if (!after) setPage(null);
         let cursor = after;
         try {
             // Read bounded native quanta until a result page or end. Stop/close
-            // discards in-flight publication and prevents the next read.
+            // cancels the current quantum and prevents the next read.
             do {
                 retry.current = { text: query, after: cursor };
                 const result = await client.searchDocument({ sourceId: source.id, contentRevision: source.contentRevision,
-                    parserRevision: source.parserRevision, scope, text: query, after: cursor });
+                    parserRevision: source.parserRevision, scope, text: query, after: cursor }, owner.signal);
                 if (!live.current || operation.current !== owner) return;
                 setPage(result); cursor = result.next;
                 if (result.hits.length || !cursor) break;
@@ -72,7 +73,7 @@ export function ReaderSearch({ client, source, scope, position, compact, disable
     }
     async function locate(hit?: DocumentSearchHit) {
         if (operation.current || disabled) return;
-        const owner = {}; operation.current = owner;
+        const owner = new AbortController(); operation.current = owner;
         const previous = position;
         setPending(true); setNavigating(true); setError(''); setStatus('');
         try {

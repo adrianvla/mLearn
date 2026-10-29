@@ -18,16 +18,17 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
     const [error, setError] = useState('');
     const [stopped, setStopped] = useState(false);
     const [expanded, setExpanded] = useState<string | null>(null);
-    const operation = useRef<object | null>(null);
+    const operation = useRef<AbortController | null>(null);
     const retry = useRef<KnowledgeEvidenceCursor | null>(null);
     const back = useRef<View>(null);
     async function load(after: KnowledgeEvidenceCursor | null) {
-        const owner = {};
+        if (operation.current) return;
+        const owner = new AbortController();
         operation.current = owner;
         retry.current = after;
         setPending(true); setError(''); setStopped(false);
         try {
-            const value = await client.knowledgeEvidence({ key: knowledgeKey, after });
+            const value = await client.knowledgeEvidence({ key: knowledgeKey, after }, owner.signal);
             if (operation.current !== owner) return;
             setPage(value); setExpanded(null);
         } catch (cause) {
@@ -42,7 +43,7 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
     useEffect(() => {
         back.current?.focus();
         void load(null);
-        return () => { operation.current = null; };
+        return () => { operation.current?.abort(); operation.current = null; };
     }, [client, knowledgeKey.packageId, knowledgeKey.targetId, knowledgeKey.capability]);
     return <View style={styles.stack} testID="knowledge-evidence">
         <Row>
@@ -102,6 +103,7 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
         {error ? <Text tone="media" accessibilityRole="alert">{error}</Text> : null}
         <Row>
             {pending ? <Button label="Stop loading evidence" variant="media" size="compact" onPress={() => {
+                operation.current?.abort();
                 operation.current = null; setPending(false); setStopped(true);
             }} /> : null}
             {error ? <Button label="Retry evidence" variant="media" size="compact" disabled={pending}

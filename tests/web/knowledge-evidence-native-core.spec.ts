@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { createRuntimeClient } from '@mlearn/runtime-client';
+import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import type { KnowledgeKey, ReviewSession } from '@mlearn/contracts';
 import { builtInThemes } from '../../packages/theme/src/theme';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
@@ -12,9 +12,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
   const backend = await startRuntimeBrowserQa({
     profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/knowledge-evidence-${randomUUID()}`,
   });
-  const client = createRuntimeClient({
-    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
-  });
+  const client = createRuntimeBrowserClient(backend);
   try {
     // Given: a real source-selected canonical word captured through Inspector.
     await attachRuntimeBrowserQa(page, backend.url);

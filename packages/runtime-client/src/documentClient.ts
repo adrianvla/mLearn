@@ -2,10 +2,10 @@ import type { DocumentCheckpoint, DocumentPosition, DocumentSearchQuery, Request
 import { RuntimeError } from './errors';
 import { isDocumentAppearance, isDocumentPosition, isDocumentResponse } from './documentProtocol';
 
-export function createDocumentClient(request: (command: Request) => Promise<unknown>) {
+export function createDocumentClient(request: (command: Request, signal?: AbortSignal) => Promise<unknown>) {
   const malformed = () => new RuntimeError('protocol', 'Malformed or mismatched document response.');
-  async function read(command: Request) {
-    const response = await request(command);
+  async function read(command: Request, signal?: AbortSignal) {
+    const response = await request(command, signal);
     if (!isDocumentResponse(response)) throw malformed();
     return response;
   }
@@ -38,9 +38,10 @@ export function createDocumentClient(request: (command: Request) => Promise<unkn
         || response.page.nextOffset !== null && after !== null && response.page.nextOffset <= after) throw malformed();
       return response.page;
     },
-    async searchDocument(query: DocumentSearchQuery) {
+    async searchDocument(query: DocumentSearchQuery, signal?: AbortSignal) {
       const command = structuredClone(query);
-      const response = await read({ type: 'search_document', query: command });
+      const response = await read({ type: 'search_document', query: command }, signal);
+      if (signal?.aborted) throw new RuntimeError('cancelled', 'Source work cancelled.');
       if (response.type !== 'document_search' || response.page.sourceId !== command.sourceId
         || response.page.contentRevision !== command.contentRevision || response.page.parserRevision !== command.parserRevision
         || response.page.scope !== command.scope || response.page.text !== command.text

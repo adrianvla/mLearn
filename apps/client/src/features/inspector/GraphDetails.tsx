@@ -33,18 +33,18 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
     const [unsupported, setUnsupported] = useState(false);
     const [stopped, setStopped] = useState(false);
     const [showSources, setShowSources] = useState(false);
-    const operation = useRef<object | null>(null);
+    const operation = useRef<AbortController | null>(null);
     const retry = useRef<GraphCursor | null>(null);
     async function load(after: GraphCursor | null) {
         if (operation.current) return;
-        const owner = {};
+        const owner = new AbortController();
         operation.current = owner;
         retry.current = after;
         setPending(true); setError(''); setUnsupported(false); setStopped(false);
         try {
             const value = await client.graphNeighborhood({
                 packageId, targetId, expectedRevision: packageRevision, after,
-            });
+            }, owner.signal);
             if (operation.current === owner) setPage(value);
         } catch (cause) {
             if (operation.current !== owner) return;
@@ -61,7 +61,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
     useLayoutEffect(() => {
         setPage(null);
         void load(null);
-        return () => { operation.current = null; };
+        return () => { operation.current?.abort(); operation.current = null; };
     }, [client, packageId, targetId, packageRevision]);
     return <View style={styles.stack} testID="graph-details">
         <Row>
@@ -105,8 +105,8 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
             : error ? <Text tone="media" accessibilityRole="alert">{error}</Text> : null}
         <Row>
             {pending ? <Button label="Stop loading relations" variant="media" size="compact" onPress={() => {
-                // Reject this display receipt only; source cancellation is owned by
-                // the host and must not interrupt unrelated Inspector/source work.
+                // Cancel only this read, not unrelated Inspector/source work.
+                operation.current?.abort();
                 operation.current = null; setPending(false); setStopped(true);
             }} /> : null}
             {error && !unsupported ? <Button label="Retry relations" variant="media" size="compact" disabled={pending}

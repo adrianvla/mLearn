@@ -8,6 +8,14 @@ use mlearn_core::{Request, Response};
 impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
+        self.prepare_cancellable(request, cancellation)
+    }
+    pub(crate) fn prepare_cancellable(
+        &mut self,
+        request: Request,
+        cancellation: Cancellation,
+    ) -> Result<Prepared, Failure> {
+        let epoch = cancellation.epoch;
         match request {
             Request::PrepareCollection { .. }
             | Request::CollectionPreparationStatus { .. }

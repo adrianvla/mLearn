@@ -38,7 +38,21 @@ captures were inspected; the Inspector footer intentionally scrolls horizontally
 Evidence and both raw fixture profiles are preserved at
 `.mlearn/m10/nav02-departure-5a540c88/`. The local rendered diff precedes one final
 disabled-prop forwarding line in an unexercised non-actions row; exact-final-source
-hosted confirmation remains pending, not inferred from the local captures.
+hosted web checks passed at `519df6e1`. Four matching exact-source captures
+were retrieved and inspected: Reader failure/recovery at390px and Messenger
+retained Material search at1212/390px. They confirm visible recovery and
+workspace continuity, not whole-app visual acceptance. The selected captures
+and failure state are retained under the evidence directory's `hosted519/`.
+
+Exact-source `519df6e1` workflows are terminal. Foundation40936296995 failed
+only its Windows native-theme UI job123670721181: foreground/editor focus and
+clipboard were correct, but dispatched paste left the earlier theme value.
+Its web, Rust, OCR detector and macOS desktop jobs passed. Real desktop
+integration40936296952 passed. Mobile40936296936 passed Android123667605947,
+but iOS123667606042 failed the original Watch flow after46s because `Browse`
+was not found. Preserve the logs and original assertions; no unchanged rerun
+or deferred FileProvider diagnostic variant was launched. These are still
+unresolved platform gates, not milestone acceptance.
 
 Substantial local work remains serial under fresh physical-footprint/pressure/
 swap/headroom admission. A separate guard watcher tripped during that passing
@@ -78,11 +92,58 @@ review and ownership-proven cleanup work rather than retiring inherited M07 gaps
 The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
-and serial substantial workloads. Returned cancellable-client source has
-48 passing owner tests after root repaired uncertain-receipt slot reuse,
-terminal cleanup and typed native Busy handling; it is not integrated into hosts.
-The native lease/gate tests remain uncompiled. Private FFI/desktop control wiring
-is in progress, with generated bindings and genuine native Stop still unverified.
+and serial substantial workloads. This provisional cancellation source checkpoint
+extends `519df6e1`; its engineering and independent-review gates remain open.
+Its earlier isolated
+client owner run passed50 tests after root repaired uncertain-receipt slot reuse,
+terminal cleanup, typed native Busy handling and the source-cancellation barrier.
+The integrated runtime and language-host
+library suites passed70+4 tests, warning-free, and the integrated selected client/
+view/control suites passed44/44 with no skipped or cancelled tests. The earlier
+private runtime owner suite passed70/70 after restoring only
+hash-verified existing PDF guest and English package fixtures. The real Rust
+browser QA host compiled. Structured native control-error tests passed1/1.
+The full three-artifact FFI build was held before launch by unchanged resource
+admission. A smaller no-link FFI check and a single metadata-only cdylib build
+passed under supervision; no static/mobile library was built. Both exposed the
+unchanged build generator's unused-mut warning for its empty desktop plugin vector. Scoped
+private-source UI/host/test typechecking passed after fixing the new test's
+unsupported `.ts` import suffix. Swift and Kotlin bindings were generated from
+that actual Rust metadata, and generated Swift typechecked for arm64 and x86_64
+simulator targets. The existing flat-config generator warning remains explicit;
+generated names match the host calls. After buffered readiness, the isolated
+desktop Rust host check passed without warnings. Full integrated application
+typechecking and ownership lint passed. Automatic edit diagnostics ignored the
+temporary native-server disable configuration and started a new3GiB Rust analyzer;
+validation admission held, its exact parent/birth/workspace ownership was verified,
+and only that analyzer, its workers and the paired Swift server were released.
+Explicit tests/checks, not incomplete editor diagnostics, provide the evidence.
+Mobile host builds remain unverified. Graph/evidence/search UI now pass operation-scoped abort
+signals on Stop and dismissal. Three graph and four evidence/search cases
+failed at the missing-abort assertion before repair and passed afterward;
+these use real React/runtime-client with substituted native presentation, not
+actual native-shell rendering. A real Rust QA-host/JS-adapter/client smoke
+also passed bounded admission, cancellation receipt and error-classification
+checks. The fresh main-tree QA binary and web export completed. At browser startup
+the automatic guard stopped the owned run before any scenario completed; the
+original reserve was not lowered. The remaining session-owned TypeScript
+diagnostics were released after parent/birth/workspace verification. A buffered
+read-only admission watch allowed the focused consuming-UI run, reusing those
+completed artifacts rather than rebuilding. Six scenarios passed, including
+actual Reader search stop/restart, evidence paging/restart and saved image-search
+navigation. The new graph scenario failed on an incorrect new root-source label
+assertion and a held-route cleanup race; both test defects were corrected without
+changing product code. The corrected rerun was automatically stopped during
+browser startup before any scenario completed. A subsequent one-hour read-only
+4096MiB admission watch timed out; local work remains held, without lowering the
+four-GiB reserve or restarting workloads. The19
+successful-scenario captures were inspected at desktop/narrow widths, including
+both evidence themes and expanded provenance. Existing Inspector footer scrolling
+and retained visual/platform gaps are not waived; native-shell functionality is
+not claimed. The remaining graph and application-host checks move to the existing
+source-bound foundation/mobile/desktop workflows on this provisional checkpoint.
+No new workflow or deferred iOS diagnostic variant is introduced. This is not
+verification of the corrected graph scenario, mobile hosts or M10 closure.
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
 M11 product integration remains gated on M10.

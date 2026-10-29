@@ -17,14 +17,23 @@ export { isPackageInstallStatus } from './watchProtocol';
 export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
 import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, KnowledgeEvidenceQuery, GraphQuery, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
+export interface BoundedReadTransport {
+  // A typed busy rejection guarantees that native admission created no lease.
+  // Other rejected/malformed registration receipts leave native ownership unknown.
+  begin(): Promise<string>;
+  execute(id: string, request: string): Promise<string>;
+  cancel(id: string): Promise<void>;
+}
+
 export interface Transport {
   execute(request: string): Promise<string>;
   commandId(): string;
   cancelSourceOpen?():Promise<void>;
+  readonly boundedReads?: BoundedReadTransport;
 }
 
 export function createRuntimeClient(transport: Transport) {
-  let tail:Promise<void>=Promise.resolve();let pending=0;let boundedReads=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
+  let tail:Promise<void>=Promise.resolve();let pending=0;let boundedReads=0;let uncertainBoundedReads=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
   type DisplayRead={readonly command:Request;readonly epoch:number;readonly queuedAt:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
   const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
@@ -60,20 +69,68 @@ export function createRuntimeClient(transport: Transport) {
       else void runDisplay(lane,read);
     });
   }
-  async function request(command:Request):Promise<Response>{
-    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood'){
-      // A stopped bounded read may still have an unacknowledged transport
-      // receipt. Admit one replacement without blocking source/control work.
-      if(boundedReads>=2)throw new RuntimeError('busy','Bounded source reads are still pending; retry the action.');
-      const epoch=sourceEpoch;boundedReads++;
-      try{
-        if(cancelInFlight)await cancelInFlight;
-        if(epoch!==sourceEpoch)throw cancelled();
-        const value=await execute(command);
-        if(epoch!==sourceEpoch)throw cancelled();
-        return value;
-      }finally{boundedReads--;}
+  async function boundedRead(command:Request,signal?:AbortSignal):Promise<Response>{
+    const capability=transport.boundedReads;
+    if(!capability)throw new RuntimeError('transport','This host does not support cancellable bounded reads.');
+    if(signal?.aborted)throw cancelled();
+    if(uncertainBoundedReads===2)throw new RuntimeError('transport','Native read completion is unknown; restart the app before retrying.');
+    if(boundedReads>=2)throw new RuntimeError('busy','Bounded source reads are still pending; retry the action.');
+    const epoch=sourceEpoch;boundedReads++;
+    let terminal=true;
+    let ticket:string|undefined;
+    let cancellation:Promise<void>|undefined;
+    let cancelFailure:RuntimeError|undefined;
+    const abort=()=>{
+      if(ticket===undefined||cancellation)return;
+      const id=ticket;
+      cancellation=(async()=>{
+        try{await capability.cancel(id);terminal=true;}
+        catch(error){cancelFailure=new RuntimeError('transport',error instanceof Error?error.message:String(error));}
+      })();
+    };
+    // Registration is itself asynchronous: remember aborts before its ticket arrives.
+    signal?.addEventListener('abort',abort,{once:true});
+    try{
+      if(cancelInFlight)await cancelInFlight;
+      if(signal?.aborted||epoch!==sourceEpoch)throw cancelled();
+      let id:unknown;
+      terminal=false;
+      try{id=await capability.begin();}
+      catch(error){
+        if(error instanceof RuntimeError&&error.code==='busy'){terminal=true;throw error;}
+        throw new RuntimeError('transport',error instanceof Error?error.message:String(error));
+      }
+      // Handles are opaque, bounded printable tokens, not request or source identities.
+      if(typeof id!=='string'||id.length===0||id.length>256||!/^[\x21-\x7e]+$/.test(id))
+        throw new RuntimeError('protocol','Malformed bounded read handle.');
+      const handle=id;
+      ticket=handle;
+      if(signal?.aborted){abort();throw cancelled();}
+      if(epoch!==sourceEpoch){abort();throw cancelled();}
+      const value=await execute(command,async raw=>{
+        try{const result=await capability.execute(handle,raw);terminal=true;return result;}
+        catch(error){
+          if(error instanceof RuntimeError)throw error;
+          throw new RuntimeError('transport',error instanceof Error?error.message:String(error));
+        }
+      });
+      if(signal?.aborted||epoch!==sourceEpoch)throw cancelled();
+      return value;
+    }catch(error){
+      if(!terminal)abort();
+      if(signal?.aborted)throw cancelled();
+      throw error;
+    }finally{
+      signal?.removeEventListener('abort',abort);
+      // Settlement is not proof of native drainage when both receipts were lost.
+      // Keep that slot charged; only a native terminal receipt permits reuse.
+      try{await cancellation;if(cancelFailure)throw cancelFailure;}
+      finally{if(terminal)boundedReads--;else uncertainBoundedReads++;}
     }
+  }
+  async function request(command:Request,signal?:AbortSignal):Promise<Response>{
+    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood')
+      return boundedRead(command,signal);
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window'
       ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source'))return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
@@ -87,13 +144,18 @@ export function createRuntimeClient(transport: Transport) {
       console.info(`runtime-queue operation=${command.type} elapsed_ms=${(performance.now()-queuedAt).toFixed(3)}`);
     try{if(sourceAction&&cancelInFlight)await cancelInFlight;if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');const value=await execute(command);if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');return value;}finally{pending--;release();}
   }
-  async function execute(command: Request): Promise<Response> {
+  async function execute(command: Request,send:(request:string)=>Promise<string>=raw=>transport.execute(raw)): Promise<Response> {
     const started = performance.now();
-    const raw = await transport.execute(JSON.stringify(command));
+    const raw = await send(JSON.stringify(command));
     if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
       console.info(`runtime-transport operation=${command.type} elapsed_ms=${(performance.now() - started).toFixed(3)}`);
     if (raw.length > 524_288) throw new RuntimeError('protocol', 'Native response exceeds the message limit.');
-    const value: unknown = JSON.parse(raw);
+    let value:unknown;
+    try{value=JSON.parse(raw);}
+    catch(error){
+      if(error instanceof SyntaxError)throw new RuntimeError('protocol','Malformed native response JSON.');
+      throw error;
+    }
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') throw new RuntimeError('protocol', 'Malformed native response.');
     const response = value as Response;
     if (response.type === 'error') throw new RuntimeError(response.code, response.message);
@@ -199,9 +261,10 @@ export function createRuntimeClient(transport: Transport) {
       return r.batch;
     },
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
-    async graphNeighborhood(query:GraphQuery) {
+    async graphNeighborhood(query:GraphQuery,signal?:AbortSignal) {
       const original=structuredClone(query);
-      const response=await request({type:'graph_neighborhood',query:original});
+      const response=await request({type:'graph_neighborhood',query:original},signal);
+      if(signal?.aborted)throw cancelled();
       if(response.type!=='graph_neighborhood'||!isGraphPage(response.page)
         ||response.page.packageId!==original.packageId||response.page.entity.targetId!==original.targetId
         ||original.expectedRevision!==null&&response.page.packageRevision!==original.expectedRevision
@@ -210,10 +273,11 @@ export function createRuntimeClient(transport: Transport) {
         throw new RuntimeError('protocol','Malformed or mismatched graph neighborhood.');
       return response.page;
     },
-    async knowledgeEvidence(query:KnowledgeEvidenceQuery) {
+    async knowledgeEvidence(query:KnowledgeEvidenceQuery,signal?:AbortSignal) {
       const original=structuredClone(query);
       const after=original.after;
-      const response=await request({type:'knowledge_evidence',query:original});
+      const response=await request({type:'knowledge_evidence',query:original},signal);
+      if(signal?.aborted)throw cancelled();
       if(response.type!=='knowledge_evidence'||!isKnowledgeEvidencePage(response.page)
         ||response.page.projection.key.packageId!==original.key.packageId
         ||response.page.projection.key.targetId!==original.key.targetId

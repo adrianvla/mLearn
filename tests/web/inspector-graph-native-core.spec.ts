@@ -1,8 +1,7 @@
 /// <reference types="node" />
 import { test, expect } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { createRuntimeClient } from '@mlearn/runtime-client';
+import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { builtInThemes } from '../../packages/theme/src/theme';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
@@ -11,9 +10,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
   const backend = await startRuntimeBrowserQa({
     profile: info.outputPath('native-profile'),
   });
-  const client = createRuntimeClient({
-    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
-  });
+  const client = createRuntimeBrowserClient(backend);
   const packageId = 'org.mlearn.english';
   try {
     // Given an actual package analysis, source-selected Inspector and saved
@@ -68,6 +65,66 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     expect(changed.knowledge.filter(value => value.key.targetId !== targetId)
       .every(value => value.claim === null)).toBe(true);
     await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
+
+    // Delay only a real native receipt. Stop must cancel that exact handle,
+    // preserve the displayed page/source, and admit an explicit replacement.
+    let holdGraph = true;
+    let heldId: string | undefined;
+    let entered = () => {};
+    let release = () => {};
+    let completion: Promise<void> | null = null;
+    const admitted = new Promise<void>(resolve => { entered = resolve; });
+    const held = new Promise<void>(resolve => { release = resolve; });
+    await page.route(`${backend.url}/invoke`, async route => {
+      const invocation = route.request().postDataJSON();
+      if (!holdGraph || invocation.command !== 'execute_bounded_read'
+        || JSON.parse(invocation.args.request).type !== 'graph_neighborhood') {
+        await route.continue(); return;
+      }
+      if (typeof invocation.args.id !== 'string') throw new Error('Graph read has no native handle');
+      holdGraph = false; heldId = invocation.args.id;
+      const response = await route.fetch();
+      entered(); await held; await route.fulfill({ response });
+    });
+    try {
+      await graph.getByRole('button', { name: 'Refresh relations', exact: true }).click();
+      await admitted;
+      completion = page.waitForResponse(response => response.url() === `${backend.url}/invoke`
+        && response.request().postDataJSON().command === 'execute_bounded_read'
+        && response.request().postDataJSON().args.id === heldId)
+        .then(async response => { await response.finished(); });
+      const cancelled = page.waitForResponse(response => response.url() === `${backend.url}/invoke`
+        && response.request().postDataJSON().command === 'cancel_bounded_read'
+        && response.request().postDataJSON().args.id === heldId);
+      await graph.getByRole('button', { name: 'Stop loading relations', exact: true }).click();
+      expect((await cancelled).ok()).toBe(true);
+      await expect(graph.getByText('Related-entity loading stopped.', { exact: true })).toBeVisible();
+      await expect(graph.getByTestId('graph-relation')).toHaveCount(first.connections.length);
+      expect(new URL(page.url()).searchParams.get('id')).toBe(document.source.id);
+      expect((await client.resumeDocument(document.source.id)).source.id).toBe(document.source.id);
+      await page.screenshot({ path: info.outputPath('graph-native-stopped-1080.png') });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.screenshot({ path: info.outputPath('graph-native-stopped-390.png') });
+      await page.setViewportSize({ width: 1080, height: 900 });
+      await client.changeClaim(client.prepareClaim({
+        packageId, targetId, capability: capability.id,
+      }, false));
+      await graph.getByRole('button', { name: 'Refresh relations', exact: true }).click();
+      await expect(graph.getByRole('button', { name: 'Stop loading relations', exact: true })).toHaveCount(0);
+      await expect(graph.getByText(`${capability.label}: claimed unknown`, { exact: true })).toHaveCount(1);
+      release();
+      await completion;
+      await expect(graph.getByText(`${capability.label}: claimed unknown`, { exact: true })).toHaveCount(1);
+      await client.changeClaim(client.prepareClaim({
+        packageId, targetId, capability: capability.id,
+      }, true));
+      await graph.getByRole('button', { name: 'Refresh relations', exact: true }).click();
+      await expect(graph.getByText(`${capability.label}: claimed known`, { exact: true })).toHaveCount(1);
+    } finally {
+      release();
+      await completion;
+      await page.unroute(`${backend.url}/invoke`);
+    }
 
     // Then deeper inspection and Return preserve the source/active target
     // distinction, and restarting the native host retains only the root claim.
@@ -129,9 +186,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
 test('packaged characters retain their identity from Knowledge through Material and scheduled Review', async ({ page }, info) => {
   test.setTimeout(900_000);
   const backend = await startRuntimeBrowserQa({ profile: info.outputPath('character-profile') });
-  const client = createRuntimeClient({
-    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
-  });
+  const client = createRuntimeBrowserClient(backend);
   const packageId = 'org.mlearn.japanese';
   const targetId = 'kanjidic:6a4b';
   const failures: unknown[] = [];

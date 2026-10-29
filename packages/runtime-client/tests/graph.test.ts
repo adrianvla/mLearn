@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { GraphPage, GraphQuery, LinguisticEntity } from '@mlearn/contracts';
-import { createRuntimeClient } from '../src/client.ts';
+import { createBoundedReadTestClient as createRuntimeClient } from './boundedReadFixture.ts';
 
 function fixture(): { query: GraphQuery; page: GraphPage } {
   const packageId = 'org.example';

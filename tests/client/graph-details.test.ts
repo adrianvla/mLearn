@@ -58,13 +58,13 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
             import { createRoot } from 'react-dom/client';
             import { flushSync } from 'react-dom';
             import { GraphDetails } from './apps/client/src/features/inspector/GraphDetails';
-            import { createRuntimeClient } from './packages/runtime-client/src/client';
+            import { createBoundedReadTestClient } from './packages/runtime-client/tests/boundedReadFixture';
             const first = ${JSON.stringify(first)}, last = ${JSON.stringify(last)};
             const root = createRoot(document.getElementById('root'));
             window.mount = mode => {
                 let attempts = 0, release;
-                const queries = [], inspected = [];
-                const client = createRuntimeClient({ commandId: () => 'unused', execute: async raw => {
+                const queries = [], inspected = [], cancelled = [];
+                const client = createBoundedReadTestClient({ commandId: () => 'unused', execute: async raw => {
                     const { query } = JSON.parse(raw); queries.push(query);
                     const attempt = ++attempts;
                     if ((mode === 'held' || mode === 'stopped' || mode === 'revision') && attempt === 1)
@@ -84,15 +84,16 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                 } });
                 const neighborhood = client.graphNeighborhood;
                 const receipts = [];
-                client.graphNeighborhood = query => {
-                    const receipt = neighborhood(query);
+                client.graphNeighborhood = (query, signal) => {
+                    signal?.addEventListener('abort', () => cancelled.push(query), { once: true });
+                    const receipt = neighborhood(query, signal);
                     receipts.push(receipt.then(() => {}, () => {}));
                     return receipt;
                 };
                 const render = props => flushSync(() => root.render(<GraphDetails client={client}
                     packageId={first.packageId} targetId={first.entity.targetId}
                     packageRevision={first.packageRevision} onInspectTarget={id => inspected.push(id)} {...props} />));
-                window.graph = { queries, inspected, release: () => { release?.(); return Promise.all(receipts); }, render,
+                window.graph = { queries, inspected, cancelled, release: () => { release?.(); return Promise.all(receipts); }, render,
                     unmount: () => flushSync(() => root.render(null)) };
                 render({});
             };
@@ -139,6 +140,7 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                         // then only the replacement may remain visible.
                         await page.evaluate(mode => Reflect.get(window, 'graph').render(mode === 'held'
                             ? { targetId: 'replacement' } : { packageRevision: 'c'.repeat(64) }), mode);
+                        assert.equal(await page.evaluate(() => Reflect.get(window, 'graph').cancelled.length), 1);
                         await expect(page.getByTestId('graph-details')).toContainText('Replacement');
                         await page.evaluate(() => Reflect.get(window, 'graph').release());
                         await expect(page.getByTestId('graph-relation')).toHaveCount(0);
@@ -146,6 +148,7 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                         // When stopping and explicitly refreshing a held read,
                         // its old transport receipt must not restore the old page.
                         await page.getByRole('button', { name: 'Stop loading relations', exact: true }).click();
+                        assert.equal(await page.evaluate(() => Reflect.get(window, 'graph').cancelled.length), 1);
                         await page.getByRole('button', { name: 'Refresh relations', exact: true }).click();
                         await expect(page.getByTestId('graph-relation')).toHaveCount(0);
                         await expect(page.getByRole('button', { name: 'Stop loading relations', exact: true })).toHaveCount(0);

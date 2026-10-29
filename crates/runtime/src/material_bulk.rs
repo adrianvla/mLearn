@@ -1,6 +1,7 @@
 //! Management work reuses the host's blocking worker, guest admission and
 //! Material transaction owners. Status/cancel calls never wait behind its guest.
 use crate::{
+    guest_gate::GuestGate,
     Runtime,
     execution::{Cancellation, Failure},
     guest::{GuestOutput, LanguageAction, Prepared},
@@ -32,7 +33,7 @@ struct TestObservation {
 
 struct Transfer<'a> {
     runtime: &'a Mutex<Runtime>,
-    guest: &'a Mutex<()>,
+    guest: &'a GuestGate,
     entry: Arc<Entry>,
     command: MaterialBulkStart,
     finished: bool,
@@ -81,7 +82,7 @@ impl MaterialBulkOwner {
     pub(super) fn execute(
         &self,
         runtime: &Mutex<Runtime>,
-        guest: &Mutex<()>,
+        guest: &GuestGate,
         command: MaterialBulkCommand,
     ) -> Result<Response, Failure> {
         match command {
@@ -151,7 +152,7 @@ impl MaterialBulkOwner {
     fn apply(
         &self,
         runtime: &Mutex<Runtime>,
-        guest: &Mutex<()>,
+        guest: &GuestGate,
         command: MaterialBulkCommand,
     ) -> Result<Response, Failure> {
         let command_id = match &command {

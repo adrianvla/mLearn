@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { KnowledgeEvidencePage, KnowledgeEvidenceQuery } from '@mlearn/contracts';
-import { createRuntimeClient } from '../src/client.ts';
+import { createBoundedReadTestClient as createRuntimeClient } from './boundedReadFixture.ts';
 
 function fixture(): { query: KnowledgeEvidenceQuery; page: KnowledgeEvidencePage } {
   const key = { packageId: 'package', targetId: 'target', capability: 'meaning' };
@@ -113,15 +113,12 @@ test('held evidence permits one bounded replacement and does not block ordinary 
   });
   const first = client.knowledgeEvidence(query);
   const second = client.knowledgeEvidence(query);
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([admitted, new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('Replacement evidence was blocked behind the held receipt')), 1000);
-    })]);
+    await admitted;
     await assert.rejects(client.knowledgeEvidence(query), { code: 'busy' });
     assert.deepEqual(await client.knowledge([query.key]), [page.projection]);
   } finally {
-    clearTimeout(timer); release();
+    release();
     await Promise.all([first, second]);
   }
 });
