@@ -905,6 +905,34 @@ are not claimed as passing. Full diff/whitespace checks pass. Fresh hosted
 typecheck, original regressions and captures remain required; no native/read
 timeout, model pin or original assertion was relaxed.
 
+`d15558aa952a66512049a5eddd831f66e6ac936b` real desktop integration
+40872207601 / native 123441851191 failed with a raw
+`DOMException [TimeoutError]: The operation was aborted due to timeout`.
+Retained `d15558a-desktop-failed.log` and artifact 12896731842 as
+`d15558a-native-desktop.zip`. Its archived source receipt matches that commit
+and tree `bb1fe95303bbef7eca5a5d7da964f47a71fd757d`. Selectively recovered the
+failure frame, media/geometry receipts and two exact driver files. The frame
+was directly inspected: raw Japanese caption with an explicit incompatible
+English-analysis message. Video is readyState 4, paused at 20/30 seconds, with
+no media error. Portal/audio warnings do not establish the failure's cause.
+The lost awaited operation remains unresolved; foundation 40872207253 and
+mobile 40872207514 remain independently watched by 1933.
+
+The driver's existing transport wrapper awaited the response body outside its
+catch, allowing a body-read timeout to lose the request identity. Added one
+actual-Response/errored-stream case to its existing script owner suite. Before
+the fix, the single mocked test failed on
+`assert.ok(error instanceof WebDriverTransportError)` (140.7ms process).
+After moving the body read into the same catch, the full six-test owner suite
+passed once in 129.9ms, preserving method/endpoint/cause and no replay; native
+protocol errors remain distinct. The 30-second RPC deadline and original
+native scenarios are unchanged. This repairs diagnostics, not desktop acceptance.
+Only this small mocked Node test process ran locally; no app, browser, device,
+build or inference workload was started. Both edited JavaScript files' fresh
+LSP diagnostics timed out and are not counted as passing. Full diff/whitespace
+checks pass; hosted lint and the real failing workflow remain required.
+No product UI source changed after d15558aa.
+
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative
 Rust optimization or fuel/batch change was applied. The newly added throughput
