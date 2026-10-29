@@ -993,7 +993,12 @@ Home repair `84a02fa38e7cb238f1625d227f10d51025068b49` passed foundation
 held real Home snapshot regression with zero off-screen recent-read requests.
 Unit tests, typecheck, lint, web build, Rust/contracts, detector and both
 desktop build/OCR jobs passed. Real desktop integration40880351909 also passed.
-Mobile40880351754 is still in progress; no native parity is claimed.
+Mobile40880351754 is terminal: Android123478764447 passed; iOS123478763651
+failed at14:05:30Z with `Element not found: Text matching regex: Open local
+video, Enabled`. Authored H.264/AAC fixture export succeeded at14:00:11Z.
+Retained `mobile-84a02fa-failed.log` in the scratch root. This is the original
+actual-UI gate, not a fixture-export failure or proof of a navigation cause.
+No diagnostic variant, unchanged native rerun or platform-parity claim is made.
 Artifact12901586854 is retained as `84a02fa-web-inspection.zip` under the
 existing scratch root; the passing web log is `84a02fa-web.log`.
 
@@ -1023,6 +1028,38 @@ the restoration assertions, with fresh Reader/return captures. This baseline is
 unrun; it must establish the activity boundary before any return-control repair.
 No local browser/build/device run is admitted for it. Hosted typecheck and the
 connected scenario remain required; prior test-file LSP timeouts are not passes.
+The source-only baseline is committed/pushed as
+`9486370f695d4ba570d33a90f96cb60cee3f1609`; ordinary foundation40885194660
+failed web123486904256: 140 passed in11.7minutes, with the new original
+activity-return assertion receiving an empty Knowledge draft atline264.
+Rust/detector/both desktop build/OCR jobs passed. Its full-SHA observer1978
+replaced the short-SHA observer1976;
+only the subscription changed, with no workload restart.
+
+Read the actual return JSON and directly inspected both available fresh frames
+from artifact12903048105 (`9486370-web-inspection.zip`, selectively extracted
+to `9486370-activity-evidence/`). Reader showed the real continuity document;
+its saved/resumed parser/resource/block/offset checkpoint matched exactly.
+Knowledge after Reader return showed an empty search, Package order and List,
+not the prior draft, descending order, Grid or non-first page. The source
+checkpoint survived; management presentation was replaced. This is a reproduced
+navigation defect, not a timing hypothesis.
+
+The installed router's REPLACE action creates/replaces the current route;
+POP_TO instead keeps the matching earlier route key and removes routes above
+it, falling back to replacement only when that destination is absent.
+Reader's existing checkpointing Home action now uses `router.dismissTo('/')`,
+which delegates to that existing POP_TO owner. Its persistence/error behavior,
+workspace cleanup and direct-entry fallback remain unchanged. No new navigation
+store, cache or activity-retention owner was added. Other audited return controls
+remain unmodified until their connected evidence is obtained.
+The same unchanged activity-return assertions and fresh1080/390 captures must
+verify this candidate before another presentation-source edit. No passing
+runtime result or native workflow is claimed for it yet.
+Reader's fresh LSP diagnostics and diff/whitespace checks are clean.
+Current OmO footprint3682MB, historical peak14GB, RSS8274352KiB, pressure1,
+swap4996.19MiB; no substantial local workload was admitted. Swap growth remains
+unexplained and is not attributed to an app/device/model.
 
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted

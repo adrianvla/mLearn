@@ -101,7 +101,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const next = sourceWindow && nextBlock
         ? blockPosition(sourceWindow.source, nextBlock) : sourceWindow?.next;
     async function home() {
-        try { await reader.persist(); router.replace('/'); }
+        try { await reader.persist(); router.dismissTo('/'); }
         catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
     }
     function changeAppearance(change: Partial<DocumentAppearance>) {
