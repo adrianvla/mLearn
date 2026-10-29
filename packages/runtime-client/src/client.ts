@@ -10,11 +10,12 @@ import { createCollectionClient } from './collectionClient';
 import { isMaterialResponse } from './materialProtocol';
 import { isSourceAnchor } from './sourceProtocol';
 import { isKnowledgeEvidencePage } from './knowledgeProtocol';
+import { isGraphPage } from './graphProtocol';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
 export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
-import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, KnowledgeEvidenceQuery, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, SourceAnchor, StarCollapse, ThemeDocument, KnowledgeKey, KnowledgeEvidenceQuery, GraphQuery, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -60,7 +61,7 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
-    if(command.type==='search_document'||command.type==='knowledge_evidence'){
+    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood'){
       // A stopped bounded read may still have an unacknowledged transport
       // receipt. Admit one replacement without blocking source/control work.
       if(boundedReads>=2)throw new RuntimeError('busy','Bounded source reads are still pending; retry the action.');
@@ -198,6 +199,17 @@ export function createRuntimeClient(transport: Transport) {
       return r.batch;
     },
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
+    async graphNeighborhood(query:GraphQuery) {
+      const original=structuredClone(query);
+      const response=await request({type:'graph_neighborhood',query:original});
+      if(response.type!=='graph_neighborhood'||!isGraphPage(response.page)
+        ||response.page.packageId!==original.packageId||response.page.entity.targetId!==original.targetId
+        ||original.expectedRevision!==null&&response.page.packageRevision!==original.expectedRevision
+        ||original.after!==null&&response.page.next!==null
+          &&(response.page.next.identity!==original.after.identity||response.page.next.after===original.after.after))
+        throw new RuntimeError('protocol','Malformed or mismatched graph neighborhood.');
+      return response.page;
+    },
     async knowledgeEvidence(query:KnowledgeEvidenceQuery) {
       const original=structuredClone(query);
       const after=original.after;

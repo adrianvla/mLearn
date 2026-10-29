@@ -1,12 +1,12 @@
 use crate::{
-    Runtime,
     guest::{GuestOutput, GuestWork, Prepared},
+    Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        Arc, Mutex, TryLockError,
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, TryLockError,
     },
     time::Instant,
 };
@@ -333,6 +333,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::AnalyzeTranscript { .. }
         | Request::DescribeLanguage { .. }
         | Request::InspectTarget { .. }
+        | Request::GraphNeighborhood { .. }
         | Request::InspectTargets { .. }
         | Request::ChangeClaim { .. }
         | Request::InvokePlugin { .. }

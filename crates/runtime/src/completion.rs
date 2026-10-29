@@ -1,7 +1,7 @@
 use crate::{
-    Installed, Runtime,
     execution::Failure,
     guest::{GuestOutput, GuestWork, LanguageAction},
+    Installed, Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::sync::Arc;
@@ -162,6 +162,9 @@ impl Runtime {
                             package_revision: work.package.revision()?,
                             knowledge: self.target_knowledge(&work.package.manifest.id, entry)?,
                         }
+                    }
+                    (LanguageAction::Graph(query), GuestOutput::Graph(value)) => {
+                        self.complete_graph(query, &work.package, value)?
                     }
                     (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {
                         Response::Dictionary {

@@ -1,4 +1,4 @@
-import type { AnalyzedToken, CollectionDescription, LexicalSummary, PackageInstallStatus, Response } from '@mlearn/contracts';
+import type { AnalyzedToken, CollectionDescription, KnowledgeProjection, LexicalSummary, PackageInstallStatus, Response } from '@mlearn/contracts';
 type RecordValue = Record<string, unknown>;
 function object(v: unknown): v is RecordValue { return !!v && typeof v === 'object' && !Array.isArray(v); }
 const string = (v: unknown): v is string => typeof v === 'string' && v.length <= 32768;
@@ -34,7 +34,7 @@ function levelScale(v: unknown): boolean {
   &&string(v.attribution)&&v.attribution.length>0&&v.attribution.length<=2048;
 }
 function key(v: unknown): boolean { return object(v) && string(v.packageId) && string(v.targetId) && string(v.capability); }
-function projection(v: unknown): boolean { return object(v) && key(v.key) && optionalBoolean(v.claim) && optionalBoolean(v.assessed) && (v.prediction===null || typeof v.prediction==='number' && Number.isFinite(v.prediction)) && integer(v.revision) && string(v.status); }
+function projection(v: unknown): v is KnowledgeProjection { return object(v) && key(v.key) && optionalBoolean(v.claim) && optionalBoolean(v.assessed) && (v.prediction===null || typeof v.prediction==='number' && Number.isFinite(v.prediction)) && integer(v.revision) && string(v.status); }
 function plugin(v: unknown): boolean { return object(v) && string(v.id) && string(v.version) && list(v.capabilities,64,string); }
 export function isPackageInstallStatus(v: unknown, maximumBytes = 272629760): v is PackageInstallStatus {
  const bytes = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= maximumBytes;

@@ -832,6 +832,93 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
 }
 
 #[test]
+fn metadata_only_catalog_targets_resume_without_implicit_knowledge() {
+    // Given an interrupted catalog and a source target without learning capabilities.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![target(0)],
+                next: Some("fixture/1".into()),
+                total: 2,
+            },
+        )
+        .unwrap();
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+            .unwrap(),
+        (1, Some("fixture/1".into()))
+    );
+    let mut metadata = target(1);
+    metadata.capabilities.clear();
+
+    // When the resumed publisher admits the metadata-only final page.
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            1,
+            Some("fixture/1"),
+            &CollectionCatalogPage {
+                items: vec![metadata.clone()],
+                next: None,
+                total: 2,
+            },
+        )
+        .unwrap();
+    drop(store);
+
+    // Then restart preserves browsable metadata without inventing learner keys.
+    let store = ProfileStore::open(&path).unwrap();
+    let all = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::All { filters: vec![] },
+    );
+    let page = ready(&store, &all);
+    assert_eq!((page.count, page.items.len()), (2, 2));
+    match &page.items[1] {
+        CollectionItem::Target {
+            target,
+            knowledge,
+            material_count,
+        } => {
+            assert_eq!(target, &metadata);
+            assert!(knowledge.is_empty());
+            assert_eq!(*material_count, 0);
+        }
+        CollectionItem::Material { .. } => panic!("Expected catalog target"),
+    }
+    let tracked = ready(
+        &store,
+        &query(
+            CollectionSurface::Knowledge,
+            CollectionFilter::Capability {
+                capability: format!("{PACKAGE}:meaning"),
+                states: vec![CollectionKnowledgeState::Untracked],
+            },
+        ),
+    );
+    assert_eq!((tracked.count, tracked.items.len()), (1, 1));
+    assert!(matches!(
+        &tracked.items[0],
+        CollectionItem::Target { target, knowledge, .. }
+            if target.summary.target_id == "entry-000" && knowledge.len() == 1
+    ));
+}
+
+#[test]
 fn level_filters_use_all_source_memberships_not_only_inline_display() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();

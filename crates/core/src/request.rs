@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
+    GraphNeighborhood {
+        query: crate::GraphQuery,
+    },
     Conversation {
         command: crate::ConversationCommand,
     },

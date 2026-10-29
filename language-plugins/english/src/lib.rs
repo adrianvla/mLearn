@@ -8,6 +8,7 @@ use mlearn_language_sdk::{
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_segmentation::UnicodeSegmentation;
 mod catalog;
+mod graph;
 mod ocr;
 mod review;
 const PACKAGE: &str = "org.mlearn.english";
@@ -209,6 +210,8 @@ fn handle(call: Call) -> Result<Value, String> {
                 .ok_or("Expected targetId")?;
             serde_json::to_value(inspect(id, &read)?).map_err(|error| error.to_string())
         }
+        "graph.neighborhood.v1" => serde_json::to_value(graph::neighborhood(call.input, &read)?)
+            .map_err(|error| error.to_string()),
         _ => Err("Unsupported English capability".into()),
     }
 }

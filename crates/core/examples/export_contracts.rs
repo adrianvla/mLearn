@@ -3,6 +3,16 @@ fn main() {
     use mlearn_core::*;
     use ts_rs::TS;
     let declarations = [
+        serde_json::Value::decl(),
+        RelationCategory::decl(),
+        GraphProperty::decl(),
+        LinguisticEntity::decl(),
+        LinguisticRelation::decl(),
+        GraphConnection::decl(),
+        GraphNeighborhood::decl(),
+        GraphCursor::decl(),
+        GraphQuery::decl(),
+        GraphPage::decl(),
         ContactId::decl(),
         ConversationId::decl(),
         MessageId::decl(),

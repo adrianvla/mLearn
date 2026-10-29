@@ -24,13 +24,428 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: graph details, then package-supported character views.
-Ledger:52/109 complete. KNW-04's connected evidence implementation is
+Current task: render and verify the first graph/character/Inspector UI increment,
+then repair the independent all-language Material catalog-revision finding.
+The pinned publisher metadata defect is repaired. The mixed character
+catalog, shared probe owner and related-detail producer have the owner evidence
+below. The generic metadata-only catalog repair is verified for continuation. Graph
+presentation still lacks a successful real reference capture. Neither UI task
+is complete. Ledger:62/121 complete; added tasks track independent audits,
+M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
+authorization permits up to twelve useful workers, constrained by measured
+headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
+and serial substantial workloads. M11 product integration remains gated on M10.
+The execution record is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-mlearn-20261028.XXXXXX.md.sfqTwzdUNN`;
+new scratch root `/tmp/mlearn-parallel-ulw.M8JsP2`.
+The goal API rejected replacing obsolete unfinished visual-parity metadata;
+that metadata neither changes current scope nor establishes completed work.
+KNW-04's connected evidence implementation is
 verified_for_continuation, not native-platform or maintainer acceptance.
 SRC-10's connected implementation is verified for
 continuation, not platform or maintainer acceptance. Its Watch/cross-source
 closure is committed/pushed as
 `c61df5af66cbf2a1a9b01ce7668333236ed94099`, following Reader2505a044.
+KNW-04 is committed/pushed as
+`bb9fce3974254aa5c8876046396428945d3d48b4`. Its exact-source automatic
+desktop40756004919 and foundation40756007680 passed. Mobile40756004929 is
+terminal: Android123059177109 passed; iOS123059177501 failed its original
+actual-UI step because enabled `Open local video` was not found. The authored
+H.264/AAC fixture exported successfully; this is not the earlier export failure.
+Its exact failed-step log is retained as `knowledge-ios-ci-failed.log` in the
+existing execution root. No diagnostic workflow variant was launched.
+Selective extraction retained only its JUnit, Maestro log and failing frame.
+The English picker entry completed. The later Japanese entry reports
+`home-open-watch` bounds[41,87][352,156] and tap[196,121], but its failure frame
+still shows Home with the Watch action above the scrolled body/behind the
+header. This narrows the failure to that Home entry; product versus test-input
+cause remains unverified. Preserve the assertions and reproduce on retained
+native artifacts before changing code or helpers.
+This does not establish the unfinished graph work.
+
+Graph trace: core currently has no linguistic relationship query/store; the
+existing immutable package SQLite key/value index is the resource owner.
+English target identities are WordNet lexical senses; Japanese targets remain
+the existing explicit JMdict targets. Related forms/readings and other entries
+must not inherit their Knowledge. The v2 GraphNeighborhood and graph addressing
+sources distinguish identity, property and support; their fixed linguistic
+ontology/compact graph machinery is not a v3 architecture requirement.
+The in-progress generic contract adds package-owned entity kinds, properties,
+predicates, provenance and qualifiers, plus identity/property/alternative/support
+roles. It preserves unknown structured values and parallel relation IDs.
+Native admission bounds16 edges/128KiB, validates exact endpoints, declared
+target capabilities and consistent entity metadata, and fences continuations by
+package/target/revision. Completion queries the existing Knowledge owner only
+for explicit target bindings; no edge copies or predicts learner state.
+English source now retains the original WordNet synset word list and exposes
+separate lexical alternatives/synset support. Japanese source exposes attested
+form/reading properties, written-form alternatives and shared-reading support
+under separate target bindings. Its per-call32-candidate/16-edge quantum and
+local decoded-index cache bound work without dropping continuation; hashed
+semantic relation IDs do not depend on array positions. Both package manifests
+declare the new capability and versions; source pins/licenses remain unchanged.
+These are source edits, not delivered graph behavior. The first guarded owner
+check initially waited on the unchanged2GiB/4GiB policy: footprint4585911424/
+available6030770176 projected less than the reserve. No workload was admitted
+during that hold; no reserve was lowered or waiting run duplicated.
+The bounded process inventory then found Rust analyzer39186 at3505440KiB RSS,
+parent47976 (an OmO child of82251), cwd this repository, started during this
+session's diagnostics at2026-10-28T20:44:17. Its requested diagnostics had
+completed. That exact owned analyzer received SIGTERM; it and its two owned
+helpers39269/39270 were confirmed absent afterward. No other process was
+stopped. Available memory rose to8114208768; OmO footprint remained4582290560,
+RSS3954819072, pressure1, swapUsed3966238720, swapOut78071758848. This explains
+one current capacity consumer, not the earlier OmO incident or OmO footprint.
+The registered check then passed both native graph admission tests and core
+contract generation (`graph-owner-first.log`). Its final footprint4581848192,
+available7545552896, pressure1, swapUsed3966238720, swapOut78071758848 was safe.
+`graph-packages-first.log` passed both English and both Japanese graph tests,
+including real package producers with synthetic bounded dictionary fixtures.
+The subsequent typecheck correctly failed because the explicit export list
+omitted serde_json's recursive `JsonValue` declaration. The exporter now emits
+that actual dependency instead of hand-editing generated types. Vendor Sudachi
+warnings are retained, not suppressed. The typed graph client now validates
+bounded inert metadata/relationships and exact explicit Knowledge-key coverage,
+snapshots scope/revision, and uses the existing bounded source-read lane with
+source-epoch rejection. `graph-client-first.log` passed its3 new boundary/
+snapshot/concurrency tests, the50 affected existing client tests, typecheck
+and lint. Offline authenticated package preparation then succeeded in
+`graph-integration-first.log`; the guard stopped runtime compilation at
+available6434275328/projected4286791680, below the unchanged4294967296 reserve.
+The old negative-group cleanup again returned EPERM; no owned compiler survived.
+The temporary runner now signals only positive PIDs in its live child's
+observed descendant tree, leaves first. The package-reusing retry stopped at
+available6165790720/projected4018307072; that cleanup completed without EPERM,
+and the bounded process inventory found no owned compiler/guard survivor or
+large analyzer. OmO footprint4603278464, available6654623744, pressure1,
+swapUsed3941072896 and swapOut78071758848 remain observations, not a diagnosis
+of the earlier OmO incident. Neither stop ran the graph assertions.
+The actual compiled-package runtime graph suite now passes all3 tests in
+`graph-integration-limited-debug.log`. It covers live Knowledge between graph
+pages, cross-target/stale-revision
+cursors, restart, real JMdict homophones versus unlearnable form properties,
+and an undeclared capability's explicit unavailable result. The QA host also
+built; SHA256e1d6b67cd7c99ff15eba2650cf9cae5b138f86ec1dd810999de9316cf98bfcf9.
+The verbose compiler commands confirm runtime, graph test and QA host debug1.
+The invocation explicitly retains debug assertions/overflow checks and does not
+change optimized interpreter profiles, one Cargo job or the2GiB/4GiB policy.
+This is functional evidence, not normal-debug performance acceptance.
+Final guard sample: footprint5053609088, available6857424896, pressure1,
+swapUsed4837867520, swapOut79362883584; all policy checks safe. A later bounded
+vmmap identifies the dominant allocation category as App-Specific Tag1
+(4.5GiB resident/1.8GiB swapped), not WebKit Malloc(67.9MiB resident). The eval
+kernel shares PID82251; one full GC reduced its reported JS heap about15MiB
+but did not materially reduce physical footprint(5047399552 afterward).
+That is allocation-category evidence, not a causal diagnosis. Footprint is
+currently stable near5.05GB; admit no concurrent substantial workload.
+Next: reuse the already inspected retained isolated reference launcher/profile
+for the actual graph composition, then capture the current Inspector baseline
+before presentation changes. Do not repeat completed native/package checks.
+The deliberate graph-reference attempt reused the retained compiled Electron
+host and real159416064-byte Japanese graph under the supported isolated
+`MLEARN_USER_DATA` profile. Its unchanged2GiB/4GiB guard stopped at
+available6224478208/projected4076994560 before a capture; no visual result is
+claimed. `graph-reference-first.log` retains the stop and CDP-disconnect result.
+Its owner tree/ports3000,7752,7753,9229 were confirmed absent afterward.
+The earlier pending diagnostic/run wording is superseded by the source results
+and capacity readbacks below. Do not automatically restore workloads; retain
+the execution root
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/mlearn-m10-m11.VLSN0zAbpw`.
+The bounded character trace found its actual reference at
+`../mlearn-ts/src/renderer/windows/characterGrid/`. New source preparation
+reuses the package's existing `resource_entries` table/codec, with separate
+`character/<ucs>` keys. It does not derive character knowledge from words.
+The original catalog enumerates only `entry/`, so these facts are not yet
+advertised as supported character targets.
+
+Character inputs are the genuine KANJIDIC2 edition2026-301/date2026-10-28 and
+KRADFILE, pinned by compressed and expanded size/SHA256. Publisher licensing
+was retrieved directly; attribution, supplementary-source credits, source
+update procedure and pre-2010 JLPT/lookup-element limitations are recorded in
+the existing Japanese license document. The explicit offline freezer generated
+immutable archives in the existing package assets directory; normal builds
+do not depend on a moving daily download. The converter preserves reading/
+meaning groups, unknown reading attributes, supplementary UCS identities,
+name readings and absent-versus-present component data. Representative KRAD
+lookup elements are not learner target bindings.
+`character-source-full-first.log` passed all5 baseline conversion/integrity/
+rollback tests and real-source conversion:13108 characters,6355 component-
+covered records,5787648-byte test resource, and actual bridge readings/components.
+Reported maximum RSS was53641216 bytes for the fixture target and38043648
+for real conversion. These bounded, model-free offline targets use a512MiB
+estimate and capped128MiB Node heap; the4GiB reserve and native/browser2GiB
+reservations are unchanged. The earlier2GiB admission expired without tests;
+its runner/guard were confirmed absent before the source-only target started.
+The connected-owner/publication suite and full unified offline rebuild passed
+in `character-index-full-first.log`:7 tests,0 failures;218923 unchanged JMdict
+entries/forms465834,13108 characters,6355 component-covered records.
+The unified SQLite is137007104 bytes,
+SHA256`48e95432e6bf36d0ccd5cde86ff289a36b33fbcc53c281b315de10da6e3b331d`;
+the representative word-identity comparison covered12 entries.
+The real index process reported145801216-byte maximum RSS; fixture tests
+reported54706176. The existing Sudachi input remains122948155 bytes.
+Recipe identity now includes the character converter, and metadata separates
+word counts from character/source-component counts. No runtime character
+inspection, learning entry or UI/native acceptance is claimed.
+JSON/Python LSP servers are unavailable; source-test diagnostics timed out.
+The exact owned TypeScript tree52036/52037/52038/52039 was inspected; all had
+already exited before the attempted SIGTERM, so that command stopped nothing.
+After that completed run, OmO footprint4938527848/available6563872768,
+pressure1, swapUsed4653318144, swapOut79362883584 were recorded.
+
+The source-only character backend investigation returned a concrete blocker,
+not an implementation: `collection_catalog.rs` rejects an empty capability set.
+The preserved supplementary-character fixture is valid source-format input but
+has no supported meaning/reading task. Catalog admission must not manufacture a
+capability merely to include it. Existing collection reads already project only
+declared per-target capabilities and capability filters join that membership.
+`characters-native-proposal.patch` is explicitly a blocker report, not a diff.
+The root regression is now applied. `catalog-metadata-before-fix.log` proves
+its expected failure: Cargo101, `Invalid("Catalog target exceeds bounds")`,
+0 passed/1 failed/19 filtered. The subsequent production repair removes only
+the nonempty-target-capability restriction; namespace, declared-capability,
+continuity and byte bounds remain intact. The test covers resume/restart,
+browsable source metadata, empty Knowledge projections and capability-filter
+exclusion. The two original root patch artifacts remain as preparation evidence.
+The package's Inspector now dispatches canonical `kanjidic:<ucs>` identities
+to the existing source resource. Only Japanese on/kun/name readings and
+default/English meanings supply supported entry capabilities; foreign facts,
+missing associations, audio and stroke-order capabilities are not fabricated.
+Supplementary scalar identity is checked against both literal and source UCS.
+This is an in-progress connected native entry path, not a delivered grid/list,
+related-character graph or completed learning workflow.
+
+The storage regression and repaired validator had no diagnostics. Later package
+queries explicitly reported `unlinked-file`: the analyzer rooted at the application repository,
+despite the separate package Cargo workspace; that topology did not establish
+a smaller diagnostic footprint. Completed owned analyzer61585 and its helpers
+were signalled before baseline compilation; analyzer62241 and its helpers were
+signalled after the repaired-validator diagnostic, before serial verification.
+The first verification exited before tests: checking `plugin.rs` recursively
+found existing formatting differences in `review.rs`. Git confirms that file is
+unchanged from HEAD. That failed check is retained, not reported green.
+`catalog-character-native-second.log` then passed all20 storage collection tests
+and all3 new character package tests, terminal exit0, one Cargo job and unchanged
+2GiB/4GiB guards. Final sample: OmO footprint4611650664, available7616577536,
+pressure1, swapUsed3893755904, swapOut86668214272; safe. The generic admission
+repair is verified for continuation, not completed character-feature acceptance.
+`character-catalog-package-first.log` subsequently passed all 34 affected plugin
+tests. The opaque words/characters cursor preserves prefix-local resource keys
+and the original 12-row word quantum, crosses the prefix boundary without empty
+intermediate pages, retains metadata-only targets and truthful totals, and
+rejects foreign-prefix cursors. Character rows have separate kinds/scopes and
+no invented JLPT N-level membership. Activation now requires character schema 1;
+manifest source is `0.1.11-...-graph1-characters1-ocr2`. It has NOT yet been
+restaged into the authenticated development catalog.
+
+The shared existing review owner now handles canonical character material and
+narrows tasks/keys to its actual inspected capabilities. Missing meaning/reading
+and character audio are not supplied by the word path; mismatching glyph content
+is rejected. Metadata-only input returns no eligible probes. Authored content
+still follows the existing self-report mechanism, not an external correctness
+or stroke-order validator.
+`character-learning-package-first.log` passed all 38 affected plugin tests,
+including four new character probe boundary cases, terminal exit 0. The related
+review-file edit was formatted; the previously failing recursive package format
+check now passes. No assertions or diagnostics were disabled.
+The completed analyzer's actual footprint was 2453245816 bytes versus 4120870912
+RSS. Native run sample: OmO footprint 4759843944, available 8139849728, pressure 1,
+swapUsed 3759538176, swapOut 86668214272; safe under unchanged reservations.
+Next: real related-detail/UI consumers, authenticated compiled-package workflow,
+persistence/restart/cancellation/recovery, visual/native QA and independent review.
+No character UI or milestone acceptance is claimed.
+`character-graph-package-first.log` then passed all 41 affected plugin tests and
+recursive package format checking, terminal exit 0. Character code/radical/
+variant, grouped reading/meaning, name and KRAD lookup facts use attributed
+unlearnable property entities. Semantic fact/group identities survive source
+array reordering; bounded continuations cover a group larger than one property
+budget without dropping associations. KRAD representative glyphs never bind a
+different character's learner keys; absent component coverage remains explicit.
+Run sample: OmO footprint 4737102952, available 8175616000, pressure 1,
+swapUsed 3700817920, swapOut 86668214272; safe. Existing Sudachi vendor warnings
+remain unsuppressed.
+
+The read-only source-boundary query found `entry/9999999`, followed by
+`entry/5748098`. Decoding those exact immutable resource rows showed the former
+is `ＪＭｄｉｃｔ`, whose source gloss reports creation date 2026-10-17, not an
+ordinary lexical learning item; the latter is the published Aton/Aten entry.
+No hardcoded injection of either ID was found in the bounded preparation/package
+source search. The creation record currently receives ordinary word capabilities
+in the package, a real provenance/learning defect to repair before dependent QA.
+Keep it browsable and preserve stored history; do not manufacture lexical
+eligibility or remove the source record to conceal the count.
+The first before-fix launch failed closed because the old analyzer identity had
+changed; no test ran. After fresh ownership inspection, the unchanged regression
+proved the defect: `publisher-metadata-before-fix.log`, Cargo 101, 41 passed and
+one new Inspector assertion failed. The production fix keeps the same source
+identity and record, with an explicit source-metadata kind, no lexical
+capabilities/POS/levels, no linguistic graph edges and no review probes.
+One shared dictionary-capability policy feeds inspection and graph projection.
+Existing stored claims/history are not deleted. Native claims already validate
+against the actual inspected target capabilities in `guest.rs`; this is not a
+renderer-only restriction.
+`publisher-metadata-after-fix.log` passed all 45 affected package tests and
+recursive formatting, terminal exit 0, including catalog, graph and probe
+boundary regressions. No original assertion was weakened.
+
+`mon_C8TY1YZQG8P0QZ4R`/`bash_1717` ran the serial authenticated package
+stage, real native graph compatibility tests, rebuilt QA host and
+`character-runtime-qa.mjs` into `character-native-runtime-first.log`.
+It retains one Cargo job and runtime-only debug1 with assertions/overflow checks.
+The new QA driver is NOT yet verified or run: it consumes the real final source page
+then all 13108 compiled character targets, checks bounded real graphs and
+unsupported claims, and uses the existing Material/Review owner with pause,
+crash/restart, resume and exact submit replay. It explicitly does not certify
+whole-catalog persisted preparation, cancellation or UI/platform acceptance.
+The isolated profile is `character-runtime-qa-profile` under the retained
+execution root; do not erase it or launch a duplicate if resuming.
+Latest disk readback: 13610084 KiB available, 97% capacity. No paid provider,
+model, device or reference application was launched by this stage.
+The stage stopped at the native graph suite: English and undeclared-capability
+cases passed, Japanese failed before analysis with `Language package unavailable;
+install its compatible version and retry`; Cargo 101, terminal exit 1.
+The guard stayed safe (available 6555910144, projected 4408426496), so this is
+not a resource-guard stop. The QA host rebuild and new native driver were not
+reached. Preserve the failing log and original assertions.
+
+Activation investigation: `Runtime::open` stores bundled rejection messages in
+`package_issues` and omits rejected packages from the installed map. The generated
+Japanese version is 61 bytes (within 128), code is 2590438 bytes (within 4MiB),
+but its lexicon is 137007104 bytes, above the unchanged 128MiB/134217728 per-asset
+declaration bound. Manifest validation precedes compilation. Competing identity/
+ABI and code-artifact hypotheses do not explain that first failing predicate;
+do not change a compatibility/fuel/size limit to make the test green.
+The physical index is already WITHOUT ROWID, its candidate scratch table is
+dropped and VACUUM runs. Read-only dbstat: payload 130490298, unused 3166340,
+resource table 137003008 bytes/33448 pages; schema page 4096. The resource host
+uses bounded key/value queries and a BINARY primary key, not physical row IDs.
+Next measure a lossless 64KiB-page candidate before changing preparation.
+Journaled measurement artifacts: `japanese-index-layout-check.py`,
+`japanese-index-pages65536.sqlite` and its execution log under the retained root.
+They must compare all ordered key/BLOB bytes and preserve source/input/profiles.
+The existing content-addressed 48e95432 resource remains the reference artifact.
+`mon_BM8AEHQTQAQ8EAV8`/`bash_1718` now runs that one read-only-source measurement
+into `japanese-index-layout-first.log`. It uses the existing 512MiB offline
+SQLite estimate, not a reduced native/model budget; the 4GiB reserve is unchanged.
+The measurement completed successfully: all 822328 ordered key/BLOB records
+retain logical SHA256
+`f72db7f82667d6173b8a43ebf26e97050d1f57703d9b952b1e92b17ed382665e`.
+The 64KiB-page candidate is 133824512 bytes, below 134217728 by 393216 bytes;
+counts remain 218923 dictionary-source entries, 13108 characters and 465834
+form indices. Integrity checks passed for both files. No data, codec or limit
+was removed or relaxed.
+Only after that evidence, normal preparation was changed to select 64KiB pages
+before creating its existing table. The host's cache remains bounded in KiB.
+`mon_4YCJHNVVX28FGE3X`/`bash_1719` now runs seven source tests, the real normal
+offline producer and full logical-equivalence/budget verification into
+`character-index-layout-produced-first.log`. Do not treat the experimental copy
+as the shipped resource or mark the budget repair complete before this run and
+native package admission pass. The original content-addressed file is preserved.
+Python IDE diagnostics remain unavailable; no missing server was installed.
+The temporary runner's
+TypeScript LSP could not find TypeScript in its isolated directory; Node executes
+that runner directly. No project diagnostic was suppressed or dependency added.
+
+The normal-producer run completed: seven source tests passed, integrity checks
+passed, all822328 ordered key/BLOB rows retained the logical digest above, and
+the shipped-source index is133824512 bytes with physical SHA256
+`fc6bceb86d715cf2a8805cd51a474f3d75d3f9e11258bff0145d54808b3dffe5`.
+Maximum RSS was195952640 bytes for the real producer and54296576 for fixtures.
+The signed-bundle/native retest is now registered as
+`mon_2GQMT3BTEZ2BWYX0`/`bash_1722`, log
+`character-native-runtime-compacted.log`. Its unchanged2GiB/4GiB admission
+reported three healthy samples before starting. It restages the normal output,
+runs the original graph suite, rebuilds the QA host and then runs the prepared
+character driver. No pending result is counted as a pass. The driver's two
+unsupported-claim predicates now match the actual `operation_failed` error code.
+
+The compacted signed package passed all3 original native graph cases and the
+QA host rebuilt. The first connected driver was guard-stopped after startup.
+The preceding admission log also captured OmO footprint14100116584 bytes,
+available1758052352 and pressure4 before workload admission; subsequent readings
+returned near5.22GB. `vmmap -summary` later reported4.8GiB footprint,14.4GiB peak,
+with App-Specific Tag1 dominant. That is allocation-category evidence, not a
+causal explanation. The stopped host77437 was confirmed absent.
+Eight completed workers and their diagnostics were no longer needed. The
+positively identified idle host76226/supervisor76223 and TypeScript tree77302/
+77303/77304/77305 were released; an exit race stopped the first cleanup command,
+and a subsequent inventory confirmed that whole diagnostic tree absent.
+All listed idle-host PIDs were also confirmed absent. Available memory rose
+to7263436800, pressure1; OmO footprint5213795432 and swapUsed3995402240 remained
+observations, not resolution of the earlier transient spike.
+
+The character workflow then completed all assertions, but Bun's Node HTTP
+teardown returned `ERR_SERVER_NOT_RUNNING`. No product assertion was removed.
+The isolated driver now uses Node's built-in SQLite and the existing QA harness's
+Node runtime; `character-runtime-node-teardown.log` exits0 with clean teardown.
+It enumerated all13108 real characters in1093 bounded pages, including475
+metadata-only characters, with total232031 dictionary/character entries.
+Actual graphs had21 bridge facts over2 pages and72 生 facts over5 pages.
+Unsupported publisher/character claims rejected; explicit word and character
+Knowledge stayed separate. A linked Material completed both Practice directions,
+with exact paused encounter retained across crash/restart and exact submit replay.
+No external provider was called. Persisted whole-catalog preparation, cancellation,
+UI fidelity and consuming-native acceptance remain unverified by that driver.
+All guard samples for the final run stayed safe and the main footprint remained
+near5.21GB rather than continuing the earlier growth.
+
+Independent admission audit6c found no defect in the lossless layout repair;
+its old-bundle observation preceded the successful restaging above.
+Graph audit73 found conflicting repeated entity definitions accepted by the
+typed client despite native rejection. The original transport regression now
+fails before the repair and passes after it,3/3 cases; structurally equal JSON
+with different object member order and identical parallel entities remain valid.
+Source diagnostics passed; test-file diagnostics timed out, not a typecheck pass.
+Collection audit6d identified stale catalog metadata on all-language Material
+queries after package replacement; that concrete repair remains open.
+Both M11 briefs returned actual owner/dependency maps: current responses contain
+self-report grades, not executed typed/choice validation, and exact target/
+capability scope, calibration purpose and accountable expert definitions need
+shared native contracts. No M11 product integration has begun.
+
+Workers70/71/72 returned the first GraphDetails, deeper Inspector navigation and
+package-kind/grid/list Knowledge increments plus focused tests. Root typecheck,
+architecture lint and all14 focused cases passed in `graph-ui-first.log`.
+The subsequent ordinary web export was guard-stopped at Metro startup
+(available6099828736/projected3952345088); no successful render is claimed.
+The installed CLI supports `--max-workers`; the export-only retry
+`mon_E1JGB0GFA7DFN5DG`/`bash_1738` limits Metro to one worker and Node heaps512MiB,
+retaining the original2GiB reservation and4GiB reserve. Its log is
+`/tmp/mlearn-parallel-ulw.M8JsP2/graph-ui-single-export.log`. Do not repeat the
+already-passing focused checks merely because export was interrupted.
+
+Temporary project LSP settings did not reliably prevent the automatic analyzer
+and were removed, along with the temporary Rust probe. No persisted tooling
+override remains. Actual analyzer54584 footprint was2474004320 bytes versus
+3510943744 RSS; OmO footprint5064717416/available5989711872, pressure1,
+swapUsed4644929536/swapOut79362883584 at that readback. Do not use RSS alone
+as admission or treat empty diagnostic output as compiler verification.
+
+An extra startup-cushion observer was cancelled while still waiting, before
+launching an app. The subsequent real graph-reference attempt retained the
+original2GiB workload/4GiB reserve policy and stopped again before capture:
+available6190825472/projected4043341824, OmO footprint4979995752,
+RSS4911415296, pressure1, swapUsed4001955840/swapOut80978919424.
+`graph-reference-reclaimed-capacity.log` retains its stop/CDP disconnect;
+`GRAPH_REFERENCE_RECLAIMED_EXIT1` is not visual evidence. Do not repeat that
+unchanged capture attempt; first establish materially sufficient capacity.
+The completed source-only task's verified owned idle host57165/supervisor57162
+were released; subsequent process checks confirmed both absent. Unrelated
+Virtualization, Colima, OpenCode and user services were untouched.
+Latest sampled OmO footprint4976751720/available6487556096, pressure1,
+swapUsed3993567232/swapOut80978919424. Automatic Rust diagnostics can themselves
+be substantial; require fresh capacity before the next Rust edit and keep them
+serial with native checks. Native/browser guards remain unchanged.
+The capacity-only observer `mon_RJPCV60FDZ5QXFBK`/`bash_1690` completed ready,
+but the wake's fresh readback had only6810320896 available, not sustained3GiB
+diagnostic headroom. The subsequent work reused completed diagnostic state and
+released the owned analyzers before compiler runs; no app/device was restored.
+Verification `mon_XXFNGMP7TN6FNN34`/`bash_1699` stopped at that unrelated format
+finding. Its successor `mon_CXEJ3AGXQEQ1S9GQ`/`bash_1702` completed successfully.
+Inspect surviving jobs if the session resumes; never duplicate a live workload.
+Native package paths have owner-test evidence, not compiled-host or native-platform
+acceptance. No graph UI or real-surface acceptance is claimed.
+
 Knowledge evidence trace: the shared projection gives explicit claims
 precedence over the latest active qualifying Review self-report; worked-out,
 assisted and untested responses are not externally validated performance.
@@ -139,10 +554,11 @@ pending-read Back/unmount GUI interactions are not established by these
 captures; ownership/stale-result guards remain in source and source-free Stop/
 replacement was exercised. The full M10 review remains an open gate.
 No milestone or maintainer acceptance is claimed.
-Source Return mobile40746113030: Android123025217962 passed. The iOS job
-123025218387 was still exercising UI/Rust persistence (step started
-2026-10-28T19:33:26Z) when its first observer expired. Its continuing observer
-was renewed without rerun or another hosted FileProvider diagnostic variant.
+Source Return mobile40746113030: Android123025217962 passed; iOS123025218387
+failed. Exact `ci-40746113030-ios-failed.log` reports the Watch picker assertion
+at2026-10-28T19:45:06Z: `id: m01-watch, mp4 is not visible`. Its source-bound
+simulator build completed before UI testing. No downstream iOS flow is claimed,
+and no rerun/hosted FileProvider diagnostic variant was launched.
 Reader search's verified increment is committed/pushed as
 `2505a044a08574cd2a41283673e025f351a38a8e`; it does not close the remaining
 Watch playback Return work or M10's native/compositor and review gates.

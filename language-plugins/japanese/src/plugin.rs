@@ -12,6 +12,10 @@ use std::{
 };
 #[path = "catalog.rs"]
 mod catalog;
+#[path = "characters.rs"]
+mod characters;
+#[path = "graph.rs"]
+mod graph;
 #[path = "ocr.rs"]
 mod ocr;
 #[path = "presentation.rs"]
@@ -23,6 +27,8 @@ thread_local! {
     static ENGINE: RefCell<Option<JapaneseEngine>> = const { RefCell::new(None) };
 }
 const PACKAGE: &str = "org.mlearn.japanese";
+// The pinned publisher's creation-date record is source information, not vocabulary.
+const SOURCE_METADATA_TARGET: &str = "jmdict:9999999";
 const ATTRIBUTION: &str = concat!(
     "JMdict (2026-10-17), James William Breen / EDRDG, CC-BY-SA-4.0. https://www.edrdg.org/edrdg/licence.html\n",
     "Pitch: Uros Ozvatic / Kanjium, repackaged by toasted-nutbread; CC-BY-SA-4.0. https://github.com/mifunetoshiro/kanjium ; https://creativecommons.org/licenses/by-sa/4.0/\n",
@@ -51,7 +57,7 @@ fn validate_lexicon_metadata(metadata: &Value) -> Result<(), String> {
     {
         return Err("JMdict data is incompatible with this package".into());
     }
-    Ok(())
+    characters::count(metadata).map(|_| ())
 }
 fn capabilities() -> Vec<Capability> {
     [
@@ -67,6 +73,14 @@ fn capabilities() -> Vec<Capability> {
     })
     .collect()
 }
+fn dictionary_capabilities(target: &str) -> Vec<Capability> {
+    if target == SOURCE_METADATA_TARGET {
+        Vec::new()
+    } else {
+        capabilities()
+    }
+}
+
 fn read(key: &str) -> Result<Option<Value>, String> {
     mlearn_language_sdk::resource_get("lexicon.sqlite", key)?
         .map(|bytes| {
@@ -239,7 +253,11 @@ fn inspect_entry(
     lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
 ) -> Result<(Value, BTreeSet<u32>), String> {
     let entry = validate_entry(target, value)?;
-    let (presentation, levels) = presentation::entry(&entry.headword, &entry.variants, lookup)?;
+    let (presentation, levels) = if target == SOURCE_METADATA_TARGET {
+        (None, BTreeSet::new())
+    } else {
+        presentation::entry(&entry.headword, &entry.variants, lookup)?
+    };
     let readings = entry
         .variants
         .iter()
@@ -310,8 +328,9 @@ fn inspect_entry(
     Ok((
         json!({
             "targetId":entry.target_id,"headword":entry.headword,"reading":reading,"presentation":presentation,
-            "partOfSpeech":parts.join("; "),"definition":definition,"summary":summary,"senses":senses,
-            "attribution":ATTRIBUTION,"capabilities":capabilities()
+            "partOfSpeech":if target == SOURCE_METADATA_TARGET { String::new() } else { parts.join("; ") },
+            "definition":definition,"summary":summary,"senses":senses,
+            "attribution":ATTRIBUTION,"capabilities":dictionary_capabilities(target)
         }),
         levels,
     ))
@@ -336,15 +355,17 @@ fn handle(call: Call) -> Result<Value, String> {
         "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
-            json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":ATTRIBUTION,
+            json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":format!("{ATTRIBUTION}\n{}\n{}", characters::ATTRIBUTION, characters::COMPONENT_ATTRIBUTION),
                 "levelScales":[{"id":format!("{PACKAGE}:jlpt-vocabulary"),"label":"JLPT vocabulary","attribution":"Reference JLPT vocabulary list, 1788f9c7; not an official syllabus"}],"catalog":catalog::description()}),
         ),
-        "collection.targets.v1" => {
-            serde_json::to_value(catalog::page(call.input, &read, &|after, limit| {
-                mlearn_language_sdk::resource_keys("lexicon.sqlite", "entry/", after, limit)
-            })?)
-            .map_err(|error| error.to_string())
-        }
+        "collection.targets.v1" => serde_json::to_value(catalog::page(
+            call.input,
+            &read,
+            &|prefix, after, limit| {
+                mlearn_language_sdk::resource_keys("lexicon.sqlite", prefix, after, limit)
+            },
+        )?)
+        .map_err(|error| error.to_string()),
         "text.analyze.v1" => {
             let texts = call
                 .input
@@ -393,6 +414,9 @@ fn handle(call: Call) -> Result<Value, String> {
                 .get("targetId")
                 .and_then(Value::as_str)
                 .ok_or("Expected targetId")?;
+            if target.starts_with("kanjidic:") {
+                return characters::inspect(target, &read);
+            }
             let seq = target
                 .strip_prefix("jmdict:")
                 .filter(|s| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit()))
@@ -403,6 +427,8 @@ fn handle(call: Call) -> Result<Value, String> {
             })
             .map(|(entry, _)| entry)
         }
+        "graph.neighborhood.v1" => serde_json::to_value(graph::neighborhood(call.input, &read)?)
+            .map_err(|error| error.to_string()),
         _ => Err("Unsupported Japanese capability".into()),
     }
 }
@@ -415,16 +441,46 @@ mod tests {
     fn canonical_package_metadata_does_not_require_legacy_source_structures() {
         let metadata = json!({
             "schema":"org.mlearn.japanese.lexicon","schemaVersion":3,"valueCodec":"zlib-json-v1",
-            "linguisticSchema":{"id":"org.mlearn.japanese.linguistic","version":1}
+            "linguisticSchema":{"id":"org.mlearn.japanese.linguistic","version":1},
+            "characterSchema":{"id":"org.mlearn.japanese.characters","version":1,"characters":0}
         });
         assert!(validate_lexicon_metadata(&metadata).is_ok());
         let mut incompatible = metadata.clone();
         incompatible["linguisticSchema"]["version"] = json!(2);
         assert!(validate_lexicon_metadata(&incompatible).is_err());
+        let mut incompatible = metadata.clone();
+        incompatible["characterSchema"]["version"] = json!(2);
+        assert!(validate_lexicon_metadata(&incompatible).is_err());
+        let mut incompatible = metadata.clone();
+        incompatible["characterSchema"]["characters"] = json!(-1);
+        assert!(validate_lexicon_metadata(&incompatible).is_err());
         let mut incompatible = metadata;
         incompatible["schema"] = json!("other.package.lexicon");
         assert!(validate_lexicon_metadata(&incompatible).is_err());
     }
+    #[test]
+    fn publisher_creation_metadata_is_browsable_without_lexical_learning_capabilities() {
+        // Given the publisher's source-metadata identity, not a learner vocabulary item.
+        let target = "jmdict:9999999";
+        let source = json!({
+            "targetId":target,"headword":"ＪＭｄｉｃｔ",
+            "variants":[{"written":"ＪＭｄｉｃｔ","reading":"ジェイエムディクト"}],
+            "senses":[{"pos":["unclassified"],"forms":[],"readings":[],
+                "glosses":["Dictionary creation metadata"]}]
+        });
+
+        // When the existing Inspector projects its actual source entry.
+        let (entry, levels) = inspect_entry(target, source, &|_| Ok(None)).unwrap();
+
+        // Then metadata is retained without manufacturing lexical knowledge or levels.
+        assert_eq!(entry["targetId"], target);
+        assert_eq!(entry["capabilities"], json!([]));
+        assert_eq!(entry["presentation"], Value::Null);
+        assert_eq!(entry["partOfSpeech"], "");
+        assert!(levels.is_empty());
+        assert!(!entry["definition"].as_str().unwrap().is_empty());
+    }
+
     #[test]
     fn lexical_codec_round_trips_and_rejects_corruption_or_expansion_overflow() {
         let record = json!({"meaning":["one; complete gloss"],"reading":"ご",

@@ -126,8 +126,9 @@ fn target(
 ) -> Result<String, StorageError> {
     bounded(&entry.summary.target_id, 512)?;
     bounded(&entry.summary.headword, 2048)?;
+    // Metadata-only targets remain browsable without creating learner keys.
+    // Capability membership, not catalog membership, controls their projections.
     if entry.summary.summary.len() > 4096
-        || entry.capabilities.is_empty()
         || entry.capabilities.len() > 32
         || entry.scopes.len() > 128
         || entry.levels.len() > 256

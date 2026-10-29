@@ -288,6 +288,53 @@ impl Runtime {
                     cancellation,
                 )
             }
+            Request::GraphNeighborhood { query } => {
+                if [&query.package_id, &query.target_id]
+                    .iter()
+                    .any(|value| value.is_empty() || value.len() > 512 || value.contains('\0'))
+                    || query.after.as_ref().is_some_and(|cursor| {
+                        cursor.after.is_empty()
+                            || cursor.after.len() > 512
+                            || cursor.after.contains('\0')
+                    })
+                {
+                    return Err(Failure::Operation(
+                        "Invalid graph neighborhood query".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|value| value == "graph.neighborhood.v1")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not provide related-entity inspection".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                let identity =
+                    crate::graph::identity(&query.package_id, &revision, &query.target_id)?;
+                if query
+                    .expected_revision
+                    .as_ref()
+                    .is_some_and(|expected| expected != &revision)
+                    || query
+                        .after
+                        .as_ref()
+                        .is_some_and(|cursor| cursor.identity != identity)
+                {
+                    return Err(Failure::Operation(
+                        "Language package or graph scope changed; refresh related entities".into(),
+                    ));
+                }
+                let package_id = query.package_id.clone();
+                self.language_work(&package_id, LanguageAction::Graph(query), cancellation)
+            }
             Request::InspectTargets {
                 source_id,
                 subtitle_revision,
