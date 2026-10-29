@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -98,6 +99,33 @@ test('cancel rejects late URI and playback publication', async () => {
   // Then the old work cannot resurrect a player.
   assert.deepEqual(events.map(event => event.value), ['pending', 'interrupted']);
   assert.equal(states.some(state => state.kind === 'ready' || state.kind === 'playing'), false);
+});
+
+test('repeated cancellation awaits the already admitted terminal acknowledgement', async () => {
+  // Given ready audio with a held interruption receipt.
+  const entered = Promise.withResolvers<void>();
+  const written = Promise.withResolvers<void>();
+  const delivered: ReviewDelivery[] = [];
+  const { owner } = fixture({ onDelivery: async (_id, value) => {
+    delivered.push(value);
+    if (value === 'interrupted') { entered.resolve(); await written.promise; }
+  } });
+  await owner.load();
+  const first = owner.cancel();
+  await entered.promise;
+  // When departure also cancels while that terminal write is still pending.
+  let acknowledged = false;
+  const departure = owner.cancel().then(() => { acknowledged = true; });
+  try {
+    await Promise.resolve();
+    // Then departure cannot acknowledge early or enqueue another terminal write.
+    assert.equal(acknowledged, false);
+  } finally {
+    written.resolve();
+    await Promise.all([first, departure]);
+  }
+  assert.equal(acknowledged, true);
+  assert.deepEqual(delivered, ['pending', 'interrupted']);
 });
 
 test('unmount interrupts actual playback and rejects stale player events', async () => {

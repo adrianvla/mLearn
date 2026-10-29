@@ -1162,8 +1162,8 @@ their local checkpoint recovery owners, and identifies Review audio-departure,
 remaining Home/unavailable recovery and hidden polling/playback scenarios.
 These are registered ready tasks, not passing runtime findings or acceptance.
 Root will reproduce them in their actual existing suites. M11 preparation remains
-independent and product integration remains gated. Current expanded ledger adds18
-ready-work/cleanup units to the original125:75 completed,1 dropped,67 open of143.
+independent and product integration remains gated. Current expanded ledger adds20
+ready-work/cleanup units to the original125:75 completed,1 dropped,69 open of145.
 
 The frozen-selection omission is now reproduced and repaired, independently of
 pending913b5b86 CI. Applied the isolated worker's tests before its owner change.
@@ -1203,6 +1203,40 @@ but runtime UNRUN. Review audio source/test patches returned in their separate
 checkout and await root reproduction/integration; operation-scoped bounded-read
 cancellation design is actively being narrowed against actual native admission.
 READY work continues; pending CI blocks only its dependent render/evidence step.
+
+The independent audio owner regression is also reproduced and repaired:
+`./node_modules/.bin/tsx --test --test-name-pattern='repeated cancellation awaits' tests/client/review-media.test.ts`
+failed1/1 with `true !== false` atline122 after447.65ms: a second cancellation
+returned before the already-admitted interruption write acknowledged.
+The finish owner now awaits its existing writes promise when already terminal;
+it neither queues another write nor admits another player/event.
+The event-gated test releases/joins both promises in finally.
+Both files have clean diagnostics. The intended narrow green filter
+`--test-name-pattern='^(?!ReviewAudio )'` unexpectedly selected all11 existing/
+new cases, including the authored-audio browser integration; actual output is
+11passed,0failed,0skipped in1908.14ms, not10 browser-free cases. The browser
+closed in the existing finally, and process readback found no browser/compiler
+remnants. Post samplephysical5258229200, available6962823168, pressure1,
+swap6223298560. Logs: `review-audio-owner-before.log` and
+`review-audio-owner-after.log`. This proves only the acknowledgement sub-contract;
+actual Review Home/encounter persistence UI changes remain unintegrated/unrun.
+
+Source913b5b86 foundation40898847160 failed web123535286965 with139 passed
+in18.1minutes. Its new dismiss action broke both original source-free Knowledge
+and character Inspector -> Material entries: Edit Material was missing at
+knowledge-native-core:157 and inspector-graph-native-core:233. Directly inspected
+both actual failed frames plus context from artifact12909662882; both remain on
+Knowledge after Inspector closes. Existing assertions and timeouts are retained.
+Other foundation jobs and real desktop40898847553 passed; mobile40898847133
+remains pending. This regression is root's route change, not an invalid test.
+Exact log/artifact/selected frames are retained under the orchestration root.
+
+Verified owner incrementse5ff77b8/bf23f7cc are pushed. Their ordinary runs are
+foundation40903381345, desktop40903381336 (passed), mobile40903381341 (pending).
+They preserve the same still-failing UI input while checking genuinely changed
+client/storage owners; no unchanged workflow was manually rerun or dispatched.
+The next navigation checkpoint must repair the current-Tab versus root-Stack
+action boundary and obtain fresh captures. Root is not waiting on native jobs.
 
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted
