@@ -225,7 +225,11 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, r
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                     onOpenMaterial={id => {
                         onClose();
-                        router.dismissTo({ pathname: '/materials', params: { id, ...(inspection.sourceAnchor ? { sourceId: inspection.sourceAnchor.sourceId } : {}) } });
+                        if (inspection.sourceAnchor) {
+                            router.dismissTo({ pathname: '/materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+                        } else {
+                            router.navigate({ pathname: '/materials', params: { id } });
+                        }
                     }} /> : null}
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
                     explanationDisabledReason={readOnlySourceReason} /> : null}

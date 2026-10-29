@@ -1238,6 +1238,16 @@ client/storage owners; no unchanged workflow was manually rerun or dispatched.
 The next navigation checkpoint must repair the current-Tab versus root-Stack
 action boundary and obtain fresh captures. Root is not waiting on native jobs.
 
+The next minimal Inspector correction preserves the two actual route owners:
+source-free Knowledge/character inspection navigates to the sibling management
+tab, while a source-bearing activity returns to the prior management Stack
+destination with its exact source/id. POP_TO is not sent to the current Tab
+navigator. This keeps the original source-free paths and the deliberate
+source-entry reuse; no route nonce/store or dependency was added.
+Fresh Inspector diagnostics are clean; the original failing assertions remain.
+Hosted execution/captures are required, not claimed. Separate checkpoint-save
+failure gating remains a registered open task and is not covered by this change.
+
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted
 management state and explicit source parameters still need real workflow
