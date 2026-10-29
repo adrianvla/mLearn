@@ -125,3 +125,134 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     await backend.close();
   }
 });
+
+test('packaged characters retain their identity from Knowledge through Material and scheduled Review', async ({ page }, info) => {
+  test.setTimeout(300_000);
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('character-profile') });
+  const client = createRuntimeClient({
+    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
+  });
+  const packageId = 'org.mlearn.japanese';
+  const targetId = 'kanjidic:6a4b';
+  try {
+    // Given the authenticated, pinned package and a freshly prepared real
+    // catalog, all character data and capabilities come from that package.
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
+    await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
+    const description = await client.describeLanguage(packageId);
+    const kind = description.catalog?.kinds.find(value => value.id === `${packageId}:character`);
+    if (!kind) throw new Error('The pinned Japanese package does not declare its character catalog');
+    await page.goto(`/knowledge?packageId=${packageId}`);
+    const preparationStarted = performance.now();
+    await page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true }).click();
+    await expect(page.getByText('232031 entries', { exact: true })).toBeVisible({ timeout: 120_000 });
+    await info.attach('character-catalog.json', {
+      body: JSON.stringify({ packageId, preparationMs: performance.now() - preparationStarted }),
+      contentType: 'application/json',
+    });
+    const bridge = await client.inspectTarget(packageId, targetId, null);
+    const nativeGraph = await client.graphNeighborhood({
+      packageId, targetId: bridge.entry.targetId, expectedRevision: bridge.packageRevision, after: null,
+    });
+    expect(nativeGraph.connections.length).toBeGreaterThan(0);
+
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/knowledge?packageId=${packageId}`);
+        await page.getByRole('combobox', { name: /^Knowledge entity kind:/ }).click();
+        await page.getByRole('option', { name: kind.label, exact: true }).click();
+        await expect(page.getByText('13108 entries', { exact: true })).toBeVisible();
+        await page.getByRole('combobox', { name: /^Knowledge layout:/ }).click();
+        await page.getByRole('option', { name: 'Grid', exact: true }).click();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.screenshot({ path: info.outputPath(`characters-${theme.id}-${width}-grid.png`) });
+        await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill('橋');
+        await page.getByRole('button', { name: 'Search', exact: true }).click();
+        const trigger = page.getByRole('button', { name: /^橋:/ });
+        await trigger.click();
+        const inspector = page.getByTestId('inspector-panel');
+        await inspector.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
+        const graph = inspector.getByTestId('graph-details');
+        await expect(graph.getByTestId('graph-relation')).toHaveCount(nativeGraph.connections.length);
+        await expect(graph.getByRole('button', { name: /^Inspect / })).toHaveCount(
+          nativeGraph.connections.filter(value => value.entity.targetId !== null).length,
+        );
+        await graph.getByTestId('graph-relation').first().scrollIntoViewIfNeeded();
+        await page.screenshot({ path: info.outputPath(`characters-${theme.id}-${width}-graph.png`) });
+        await graph.evaluate(element => element.scrollIntoView({ block: 'start' }));
+        await graph.getByRole('button', { name: 'Graph sources', exact: true }).click();
+        await expect(graph.getByText(`Entity: ${nativeGraph.entity.id}`, { exact: false })).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`characters-${theme.id}-${width}-sources.png`) });
+        await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
+        await expect(trigger).toBeFocused();
+      }
+    }
+
+    // When a learner captures one character, the ordinary Material and Review
+    // UI must consume that exact target, not a same-spelled dictionary entry.
+    await page.getByRole('combobox', { name: /^Knowledge layout:/ }).click();
+    await page.getByRole('option', { name: 'List', exact: true }).click();
+    await page.getByRole('button', { name: /^橋:/ }).click();
+    const inspector = page.getByTestId('inspector-panel');
+    await inspector.getByRole('button', { name: 'Capture 橋', exact: true }).click();
+    const saved = inspector.getByRole('button', { name: /^Open saved 橋/ });
+    await expect(saved).toBeVisible();
+    const materials = await client.materials({ after: null, query: '', sourceId: null, includeExcluded: true });
+    expect(materials.items).toHaveLength(1);
+    const material = materials.items[0];
+    if (!material) throw new Error('Character capture did not retain its Material');
+    expect(material.content).toMatchObject({ packageId, targetId, phrase: '橋', source: null });
+    await saved.click();
+    await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByTestId('home-open-review').click();
+    await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
+    await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Sessions', exact: true })).toBeVisible();
+    const started = (await client.reviewSessions())[0];
+    if (!started) throw new Error('Scheduled character Review did not retain its session');
+    expect(started.state).toBe('active');
+    if (started.encounter === null) {
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+    }
+    await expect(page.getByTestId('review-cue')).toBeVisible();
+
+    // Then the genuine package probe is bound to the captured Material, and
+    // interruption/restart resumes its original encounter without a new claim.
+    const session = await client.reviewSession(started.id);
+    if (!session.encounter) throw new Error('Scheduled character Review did not admit an encounter');
+    expect(session.mode.kind).toBe('finite');
+    expect(session.encounter.materialId).toBe(material.id);
+    expect(session.encounter.packageId).toBe(packageId);
+    expect(session.encounter.source).toBeNull();
+    expect(session.encounter.targets.some(value => value.key?.targetId === targetId)).toBe(true);
+    await page.getByRole('button', { name: 'Reveal', exact: true }).click();
+    await expect(page.getByTestId('review-answer')).toBeVisible();
+    await expect(page.getByTestId('review-cue')).toContainText('橋');
+    await page.screenshot({ path: info.outputPath('character-scheduled-review.png') });
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+    await backend.crashRestart();
+    await page.reload();
+    await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect(page.getByTestId('review-answer')).toBeVisible();
+    const resumed = await client.reviewSession(session.id);
+    expect(resumed.encounter?.id).toBe(session.encounter.id);
+    expect(resumed.encounter?.materialId).toBe(material.id);
+    expect((await client.inspectTarget(packageId, targetId, null)).knowledge.projections
+      .every(value => value.claim === null)).toBe(true);
+    expect(backend.metadata().providerRequests).toBe(0);
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+  } finally {
+    await backend.close();
+  }
+});

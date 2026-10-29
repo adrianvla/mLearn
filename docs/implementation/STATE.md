@@ -587,6 +587,35 @@ but reports only25.6MB live heap/9.6MB external memory, not process-wide
 allocation ownership. Do not resume substantial local verification on that
 heap reading or automatically restart the stopped hosts.
 
+The disclosure checkpoint is committed/pushed as
+`9a9a10e3ebc1e65e10a346a35c30030a0135f975`. Its ordinary foundation40826963970
+and real desktop40826963986 workflows passed. Mobile40826963947 is terminal:
+Android123292104240 passed; iOS123292104025 failed at2026-10-29T06:52:37Z,
+`Assertion is false: id: m01-watch, mp4 is not visible`. Its exact30101-byte
+failed log is `mobile-ios-9a9a10e-failed.log`. Observer1824 completed.
+No other workflow was dispatched. Owned preview2637 was verified as
+`node tools/serve-web.mjs` in this checkout, then stopped; observer1818
+confirmed its exit and no4173 listener. Exports, native artifacts and profiles
+remain intact.
+
+The next character scenario is a CI candidate in the existing native Inspector
+web spec, not part of9a or a passing workflow. It uses a fresh genuine
+Japanese package/profile, cold catalog preparation, character grid/detail
+captures in both themes/widths, Capture -> Material -> scheduled Review,
+explicit character target/Material bindings, and pause/crash/restart/resume.
+It adds no mocked Knowledge, graph, grading or catalog. Final file diagnostics
+are clean, but the scenario has NOT run. Its genuine workflow must be executed
+on the ordinary hosted path; the preceding mobile build is now terminal, so
+the next push will not cancel that verification. No further visual change has been
+made; retain a complete character before set before altering record/qualifier
+presentation. Both graph and character tasks remain open.
+
+Releasing the closed browser handles and one kernel garbage collection reduced
+the small eval heap, not the unexplained process allocation: final footprint
+5214237824, available6403538944, pressure1, swap5092671488 and
+swapOut101593956352. This is not a memory repair or admission for another
+local workload. Current work continues through source inspection and hosted CI.
+
 Exact0cc foundation40806767205 passed. Latest ef2 desktop40807702149 failed
 at `tests/desktop/native-smoke.mjs:614`: Shift-assisted pointer-entry
 `entry.trusted` expectedtrue but receivedundefined with `{"timedOut":true}`.
