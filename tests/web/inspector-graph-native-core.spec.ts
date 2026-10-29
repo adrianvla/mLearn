@@ -100,6 +100,16 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
       await expect(graph.getByText(`${capability.label}: claimed known`, { exact: true })).toHaveCount(1);
       for (const width of [1080, 390]) {
         await page.setViewportSize({ width, height: 900 });
+        await graph.evaluate(element => element.scrollIntoView({ block: 'start' }));
+        await expect(graph.getByRole('button', { name: 'Graph sources', exact: true })).toBeInViewport();
+        await expect(graph.getByText(`Entity: ${first.entity.id}`, { exact: false })).toHaveCount(0);
+        await page.screenshot({ path: info.outputPath(`graph-${theme.id}-${width}-top.png`) });
+        await graph.getByRole('button', { name: 'Graph sources', exact: true }).click();
+        const identity = graph.getByText(`Entity: ${first.entity.id}`, { exact: false });
+        await identity.scrollIntoViewIfNeeded();
+        await expect(identity).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`graph-${theme.id}-${width}-sources.png`) });
+        await graph.getByRole('button', { name: 'Graph sources', exact: true }).click();
         await graph.getByRole('button', { name: 'Next relations', exact: true }).scrollIntoViewIfNeeded();
         await expect(graph.getByRole('button', { name: 'Next relations', exact: true })).toBeInViewport();
         const bounds = await inspector.boundingBox();

@@ -32,6 +32,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
     const [error, setError] = useState('');
     const [unsupported, setUnsupported] = useState(false);
     const [stopped, setStopped] = useState(false);
+    const [showSources, setShowSources] = useState(false);
     const operation = useRef<object | null>(null);
     const retry = useRef<GraphCursor | null>(null);
     async function load(after: GraphCursor | null) {
@@ -63,9 +64,15 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
         return () => { operation.current = null; };
     }, [client, packageId, targetId, packageRevision]);
     return <View style={styles.stack} testID="graph-details">
-        <Text tone="media" variant="inspectionBody" accessibilityRole="header">Related entities</Text>
+        <Row>
+            <Text tone="media" variant="inspectionBody" accessibilityRole="header">Related entities</Text>
+            <Button label="Graph sources" variant="disclosure" size="compact"
+                icon={showSources ? 'chevronDown' : 'chevronRight'}
+                accessibilityState={{ expanded: showSources }}
+                onPress={() => setShowSources(value => !value)} />
+        </Row>
         {page ? <>
-            <EntityDetails entity={page.entity} page={page} />
+            <EntityDetails entity={page.entity} page={page} showSources={showSources} />
             <Text tone="media" muted variant="caption">Relations do not transfer Knowledge between targets.</Text>
             {!page.connections.length ? <Text tone="media">No relations on this page.</Text> : null}
             {Object.entries(categories).map(([category, label]) => {
@@ -77,12 +84,12 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
                         <Text tone="media" selectable>{relation.from === page.entity.id
                             ? `${page.entity.label} → ${relation.predicate.label} → ${entity.label}`
                             : `${entity.label} → ${relation.predicate.label} → ${page.entity.label}`}</Text>
-                        <EntityDetails entity={entity} page={page} />
-                        <Properties properties={relation.qualifiers} />
-                        <Text tone="media" muted variant="caption" selectable>
+                        <EntityDetails entity={entity} page={page} showSources={showSources} />
+                        <Properties properties={relation.qualifiers} showSources={showSources} />
+                        {showSources ? <Text tone="media" muted variant="caption" selectable>
                             Relation: {relation.id}{'\n'}Predicate: {relation.predicate.id}
-                            {'\n'}{relation.attribution}{'\n'}{relation.predicate.attribution}
-                        </Text>
+                            {'\n'}{[...new Set([relation.attribution, relation.predicate.attribution])].join('\n')}
+                        </Text> : null}
                         {entity.targetId !== null ? <Button label={`Inspect ${entity.label}`} variant="media"
                             size="compact" accessibilityLabel={`Inspect ${entity.label} target ${entity.targetId}`}
                             onPress={() => {
@@ -112,12 +119,17 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
     </View>;
 }
 
-function EntityDetails({ entity, page }: { readonly entity: LinguisticEntity; readonly page: GraphPage }) {
+function EntityDetails({ entity, page, showSources }: {
+    readonly entity: LinguisticEntity; readonly page: GraphPage; readonly showSources: boolean;
+}) {
     return <View style={styles.stack}>
         <Text tone="media" selectable>{entity.label}</Text>
-        <Text tone="media" muted variant="caption" selectable>{entity.kind.label} · {entity.id}
-            {'\n'}{entity.kind.id}{'\n'}{entity.attribution}{'\n'}{entity.kind.attribution}</Text>
-        <Properties properties={entity.properties} />
+        <Text tone="media" muted variant="caption" selectable>{entity.kind.label}</Text>
+        {showSources ? <Text tone="media" muted variant="caption" selectable>
+            Entity: {entity.id}{'\n'}Kind: {entity.kind.id}
+            {'\n'}{[...new Set([entity.attribution, entity.kind.attribution])].join('\n')}
+        </Text> : null}
+        <Properties properties={entity.properties} showSources={showSources} />
         {entity.targetId !== null ? entity.capabilities.map(capability => {
             const projection = page.knowledge.find(item => item.key.targetId === entity.targetId
                 && item.key.packageId === page.packageId && item.key.capability === capability.id);
@@ -128,11 +140,13 @@ function EntityDetails({ entity, page }: { readonly entity: LinguisticEntity; re
     </View>;
 }
 
-function Properties({ properties }: { readonly properties: readonly GraphProperty[] }) {
+function Properties({ properties, showSources }: {
+    readonly properties: readonly GraphProperty[]; readonly showSources: boolean;
+}) {
     return <>{properties.map(property => <View key={property.id} style={styles.stack}>
         <Text tone="media" selectable>{property.label}: {typeof property.value === 'string'
             ? property.value : JSON.stringify(property.value)}</Text>
-        <Text tone="media" muted variant="caption" selectable>{property.id} · {property.attribution}</Text>
+        {showSources ? <Text tone="media" muted variant="caption" selectable>{property.id} · {property.attribution}</Text> : null}
     </View>)}</>;
 }
 

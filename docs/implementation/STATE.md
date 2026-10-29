@@ -24,13 +24,15 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: render and verify the first graph/character/Inspector UI increment,
-using the native host with the repaired all-language catalog-revision boundary.
+Current task: finish graph/character/Inspector presentation and the character
+learning entry through the existing Material/Review owners. Substantial local
+verification is paused after the latest unexplained OmO allocation growth;
+remaining connected scenarios must use the ordinary hosted verification path.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
-below. The generic metadata-only catalog repair is verified for continuation. Graph
-presentation still lacks a successful real reference capture. Neither UI task
-is complete. Ledger:64/124 complete; added tasks track independent audits,
+below. The generic metadata-only catalog repair and graph source disclosure have
+passing targeted evidence. Character source-property presentation and learning
+entry remain open; neither UI task is closed. Ledger:66/124 complete; added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
 headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
@@ -499,18 +501,91 @@ ordinary hosted path without changing workflows or weakening assertions.
 `inspector-graph-native-core.spec.ts` uses an isolated profile and genuine
 WordNet graph: claim refresh, separate sibling Knowledge, source-preserving
 navigation/Return, restart persistence, and bounded desktop/narrow captures.
-Its fixture is authored text `run`. This new regression is unrun locally;
-the diagnostics request timed out, not passed. Its hosted result and visual
-captures must be inspected before closing the repair or graph UI tasks.
-The next source checkpoint includes the initial graph/character UI and these
-regressions with CI explicitly pending, not milestone acceptance.
-At the stop, OmO footprint4816925824 and available6422822912 produced projected
+Its fixture is authored text `run`. Foundation40816503734/web123258705616
+passed all140 connected web tests, including this actual native scenario.
+Artifact12872912729's source manifest matches8b025be0/tree4061e8bd. All four
+light/dark1080/390 captures were decoded and inspected under
+`/tmp/mlearn-parallel-ulw.M8JsP2/hosted-graph-8b.4rmPRR`. Required files extracted
+successfully, but the extraction command exited1 because optional
+`test-results/.last-run.json` was absent; no archive retry is needed.
+The hosted verification and claim-refresh repair tasks are closed. Graph UI
+presentation remains open: raw IDs and repeated attribution dominate the detail.
+The shared footer is intentionally horizontally scrollable with focus reveal;
+the screenshots alone do not establish inaccessible clipped controls.
+The initial local diagnostics request timed out, not passed. A fresh bounded
+resource sample later measured footprint2833642600, available7144652800,
+pressure1 and stable historical swap-out99922853888; RSS is diagnostic only.
+One targeted macOS Rust-host/browser graph test passed in3.7s after three fresh
+stricter admission samples, `mon_RN7BXDF3ZAGTK46Y`/`bash_1797`, retaining the
+original running guard. Native binary SHA256:
+`95e6b117bac5e33fcd6c7118b25ad59838c46fed00c73c3da4ff6747c7867005`.
+Log: `graph-native-macos.log`; captures: `graph-native-macos/`. Desktop light
+and narrow dark captures were inspected; all four hosted counterparts were
+already inspected. Cleanup inventory found no surviving native/browser/compiler
+or analyzer. Post-run footprint2863232104, available7114358784, pressure1,
+swap4008837120, swapOut99922853888; a later available7309262848 sample remained
+stable. This is a real macOS Rust-host/browser flow, not a Tauri WebKit or mobile
+device certification. No broad local suite, rebuild, model or device launch.
+The next bounded graph presentation increment adds one source-metadata
+disclosure through the existing shared control; its before captures and design
+contract are recorded. Its regression is added before production changes.
+The initial graph/character UI and these regressions are committed/pushed as
+`8b025be0789b9f6f155490288646bcdce1a52616`, with CI explicitly pending,
+not milestone acceptance. Scoped staged inspection and diff hygiene passed.
+PR45 remains open/draft, headagent/m10-m11 and baseagent/m01.
+Exact-source foundation40816503734 and desktop40816503580 passed.
+Mobile40816503665 is terminal: Android123259318406 passed; iOS123259319042
+failed its original actual-UI step at2026-10-29T05:01:02Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+The exact failed log is `mobile-ios-8b025be-failed.log` in the current scratch
+root. Observer1791 completed; no workflow variant or rerun was launched.
+At the earlier8b push stop, OmO footprint4816925824 and available6422822912 produced projected
 headroom4275339264 below that reserve. A bounded eval heap reading was26.6MB,
 not process-wide accounting or a diagnosis of the4.8GB physical footprint.
 Native UI host89485 was explicitly stopped and exited0;
 capture browsers closed in finally. Audit84 returned five proposed package-owned grammar
 targets/fifteen real task definitions with original examples and bounded
 accepted/rejected/unassessed validators, not shipped content or M11 integration.
+
+Graph source disclosure now preserves all native fields behind the existing
+shared disclosure Button. Before-fix regression is `graph-sources-before.log`;
+`graph-sources-after.log` passes all8 graph presentation cases, typecheck,
+ownership lint, one-worker export and the genuine Rust-host/browser scenario
+(1 test,3.9s). Final capture framing also passes that full native scenario
+(1 test,3.7s), `graph-sources-framed-render.log`. All12 resulting English
+light/dark1080/390 top/source/end images were decoded and inspected in
+`graph-sources-framed-native-macos/` under the scratch root. No native window,
+WebKit or mobile certification is implied.
+
+The prepared Japanese profile was reused without rebuilding its232031-entry/
+13108-character catalog. Manual native-backed character grid, graph disclosure,
+16->5 pagination, refresh, no invented fact targets and close-focus passed in
+Quartz1440, Quartz390/DPR3 and darkQuartz1440. Actual restored focus was the
+implicit HTML BUTTON labeled `橋: assessed known`; an earlier probe incorrectly
+required an explicit role attribute. The correction changes QA, not product
+focus behavior. Capture names are
+`character-<theme>-<device>-{grid,graph,sources}.png` in the scratch root.
+DarkQuartz390 reached its grid capture but not the subsequent search/graph:
+the resource guard stopped the native host, so that case is incomplete.
+The isolated character QA profile retains darkQuartz because the failure
+prevented end-of-run theme restoration; no live learner profile was changed.
+Character detail still exposes technical reading/meaning-group property values
+and structured source records in ordinary property content. This is a remaining
+presentation issue, not permission to discard those values or infer language
+semantics from their labels. Character Capture -> Material -> Review must still
+be exercised through reachable UI; selected Word Practice remains M11 scope.
+
+Both owned character browsers closed in finally; native2966 and4899 were
+confirmed absent after guards1809/1811 terminated. The second stop measured OmO
+footprint5239993472, available6438256640, pressure1, swap5361172480 and
+swapOut101593956352; the original2GiB work reservation/4GiB reserve was not
+lowered. Post-close footprint5219726464/available6647955456 remained well above
+the earlier3.27GB footprint. Bounded `omo-vmmap-after-character-stop.txt` shows
+App-Specific Tag1 dominating,4.9GiB current/14.4GiB historical peak. This is
+not a diagnosis or an application attribution. The eval kernel shares PID82251
+but reports only25.6MB live heap/9.6MB external memory, not process-wide
+allocation ownership. Do not resume substantial local verification on that
+heap reading or automatically restart the stopped hosts.
 
 Exact0cc foundation40806767205 passed. Latest ef2 desktop40807702149 failed
 at `tests/desktop/native-smoke.mjs:614`: Shift-assisted pointer-entry
@@ -525,11 +600,13 @@ iOS123227475469 failed its actual UI flow at2026-10-29T03:24:38Z,
 `Element not found: Text matching regex: Open local video, Enabled`.
 The exact failed log is `mobile-ios-0cc-failed.log`; this remains an unresolved
 native Watch workflow failure, not an M10 character pass or a proven catalog
-regression. The0cc observer completed. Exact ef2 foundation40807702124 passed;
-its mobile run remains in progress after the old observer reached its deadline.
-A single exact-run read showed iOS123244267916 and Android123244268145 both
-in progress. Replacement observer `mon_T5R2SA8F9836R25P`/`bash_1784` watches
-that same run40807702147; no workflow was rerun.
+regression. The0cc observer completed. Exact ef2 foundation40807702124 passed.
+Its mobile40807702147 is now terminal: Android123244268145 passed;
+iOS123244267916 failed at2026-10-29T04:14:44Z,
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+Exact log: `mobile-ios-ef2-failed.log`. Preserve this unresolved native Watch
+workflow failure; it is not a passing platform gate or an established graph
+defect. Replacement observer1784 completed; no workflow was rerun.
 
 Temporary project LSP settings did not reliably prevent the automatic analyzer
 and were removed, along with the temporary Rust probe. No persisted tooling

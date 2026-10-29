@@ -667,6 +667,18 @@ Layout: Inspector dictionary - sense metadata and selection form one wrapping
 heading row above definitions; the existing dictionary body remains the vertical
 scroll owner. This preserves pronunciation, sense heading and definition order
 from the approved image without removing required INS-10 selection.
+Layout: Inspector graph - keep the existing bounded body, header and horizontal
+footer owners. The graph is a categorized detail list, not another scroll region
+or a separate Knowledge owner. Its primary action is inspecting an explicitly
+bound related target. Priorities are relation direction/category, package labels
+and properties, then the native capability projection. Entity/relation IDs,
+package field IDs and attribution remain available through one shared compact
+disclosure, Graph sources, instead of repeating technical provenance by default.
+Keep every identity/property/alternative/support distinction, structured value,
+target action, loading/stop/error/retry control and native page boundary.
+Use the existing media Text roles and disclosure Button, with no new palette,
+font system, decorative badges or cards. Before captures are the exact8b025be0
+hosted and macOS Rust-host/browser graph captures recorded in STATE.
 The attached correction
 popover owns its own bounded scroll region above the footer.
 Web backdrop layers sit beside interactive content rather than wrapping it.

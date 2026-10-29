@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
@@ -151,6 +152,14 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                         }
                         await expect(page.getByTestId('graph-relation')).toHaveCount(5);
                         if (mode === 'semantics') {
+                            // Provenance remains inspectable, but technical IDs
+                            // do not crowd the ordinary relationship reading.
+                            await expect(page.getByText(entity.id, { exact: false })).toHaveCount(0);
+                            await page.getByRole('button', { name: 'Graph sources', exact: true }).click();
+                            await expect(page.getByText(`Entity: ${entity.id}`, { exact: false })).toBeVisible();
+                            await expect(page.getByText(`Relation: ${first.connections[0].relation.id}`, { exact: false })).toBeVisible();
+                            await page.getByRole('button', { name: 'Graph sources', exact: true }).click();
+                            await expect(page.getByText(entity.id, { exact: false })).toHaveCount(0);
                             // When inspecting an explicit binding, parallel edges and
                             // unbound facts stay distinct and never become targets.
                             await expect(page.getByTestId('graph-support').getByTestId('graph-relation')).toHaveCount(2);
