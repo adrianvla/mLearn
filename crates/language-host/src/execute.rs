@@ -716,7 +716,9 @@ impl CompiledPlugin {
                 Err("Plugin execution cancelled".into())
             }
         };
-        check()?;
+        // Scoped cancellation must be nonwaiting; ordinary cancellation still
+        // retires its persistent guest through the error path below.
+        if operation.is_some() { check()?; }
         let bytes = serde_json::to_vec(&Call {
             capability: capability.into(),
             input,
@@ -749,7 +751,7 @@ impl CompiledPlugin {
                 ));
             }
         };
-        check()?;
+        if operation.is_some() { check()?; }
         if slot.as_ref().is_none_or(|a| a.owner != self.owner) {
             if let Some(active) = slot.as_ref() {
                 slot_metrics(active.owner, "evict", "owner-switch");
@@ -760,11 +762,11 @@ impl CompiledPlugin {
             slot_metrics(self.owner, "reuse", "same-owner");
         }
         let result: Result<serde_json::Value, String> = (|| {
-            check()?;
             let active = slot.as_mut().ok_or("Execution slot unavailable")?;
             active.store.data_mut().cancellation = Arc::clone(&cancellation);
             active.store.data_mut().epoch = epoch;
             active.store.data_mut().operation = operation.clone();
+            check()?;
             match self.policy {
                 ExecutionPolicy::PersistentV1 => {
                     reset(&mut active.store, self.policy.call_fuel(), HOST_READ_BUDGET)?
