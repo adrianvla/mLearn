@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { CollectionItemId, CollectionQuery, CollectionSelectionSource } from '@mlearn/contracts';
@@ -204,11 +205,24 @@ test('collection pages retain native counts and reject malformed or oversized ro
     execute: async () => JSON.stringify(response),
   });
   assert.deepEqual(await client.collection(query), result);
+  // Native admission bounds the encoded target, not the number of extension
+  // fields. Valid future namespaced data must survive the transport unchanged.
+  const extended = {
+    ...item,
+    target: { ...item.target, extensions: Object.fromEntries(
+      Array.from({ length: 33 }, (_, index) => [`org.future:field-${index}`, { value: index }]),
+    ) },
+  };
+  const extendedResult = { state: 'ready', page: { ...page, items: [extended] } };
+  response = { type: 'collection', result: extendedResult };
+  assert.deepEqual(await client.collection(query), extendedResult);
   for (const invalid of [
     { ...page, items: Array.from({ length: 25 }, () => item) },
     { ...page, items: [{ ...item, target: { ...item.target, summary: { targetId: 'missing-fields' } } }] },
     { ...page, count: -1 },
     { ...page, count: 0 },
+    { ...page, items: [{ ...item, target: { ...item.target, extensions: { unnamespaced: 1 } } }] },
+    { ...page, items: [{ ...item, target: { ...item.target, extensions: { 'org.future:data': 'x'.repeat(16384) } } }] },
   ]) {
     response = { type: 'collection', result: { state: 'ready', page: invalid } };
     await assert.rejects(client.collection(query), { code: 'protocol' });

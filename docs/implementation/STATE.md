@@ -1137,6 +1137,34 @@ instead, with explicit ownership and no shared branch edits. Root retains all
 product/navigation/STATE commits and serial workload admission. PR45 readback is
 OPEN/DRAFT, headagent/m10-m11, baseagent/m01; PR44 remains preserved/unmerged.
 
+While exact913b5b86 hosted verification is pending, the first independent owner
+repair is reproduced and locally verified. Native catalog admission bounds the
+whole target to16384 encoded bytes and validates namespaced keys; it has no32-key
+limit. The typed client incorrectly imposed that extra limit, making an admitted
+33-field target unreadable. Extended the existing collection-page owner test with
+33 small namespaced fields and retained malformed/oversized rejection.
+Before: `./node_modules/.bin/tsx --test --test-name-pattern='collection pages retain native counts' packages/runtime-client/tests/collection.test.ts`
+failed1/1 with `RuntimeError: Malformed bounded collection` atline218, codeprotocol,
+277.55ms process. Removed only the client key-count restriction; encoded byte and
+namespace checks remain. After:
+`./node_modules/.bin/tsx --test packages/runtime-client/tests/collection.test.ts`
+passed6/6, zero skipped/cancelled,197.79ms. Both touched files have clean fresh
+LSP diagnostics and full diff/whitespace review. No app/browser/server/build/
+model/device workload ran. Logs are `catalog-extensions-before.log` and
+`catalog-extensions-after.log` under the orchestration root. Native33-field
+reopen coverage and frozen-selection byte paging are being prepared in the
+separate selection-worktree; no native runtime result is claimed for that lane.
+
+Graph review returned an operation-lifetime finding: Stop rejects display
+receipts but leaves graph/evidence work in the shared two-read admission pool.
+Activity review also requires awaiting Reader/Watch persistence before dismissing
+their local checkpoint recovery owners, and identifies Review audio-departure,
+remaining Home/unavailable recovery and hidden polling/playback scenarios.
+These are registered ready tasks, not passing runtime findings or acceptance.
+Root will reproduce them in their actual existing suites. M11 preparation remains
+independent and product integration remains gated. Current expanded ledger adds16
+ready-work/cleanup units to the original125:70 completed,1 dropped,70 open of141.
+
 Read-only return-control audit found Reader and Messenger Home actions replacing
 the root route, while Watch has a distinct back/fallback path. Their persisted
 management state and explicit source parameters still need real workflow

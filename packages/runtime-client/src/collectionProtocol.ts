@@ -20,7 +20,7 @@ function target(value: unknown): boolean {
     && list(value.capabilities, 32, item => text(item, 512))
     && list(value.scopes, 128, item => text(item, 512))
     && list(value.levels, 256, item => object(item) && text(item.scaleId, 512) && text(item.level, 128))
-    && object(value.extensions) && Object.keys(value.extensions).length <= 32
+    && object(value.extensions)
     && Object.keys(value.extensions).every(key => text(key, 512) && key.includes(':'))
     && encodedBytes(value) <= 16384;
 }
