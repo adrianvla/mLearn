@@ -674,6 +674,12 @@ bound related target. Priorities are relation direction/category, package labels
 and properties, then the native capability projection. Entity/relation IDs,
 package field IDs and attribution remain available through one shared compact
 disclosure, Graph sources, instead of repeating technical provenance by default.
+Structured property records and relation qualifiers use that same disclosure,
+without interpreting package field names or guessing whether an opaque string
+is a learner-facing value. Scalar entity properties stay in the ordinary detail
+list; every qualifier, nested value and attribution remains available unchanged
+when expanded. The before set is the complete light/dark 1080/390 character
+grid/graph/source captures from exact `44bc9bd`, foundation 40841186176.
 Keep every identity/property/alternative/support distinction, structured value,
 target action, loading/stop/error/retry control and native page boundary.
 Use the existing media Text roles and disclosure Button, with no new palette,

@@ -85,7 +85,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
                             ? `${page.entity.label} → ${relation.predicate.label} → ${entity.label}`
                             : `${entity.label} → ${relation.predicate.label} → ${page.entity.label}`}</Text>
                         <EntityDetails entity={entity} page={page} showSources={showSources} />
-                        <Properties properties={relation.qualifiers} showSources={showSources} />
+                        {showSources ? <Properties properties={relation.qualifiers} showSources /> : null}
                         {showSources ? <Text tone="media" muted variant="caption" selectable>
                             Relation: {relation.id}{'\n'}Predicate: {relation.predicate.id}
                             {'\n'}{[...new Set([relation.attribution, relation.predicate.attribution])].join('\n')}
@@ -143,7 +143,10 @@ function EntityDetails({ entity, page, showSources }: {
 function Properties({ properties, showSources }: {
     readonly properties: readonly GraphProperty[]; readonly showSources: boolean;
 }) {
-    return <>{properties.map(property => <View key={property.id} style={styles.stack}>
+    // Unknown structured records are losslessly inspectable without turning the
+    // ordinary detail list into a JSON dump. Scalar entity facts stay readable.
+    return <>{properties.filter(property => showSources || property.value === null
+        || typeof property.value !== 'object').map(property => <View key={property.id} style={styles.stack}>
         <Text tone="media" selectable>{property.label}: {typeof property.value === 'string'
             ? property.value : JSON.stringify(property.value)}</Text>
         {showSources ? <Text tone="media" muted variant="caption" selectable>{property.id} · {property.attribution}</Text> : null}

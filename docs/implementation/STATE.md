@@ -31,8 +31,9 @@ remaining connected scenarios must use the ordinary hosted verification path.
 The pinned publisher metadata defect is repaired. The mixed character
 catalog, shared probe owner and related-detail producer have the owner evidence
 below. The generic metadata-only catalog repair and graph source disclosure have
-passing targeted evidence. Character source-property presentation and learning
-entry remain open; neither UI task is closed. Ledger:66 completed,1 dropped,
+passing targeted evidence. Character Capture -> Material -> Review now has
+passing hosted native-backed evidence. Source-property presentation still needs
+fresh rendered verification; neither UI task is closed. Ledger:66 completed,1 dropped,
 58 open out of125 tracked; added tasks track independent audits,
 M11 preparation, two demonstrated review repairs and owned resource cleanup. The latest parallel
 authorization permits up to twelve useful workers, constrained by measured
@@ -642,7 +643,32 @@ no steps, source/model pins, fuel/memory/data limits or assertions are removed.
 Failure cleanup queries the existing native preparation owner, cancels active
 work, closes the host and preserves the primary error alongside cleanup errors.
 TypeScript diagnostics and native Bun YAML parsing pass; YAML LSP is absent,
-and no dependency was installed. These repairs still need hosted execution.
+and no dependency was installed. The repair is committed/pushed as
+`44bc9bd57d213f14d7cae978706ad659c9cd1bb5`. Its ordinary foundation 40841186176
+passed all five jobs, including Windows native theme input on this run; the
+earlier unexplained Windows failure is not thereby diagnosed or repaired.
+The web job 123337684111 passed all 141 cases in 11.3 minutes, including the
+genuine character Capture -> Material -> scheduled Review and restart scenario.
+The graph/character spec took 6.1 minutes with the full cold preparation.
+Exact log `44bc9bd-web.log` and artifact 12883946489 are retained in the existing
+scratch root. Only 13 character PNGs were extracted into
+`44bc9bd-character-evidence/`; every grid/graph/source capture for both
+themes at 1080/390 and the scheduled Review capture was directly decoded/inspected.
+Character grid, actual character probe and footer containment are visible.
+These are Linux Rust-host/browser results, not mobile or native-window parity.
+
+That complete before set confirms the remaining graph presentation issue:
+structured source records and opaque reading/meaning-group qualifiers crowd
+the ordinary character facts. The next shared-owner change places structured
+entity properties and relation qualifiers under the existing Graph sources
+disclosure, retaining scalar entity facts in the ordinary list. It does not
+interpret package IDs/labels, remove native data, fabricate a bound target or
+add a new protocol/display flag. The existing graph presentation test now covers
+scalar facts remaining readable and structured values/qualifiers surviving
+expand/collapse unchanged. Both touched TypeScript files have no LSP diagnostics
+and diff whitespace checks pass. Local execution remains paused for unexplained
+OmO allocation growth; this source change still needs fresh hosted tests/captures.
+Character and graph tasks remain open.
 
 A single source-only audit returned concrete redundant JSON conversion and
 statement-preparation opportunities, but no measured speedup. No speculative

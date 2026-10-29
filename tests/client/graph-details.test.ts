@@ -12,8 +12,13 @@ const entity: LinguisticEntity = {
     id: 'entity:root', targetId: 'target:root', label: 'Root',
     kind: { id: `${packageId}:unfamiliar-kind`, label: 'Package kind', color: null, attribution: 'Kind source' },
     capabilities: [{ id: `${packageId}:meaning`, label: 'Meaning' }],
-    properties: [{ id: `${packageId}:feature`, label: 'Nested feature',
-        value: { choices: ['one', 'two'] }, attribution: 'Property source' }],
+    properties: [
+        { id: `${packageId}:feature`, label: 'Nested feature',
+            value: { choices: ['one', 'two'] }, attribution: 'Property source' },
+        { id: `${packageId}:description`, label: 'Description',
+            value: 'Ordinary package fact', attribution: 'Property source' },
+        { id: `${packageId}:count`, label: 'Count', value: 3, attribution: 'Property source' },
+    ],
     attribution: 'Entity source',
 };
 const bound = { ...entity, id: 'entity:bound', targetId: 'target:bound', label: 'Bound' };
@@ -28,8 +33,12 @@ const first: GraphPage = {
                 color: null, attribution: 'Predicate source' },
             from: index === 2 ? bound.id : entity.id,
             to: index === 2 ? entity.id : index === 1 ? fact.id : bound.id,
-            qualifiers: [{ id: `${packageId}:condition`, label: 'Condition',
-                value: { scope: 'only here' }, attribution: 'Qualifier source' }],
+            qualifiers: [
+                { id: `${packageId}:condition`, label: 'Condition',
+                    value: { scope: 'only here' }, attribution: 'Qualifier source' },
+                { id: `${packageId}:group`, label: 'Package group',
+                    value: 'opaque-group-reference', attribution: 'Qualifier source' },
+            ],
             attribution: 'Relation source' },
     })),
     knowledge: ['target:root', 'target:bound'].map(targetId => ({
@@ -155,17 +164,26 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                             // Provenance remains inspectable, but technical IDs
                             // do not crowd the ordinary relationship reading.
                             await expect(page.getByText(entity.id, { exact: false })).toHaveCount(0);
+                            const graph = page.getByTestId('graph-details');
+                            await expect(graph).toContainText('Description: Ordinary package fact');
+                            await expect(graph).toContainText('Count: 3');
+                            await expect(graph).not.toContainText('{"choices":["one","two"]}');
+                            await expect(graph).not.toContainText('opaque-group-reference');
                             await page.getByRole('button', { name: 'Graph sources', exact: true }).click();
                             await expect(page.getByText(`Entity: ${entity.id}`, { exact: false })).toBeVisible();
                             await expect(page.getByText(`Relation: ${first.connections[0].relation.id}`, { exact: false })).toBeVisible();
+                            await expect(graph).toContainText('{"choices":["one","two"]}');
+                            await expect(graph).toContainText('{"scope":"only here"}');
+                            await expect(graph).toContainText('opaque-group-reference');
                             await page.getByRole('button', { name: 'Graph sources', exact: true }).click();
                             await expect(page.getByText(entity.id, { exact: false })).toHaveCount(0);
+                            await expect(graph).not.toContainText('{"choices":["one","two"]}');
+                            await expect(graph).not.toContainText('opaque-group-reference');
                             // When inspecting an explicit binding, parallel edges and
                             // unbound facts stay distinct and never become targets.
                             await expect(page.getByTestId('graph-support').getByTestId('graph-relation')).toHaveCount(2);
                             await expect(page.getByTestId('graph-property').getByRole('button')).toHaveCount(0);
                             await expect(page.getByTestId('graph-alternative')).toContainText('Bound → Predicate 2 → Root');
-                            await expect(page.getByTestId('graph-details')).toContainText('{"choices":["one","two"]}');
                             await page.getByRole('button', { name: 'Inspect Bound target target:bound', exact: true }).first().click();
                             assert.deepEqual(await page.evaluate(() => Reflect.get(window, 'graph').inspected), ['target:bound']);
                         }
