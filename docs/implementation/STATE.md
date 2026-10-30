@@ -57,14 +57,52 @@ baad37cb4db58d0f617e574963fc721834b2d9b650772e78a99958c600874b02 matches
 GitHub metadata. Its source binds `65c068ef`; process 5196 remains alive with
 HWND 852352, exposed as an unnamed UIA Pane, while the captured foreground is
 the hosted runner terminal. Cause remains unknown; no assertion was weakened
-or workflow rerun. Mobile observer 41137381329 remains active. The same
+or workflow rerun. Mobile run 41137381329 completed FAILURE on exact `65c068ef`.
+Both compiled-app retention steps succeeded, but iOS job 124343069186 and
+Android job 124343069516 failed actual UI/persistence verification. The exact
+failed logs are preserved as `material-65c068ef-{ios,android}-failed.log`.
+iOS reports "Element not found: Text matching regex: Open local video, Enabled";
+the Android job log reports a failed Watch flow. Its retained JUnit identifies
+`DeviceServerDiedException` during `viewHierarchy`, with gRPC UNAVAILABLE/end of
+stream. Command 259 found the Japanese Resume control after app restart;
+command 260 was still RUNNING while tapping it when the transport died. The
+archive source receipt matches `65c068ef` and tree `c4d1cd3a`. Artifact
+13018084333 (59952139 bytes) is preserved with matching SHA-256
+7c698e11c6dbc456e5ac05a81a7a9f193fb78df63320ad7001fbcaecf7b10a7f.
+Root selectively extracted source/JUnit/commands/screenshots and inspected the
+completed Japanese live dictionary/Inspector captures; these do not prove the
+unfinished resume or Material-modal native flow. The transport's root cause
+is not established. These are not passing native gates or established
+Material-modal defects.
+Root is preserving the remaining diagnostic artifacts without downloading compiled apps,
+restarting devices or rerunning the deferred hosted-iOS campaign.
+iOS artifact 13017803862 (89300497 bytes) is preserved with matching SHA-256
+e6e1a497d7eda6e2f047ad66895d4785d58b28333ee7fb9d6b19cd816d37c789.
+Its source receipt also matches `65c068ef`/`c4d1cd3a`. Root selectively extracted
+the failure hierarchy/commands/frames, leaving the 234 MB simulator log
+compressed. The initial English import, source controls and restart stages
+completed before the failure at the second, Japanese Watch entry. The failed
+frame remains on retained Home: Watch is clipped beneath its fixed header,
+while XCTest exposes its enabled control at [41,87][352,156]. The tap is marked
+complete, but the next Open local video action fails. A minimal test-source
+correction adds the same bounded scroll-to-Watch step already present in the
+Android entry helper. All picker/source/Japanese assertions remain intact.
+Both YAML documents parse with Bun's existing YAML builtin; the added action
+matches Android's parsed action, and the original enabled Watch/import actions
+remain in order. `git diff --check` passes. YAML LSP is unavailable because
+`yaml-language-server` is not installed; no dependency was added.
+This new clipped-target evidence is separate from the deferred FileProvider
+campaign; no picker variant, workflow rerun or device was launched. Native
+verification of the correction remains pending, not a confirmed green result.
+The same
 independent reviewer APPROVES the bounded P2 repair on the clean, locked
 dedicated checkout at `17103953`, with no remaining delta blocker and no
 reviewer workloads or source writes. Its source/artifact review preserves all
 earlier failures and scope limits; see the repair section in
 `.omo/evidence/material-modal-65c068ef-gate-review.md`. Push-triggered
 repair runs are desktop 41141663093, mobile 41141663087 and foundation
-41141663145; fixed-ID observers are active and validate their source SHA.
+41141663145; fixed-ID observers validate their source SHA. Desktop completed
+SUCCESS on `17103953`, native job 124357150133. Foundation/mobile remain pending.
 No workflow was manually launched. Next: continue the remaining Material
 selection/navigation scope.
 M10/M11/native/frozen-selection-window acceptance remains open.
