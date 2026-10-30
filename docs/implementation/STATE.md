@@ -49,14 +49,19 @@ That first wider browser run had 108 passes and one test timeout: changing
 viewport during retry triggered a normal layout checkpoint, detached Retry and
 intercepted its click. No assertion was relaxed; separate fixed-width flows and
 guaranteed backend cleanup repair the test. The complete affected browser run
-then passed all 110 cases once (`reader-back-fixed-width.log`, results directory
-of the same name). Both 390/1080 flows retain Reader and its URL after failed
+then passed all 110 cases once (`reader-back-fixed-width.log`,
+`reader-back-fixed-width-results/`). Both 390/1080 flows retain Reader and its URL after failed
 Back, retry the native checkpoint, return Home, preserve the unsubmitted Material
 query and verify the changed appearance after native process crash/restart.
 Root inspected all four failure/restored-draft PNGs. Reader source and new test
 have fresh clean LSP diagnostics; scratch/earlier timeout reports are not passes.
 This is browser UI plus real Rust persistence, not native OS gesture verification.
-Independent exact-source review remains pending; NAV-02/M10 are not closed.
+Checkpoint `c78ef60b4a0620356f920c29f401070f9e0df75d` received APPROVE from
+sole exact-source reviewer `st_01a18c8a` (subscription GPT6.1Sol), with no scoped
+blocker. The reviewer inspected all five changed files, relevant owners, logs
+and two captures; no workloads or writes. Report:
+`.omo/evidence/reader-back-c78ef60b-gate-review.md`. Separate code-review skill
+coverage was not supplied. NAV-02/M10 and native/maintainer gates are not closed.
 
 The final run's footprint was 3201283536 bytes, RSS6235045888,
 available7776780288, pressure1, swap4178051072; original 4 GiB reserve held.
