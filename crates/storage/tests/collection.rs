@@ -1443,12 +1443,14 @@ fn tied_sort_pages_are_bounded_and_reject_changed_membership() {
     selection.sort = CollectionSort::LabelAscending;
     let first = ready(&store, &selection);
     let mut ids = BTreeSet::new();
+    let mut pages = Vec::new();
     // When every cursor is followed, under one unchanged native revision.
     for _ in 0..4 {
         let page = ready(&store, &selection);
         assert!(page.items.len() <= 24);
         assert!(serde_json::to_vec(&page).unwrap().len() <= 262144);
         assert_eq!(page.count, 70);
+        pages.push(page.clone());
         for item in page.items {
             match item {
                 CollectionItem::Target { target, .. } => {
@@ -1465,6 +1467,15 @@ fn tied_sort_pages_are_bounded_and_reject_changed_membership() {
     // Then no tied entry is lost or repeated.
     assert_eq!(ids.len(), 70);
     assert!(selection.after.is_none());
+    let mut returning = pages.last().unwrap().clone();
+    for expected in pages.iter().rev().skip(1) {
+        selection.after = returning.previous.clone();
+        assert!(selection.after.is_some());
+        returning = ready(&store, &selection);
+        assert_eq!(returning.items, expected.items);
+        assert!(serde_json::to_vec(&returning).unwrap().len() <= 262144);
+    }
+    assert!(returning.previous.is_none());
     store
         .change_claim(&ClaimChange {
             command_id: "change-during-page".into(),
@@ -1496,7 +1507,8 @@ fn material_bookmark_refresh_preserves_the_window_without_weakening_continuation
         CollectionFilter::All { filters: vec![] },
     );
     browse.sort = CollectionSort::LabelAscending;
-    browse.after = ready(&store, &browse).next;
+    let first = ready(&store, &browse);
+    browse.after = first.next.clone();
     let original = ready(&store, &browse);
     let CollectionItem::Material { material, .. } = &original.items[0] else {
         panic!("Expected authored Material");
@@ -1551,8 +1563,25 @@ fn material_bookmark_refresh_preserves_the_window_without_weakening_continuation
         "A durable edit in the originating window"
     );
     let mut following = browse.clone();
-    following.after = refreshed.next;
+    following.after = refreshed.next.clone();
     assert_eq!(ready(&store, &following).items.len(), 4);
+    let mut preceding = browse.clone();
+    preceding.after = original.previous.clone();
+    assert!(preceding.after.is_some());
+    assert!(matches!(
+        store.collection(&preceding),
+        Err(StorageError::Conflict)
+    ));
+    let CollectionResult::Ready { page: preceding } =
+        store.refresh_material_collection(&preceding).unwrap()
+    else {
+        panic!("Expected the preceding Material window");
+    };
+    assert_eq!(preceding.items, first.items);
+    assert!(preceding.previous.is_none());
+    let mut returned = browse.clone();
+    returned.after = preceding.next;
+    assert_eq!(ready(&store, &returned).items, refreshed.items);
 
     let mut foreign_query = browse.clone();
     foreign_query.sort = CollectionSort::LabelDescending;
@@ -1820,9 +1849,11 @@ fn due_sort_preserves_numeric_and_missing_membership_across_pages() {
         );
         selection.sort = sort;
         let mut actual = Vec::new();
+        let mut pages = Vec::new();
         for _ in 0..4 {
             let page = ready(&store, &selection);
             assert_eq!(page.count, 70);
+            pages.push(page.clone());
             for item in page.items {
                 match item {
                     CollectionItem::Target { target, .. } => actual.push(target.summary.target_id),
@@ -1850,5 +1881,13 @@ fn due_sort_preserves_numeric_and_missing_membership_across_pages() {
         // Then excluded/unmeasured targets stay present but do not gain a due date.
         assert_eq!(actual, expected);
         assert!(selection.after.is_none());
+        let mut returning = pages.last().unwrap().clone();
+        for expected in pages.iter().rev().skip(1) {
+            selection.after = returning.previous.clone();
+            assert!(selection.after.is_some());
+            returning = ready(&store, &selection);
+            assert_eq!(returning.items, expected.items);
+        }
+        assert!(returning.previous.is_none());
     }
 }

@@ -105,6 +105,7 @@ export function isCollectionResponse(value: unknown): value is Response {
           return object(page) && list(page.items, 24, item) && uint(page.count)
             && Array.isArray(page.items) && page.items.length <= page.count
             && (page.next === null || text(page.next, 8192))
+            && (page.previous === null || text(page.previous, 8192))
             && (page.packageRevision === null || text(page.packageRevision, 256))
             && uint(page.knowledgeRevision) && uint(page.materialRevision)
             && encodedBytes(page) <= 262144;

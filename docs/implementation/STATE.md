@@ -106,6 +106,37 @@ SUCCESS on `17103953`, native job 124357150133. Foundation/mobile remain pending
 No workflow was manually launched. Next: continue the remaining Material
 selection/navigation scope.
 M10/M11/native/frozen-selection-window acceptance remains open.
+The retained-entry test checkpoint `d5d9cf2b` is pushed with matching upstream;
+its automatic mobile 41142645801 and foundation 41142645874 runs have fixed-ID
+observers. The next connected increment keeps cross-page modal navigation in
+the existing native collection owner: an opaque preceding-window bookmark,
+not renderer parsing or accumulated page caches. Its uncommitted test-first
+contract extends the existing tied-sort and Material-refresh regressions.
+`collection-reverse-red.log` genuinely fails the missing preceding bookmark
+assertion at `collection.rs:1473`, after a successful compile. Native execution
+now reverses the existing keyset comparison and SQL order, then returns items
+in the caller's original order. It retains query/package/Knowledge/Material
+epoch checks and both item-count/wire budgets; both bookmarks roll back when a
+candidate exceeds the wire budget. The client boundary validates the new
+opaque `previous` field. Existing sort regressions also cover backwards numeric
+and missing-due windows, and Material refresh still rejects ordinary stale
+continuation. Changed Rust diagnostics, formatting and diff checks pass.
+`collection-reverse-green.log` completes exit 0: all 23 storage collection
+tests and eight client/character tests pass; authoritative type generation,
+normal typecheck, ownership lint and contract consistency pass. The existing
+ts-rs `serde(transparent)` warnings also occur in the preceding Material log;
+they are not suppressed. The original 4 GiB memory reserve held throughout
+this run, with root footprint about 3.55 GB and pressure 1.
+No modal boundary integration or native-platform pass is claimed yet.
+
+The next disk read is 1463304 KiB available, below the unchanged 2097152 KiB
+admission threshold. Further builds/exports/rendering are paused. No device,
+server or model is running from these tests. Read-only size inventory finds
+1841152 KiB in `target/debug/incremental`, 44774040 KiB in `target/debug/deps`,
+1260312 KiB in `target/debug/examples` and 11114136 KiB in the owned current
+evidence root. Nothing was deleted. Root asked permission to remove only the
+rebuildable incremental cache, preserving binaries/dependencies/profiles and
+evidence; no answer is assumed. Source checkpoint/review may continue.
 
 Detailed chronological continuation receipts follow.
 October 30 Messenger Back candidate: the new real-Rust recovery case reproduced

@@ -250,6 +250,8 @@ pub struct CollectionPage {
     pub items: Vec<CollectionItem>,
     pub count: u32,
     pub next: Option<String>,
+    /// Opaque bookmark for the preceding bounded window in this same order.
+    pub previous: Option<String>,
     /// Absent for readable saved Material without an available package catalog.
     pub package_revision: Option<String>,
     pub knowledge_revision: u32,

@@ -32,6 +32,8 @@ struct Cursor {
     material_revision: u32,
     value: CursorValue,
     id: String,
+    #[serde(default)]
+    backwards: bool,
 }
 
 struct FilterSql<'a> {
@@ -452,12 +454,23 @@ fn read_collection_page(
         CollectionSort::LabelAscending | CollectionSort::LabelDescending => label,
         CollectionSort::DueAscending | CollectionSort::DueDescending => due,
     };
+    let cursor = query
+        .after
+        .as_deref()
+        .map(|after| {
+            bounded(after, 8192)?;
+            Ok::<Cursor, StorageError>(serde_json::from_str(after)?)
+        })
+        .transpose()?;
+    let backwards = cursor.as_ref().is_some_and(|cursor| cursor.backwards);
     let descending = matches!(
         query.sort,
         CollectionSort::LabelDescending | CollectionSort::DueDescending
-    );
+    ) ^ backwards;
     let direction = if descending { "DESC" } else { "ASC" };
     let comparison = if descending { "<" } else { ">" };
+    let missing_direction = if backwards { "DESC" } else { "ASC" };
+    let missing_comparison = if backwards { "<" } else { ">" };
     let count = tx.query_row(
         &format!("SELECT COUNT(*) {membership}"),
         params_from_iter(&values),
@@ -482,9 +495,7 @@ fn read_collection_page(
             query.sort,
         ))?)
     );
-    let continuation = if let Some(after) = &query.after {
-        bounded(after, 8192)?;
-        let cursor: Cursor = serde_json::from_str(after)?;
+    let continuation = if let Some(cursor) = &cursor {
         let due = matches!(
             query.sort,
             CollectionSort::DueAscending | CollectionSort::DueDescending
@@ -506,16 +517,16 @@ fn read_collection_page(
         let missing_parameter = values.len();
         values.push(key);
         let key_parameter = values.len();
-        values.push(Value::Text(cursor.id));
+        values.push(Value::Text(cursor.id.clone()));
         let id_parameter = values.len();
         format!(
-            "WHERE ((sort_key IS NULL)>?{missing_parameter} OR ((sort_key IS NULL)=?{missing_parameter} AND (sort_key {comparison} ?{key_parameter} OR (sort_key IS ?{key_parameter} AND item_id {comparison} ?{id_parameter}))))"
+            "WHERE ((sort_key IS NULL){missing_comparison}?{missing_parameter} OR ((sort_key IS NULL)=?{missing_parameter} AND (sort_key {comparison} ?{key_parameter} OR (sort_key IS ?{key_parameter} AND item_id {comparison} ?{id_parameter}))))"
         )
     } else {
         String::new()
     };
     let sql = format!(
-        "SELECT item_id,sort_key,item_package FROM (SELECT {id} AS item_id,{sort} AS sort_key,{package} AS item_package {membership}) {continuation} ORDER BY (sort_key IS NULL) ASC,sort_key {direction},item_id {direction} LIMIT 25"
+        "SELECT item_id,sort_key,item_package FROM (SELECT {id} AS item_id,{sort} AS sort_key,{package} AS item_package {membership}) {continuation} ORDER BY (sort_key IS NULL) {missing_direction},sort_key {direction},item_id {direction} LIMIT 25"
     );
     let rows = {
         let mut statement = tx.prepare(&sql)?;
@@ -541,28 +552,53 @@ fn read_collection_page(
         items: Vec::new(),
         count,
         next: None,
+        previous: None,
         package_revision: package_revision.clone(),
         knowledge_revision,
         material_revision,
     };
+    let bookmark = |id: &str, value: &CursorValue, backwards| {
+        serde_json::to_string(&Cursor {
+            fingerprint: fingerprint.clone(),
+            package_revision: package_revision.clone(),
+            knowledge_revision,
+            material_revision,
+            id: id.into(),
+            value: value.clone(),
+            backwards,
+        })
+    };
     for (index, (id, value, package_id)) in rows.iter().take(24).enumerate() {
-        let previous = page.next.clone();
-        page.items.push(item(tx, query.surface, package_id, id)?);
-        page.next = if index + 1 < rows.len() {
-            Some(serde_json::to_string(&Cursor {
-                fingerprint: fingerprint.clone(),
-                package_revision: package_revision.clone(),
-                knowledge_revision,
-                material_revision,
-                id: id.clone(),
-                value: value.clone(),
-            })?)
+        let bookmarks = (page.next.clone(), page.previous.clone());
+        let entry = item(tx, query.surface, package_id, id)?;
+        if backwards {
+            page.items.insert(0, entry);
+        } else {
+            page.items.push(entry);
+        }
+        let continuation = if index + 1 < rows.len() {
+            Some(bookmark(id, value, backwards)?)
         } else {
             None
         };
+        if backwards {
+            page.previous = continuation;
+            if index == 0 {
+                page.next = Some(bookmark(id, value, false)?);
+            }
+        } else {
+            page.next = continuation;
+            if index == 0 && query.after.is_some() {
+                page.previous = Some(bookmark(id, value, true)?);
+            }
+        }
         if serde_json::to_vec(&page)?.len() > 262144 {
-            page.items.pop();
-            page.next = previous;
+            if backwards {
+                page.items.remove(0);
+            } else {
+                page.items.pop();
+            }
+            (page.next, page.previous) = bookmarks;
             if page.items.is_empty() {
                 return Err(StorageError::Invalid(
                     "Collection item exceeds page wire budget".into(),

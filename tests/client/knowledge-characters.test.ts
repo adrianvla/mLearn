@@ -99,7 +99,7 @@ test('package kind scopes both bounded pages and selection while grid/list retai
                       const matches = rows.filter(row => !kind || row.target.kind === kind);
                       return { state: 'ready', page: {
                         items: query.after ? matches.slice(2) : matches.slice(0, 2),
-                        count: matches.length, next: query.after || matches.length <= 2 ? null : 'opaque-cursor',
+                        count: matches.length, next: query.after || matches.length <= 2 ? null : 'opaque-cursor', previous: null,
                         packageRevision: 'revision-pinned', knowledgeRevision: 1, materialRevision: 1,
                       } };
                     },

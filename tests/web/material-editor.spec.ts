@@ -111,7 +111,7 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
               if (state.failList) { state.failList = false; return failure('List unavailable'); }
               return JSON.stringify({ type: 'collection', result: { state: 'ready', page: {
                 items: materials.map(material => ({ kind: 'material', material, target: null, knowledge: [] })),
-                count: materials.length, next: null, packageRevision: null, knowledgeRevision: 0, materialRevision: 1,
+                count: materials.length, next: null, previous: null, packageRevision: null, knowledgeRevision: 0, materialRevision: 1,
               } } });
             case 'material':
               if (state.holdOpen) await new Promise<void>(resolve => { state.releaseOpen = resolve; });

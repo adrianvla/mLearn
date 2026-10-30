@@ -451,6 +451,10 @@ export type CollectionItem = { "kind": "target", target: CollectionTarget, knowl
 
 export type CollectionPage = { items: Array<CollectionItem>, count: number, next: string | null,
 /**
+ * Opaque bookmark for the preceding bounded window in this same order.
+ */
+previous: string | null,
+/**
  * Absent for readable saved Material without an available package catalog.
  */
 packageRevision: string | null, knowledgeRevision: number, materialRevision: number, };

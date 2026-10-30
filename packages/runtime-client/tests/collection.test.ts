@@ -16,7 +16,7 @@ test('Material bookmark refresh is explicit and validates the bounded native pro
   const materialQuery: CollectionQuery = { ...query, surface: 'material', after: 'native-bookmark' };
   const requests: unknown[] = [];
   const result = { state: 'ready', page: {
-    items: [], count: 0, next: null, packageRevision: null,
+    items: [], count: 0, next: null, previous: null, packageRevision: null,
     knowledgeRevision: 1, materialRevision: 2,
   } };
   let response: unknown = { type: 'collection', result };
@@ -222,7 +222,7 @@ test('collection pages retain native counts and reject malformed or oversized ro
     knowledge: [], materialCount: 0,
   };
   const page = {
-    items: [item], count: 100, next: 'opaque-native-cursor', packageRevision: 'revision-one',
+    items: [item], count: 100, next: 'opaque-native-cursor', previous: 'opaque-native-previous', packageRevision: 'revision-one',
     knowledgeRevision: 0, materialRevision: 0,
   };
   const result = { state: 'ready', page };
@@ -248,6 +248,8 @@ test('collection pages retain native counts and reject malformed or oversized ro
     { ...page, items: [{ ...item, target: { ...item.target, summary: { targetId: 'missing-fields' } } }] },
     { ...page, count: -1 },
     { ...page, count: 0 },
+    { ...page, previous: 42 },
+    { ...page, previous: 'x'.repeat(8193) },
     { ...page, items: [{ ...item, target: { ...item.target, extensions: { unnamespaced: 1 } } }] },
     { ...page, items: [{ ...item, target: { ...item.target, extensions: { 'org.future:data': 'x'.repeat(16384) } } }] },
   ]) {
