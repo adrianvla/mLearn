@@ -116,7 +116,17 @@ failure, not a false command pass. A separate bounded Bash probe verified the
 correct `PIPESTATUS[0]` expression preserves both success 0 and failure 1; the
 manual application workflow was not needlessly replayed. Final footprint was
 6735279544 bytes, pressure 1, available 6607536128 and swapUsed 3806068736.
-Independent review of this increment remains pending. M10 remains incomplete.
+Independent review approved exact `0875124772a6621a98c18a7c7b124e081189d053`
+with no demonstrated blocker. The sole reviewer used the current subscription
+GPT6.1Sol route, read the complete changed source/test and inspected red/green
+logs and captures in a clean locked checkout; it ran no workloads. Its report is
+`.omo/evidence/watch-checkpoint-08751247-gate-review.md`. It records unexecuted
+native drag/drop cancellation and broad blur/unmount interleavings, the long
+existing connected test, and evidence-association limits rather than inventing
+another report or OS verification. This approves only the bounded increment.
+The genuine closed native profile is preserved at
+`.mlearn/m10/watch-checkpoint-08751247-native`; unused Chrome profile and manual
+harness are removed. M10 remains incomplete and M11 integration remains gated.
 
 Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
