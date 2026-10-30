@@ -188,6 +188,31 @@ was not found. Its raw failed-step log is `139b78f8-ios-failure.log`.
 No unchanged rerun or deferred diagnostic variant was launched. Independent
 M10 review, native parity and maintainer acceptance remain open.
 
+Empty Reader/Watch entry now returns through `dismissTo('/')`, preserving the
+existing management navigator instead of replacing it. The real-Rust regression
+first reproduced the cleared document-entry Knowledge draft. The repaired flow
+preserves all four document/video drafts at1080/390px. The complete existing
+Knowledge/Material scenario then passed in2.3minutes, including its claim,
+evidence cancellation/recovery, source-return and restart assertions. Production
+export `e227967c20884ff325cd87b433ec883b`, normal typecheck, architecture lint,
+source diagnostics and diff checks passed. All eight new1080/390x900 PNGs were
+decoded, dimension-checked and inspected. Source-entry controls and retained
+Knowledge remain visible and contained; the harness explicitly reports its
+unsupported native window/media/clipboard services rather than fabricating them.
+Evidence is `nav02-empty-{red,ready}*` in the retained orchestration root.
+An intermediate fixture navigated again while metadata was pending, exhausted
+the unchanged bounded request queue and failed the later paging assertion.
+The final test observes actual ready controls before leaving each screen;
+it adds no sleeps, retries or relaxed assertions. This verifies normal ready
+entry/return, not sustained rapid-navigation admission or hidden-work closure.
+An earlier export attempt also failed only because root forwarded npm flags
+incorrectly; the corrected workspace export passed. Resource supervision never
+stopped either assertion run. Post-QA footprint6581253560, available7040630784,
+pressure1 and swap3904176128 were recorded; the preview listener was released.
+Other Home fallbacks, Watch checkpoint departure and hidden-work ownership
+remain open. Exact `764b9ac8` real desktop40977525036 passed; its separate
+foundation40977525010 receipt remains pending. No platform gate is waived.
+
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
 M11 product integration remains gated on M10.

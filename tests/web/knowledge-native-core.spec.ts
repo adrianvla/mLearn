@@ -57,6 +57,32 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     const capability = language.capabilities.find(item => item.id === language.annotationCapability);
     if (!capability) throw new Error('Package annotation capability has no label');
 
+    // Empty activity entry must return to the retained management workspace too.
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const kind of ['document', 'video']) {
+        const draft = `Unsubmitted ${kind} search at ${width}`;
+        await expect(page.getByRole('button', { name: 'Next Knowledge page', exact: true })).toBeEnabled();
+        await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(draft);
+        await page.getByRole('button', { name: 'Home', exact: true }).click();
+        await page.getByRole('button', { name: `Open ${kind} entry`, exact: true }).click();
+        await expect(page.getByRole('heading', {
+          name: kind === 'document' ? 'Open a document' : 'Open a video', exact: true,
+        })).toBeVisible();
+        await expect(page.getByRole('button', {
+          name: kind === 'document' ? 'Open document' : 'Open local video', exact: true,
+        })).toBeEnabled();
+        await page.screenshot({ path: info.outputPath(`navigation-empty-${kind}-${width}.png`) });
+        await page.getByRole('button', { name: 'Home', exact: true }).click();
+        await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+        await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(draft);
+        await expect(page.getByRole('button', { name: 'Next Knowledge page', exact: true })).toBeEnabled();
+        await page.screenshot({ path: info.outputPath(`navigation-after-empty-${kind}-${width}.png`) });
+      }
+    }
+    await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill('');
+    await page.setViewportSize({ width: 1080, height: 900 });
+
     // When: the user pages, inspects an entry, claims its package-selected
     // capability and captures it through the existing Inspector.
     await page.getByRole('button', { name: 'Next Knowledge page', exact: true }).click();
