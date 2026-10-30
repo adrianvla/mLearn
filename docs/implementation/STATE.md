@@ -45,6 +45,17 @@ sample footprint3354998224, available7352434688, pressure1,
 swap3634298880 bytes. Prior independent approval remains bound to19e35a9a,
 not this later two-owner callback increment; full M10 review is still required.
 
+The follow-up pending-proposal draft-loss hypothesis did not reproduce.
+Against unchanged625ef496 product/export, the actual message proposal Return
+keeps the unsent composer text after closing the captured-original dialog.
+The strengthened existing test passes in3.0s (`pending-proposal-draft-red.log`,
+despite that preselected filename); its final diagnostics/diff check pass.
+No speculative checkpoint/focus/lifetime repair was added, and dependent
+save-recovery work for that hypothetical repair was dropped. This is observed
+browser navigation continuity, not evidence of an extra native draft save.
+The4GiB reserve stayed unchanged; last launch footprint3357947344,
+available7988281344, pressure1, swap3674800128 bytes. The finite QA owners closed.
+
 October 30 proposal Return repair: the real Reader regression returned the
 right document but lost the captured selection (`Children` stayed transparent).
 Proposal navigation now carries only its stable proposal ID; existing Reader,

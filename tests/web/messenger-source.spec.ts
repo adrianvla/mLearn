@@ -314,6 +314,8 @@ test('message proposal Return restores the captured original instead of only ope
   await composer.press('Enter');
   const analysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
   await expect(analysis).toBeEnabled();
+  const unsent = 'Keep this unsent draft when returning to a pending proposal source.';
+  await composer.fill(unsent);
   await analysis.click();
   await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
   await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
@@ -333,6 +335,8 @@ test('message proposal Return restores the captured original instead of only ope
     await page.setViewportSize({ width, height: 900 });
     await page.screenshot({ path: info.outputPath(`message-proposal-return-${width}.png`) });
   }
+  await original.getByRole('button', { name: 'Close captured source', exact: true }).click();
+  await expect(composer).toHaveValue(unsent);
   expect(nativeCore.metadata().providerRequests).toBe(1);
 });
 
