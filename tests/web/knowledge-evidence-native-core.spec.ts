@@ -7,6 +7,82 @@ import type { KnowledgeKey, ReviewSession } from '@mlearn/contracts';
 import { builtInThemes } from '../../packages/theme/src/theme';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
+test('active native Review survives management roundtrips without replacing its encounter', async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('review-management-profile') });
+  const client = createRuntimeBrowserClient(backend);
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Install .*English/ }).click();
+    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
+    await page.goto(`/reader?id=${document.source.id}`);
+    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    const inspector = page.getByTestId('inspector-panel');
+    await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
+    await expect(inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true })).toBeVisible();
+    await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByTestId('home-open-review').click();
+    await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
+    await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Sessions', exact: true })).toBeVisible();
+    const started = (await client.reviewSessions())[0];
+    if (!started) throw new Error('Scheduled native Review did not retain its session');
+    if (!started.encounter) await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByTestId('review-cue')).toBeVisible();
+    await page.getByRole('button', { name: 'Reveal', exact: true }).click();
+    await expect(page.getByTestId('review-answer')).toBeVisible();
+    const revealed = await client.reviewSession(started.id);
+    if (!revealed.encounter) throw new Error('Native Review did not retain the revealed encounter');
+
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      const drafts = [
+        { screen: 'Knowledge', label: 'Search Knowledge', value: `Knowledge draft ${width}` },
+        { screen: 'Material', label: 'Search Material', value: `Material draft ${width}` },
+      ];
+      for (const draft of drafts) {
+        await page.getByRole('button', { name: draft.screen, exact: true }).click();
+        await page.getByRole('textbox', { name: draft.label, exact: true }).fill(draft.value);
+        await page.getByRole('button', { name: 'Home', exact: true }).click();
+      }
+      await page.getByTestId('home-open-review').click();
+      await page.getByRole('button', { name: `Open Review ${started.id}`, exact: true }).click();
+      await expect(page.getByTestId('review-answer')).toBeVisible();
+      expect((await client.reviewSession(started.id)).encounter).toEqual(revealed.encounter);
+      expect(await client.reviewSessions()).toHaveLength(1);
+      await page.screenshot({ path: info.outputPath(`review-management-restored-${width}.png`) });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      for (const draft of drafts) {
+        await page.getByRole('button', { name: draft.screen, exact: true }).click();
+        await expect(page.getByRole('textbox', { name: draft.label, exact: true })).toHaveValue(draft.value);
+        await page.getByRole('button', { name: 'Home', exact: true }).click();
+      }
+      await page.getByTestId('home-open-review').click();
+      await page.getByRole('button', { name: `Open Review ${started.id}`, exact: true }).click();
+      await expect(page.getByTestId('review-answer')).toBeVisible();
+    }
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+    await backend.crashRestart();
+    await page.reload();
+    await expect(page.getByText('Review paused', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect(page.getByTestId('review-answer')).toBeVisible();
+    const resumed = await client.reviewSession(started.id);
+    expect(resumed.encounter).toEqual(revealed.encounter);
+    expect(resumed.completed).toBe(0);
+    expect(backend.metadata().providerRequests).toBe(0);
+  } finally {
+    await backend.close();
+  }
+});
+
 test('Inspector evidence preserves actual claims, physical attempts and source context through paging and restart', async ({ page }, info) => {
   test.setTimeout(180_000);
   const backend = await startRuntimeBrowserQa({

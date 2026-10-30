@@ -47,6 +47,22 @@ swap4901371904 bytes. This proves browser-preview navigation, not Rust session
 persistence, native TextInput/IME or complete NAV-02/M10 acceptance. The wider
 M10 independent review remains required; M11 stays gated.
 
+The follow-up real English-package/SQLite regression passed in4.3s against
+product checkpoint `fd7db9c5`, with no further product edit. A real Inspector
+capture starts a finite scheduled Review; Home then visits Knowledge/Material
+with distinct unsubmitted searches at1080/390px. Reopening the existing session
+preserves its entire revealed encounter and exactly one session; both management
+drafts survive the Review roundtrip. Pause, native SIGKILL/restart, browser reload
+and Resume retain the same encounter with zero completed reviews and zero provider
+requests. Both restored captures were inspected: cue, answer, rating controls and
+Return remain contained. This is browser/Rust integration, not consuming-platform
+media or native TextInput proof. `review-management.log` and its result directory
+under the task root preserve execution/captures; test diagnostics and diff check
+passed. Admission held until three safe samples, without lowering the4GiB reserve;
+last launch sample footprint3310302672, available8739602432, pressure1,
+swap4282777600 bytes. Owned native QA processes and preview4173 were absent after
+the finite test closed. Full navigation/M10 gates remain open.
+
 October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
 to Material instead of Home; Reselect from Home replaced the retained management
 workspace and erased its unsubmitted search. Both failures were reproduced against
