@@ -180,6 +180,9 @@ Layout: compound filter editor - nested Boolean conditions in bounded shell
 controls -> wrapping rows with neutral group indentation; scroll owner:
 AppShell header (compact), results remain in app-shell-content. Do not port
 legacy token parsing/evaluation into React or use raw feature-local controls.
+The collapsed Filters action is an intrinsic-width, right-aligned disclosure
+with the shared chevron and expanded semantics, not a filled full-width action
+bar. Its expanded editor retains full available width in both collections.
 The pre-filter Material captures are the baseline; expanded desktop/narrow
 capture and actual native predicate/count checks are required before another
 visible change.

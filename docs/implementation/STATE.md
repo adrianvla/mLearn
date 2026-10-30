@@ -26,6 +26,35 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+October 30 shared collection disclosure: the full-width quiet action bar is
+replaced by an intrinsic, right-aligned shared Button with existing navigation
+material and chevron glyphs. CollectionFilters still owns expansion and the
+native-backed draft editor; neither screen duplicates the control. Existing
+expanded accessibility semantics, full-width nested editor, Apply/Clear and
+compact header scroll ownership remain intact. No shared Button palette or
+global shell geometry changed. Product diagnostics, normal typecheck,
+architecture lint, draft guard and single-worker export
+`72bfc36ad49db07c69a00055d36d8545` pass.
+
+Root inspected actual Material and unprepared Knowledge in both themes at
+1080/390px, collapsed/expanded, with separate narrow captures scrolled to Apply.
+Final evidence: `.mlearn/m10/collection-disclosure-settled.json` and its20
+PNG states; task-root `collection-disclosure-final.log`/results. The trigger
+measures95.25x34px in Chromium, stays contained and exposes expanded true/false;
+Apply is reachable in each narrow caller/theme. The first capture's immediate
+post-resize geometry was stale in two cases; the settled driver waits for paint
+before measurement and preserves the original manifest. No product timing
+workaround was added. Metadata records0 provider requests, no active catalog,
+and0 prepare_collection commands: Knowledge capture intentionally stops before
+catalog preparation and does not prove populated Knowledge or native layouts.
+All18 existing Material editor/collection/proposal scenarios then pass in19.0s,
+including real compound counts, paging, exclusion, restart and keyboard removal.
+Preview4173, capture browser/native host and test owners are absent after exit.
+The process-search command returns1 for no matches, not a test failure.
+Last guard sample: OmO footprint3109352912, available7944290304, pressure1,
+swap4819976192 bytes, unchanged4GiB reserve. Material header density, sidebar,
+compositor material and applicable native parity remain open below.
+
 October 30 Material populated-grid baseline and focused status-region repair:
 the real GUI authored Japanese 猫/犬/鳥 through existing native Material commands.
 The grid already used 280px minimum tracks,16px gaps and24px grid/card insets;

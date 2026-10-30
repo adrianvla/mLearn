@@ -204,8 +204,11 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
     </View>;
   }
   return <View style={styles.root}>
-    <Button label="Filters" variant="quiet" size="compact" accessibilityState={{ expanded }}
-      onPress={() => setExpanded(value => !value)} />
+    <View style={styles.trigger}>
+      <Button label="Filters" variant="navigation" size="compact"
+        icon={expanded ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded }}
+        onPress={() => setExpanded(value => !value)} />
+    </View>
     {expanded ? <>
       <Text variant="caption" muted>Also matches the current search and source/excluded controls. Source choices are recent saved sources.</Text>
       {loading ? <Text accessibilityLiveRegion="polite">Loading filter options…</Text> : null}
@@ -225,6 +228,7 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
 
 const styles = StyleSheet.create(theme => ({
   root: { gap: theme.spacing.small, minWidth: 0 },
+  trigger: { alignItems: 'flex-end' },
   group: { gap: theme.spacing.small, paddingLeft: theme.spacing.compact, borderLeftWidth: 1, borderColor: theme.colors.border },
   field: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 },
 }));
