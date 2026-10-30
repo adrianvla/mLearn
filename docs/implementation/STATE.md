@@ -75,6 +75,13 @@ No tool was installed: actual execution, owner tests and normal typecheck pass.
 Post-run preview4173 and QA owners were absent. Final guard sample:
 footprint3134174672, available7245856768, pressure1, swap4599644160 bytes,
 unchanged4GiB reserve. No device, reference app or CI campaign was restarted.
+Sole exact-source reviewer `st_01a18c62` APPROVEs checkpoint `b15784d7` with no
+scoped blocker; report `.omo/evidence/review-back-b15784d7-gate-review.md`.
+The review inspected source/historical logs and two captures, ran no workloads,
+and does not independently certify native gestures, persistence or M10.
+Its nonblocking test-deadline note is repaired with an explicit5000ms Node test
+timeout; both focused router tests pass afterward. Product source/export is
+unchanged by that test-only follow-up.
 
 October 30 shared collection disclosure: the full-width quiet action bar is
 replaced by an intrinsic, right-aligned shared Button with existing navigation

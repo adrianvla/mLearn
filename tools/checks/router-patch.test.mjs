@@ -15,7 +15,7 @@ test('the router history repair is pinned and idempotent at the web linking boun
   }
 });
 
-test('external Back updates memory history before a prevented removal goes forward again', async () => {
+test('external Back updates memory history before a prevented removal goes forward again', { timeout: 5_000 }, async () => {
   const require = createRequire(import.meta.url);
   const { createMemoryHistory } = require('expo-router/build/fork/createMemoryHistory.js');
   const previousWindow = globalThis.window;
