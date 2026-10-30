@@ -57,9 +57,13 @@ probe had an awk quoting error and supplied no teardown proof.
 
 ## Limits
 
-Desktop-native execution on this source remains open. Browser-core QA and
-native-smoke syntax do not certify it. Watch source LSP timed out; normal
-typecheck passed and the corrected test had clean LSP diagnostics.
+At review time, desktop-native execution remained open. It subsequently passed
+on pushed receipt source `8b74e7a69fe89a0b5f17742e6f13d67be5f1b975` in run
+41115838504, native job 124269718631. Readback verified the exact head SHA,
+successful real IPC/plugin-download/restart smoke and successful tracked-source
+integrity step. This closes that increment's desktop-native gate, not mobile,
+whole M10 or visual parity. Watch source LSP timed out at the original source
+checkpoint; normal typecheck passed and the corrected test had clean diagnostics.
 
 The reviewer ran no builds, tests, devices or network requests and did not
 independently observe process teardown. The actual host owner is

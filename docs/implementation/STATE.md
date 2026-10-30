@@ -202,8 +202,19 @@ checkpoint/restart scenarios. No assertion was weakened or resource estimate
 lowered. Final in-run footprint3385669072, RSS6924468224,
 available7497007104, pressure1 and swap4159438848 bytes held the reserve.
 The earlier exit70 remains recorded as an incomplete resource-stopped run.
-Independent review and source checkpoint for the unavailable Watch delta remain
-pending; desktop success above belongs to8b74e7a6, not this uncommitted delta.
+Unavailable Watch delta is committed as
+`8445113ea4f9601d56a2befc545a9d48bed2693b`. Independent reviewer
+`st_01a18e59` APPROVED the bounded delta with no blocker after inspecting exact
+source, before/after captures and red/green/interrupted/resumed logs. Report:
+`.omo/evidence/unavailable-watch-8445113e-gate-review.md`. The reviewer wrote
+that report into the main checkout despite the read-only/no-edits brief; no
+product source or locked-review-checkout change occurred. Root inspected the
+report and verified the review checkout clean, including untracked/ignored
+files, at the expected SHA. Root's successful post-run teardown probe found
+no owned browser/runtime/preview process or listener4173. The report's explicit
+evidence limits remain: dark/native/mobile rendering and independent
+reproduction of executor exit codes/teardown are not claimed. Desktop success
+above belongs to8b74e7a6, not8445113e. Push remains pending.
 Dark fallback remains unverified: browser-preview theme changes are unsaved
 module state and reset on a full route reload. No test-only theme override,
 new dev dependency or expanded visual acceptance claim was introduced.
