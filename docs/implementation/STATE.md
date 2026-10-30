@@ -138,8 +138,15 @@ swap4805165056 bytes. Both adjacent Home/Back cases pass
 no cancellation escape during pending/failed saves, paused departure, Material
 draft retention and restart, plus existing video-replacement coverage. Root
 inspected both narrow checkpoint-failure captures: the recovery control remains
-visible without Cancel source update. Desktop-native execution and independent
-review of this increment remain open. No milestone or visual-parity acceptance
+visible without Cancel source update. Committed as
+`6d1de700e307cfa28f65c17a2d2c1baa0cebb3f8`. Independent reviewer
+`st_01a18e47` APPROVED the bounded increment with no blocker; its ownership,
+test-quality findings and limits are recorded in
+`.omo/evidence/watch-update-6d1de700-gate-review.md`. Root's corrected teardown
+probe found no owned QA runtime/preview process or listener4173; the first
+probe had an awk quoting error and supplied no proof. The reviewer resolved the
+brief's incorrect host path to `apps/client/src/host/createHost.web.ts`.
+Desktop-native execution remains open. No milestone or visual-parity acceptance
 is claimed from these scoped renders and three browser-core scenarios.
 
 The latest mobile41101761469 result on03ab9e45 is Android job124220069561
