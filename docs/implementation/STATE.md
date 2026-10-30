@@ -26,6 +26,41 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+October 30 Watch Back checkpoint repair: extending the existing decoded-video/
+real-Rust transcript case to browser Back reproduced Home becoming visible
+without any save_position attempt (`watch-back-red.log`, actual Home capture).
+The original Home scenario and its timing/rate/offset/restart assertions remain.
+Back now enters Watch from retained Home via normal Material/Home/Continue UI
+and verifies that the unsubmitted Material query survives departure.
+
+Watch now guards removal through its existing pauseAndSave operation. It
+serializes departures, rejects overlapping busy work, checks focus/source
+ownership before replaying the blocked action and cancels the source session
+only after the checkpoint succeeds. Failed persistence retains the same player
+and explicit Retry instead of cancelling/reloading away its unsaved position.
+Home and Reselect share this guard. No player, native persistence or history
+authority changed. The first five-case pass exposed a duplicate generic source
+error in captures; checkpoint failures now remain solely with saveError, while
+post-checkpoint cancellation failures retain generic source recovery. The
+existing browser case asserts that checkpoint failure does not offer Retry source.
+
+Final export `806381c0831c415fe0e32d3946a4bfa9` passes typecheck, architecture
+lint and all 114 affected browser scenarios in one serial run
+(`/tmp/mlearn-ci-independent.6EaZ3F/watch-back-final.log` and
+`watch-back-final-results/`). Root inspected final Back failed/held 390px
+captures and the 1100px restored transcript state. Original Home, failed receipt,
+exact Retry, actual decoded playback pausing while a checkpoint is held,
+post-departure Space suppression, native crash/restart position/rate/offset,
+saved-Material returns and proposal source return pass. This is shared browser
+media plus real Rust persistence, not native OS player/gesture certification.
+Latest source/test LSP requests timed out after the final error-channel edit;
+earlier clean diagnostics are not reused as final evidence. Exact-source
+independent review is pending; broader NAV-02/M10/native/maintainer gates stay open.
+Final guard footprint3212391888, RSS6569213952, available7592034304,
+pressure1, swap4404805632 bytes; original 4 GiB reserve held.
+Owned QA processes are absent. Disk has1526572 KiB available after this run;
+admit no further substantial local work until capacity is restored.
+
 October 30 Reader Back checkpoint repair: the real-Rust browser harness reproduced
 Back reaching Home after a failed appearance checkpoint, losing the visible Retry
 owner. Reader now routes removal through its existing `persist()` operation,

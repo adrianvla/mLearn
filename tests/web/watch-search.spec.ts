@@ -44,7 +44,7 @@ async function watchSeek(page: Page) {
   });
 }
 
-test('literal transcript search preserves playback across restart and checkpoint-safe Home departure', async ({ page, nativeCore }, info) => {
+for (const departure of ['Home', 'Back'] as const) test(`literal transcript search preserves playback across restart and checkpoint-safe ${departure} departure`, async ({ page, nativeCore }, info) => {
   test.setTimeout(120_000);
   // Only desktop shell event registration and media byte delivery are adapted.
   // Package execution, subtitle timing, source identity and persistence are real.
@@ -82,7 +82,14 @@ test('literal transcript search preserves playback across restart and checkpoint
   expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
     positionMs: 3000, subtitleOffsetMs: 2000, playbackRate: 1.5,
   });
-  await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
+  const draft = 'Unsubmitted Material search before Watch Back';
+  if (departure === 'Back') {
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: `Continue ${opened.window.source.title}`, exact: true }).click();
+  } else await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
   await page.locator('video').evaluate(video => {
     if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
     if (video.readyState >= 2 && !video.seeking) return;
@@ -168,15 +175,16 @@ test('literal transcript search preserves playback across restart and checkpoint
   });
   try {
     await page.setViewportSize({ width: 390, height: 900 });
-    const failed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
+    const failed = page.waitForEvent('requestfailed', { predicate: isCheckpoint, timeout: 5000 });
     const home = page.getByRole('button', { name: 'Home', exact: true });
-    await home.click();
-    await failed;
+    const leave = () => departure === 'Back' ? page.goBack() : home.click();
+    await Promise.all([failed, leave()]);
     const retry = page.getByRole('button', { name: 'Retry saving position', exact: true });
     await expect(retry).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Retry source', exact: true })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/watch');
     await expect(page.locator('video')).toBeVisible();
-    await page.screenshot({ path: info.outputPath('watch-home-checkpoint-failed-390.png') });
+    await page.screenshot({ path: info.outputPath(`watch-${departure.toLowerCase()}-checkpoint-failed-390.png`) });
 
     checkpointMode = 'pass';
     const recovered = page.waitForResponse(response => isCheckpoint(response.request()));
@@ -200,7 +208,7 @@ test('literal transcript search preserves playback across restart and checkpoint
     // but playback must stop immediately while that receipt is held.
     checkpointMode = 'hold';
     const admitted = page.waitForRequest(isCheckpoint);
-    await home.click();
+    await leave();
     await admitted;
     const stopped = await playback();
     expect(stopped.paused).toBe(true);
@@ -208,7 +216,7 @@ test('literal transcript search preserves playback across restart and checkpoint
     await expect(page.getByRole('button', { name: 'Cancel opening', exact: true })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/watch');
     await expect(page.getByRole('heading', { name: 'Home', exact: true })).toHaveCount(0);
-    await page.screenshot({ path: info.outputPath('watch-home-checkpoint-pending-390.png') });
+    await page.screenshot({ path: info.outputPath(`watch-${departure.toLowerCase()}-checkpoint-pending-390.png`) });
     const saved = page.waitForResponse(response => isCheckpoint(response.request()));
     releaseCheckpoint();
     await (await saved).finished();
@@ -216,6 +224,11 @@ test('literal transcript search preserves playback across restart and checkpoint
     expect((await playback()).paused).toBe(true);
     await page.locator('body').press('Space');
     expect((await playback()).paused).toBe(true);
+    if (departure === 'Back') {
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(draft);
+      await page.screenshot({ path: info.outputPath('material-after-watch-back-390.png') });
+    }
     await nativeCore.crashRestart();
     expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
       positionMs: stopped.positionMs, subtitleOffsetMs: 2000, playbackRate: 1.5,

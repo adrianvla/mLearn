@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useIsFocused, usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
@@ -33,6 +34,8 @@ export function WatchScreen() {
 function WatchWorkspace() {
     const host = useRuntime();
     const router = useRouter();
+    const navigation = useNavigation();
+    const routeFocused = useIsFocused();
     const params = useLocalSearchParams<{
         id: string;
         materialId?: string;
@@ -101,6 +104,7 @@ function WatchWorkspace() {
     const consumedReturn = useRef('');
     const activeSource = useRef(id);
     const focused = useRef<object | null>(null);
+    const departure = useRef<object | null>(null);
     activeSource.current = id;
     useEffect(() => {
         const node = returnedCue.current;
@@ -219,6 +223,7 @@ function WatchWorkspace() {
         });
         return () => {
             active = false;
+            departure.current = null;
             setLiveWordsOpen(false);
             if (focused.current === owner) focused.current = null;
             const owned = session.current;
@@ -395,21 +400,38 @@ function WatchWorkspace() {
         setTranscriptOpen(false);
         return previous.positionMs;
     }
-    async function back() {
+    async function depart(complete: () => void) {
+        if (busy || departure.current) return;
+        const request = {}; departure.current = request;
+        const owner = focused.current;
+        const current = session.current;
+        const ownsDeparture = () => mounted.current && focused.current === owner
+            && activeSource.current === id && departure.current === request;
+        let checkpointSaved = false;
         setBusy(true);
         try {
-            await session.current?.cancel();
             await pauseAndSave();
-            router.dismissTo('/');
+            checkpointSaved = true;
+            if (!ownsDeparture()) return;
+            await current?.cancel();
+            if (ownsDeparture()) complete();
         }
         catch (e) {
-            setSourceReload(v => v + 1);
-            throw e;
+            if (checkpointSaved && ownsDeparture()) {
+                setError(e instanceof Error ? e.message : String(e));
+                if (current && !current.isCurrent()) setSourceReload(v => v + 1);
+            }
         }
         finally {
-            setBusy(false);
+            if (departure.current === request) {
+                if (ownsDeparture()) setBusy(false);
+                departure.current = null;
+            }
         }
     }
+    usePreventRemove(host.available && routeFocused, ({ data }) => {
+        void depart(() => navigation.dispatch(data.action));
+    });
     async function attach(droppedPath?: string) {
         if (!host.available)
             return;
@@ -683,7 +705,7 @@ function WatchWorkspace() {
                 paddingLeft: host.available ? Math.max(16, host.windowControlsWidth ?? 0) : 16 }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
                 <Row>
                     <Button label="Home" icon="arrowLeft" size="compact" variant="media"
-                        disabled={busy} onPress={() => void back().catch(() => {})} />
+                        disabled={busy} onPress={() => router.dismissTo('/')} />
                     <View style={styles.title}><Text testID="watch-source-title" numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
                     </Text></View>
@@ -706,7 +728,7 @@ function WatchWorkspace() {
                     <Row>
                         <Button label="Retry source" variant="secondary" onPress={() => { setError(''); setSourceReload(v => v + 1); }} />
                         <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
-                        <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => void back().catch(() => {})} />
+                        <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => router.dismissTo('/')} />
                     </Row>
                 </> : null}
                 {saveError ? <>
