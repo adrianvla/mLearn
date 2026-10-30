@@ -102,13 +102,21 @@ earlier failures and scope limits; see the repair section in
 `.omo/evidence/material-modal-65c068ef-gate-review.md`. Push-triggered
 repair runs are desktop 41141663093, mobile 41141663087 and foundation
 41141663145; fixed-ID observers validate their source SHA. Desktop completed
-SUCCESS on `17103953`, native job 124357150133. Foundation/mobile remain pending.
+SUCCESS on `17103953`, native job 124357150133. Foundation 41141663145 also
+completed SUCCESS on exact `17103953`: web 124357150213, OCR 124357150539,
+Rust 124357150549, Windows 124359239810 and macOS 124359239829 all pass.
+This verifies that source, not the later bookmark extension or historical
+platform/visual acceptance gaps. The mobile observer remains active.
 No workflow was manually launched. Next: continue the remaining Material
 selection/navigation scope.
 M10/M11/native/frozen-selection-window acceptance remains open.
-The retained-entry test checkpoint `d5d9cf2b` is pushed with matching upstream;
-its automatic mobile 41142645801 and foundation 41142645874 runs have fixed-ID
-observers. The next connected increment keeps cross-page modal navigation in
+The retained-entry test checkpoint `d5d9cf2b` is pushed with matching upstream.
+Its automatic mobile 41142645801 and foundation 41142645874 runs both ended
+CANCELLED with no jobs in the source-validated metadata. This is neither a test
+failure nor a native pass; root did not cancel or rerun either workflow.
+Their summaries are preserved as `retained-entry-d5d9cf2b-*-summary.log`.
+The later `9a85a881` source includes the same iOS entry correction.
+The next connected increment keeps cross-page modal navigation in
 the existing native collection owner: an opaque preceding-window bookmark,
 not renderer parsing or accumulated page caches. Its uncommitted test-first
 contract extends the existing tied-sort and Material-refresh regressions.
@@ -128,6 +136,33 @@ ts-rs `serde(transparent)` warnings also occur in the preceding Material log;
 they are not suppressed. The original 4 GiB memory reserve held throughout
 this run, with root footprint about 3.55 GB and pressure 1.
 No modal boundary integration or native-platform pass is claimed yet.
+The native bookmark checkpoint is committed and pushed as
+`9a85a881c007253c24eeb6de62e13694a19fab6b`, with matching local/upstream readback.
+The same independent reviewer returns REQUESTS_CHANGES on this bounded
+increment, source/artifact-only and without workloads. Its sole P2 is missing
+consequential reverse wire-budget coverage, not a demonstrated ordering defect.
+Report: `.omo/evidence/collection-previous-9a85a881-gate-review.md`. Root added one
+storage-owner case using admitted escaped Material content. It requires actual
+byte truncation before 24 items, full-page size bounds, complete unique reverse
+membership, termination and accepted boundaries when switching direction.
+Its first run passes in `collection-reverse-budget-baseline.log` (0.21 s).
+A temporary wrong-end removal genuinely fails the next-boundary identity
+assertion (`collection-reverse-budget-wrong-end.log`), then was restored.
+A separate rejected-bookmark mutation also fails the accepted boundary
+assertion (`collection-reverse-budget-rejected-bookmark.log`, 0.22 s).
+Both mutations are restored and the production file has no diff against
+`9a85a881`. Diagnostics, formatting and diff checks pass. The restored complete
+owner suite passes all 24 tests in 0.73 s
+(`collection-reverse-budget-final.log`, exit 0), retaining the original 4 GiB
+memory reserve, pressure 1 and about 3.58 GB root footprint. Disk admission was
+2550028 KiB. Independent re-review remains open. Neither temporary mutation
+will be committed.
+Automatic
+CI runs are mobile 41143968640, foundation 41143968649 and desktop 41143968786;
+fixed-ID observers validate their source. Desktop completed SUCCESS on exact
+`9a85a881`, native job 124364583410, including real IPC/plugin download/restart
+and tracked-source integrity. Foundation/mobile remain pending. No workflow
+was rerun manually.
 
 The next disk read is 1463304 KiB available, below the unchanged 2097152 KiB
 admission threshold. Further builds/exports/rendering are paused. No device,
@@ -137,6 +172,9 @@ server or model is running from these tests. Read-only size inventory finds
 evidence root. Nothing was deleted. Root asked permission to remove only the
 rebuildable incremental cache, preserving binaries/dependencies/profiles and
 evidence; no answer is assumed. Source checkpoint/review may continue.
+A later admission read reports 2701940 KiB free, above the original threshold,
+without any agent deletion or assumed approval. The small focused storage test
+resumes under the same disk/memory guards; devices and rendering remain unlaunched.
 
 Detailed chronological continuation receipts follow.
 October 30 Messenger Back candidate: the new real-Rust recovery case reproduced

@@ -1495,6 +1495,100 @@ fn tied_sort_pages_are_bounded_and_reject_changed_membership() {
 }
 
 #[test]
+fn reverse_material_pages_budget_escaped_content_without_skipping_boundary_items() {
+    // Given admitted escaped content whose byte budget, not item count, limits pages.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 13);
+    for index in 0..13 {
+        save(&mut store, index);
+    }
+    let mut browse = query(
+        CollectionSurface::Material,
+        CollectionFilter::All { filters: vec![] },
+    );
+    browse.sort = CollectionSort::LabelAscending;
+    let identity = |item: &CollectionItem| match item {
+        CollectionItem::Material { material, .. } => material.id.0.clone(),
+        other => panic!("Expected authored Material: {other:?}"),
+    };
+    let original = ready(&store, &browse);
+    let expected = original.items.iter().map(identity).collect::<Vec<_>>();
+    for item in original.items {
+        let CollectionItem::Material { material, .. } = item else {
+            panic!("Expected authored Material");
+        };
+        let mut content = material.content;
+        content.notes = "\u{0001}".repeat(8000);
+        store
+            .update_material(&MaterialEdit {
+                command_id: format!("expand-{}", material.id.0),
+                id: material.id,
+                expected_revision: material.revision,
+                content,
+                excluded: false,
+                media_imports: vec![],
+            })
+            .unwrap();
+    }
+    let mut items = Vec::new();
+    let mut last = None;
+    for _ in 0..13 {
+        let page = ready(&store, &browse);
+        assert!(!page.items.is_empty());
+        assert!(serde_json::to_vec(&page).unwrap().len() <= 262144);
+        items.extend(page.items.clone());
+        browse.after = page.next.clone();
+        last = Some(page);
+        if browse.after.is_none() {
+            break;
+        }
+    }
+    assert!(browse.after.is_none());
+    assert_eq!(items.iter().map(identity).collect::<Vec<_>>(), expected);
+
+    // When reverse traversal crosses byte-truncated windows and changes direction.
+    let mut page = last.unwrap();
+    let mut reversed = page.items.iter().rev().map(identity).collect::<Vec<_>>();
+    let mut rejected = 0;
+    for _ in 0..13 {
+        let Some(previous) = page.previous.clone() else {
+            break;
+        };
+        let next_identity = identity(&page.items[0]);
+        browse.after = Some(previous);
+        page = ready(&store, &browse);
+        assert!(!page.items.is_empty());
+        assert!(page.items.len() < 24);
+        assert!(serde_json::to_vec(&page).unwrap().len() <= 262144);
+        let first = items
+            .iter()
+            .position(|item| identity(item) == identity(&page.items[0]))
+            .unwrap();
+        if first > 0 {
+            let mut oversized = page.clone();
+            oversized.items.insert(0, items[first - 1].clone());
+            assert!(serde_json::to_vec(&oversized).unwrap().len() > 262144);
+            rejected += 1;
+        }
+        let mut forward = browse.clone();
+        forward.after = page.next.clone();
+        assert!(forward.after.is_some());
+        assert_eq!(identity(&ready(&store, &forward).items[0]), next_identity);
+        reversed.extend(page.items.iter().rev().map(identity));
+    }
+
+    // Then a real rejected candidate cannot skip, duplicate or replace a boundary.
+    assert!(rejected > 0);
+    assert!(page.previous.is_none());
+    assert_eq!(
+        reversed.len(),
+        reversed.iter().collect::<BTreeSet<_>>().len()
+    );
+    assert_eq!(reversed, expected.into_iter().rev().collect::<Vec<_>>());
+}
+
+#[test]
 fn material_bookmark_refresh_preserves_the_window_without_weakening_continuation() {
     let directory = tempfile::tempdir().unwrap();
     let mut store = ProfileStore::open(&directory.path().join("profile.sqlite")).unwrap();
