@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlatList, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useIsFocused, usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import type { Contact, Conversation, ConversationMessage } from '@mlearn/contracts';
@@ -52,6 +53,8 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
   const messenger = useMessenger(client, initialId, focusSequence);
   const actions = { ...messenger, client };
   const router = useRouter();
+  const navigation = useNavigation();
+  const focused = useIsFocused();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
@@ -77,6 +80,13 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
   const chat = messenger.conversation;
   useEffect(() => { setShownAnalysis(new Set()); }, [chat?.id]);
   const selected = useRef(messenger.id); selected.current = messenger.id;
+  usePreventRemove(focused, ({ data }) => {
+    const id = selected.current;
+    void messenger.act({ origin: chat ? 'composer' : 'rail', run: async () => {
+      await messenger.persistDraft();
+      if (navigation.isFocused() && selected.current === id) navigation.dispatch(data.action);
+    } });
+  });
   const visibleChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<ConversationMessage>[] }) => {
     const ids = viewableItems.filter(item => item.isViewable).map(item => item.item.id);
     visibleIds.current = ids; messenger.setVisibleMessages(ids);
@@ -163,7 +173,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     {wide || rail ? <View style={styles.rail(wide, windowControlsWidth)}>
       <View style={styles.railHeader}><Row>
         <Button label="Home" icon="arrowLeft" iconOnly variant="quiet" size="compact" disabled={messenger.busy}
-          onPress={() => void messenger.act({ origin: 'rail', run: async () => { await messenger.persistDraft(); router.dismissTo('/'); } })} />
+          onPress={() => router.dismissTo('/')} />
         <View style={styles.grow}><Text variant="heading">{tab === 'chats' ? 'Chats' : 'People'}</Text></View>
         {tab === 'chats' ? <ConversationEditor key={`new:${messenger.id}`} actions={actions} conversation={null}
           people={messenger.contacts} languages={messenger.languages} onSaved={openCreated}

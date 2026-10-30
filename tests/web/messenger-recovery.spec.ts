@@ -3,6 +3,72 @@ import { expect } from '@playwright/test';
 import { EventEmitter, once } from 'node:events';
 import { test, openNativeConversation } from './messenger-native-fixture';
 
+test('Back retains an uncertain Messenger draft save and its exact retry before departure', async ({ page, nativeCore }, info) => {
+  test.setTimeout(60_000);
+  await openNativeConversation(page, nativeCore);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.getByRole('button', { name: 'Material', exact: true }).click();
+  const materialDraft = 'Unsubmitted Material query before Messenger Back';
+  await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(materialDraft);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Coach', exact: true }).click();
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  const draft = 'Keep this unsent message through browser Back.';
+  await composer.fill(draft);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
+  const events = new EventEmitter();
+  const attempts: unknown[] = [];
+  await page.route(`${nativeCore.url}/invoke`, async route => {
+    const payload = route.request().postDataJSON();
+    const command = typeof payload.args?.request === 'string' ? JSON.parse(payload.args.request).command : null;
+    if (command?.action !== 'save_draft' || command.draft.text !== draft) {
+      await route.continue(); return;
+    }
+    attempts.push(command);
+    if (attempts.length !== 1) { await route.continue(); return; }
+    const response = await route.fetch();
+    expect(JSON.parse((await response.json()).value)).toMatchObject({
+      type: 'conversation', result: { kind: 'draft' },
+    });
+    const released = once(events, 'released', { signal: AbortSignal.timeout(15000) });
+    events.emit('held');
+    await released;
+    await route.abort('failed');
+  });
+  try {
+    const held = once(events, 'held', { signal: AbortSignal.timeout(5000) });
+    await Promise.all([held, page.goBack()]);
+    await expect(page).toHaveURL(/\/messenger/);
+    await expect(composer).toHaveValue(draft);
+    await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+    await page.screenshot({ path: info.outputPath('messenger-back-save-pending-390.png') });
+    events.emit('released');
+    const retry = page.getByRole('button', { name: 'Retry action', exact: true });
+    await expect(retry).toBeVisible();
+    await expect(page).toHaveURL(/\/messenger/);
+    await expect(composer).toHaveValue(draft);
+    await page.screenshot({ path: info.outputPath('messenger-back-save-failed-390.png') });
+    await retry.click();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toEqual(attempts[0]);
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
+    await nativeCore.crashRestart();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+    await page.getByRole('button', { name: 'Coach', exact: true }).click();
+    await expect(composer).toHaveValue(draft);
+    expect(nativeCore.metadata().providerRequests).toBe(0);
+    await page.screenshot({ path: info.outputPath('messenger-back-draft-restored-390.png') });
+  } finally {
+    events.emit('released');
+    await page.unroute(`${nativeCore.url}/invoke`);
+  }
+});
+
 test('a rejected oversized draft can be corrected without replaying the rejected intent', async ({ page, nativeCore }) => {
   test.setTimeout(60_000);
   await openNativeConversation(page, nativeCore);

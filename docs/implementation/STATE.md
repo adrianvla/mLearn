@@ -26,6 +26,33 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+October 30 Messenger Back candidate: the new real-Rust recovery case reproduced
+Back reaching Home without issuing save_draft, removing the unsent draft/retry
+owner (`messenger-back-red.log`, actual Home capture inspected). Removal now
+uses existing messenger.act/persistDraft and its exact-command recovery. Active
+conversation failures appear beside the composer, including narrow layout.
+Replay checks current conversation identity and route focus. Home uses this
+same guard; no draft, persistence or history authority was added.
+
+Export `824a878a1952b3ded4107770eb373977` passes typecheck, architecture lint
+and the focused case (`messenger-back-green.log`, 3.6s). It holds a real committed
+draft receipt, retains Messenger/URL/text while pending, loses that receipt,
+retains explicit Retry, retries the identical command, then returns Home,
+preserves the Material query and restores the unsent draft after native process
+crash/restart, with zero provider calls. Root inspected pending/failed/restored
+390px captures. Source LSP is clean; test LSP timed out.
+Adjacent Messenger regressions, desktop-state inspection, independent review
+and push remain pending; this is not NAV-02/M10 or OS-native acceptance.
+
+The launch incorrectly continued despite1153644KiB disk because the environment
+prefix broke the intended shell AND chain. This is a root orchestration error,
+not a waived disk gate. Grouping the prefix and gate in one child shell was
+verified without a workload:1089548KiB emitted DISK_ADMISSION_HELD and exited75.
+Use that grouped form for future work; memory reserve stayed4GiB in the run.
+Owned QA processes are absent. Preserve this candidate/evidence while adjacent
+execution waits for capacity; do not delete profiles or infer approval from
+the passing single case.
+
 October 30 Watch Back checkpoint repair: extending the existing decoded-video/
 real-Rust transcript case to browser Back reproduced Home becoming visible
 without any save_position attempt (`watch-back-red.log`, actual Home capture).
