@@ -75,7 +75,14 @@ all five affected Watch cases (`watch-drop-green.log`, 30.6s); source/test have
 fresh clean LSP diagnostics. Root inspected the replacement player and failed/
 held recovery PNGs in `watch-drop-green-results/`. The earlier 114-case run stays
 bound to the earlier source; it was not rerun for this local handoff delta.
-Review of the new exact source is pending, not inferred from the earlier request.
+The same reviewer `st_01a18c9c` APPROVEs exact clean
+`b9f7392ec147461ae7d057bb2e34cceb1e9ffae0`, with no blocker. The reviewer
+confirmed post-busy, single-consumption, source/focus-owned replacement without
+guard bypass or old-source reload, and inspected the five-case log/replacement
+capture. No execution/writes; fresh LSP is supplied evidence, not independently
+inspected. The original conditional concern was not reproduced on web.
+Final resolution is appended to the original review report; native OS and
+broader NAV-02/M10/M11/maintainer gates remain open.
 Latest footprint3256989136, RSS6201737216, available7191298048,
 pressure1, swap4165074944 bytes; original 4 GiB reserve held.
 Final guard footprint3212391888, RSS6569213952, available7592034304,
