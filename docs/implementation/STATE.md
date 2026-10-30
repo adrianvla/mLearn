@@ -155,14 +155,22 @@ Both mutations are restored and the production file has no diff against
 owner suite passes all 24 tests in 0.73 s
 (`collection-reverse-budget-final.log`, exit 0), retaining the original 4 GiB
 memory reserve, pressure 1 and about 3.58 GB root footprint. Disk admission was
-2550028 KiB. Independent re-review remains open. Neither temporary mutation
-will be committed.
+2550028 KiB. The regression repair is committed and pushed as
+`208c62264d1976d1ed0f8fe8d7e1e16c0090382b`, with matching upstream. The same
+independent reviewer APPROVES this bounded repair: the sole P2 is resolved
+and no delta blocker remains. Its source/artifact-only verdict is recorded in
+the repair section of the existing review report. Neither temporary mutation
+shipped; broader modal/native/M10 gates remain open.
 Automatic
 CI runs are mobile 41143968640, foundation 41143968649 and desktop 41143968786;
 fixed-ID observers validate their source. Desktop completed SUCCESS on exact
 `9a85a881`, native job 124364583410, including real IPC/plugin download/restart
-and tracked-source integrity. Foundation/mobile remain pending. No workflow
-was rerun manually.
+and tracked-source integrity. Mobile 41143968640 ended CANCELLED with no jobs;
+that source has no mobile pass and root did not cancel/rerun it. Foundation
+remains pending. Repair-source desktop 41145140717 completed SUCCESS on exact
+`208c6226`, native job 124368371881, including real IPC/plugin download/restart
+and tracked-source integrity. Mobile 41145140565 and foundation 41145140460
+observers remain active. No workflow was rerun manually.
 
 The next disk read is 1463304 KiB available, below the unchanged 2097152 KiB
 admission threshold. Further builds/exports/rendering are paused. No device,
@@ -175,6 +183,19 @@ evidence; no answer is assumed. Source checkpoint/review may continue.
 A later admission read reports 2701940 KiB free, above the original threshold,
 without any agent deletion or assumed approval. The small focused storage test
 resumes under the same disk/memory guards; devices and rendering remain unlaunched.
+
+The modal boundary regression now extends the existing real-Rust collection
+scenario through last-item Next, dirty Cancel/Save, durable notes, reverse page
+crossing, desktop/narrow captures and exact origin restoration. Its source
+diagnostics and diff check pass; the new behavior is not yet run or implemented.
+The existing 64164576-byte QA executable predates the native bookmark contract.
+A one-shot, nonpersistent `material-boundary-red.log` run is queued to rebuild
+it serially, export through the normal single-worker command and execute that
+scenario before any UI implementation. Its 4194304 KiB disk entrance reserves
+the original 2 GiB floor plus 2 GiB for rebuild/export outputs; it also retains
+the original memory reserve/admission. The last read was 2552028 KiB free.
+Nothing was deleted and no cleanup approval is assumed. No simulator,
+emulator or persistent test server is restarted by this queued run.
 
 Detailed chronological continuation receipts follow.
 October 30 Messenger Back candidate: the new real-Rust recovery case reproduced

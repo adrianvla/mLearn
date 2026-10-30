@@ -60,3 +60,22 @@ pass. The complete restored owner suite passes all 24 tests in 0.73 s
 regression and all existing ordering/epoch/refresh/selection cases. The
 original 4 GiB memory reserve held; footprint was about 3.58 GB, pressure 1,
 with 2550028 KiB free at disk admission. Independent re-review remains pending.
+
+## Repair re-review: APPROVE on `208c6226`
+
+The same reviewer rechecked exact
+`208c62264d1976d1ed0f8fe8d7e1e16c0090382b` in the clean locked checkout and
+returned **APPROVE for this bounded repair**. Its sole P2 is resolved, with
+no remaining blocker. Effective model remained `gpt-6.1-sol`.
+
+It inspected the new test at `crates/storage/tests/collection.rs:1498-1590`,
+baseline and both mutation-failure logs, and the restored 24-test pass. It
+confirmed the production file is unchanged from `9a85a881`, `git diff --check`
+passes, and the test uses real storage/identities without mocks or timing
+dependence. Earlier ordering/epoch protection remains intact.
+
+This is source/artifact review, not reviewer execution or independent querying
+of hosted CI. The original `9a85a881` rejection remains above. Modal integration,
+full-selection navigation, native-mobile and earlier platform/visual/resource
+gaps remain open. No M10 completion, M11 authorization or maintainer acceptance
+is granted.
