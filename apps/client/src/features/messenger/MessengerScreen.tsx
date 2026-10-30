@@ -190,7 +190,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
           options={[{ value: 'all', label: 'All conversations' }, { value: 'direct', label: 'Direct conversations' }, { value: 'thread', label: 'Temporary Threads' }]} />
           : <Select label="People filter" value={messenger.archived ? 'archived' : 'active'} onValueChange={value => messenger.setArchived(value === 'archived')}
             options={[{ value: 'active', label: 'Active People' }, { value: 'archived', label: 'Archived People' }]} />}
-        <ActionFeedback actions={actions} origin="rail" />
+        <ActionFeedback actions={actions} origin={!wide && messenger.origin === 'composer' ? 'composer' : 'rail'} />
         {messenger.error && messenger.origin === 'rail' ? <Button label="Retry loading lists" variant="quiet" size="compact"
           onPress={messenger.refreshLists} /> : null}
       </View>

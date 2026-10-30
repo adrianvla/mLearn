@@ -48,8 +48,33 @@ and exact message-proposal Return (`messenger-back-adjacent.log`,12.8s).
 Root inspected final desktop pending/failure and narrow restored-draft captures.
 Source and final test have fresh clean LSP diagnostics. Product source is
 `2d305a50a553ca98bb770cd208039efb2e6cc705`; only width parameterization and this
-evidence follow it. Independent review and push remain pending; broader
-regressions/native/milestone gates are not claimed from these five cases.
+evidence follow it. Reviewer `st_01a18cce` REQUESTS_CHANGES on exact
+`c46b2c0bfd085ce2286192e279314b089e437885`: selected-chat Home at390px can
+route recovery to an unmounted composer after Chats and People exposes the rail.
+Report: `.omo/evidence/messenger-back-c46b2c0b-gate-review.md`.
+The first narrow Home launch correctly held at disk admission with exit75.
+After the maintainer's cleanup/resumption, the initial setup reached Home
+because opening the rail had already saved on blur; its missing held signal
+was a setup failure, not defect evidence. The corrected case intercepts before
+opening Chats and People, holds the committed blur-save receipt, then presses
+Home to join that same pending persistDraft. Losing the receipt genuinely
+reproduces the missing Retry on the mounted390px rail
+(`messenger-home-rail-red-joined-blur.log`, failed-state capture inspected).
+The existing rail ActionFeedback now presents composer-origin recovery only
+when the main pane is hidden, without another save/retry owner or callback
+origin race. Fresh source/test LSP diagnostics, normal typecheck and ownership
+lint pass. Fresh export `41c71e3593cefd62b8e2766aab962f9d` passes both complete
+Messenger recovery/source suites:38 scenarios in1.2m, single worker, real
+Rust/package/SQLite. Log: `messenger-visible-green.log`. Root inspected Home390
+pending/failure/restored captures and Back failure at390/1080: recovery is
+visible, with no duplicate, overlap or new owner. Failed-state Retry replays the
+identical prepared command; Home, retained Material query and post-native-crash
+draft restoration all pass with zero provider calls in these departure cases.
+Owned runtimes/preview port4173 are released, profiles/evidence preserved.
+The green log is8958 bytes. Final disk12521148KiB, OmO footprint7089206736,
+RSS5992677376, available6624133120, pressure1, swap4711251968 bytes; the original
+4GiB reserve held. Independent follow-up and push remain pending; broader
+regressions/native/milestone gates are not claimed from the earlier five cases.
 
 The launch incorrectly continued despite1153644KiB disk because the environment
 prefix broke the intended shell AND chain. This is a root orchestration error,
@@ -61,6 +86,41 @@ execution uses the corrected admission. Final grouped run started at2140040KiB;
 its last footprint3302143440, RSS6771261440, available7703674880,
 pressure1, swap3693019136 bytes held the original4GiB memory reserve.
 Disk now1926348KiB. Do not delete profiles or infer milestone approval.
+
+Hosted readback for pushed `0fa440d5`: foundation41052196706 passed; real desktop
+41052196585/job124050745288 failed in native IPC/download/restart smoke.
+The actual error is "Visible enabled control unavailable" for Cancel opening,
+at `tests/desktop/native-smoke.mjs:432`, not the earlier GTK portal warnings.
+That case holds a committed subtitle-offset preference receipt, closes options,
+then expects Cancel opening. Earlier change08751247 deliberately restricts that
+control to actual file opening; current `changeSource` does not set opening.
+The pending-preference cancellation contract and its original assertions still
+need repair/verification, not deletion or relabeling as passed. Exact log:
+`/tmp/mlearn-ci-independent.6EaZ3F/desktop-0fa440d5-failed.log`.
+Mobile41052196617 has completed on the same0fa440d5 source. Android job124066868640
+passed compilation, actual UI/Rust persistence and tracked-source integrity.
+iOS job124066868984 compiled/typechecked and retained the simulator app, but its
+UI flow failed: "Assertion is false: id: m01-watch, mp4 is not visible".
+Exact log: `/tmp/mlearn-ci-independent.6EaZ3F/mobile-0fa440d5-ios-failed.log:422`.
+This records the failure, not a new causal diagnosis or native acceptance.
+No workflow rerun, new iOS diagnostic campaign, device or local native build
+was launched. Remote compiled artifacts12982025409 (`ios-simulator-app`) and
+12979150051 (`android-compiled-app`) expire November6,2026; evidence artifacts
+12982616353/12978906897 expire January28,2027. They were not downloaded.
+
+Fresh resource observation after that event: disk853796KiB; OmO physical
+footprint6585464272, RSS5967380480, available7172177920, pressure1,
+swap4969398272 bytes. No new local test/native workload was launched.
+The eval VM is in the same OmO process82251, but reports only61807848 bytes
+of JS heap; this does not explain or attribute the larger physical footprint.
+Messenger's native reproduction remains held by the unchanged2GiB disk gate.
+The maintainer subsequently paused work for cleanup; the queued launch monitor
+was cancelled with a killed receipt. On explicit continuation, disk13583840KiB
+was available and no owned native/device workload survived. The fresh red run
+held the original4GiB memory reserve: OmO footprint3284661712 bytes,
+available8131035136, pressure1 and swap4248829952. No gate was relaxed.
+Git readback confirms4a86df32 is already an ancestor of currentHEAD; both PRs
+remain OPEN/draft at their recorded separate source identities.
 
 October 30 Watch Back checkpoint repair: extending the existing decoded-video/
 real-Rust transcript case to browser Back reproduced Home becoming visible

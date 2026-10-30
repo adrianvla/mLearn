@@ -3,7 +3,11 @@ import { expect } from '@playwright/test';
 import { EventEmitter, once } from 'node:events';
 import { test, openNativeConversation } from './messenger-native-fixture';
 
-for (const width of [390, 1080]) test(`Back retains an uncertain Messenger draft save and its exact retry before departure at ${width}`, async ({ page, nativeCore }, info) => {
+for (const { width, departure } of [
+  { width: 390, departure: 'Back' },
+  { width: 1080, departure: 'Back' },
+  { width: 390, departure: 'Home' },
+] as const) test(`${departure} retains an uncertain Messenger draft save and its exact retry before departure at ${width}`, async ({ page, nativeCore }, info) => {
   test.setTimeout(60_000);
   await openNativeConversation(page, nativeCore);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
@@ -39,17 +43,22 @@ for (const width of [390, 1080]) test(`Back retains an uncertain Messenger draft
   });
   try {
     const held = once(events, 'held', { signal: AbortSignal.timeout(5000) });
-    await Promise.all([held, page.goBack()]);
+    if (departure === 'Home') await Promise.all([
+      held, page.getByRole('button', { name: 'Chats and People', exact: true }).click(),
+    ]);
+    await Promise.all([held, departure === 'Back' ? page.goBack() : page.getByRole('button', { name: 'Home', exact: true }).click()]);
     await expect(page).toHaveURL(/\/messenger/);
-    await expect(composer).toHaveValue(draft);
-    await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
-    await page.screenshot({ path: info.outputPath(`messenger-back-save-pending-${width}.png`) });
+    if (departure === 'Back') {
+      await expect(composer).toHaveValue(draft);
+      await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+    } else await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeDisabled();
+    await page.screenshot({ path: info.outputPath(`messenger-${departure.toLowerCase()}-save-pending-${width}.png`) });
     events.emit('released');
     const retry = page.getByRole('button', { name: 'Retry action', exact: true });
     await expect(retry).toBeVisible();
     await expect(page).toHaveURL(/\/messenger/);
-    await expect(composer).toHaveValue(draft);
-    await page.screenshot({ path: info.outputPath(`messenger-back-save-failed-${width}.png`) });
+    if (departure === 'Back') await expect(composer).toHaveValue(draft);
+    await page.screenshot({ path: info.outputPath(`messenger-${departure.toLowerCase()}-save-failed-${width}.png`) });
     await retry.click();
     await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
     expect(attempts).toHaveLength(2);
@@ -62,7 +71,7 @@ for (const width of [390, 1080]) test(`Back retains an uncertain Messenger draft
     await page.getByRole('button', { name: 'Coach', exact: true }).click();
     await expect(composer).toHaveValue(draft);
     expect(nativeCore.metadata().providerRequests).toBe(0);
-    await page.screenshot({ path: info.outputPath(`messenger-back-draft-restored-${width}.png`) });
+    await page.screenshot({ path: info.outputPath(`messenger-${departure.toLowerCase()}-draft-restored-${width}.png`) });
   } finally {
     events.emit('released');
     await page.unroute(`${nativeCore.url}/invoke`);
