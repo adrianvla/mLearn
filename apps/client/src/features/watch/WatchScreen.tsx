@@ -71,6 +71,7 @@ function WatchWorkspace() {
     }, [batch]);
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [opening, setOpening] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [vocabulary, setVocabulary] = useState(false);
     const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= dialogSidebarBreakpoint ? dialogSidebarWidth : 0;
@@ -147,6 +148,7 @@ function WatchWorkspace() {
         const current = host.client.beginSourceSession();
         session.current = current;
         setBusy(false);
+        setOpening(false);
         setWindow(previous => previous?.source.id === id ? previous : null);
         setBatch(null);
         setInspection(null);
@@ -460,7 +462,13 @@ function WatchWorkspace() {
                 try {
                     await session.current?.cancel();
                     await pauseAndSave();
-                    const opened = await host.client.openSource(path, window.source.packageId);
+                    setOpening(true);
+                    let opened;
+                    try {
+                        opened = await host.client.openSource(path, window.source.packageId);
+                    } finally {
+                        setOpening(false);
+                    }
                     router.replace({
                         pathname: '/watch', params: {
                             id: opened.source.id
@@ -675,7 +683,7 @@ function WatchWorkspace() {
                     <View style={styles.title}><Text testID="watch-source-title" numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
                     </Text></View>
-                    {busy && host.available ? (
+                    {opening && host.available ? (
                         <Button label="Cancel opening" variant="secondary"
                             onPress={() => void cancelOpening()} />
                     ) : null}

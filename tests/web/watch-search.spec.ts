@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type Request } from '@playwright/test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -44,7 +44,7 @@ async function watchSeek(page: Page) {
   });
 }
 
-test('literal transcript search seeks the actual offset cue and returns to playback across native restart', async ({ page, nativeCore }, info) => {
+test('literal transcript search preserves playback across restart and checkpoint-safe Home departure', async ({ page, nativeCore }, info) => {
   test.setTimeout(120_000);
   // Only desktop shell event registration and media byte delivery are adapted.
   // Package execution, subtitle timing, source identity and persistence are real.
@@ -144,4 +144,67 @@ test('literal transcript search seeks the actual offset cue and returns to playb
   const resumed = await call({ type: 'resume_source', sourceId });
   expect(resumed.window.source).toMatchObject({ positionMs: 3000, subtitleOffsetMs: 2000, playbackRate: 1.5 });
   expect(nativeCore.metadata().providerRequests).toBe(0);
+
+  // A failed transport receipt must keep the source and its explicit recovery.
+  const isCheckpoint = (request: Request) => {
+    if (request.url() !== `${nativeCore.url}/invoke`) return false;
+    const raw = request.postDataJSON().args?.request;
+    if (typeof raw !== 'string') return false;
+    const value = JSON.parse(raw);
+    return value.type === 'save_position' && value.sourceId === sourceId;
+  };
+  let checkpointMode: 'fail' | 'pass' | 'hold' = 'fail';
+  let releaseCheckpoint = () => {};
+  const heldCheckpoint = new Promise<void>(resolve => { releaseCheckpoint = resolve; });
+  await page.route(`${nativeCore.url}/invoke`, async route => {
+    if (!isCheckpoint(route.request())) {
+      await route.fallback(); return;
+    }
+    if (checkpointMode === 'fail') {
+      await route.abort('failed'); return;
+    }
+    if (checkpointMode === 'hold') await heldCheckpoint;
+    await route.fallback();
+  });
+  try {
+    await page.setViewportSize({ width: 390, height: 900 });
+    const failed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
+    const home = page.getByRole('button', { name: 'Home', exact: true });
+    await home.click();
+    await failed;
+    const retry = page.getByRole('button', { name: 'Retry saving position', exact: true });
+    await expect(retry).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/watch');
+    await expect(page.locator('video')).toBeVisible();
+    await page.screenshot({ path: info.outputPath('watch-home-checkpoint-failed-390.png') });
+
+    checkpointMode = 'pass';
+    const recovered = page.waitForResponse(response => isCheckpoint(response.request()));
+    await retry.click();
+    await (await recovered).finished();
+    await expect(retry).toHaveCount(0);
+
+    // Subscribe before Home. Navigation may complete only after the real save.
+    checkpointMode = 'hold';
+    const admitted = page.waitForRequest(isCheckpoint);
+    await home.click();
+    await admitted;
+    await expect(home).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel opening', exact: true })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/watch');
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('watch-home-checkpoint-pending-390.png') });
+    const saved = page.waitForResponse(response => isCheckpoint(response.request()));
+    releaseCheckpoint();
+    await (await saved).finished();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    await nativeCore.crashRestart();
+    expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
+      positionMs: 3000, subtitleOffsetMs: 2000, playbackRate: 1.5,
+    });
+  } finally {
+    checkpointMode = 'pass';
+    releaseCheckpoint();
+    await page.unroute(`${nativeCore.url}/invoke`);
+  }
 });

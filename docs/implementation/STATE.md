@@ -37,16 +37,16 @@ at 1080/390px were inspected. Evidence is under
 `watch-reselect-red*` and `watch-home-green*`. The fixture does not decode
 media and proves neither native playback nor failed/held playback-save recovery.
 
-Root's additional omowright manual proof was interrupted before browser attachment.
+Root's first additional omowright manual run was interrupted before browser attachment.
 Its guard recorded OmO footprint jumping from 3344430520 to 12286080440 bytes,
 pressure 1 to 2 and available memory 2910306304 bytes; it automatically stopped the
 owned workload. A subsequent sample was footprint 7099332024, pressure 1,
 available 7291895808 and swapUsed 5577179136 bytes. This is unexplained OmO growth,
-not attributed to Chromium/native owners. No substantial workload may restart
-while that growth remains unexplained. Exact native/browser/web PIDs 50958/50960/
+not attributed to Chromium/native owners. Substantial work was held for fresh
+resource investigation and trend evidence. Exact native/browser/web PIDs 50958/50960/
 50959 and listeners 4173/59140/59141 were absent on readback. The harness did not
 deliver its graceful-close receipts; supervisor termination plus process/port
-absence are the available cleanup evidence. Manual proof remains incomplete.
+absence are the available cleanup evidence. That run remains incomplete.
 Raw samples are in `manual-watch-supervision.log` under the same task root.
 Bounded vmmap summary subsequently reported 6.6G current/14.4G historical peak.
 The eval heap was only 28944705 bytes with 6419377 external bytes, while process
@@ -63,6 +63,60 @@ Messenger lifecycle assessment (candidate restored because no real retained-exit
 consumer was established), and Material reference-owner audit (no visual change).
 M11 integration remains gated on M10. The latest inherited Windows input and iOS
 Watch failures below remain unresolved.
+
+### Watch checkpoint and pending-action increment, October 30
+
+After the recovery question timed out, the idle resource trend and three fresh
+samples showed normal pressure, flat swap and approximately 6.0 GB projected
+headroom after a 1 GiB allowance. This justified one deliberately selected,
+automatically supervised run; it did not explain or repair the earlier OmO spike.
+The four-GiB reserve and serial-work requirement were unchanged. No stopped
+device, old manual harness or CI polling loop was automatically restarted.
+
+The existing decoded-video/source-search test now fails `save_position` transport,
+uses explicit Retry, holds the next Home save, and verifies no departure before
+acknowledgement plus persisted position/rate/offset after another native restart.
+The first run passed, but its inspected pending capture exposed an unrelated
+native-open cancellation control during Home saving. The strengthened assertion
+failed before repair (expected zero `Cancel opening` controls, received one).
+Watch now exposes that existing control only during the actual `openSource` await;
+generic busy admission and the native cancellation authority remain unchanged.
+
+Both changed files have clean LSP error diagnostics. Normal typecheck, ownership
+lint, fresh export `432136dd68020a28fd34d62458b00b2a` and all 12 affected
+foundation/Watch layout/departure/source-search scenarios passed in 15.0s.
+Guard samples remained safe; no assertions were skipped or weakened. The browser
+decodes the authored 30-second video, while byte delivery and shell event
+registration are adapted. This is real Rust source/checkpoint/restart evidence,
+not native operating-system media or drag/drop cancellation certification.
+Raw red/green logs and captures are in `/tmp/mlearn-ci-independent.6EaZ3F/`.
+
+Root then drove the real page with omowright from eval against a fresh isolated
+Rust profile and authenticated English package. The actual subtitle `Children`
+was captured into Material. At 1080px, Watch Home reached Home and retained
+`Manual retained Watch draft 1080`; at 390px, Reselect from Home reached Home
+and retained `Manual retained Watch draft 390`. The manual adapter explicitly
+lacks native media services; its visible media failure is the recovery scenario,
+not a decoding result. The decoded-video proof above is separate.
+
+| Increment scenario | Observed result | Artifact |
+| --- | --- | --- |
+| Failed save, explicit recovery, held Home, native restart | PASS | `watch-checkpoint-green.log` and `watch-checkpoint-green-results/` in the task root |
+| Wrong cancellation action while saving | Reproduced red, repaired green | `watch-checkpoint-red.log`; green pending capture |
+| Desktop Home retains Material draft | PASS, root omowright | `.mlearn/m10/manual-watch-{home,material-retained}-1080.png` |
+| Narrow Reselect retains Material draft | PASS, root omowright | `.mlearn/m10/manual-watch-{home,material-retained}-390.png` |
+| Adjacent navigation/layout/accessibility | 12 affected scenarios passed | `watch-checkpoint-green.log` |
+| Owned manual browser/web/native teardown | Graceful close receipts and process/port absence | `manual-watch-final.log` in the task root; root readback |
+
+Manual teardown reported Chrome exit 0, preview SIGTERM, no active provider/catalog
+and successful native close. PIDs 58247/58248/58249 and ports 4173/59375/59376
+were absent afterward. The outer manual command nevertheless exited 255: it used
+Zsh `pipestatus` in Bash, leaving its reported status empty. Preserve that wrapper
+failure, not a false command pass. A separate bounded Bash probe verified the
+correct `PIPESTATUS[0]` expression preserves both success 0 and failure 1; the
+manual application workflow was not needlessly replayed. Final footprint was
+6735279544 bytes, pressure 1, available 6607536128 and swapUsed 3806068736.
+Independent review of this increment remains pending. M10 remains incomplete.
 
 Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
