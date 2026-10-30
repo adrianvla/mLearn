@@ -98,3 +98,25 @@ Root inspected the accepted-proposal narrow modal and desktop/narrow Watch
 return captures. These are browser/native-runtime flows, not native-mobile
 rendering or media decoding/playback claims. The original 4 GiB resource
 reserve held throughout this serial run.
+
+## Repair re-review: APPROVE on `17103953`
+
+The same independent reviewer `st_01a18ee4` rechecked exact
+`17103953aae6c3a5bddf2a0d29d1fd7c04aa12ac` in the clean locked checkout and
+returned **APPROVE for the bounded repair**. It found the P2 resolved and no
+remaining blocker in the delta. Effective model remained `gpt-6.1-sol`.
+
+It verified retained refresh provenance at `MaterialScreen.tsx:79-83,113-121`
+and unchanged native ordinary/refresh validation at
+`crates/storage/src/collection.rs:390-391,495-502`. It inspected the extended
+regression at `material-collection-native-core.spec.ts:79-110`, readonly
+Messenger/Watch adaptations, committed evidence, red/green/scoped/adjacent
+logs, result records and restored-context capture. `git diff --check` passed.
+It found no assertion weakening, tautological tests, duplicate owner or
+unnecessary abstraction.
+
+This was source/artifact review without reviewer workloads, edits or tests.
+Full cross-page frozen-selection navigation, native-mobile/Windows verification
+and earlier visual/resource gaps remain open. This approval does not complete
+M10, authorize M11 or grant maintainer acceptance. The original `65c068ef`
+verdict above remains REQUESTS_CHANGES. Both PRs remain draft and unmerged.

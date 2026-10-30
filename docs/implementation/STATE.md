@@ -27,8 +27,9 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
 Latest Material checkpoint: `65c068ef` is pushed but remains REQUESTS_CHANGES under
-the independent review. Its saved-bookmark/refocus repair is currently
-uncommitted on export `c2c41cca07b4994c8b955cddcbd48efe`. The complete later-page
+the independent review. Its saved-bookmark/refocus repair is committed and
+pushed as `17103953aae6c3a5bddf2a0d29d1fd7c04aa12ac`, with matching local/upstream
+readback, on export `c2c41cca07b4994c8b955cddcbd48efe`. The complete later-page
 Save/Knowledge/Material/Close case now passes in 4.7 s
 (`material-modal-refocus-scoped.log`), retaining the ready projection, note,
 page, focus, unsubmitted query, frozen selection and exact positive scroll.
@@ -56,8 +57,16 @@ baad37cb4db58d0f617e574963fc721834b2d9b650772e78a99958c600874b02 matches
 GitHub metadata. Its source binds `65c068ef`; process 5196 remains alive with
 HWND 852352, exposed as an unnamed UIA Pane, while the captured foreground is
 the hosted runner terminal. Cause remains unknown; no assertion was weakened
-or workflow rerun. Mobile observer 41137381329 remains active. Next: checkpoint
-the verified repair and independently recheck the P2.
+or workflow rerun. Mobile observer 41137381329 remains active. The same
+independent reviewer APPROVES the bounded P2 repair on the clean, locked
+dedicated checkout at `17103953`, with no remaining delta blocker and no
+reviewer workloads or source writes. Its source/artifact review preserves all
+earlier failures and scope limits; see the repair section in
+`.omo/evidence/material-modal-65c068ef-gate-review.md`. Push-triggered
+repair runs are desktop 41141663093, mobile 41141663087 and foundation
+41141663145; fixed-ID observers are active and validate their source SHA.
+No workflow was manually launched. Next: continue the remaining Material
+selection/navigation scope.
 M10/M11/native/frozen-selection-window acceptance remains open.
 
 Detailed chronological continuation receipts follow.
