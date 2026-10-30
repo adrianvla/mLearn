@@ -214,7 +214,32 @@ files, at the expected SHA. Root's successful post-run teardown probe found
 no owned browser/runtime/preview process or listener4173. The report's explicit
 evidence limits remain: dark/native/mobile rendering and independent
 reproduction of executor exit codes/teardown are not claimed. Desktop success
-above belongs to8b74e7a6, not8445113e. Push remains pending.
+above belongs to8b74e7a6, not8445113e. Review receipt
+`b819c18dcac09f6c2863429f624ca640b7765796` is pushed; HEAD/upstream
+readback matched. The clean review checkout was unlocked/removed and absence
+verified. Its exact-source hosted runs are foundation41118372934,
+desktop41118373071 and mobile41118373139, observed without manual reruns.
+
+Next, the existing direct-activity test reproduced the missing Reader heading
+(`unavailable-reader-red.log`, exit1). Root inspected that failed capture and
+the preceding1080/390px Reader captures from the passing full foundation run:
+the old feature-local View had no Reader identity and did not use the shared
+recovery surface. Reader now uses AppShell/Row/Button/Text with the Reader
+heading, real host reason and existing dismissTo Home action. The unused local
+fallback style was removed; SourceEntryScreen and document/image workspaces
+are unchanged. Fresh export `a3a1566e44e31d1324a27dc040c71460` passes the
+existing eight-entry direct-activity scenario at both widths in2.2s
+(`unavailable-reader-green.log`, exit0). Root inspected both fresh Reader
+captures: readable reason, contained header and no clipping/overlap. Source
+and test LSP are clean. Normal typecheck and ownership lint pass, followed by
+all15 foundation/Reader scenarios in15.6s (`unavailable-reader-adjacent.log`,
+exit0). Real-Rust cases preserve failed checkpoint recovery, exact Retry,
+Home/Back departure, native-process restart, source Return and prior Material
+drafts. Final in-run footprint3404805608, RSS6478626816,
+available8079982592, pressure1 and swap4917755904 bytes held the original
+reserve. No new native build, device or model was launched.
+This uncommitted delta does not claim retained-management recovery from an
+unavailable Reader, dark/native/mobile rendering or whole-M10 acceptance.
 Dark fallback remains unverified: browser-preview theme changes are unsaved
 module state and reset on a full route reload. No test-only theme override,
 new dev dependency or expanded visual acceptance claim was introduced.

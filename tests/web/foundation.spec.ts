@@ -139,6 +139,9 @@ test('Home recovers directly opened activities without navigation history', asyn
         })).toBeVisible();
       }
       await page.screenshot({ path: info.outputPath(`unavailable-${route}-${width}.png`) });
+      if (route === 'reader') {
+        await expect(page.getByRole('heading', { name: 'Reader', exact: true })).toBeVisible();
+      }
       await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
       const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
       await page.getByRole('button', { name: 'Home', exact: true }).click();

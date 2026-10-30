@@ -47,6 +47,14 @@ indicator or retry action is mounted when opening cannot begin. Before captures
 are `unavailable-watch-red-results/` in the current orchestration root, at
 1080/390 pixels, showing the false permanent "Opening source..." state.
 
+Layout: unavailable Reader uses that same recovery composition, with Reader as
+the header identity, Home as the sole action and the real host reason in the
+body. AppShell owns theme, safe-area clearance and scroll bounds instead of the
+old feature-local fallback View. Before captures are `unavailable-reader-*.png`
+in `unavailable-watch-resume-results/`, at1080/390 pixels; the subsequent
+`unavailable-reader-red-results/` reproduces the missing heading. Empty source
+entry and available document/image workspaces keep their existing owners.
+
 Layout: Home, Knowledge and Material retain their existing shared compositions
 inside one lazy management tab navigator with no additional visible tab bar.
 The existing navigation controls switch those routes instead of constructing

@@ -8,7 +8,7 @@ import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Dialog } from '@mlearn/ui/dialog';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
@@ -31,10 +31,10 @@ export function ReaderScreen() {
     const router = useRouter();
     if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="document" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
-    if (!host.available) return <View style={styles.unavailable}>
-        <Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
-        <Text accessibilityRole="alert">{host.reason}</Text>
-    </View>;
+    if (!host.available) return <AppShell header={<Row>
+        <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+        <Text variant="heading" accessibilityRole="header">Reader</Text>
+    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
     return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
         materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
         proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
@@ -379,7 +379,6 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
 const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({ flex: 1, paddingTop: top, paddingBottom: bottom,
         backgroundColor: theme.colors.background }),
-    unavailable: { flex: 1, padding: theme.spacing.large, gap: theme.spacing.medium },
     header: { flexShrink: 0, paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border },
     toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small, minWidth: 0 },
