@@ -25,6 +25,45 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
+to Material instead of Home; Reselect from Home replaced the retained management
+workspace and erased its unsubmitted search. Both failures were reproduced against
+the real Rust source/analysis/storage fixture before repair. The existing departure
+owner now dismisses to Home after cancellation/checkpoint acknowledgement; both
+actions share that owner. Typecheck, ownership lint and a fresh web export passed;
+all 11 affected departure/layout/foundation scenarios passed in 13.5s. Eight captures
+at 1080/390px were inspected. Evidence is under
+`/tmp/mlearn-ci-independent.6EaZ3F/`: `watch-home-red2*`,
+`watch-reselect-red*` and `watch-home-green*`. The fixture does not decode
+media and proves neither native playback nor failed/held playback-save recovery.
+
+Root's additional omowright manual proof was interrupted before browser attachment.
+Its guard recorded OmO footprint jumping from 3344430520 to 12286080440 bytes,
+pressure 1 to 2 and available memory 2910306304 bytes; it automatically stopped the
+owned workload. A subsequent sample was footprint 7099332024, pressure 1,
+available 7291895808 and swapUsed 5577179136 bytes. This is unexplained OmO growth,
+not attributed to Chromium/native owners. No substantial workload may restart
+while that growth remains unexplained. Exact native/browser/web PIDs 50958/50960/
+50959 and listeners 4173/59140/59141 were absent on readback. The harness did not
+deliver its graceful-close receipts; supervisor termination plus process/port
+absence are the available cleanup evidence. Manual proof remains incomplete.
+Raw samples are in `manual-watch-supervision.log` under the same task root.
+Bounded vmmap summary subsequently reported 6.6G current/14.4G historical peak.
+The eval heap was only 28944705 bytes with 6419377 external bytes, while process
+mimalloc counters reported 10401349632 current huge-allocation bytes. These
+counters locate the discrepancy outside the small eval heap but do not establish
+its owner or cause. No heap dump or large session history was loaded.
+
+CI polling is stopped; API 403 observations are not CI failures. Existing endpoint/
+request-ID/body evidence is in that root's `ci-observation.md`; original rate-limit
+response headers were not captured. No diagnostic CI variant or unchanged rerun
+was launched. Four source-only lanes returned: Windows theme failure investigation
+(no causal fix established), 25 explicitly UNRUN M11 package/session scenarios,
+Messenger lifecycle assessment (candidate restored because no real retained-exit
+consumer was established), and Material reference-owner audit (no visual change).
+M11 integration remains gated on M10. The latest inherited Windows input and iOS
+Watch failures below remain unresolved.
+
 Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
 save owner before Inspector opens saved Material. Failed saves retain the source,
@@ -210,8 +249,10 @@ incorrectly; the corrected workspace export passed. Resource supervision never
 stopped either assertion run. Post-QA footprint6581253560, available7040630784,
 pressure1 and swap3904176128 were recorded; the preview listener was released.
 Other Home fallbacks, Watch checkpoint departure and hidden-work ownership
-remain open. Exact `764b9ac8` real desktop40977525036 passed; its separate
-foundation40977525010 receipt remains pending. No platform gate is waived.
+remain open. Exact `764b9ac8` real desktop40977525036 and
+foundation40977525010 passed, including Windows123811368520 and
+macOS123811368530. This closes that source's all-feature constructor gate,
+not the intermittent native input gate. No platform gate is waived.
 
 Unavailable Messenger now uses the same shared AppShell/Row/Button/Text recovery
 composition as Review, with a Conversation heading and Home action. Its prior
@@ -233,6 +274,36 @@ pending state and Reader's older unthemed fallback remain explicit presentation
 gaps, not repaired or certified by Messenger's change. This browser-only
 fallback verification does not certify native conversation or media lifetimes,
 dark fallback rendering, retained unavailable Reader/Review return, or M10.
+
+Exact `fa2bbfe9` real desktop40979941349 passed. Foundation40979941378 passed
+web123817940225, Rust123817940168, OCR123817939886 and macOS123819919478;
+Windows123819919456 failed its original native-theme input assertion.
+Dark Quartz and Slate edits, repeated cycles and restored Dark Quartz native
+material passed before the final post-restart Quartz edit. Foreground/editor
+focus and the expected clipboard were confirmed, but paste left the previous
+Dark Quartz JSON; `window-materials.ps1:352` reported incomplete native input.
+The raw failed-step log is `fa2bbfe9-windows-failure.log` in the orchestration
+root. This is the retained input-loss failure family, not proof of its cause
+or a reason to change product code without reproduction. No assertion was
+weakened, diagnostic variant launched or unchanged workflow rerun.
+The earlier a25ef895 foundation40979349126 was cancelled before jobs ran,
+not a failing product check; its real desktop40979349106 passed.
+Mobile observation recovered after the October30 01:59:06UTC reset boundary.
+Earlier mobile40979349137 passed Android123815202481; iOS123815201952
+built but failed the original Watch flow after2m41s because `m01-watch, mp4`
+was not visible. Its original failed-step log is `a25ef895-ios-failure.log`.
+Latest mobile40979941319 passed Android123832772718; iOS123832772428 failed
+the original Watch flow after 1m35s because `m01-watch, mp4` was not visible.
+Its raw failed-step log is `fa2bbfe9-ios-failure.log` in the independent task root.
+All observers, including the reduced-frequency observer, are terminal; no polling
+process remains and no workflow was rerun.
+The earlier observers exited on GitHub HTTP403 API rate exhaustion and left
+empty receipt files; those exits were observation failures, not CI results.
+Root's concurrent default-frequency watches produced excessive API traffic.
+The rate endpoint briefly reported available quota while actual run requests
+still returned403; a single time-bound subscription then recovered both receipts.
+Do not restore the rapid watches or repeatedly query exhausted endpoints.
+Independent M10 work and all unresolved platform gates remain open.
 
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
