@@ -184,11 +184,26 @@ test('literal transcript search preserves playback across restart and checkpoint
     await (await recovered).finished();
     await expect(retry).toHaveCount(0);
 
-    // Subscribe before Home. Navigation may complete only after the real save.
+    // Exercise departure from actual decoded, playing media, not only the
+    // already-paused transcript state used above.
+    const player = await page.locator('video').elementHandle();
+    if (!player) throw new Error('Decoded Watch player is missing');
+    const playback = () => player.evaluate(video => {
+      if (!(video instanceof HTMLVideoElement)) throw new Error('Watch player is not a video');
+      return { paused: video.paused, positionMs: Math.round(video.currentTime * 1000) };
+    });
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+    expect((await playback()).paused).toBe(false);
+
+    // Subscribe before Home. Navigation may complete only after the real save,
+    // but playback must stop immediately while that receipt is held.
     checkpointMode = 'hold';
     const admitted = page.waitForRequest(isCheckpoint);
     await home.click();
     await admitted;
+    const stopped = await playback();
+    expect(stopped.paused).toBe(true);
     await expect(home).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Cancel opening', exact: true })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/watch');
@@ -198,9 +213,12 @@ test('literal transcript search preserves playback across restart and checkpoint
     releaseCheckpoint();
     await (await saved).finished();
     await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    expect((await playback()).paused).toBe(true);
+    await page.locator('body').press('Space');
+    expect((await playback()).paused).toBe(true);
     await nativeCore.crashRestart();
     expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
-      positionMs: 3000, subtitleOffsetMs: 2000, playbackRate: 1.5,
+      positionMs: stopped.positionMs, subtitleOffsetMs: 2000, playbackRate: 1.5,
     });
   } finally {
     checkpointMode = 'pass';

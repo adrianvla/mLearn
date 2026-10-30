@@ -82,6 +82,24 @@ swap4115005440 bytes. Native QA processes and preview4173 were absent afterward.
 This verifies Home unmount/stale-receipt cleanup, not a retained-but-hidden route
 or consuming-platform Watch playback lifetime.
 
+Watch's existing genuine-media search/departure case now starts decoded
+H.264 playback before its held Home save. The player stops while that receipt
+is still pending, stays paused after Home and after a Home-body Space key,
+and its exact measured stopped position survives native SIGKILL/restart.
+The unchanged failed-save recovery, transcript/cue seeks, subtitle offset
+and playback-rate assertions also pass. No product edit was needed.
+The changed case passed in3.0s (`watch-playing-home.log`/results), reusing
+`.mlearn/m03-m07/m07-messenger/fixture-decode-local-e6986c8a/watch-fixture.mp4`
+through the existing byte-range adapter, without regenerating media or starting
+a device. Pending/error390px captures were inspected; feedback and recovery stay
+visible beside Home, and the genuine frame/captions/controls remain contained.
+This is decoded Chromium media plus real Rust persistence, not Tauri asset-server
+or native-device playback certification. Final Watch test diagnostics and diff
+check pass; the unrelated Messenger test LSP freshness timeout remains recorded.
+The unchanged4GiB reserve stayed safe: last launch footprint3330553296,
+available8788393984, pressure1, swap4098228224 bytes. Native QA processes and
+preview4173 were absent after completion.
+
 October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
 to Material instead of Home; Reselect from Home replaced the retained management
 workspace and erased its unsubmitted search. Both failures were reproduced against
