@@ -24,7 +24,48 @@ was listed. No model/device/reference/server was restarted. Substantial local
 work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
-Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+Current task: finish Material presentation and NAV-02 workspace/source departure
+and cancellation ownership.
+October 30 Material populated-grid baseline and focused status-region repair:
+the real GUI authored Japanese 猫/犬/鳥 through existing native Material commands.
+The grid already used 280px minimum tracks,16px gaps and24px grid/card insets;
+no replacement grid, store or shared-shell styling was introduced. The empty
+status wrapper nevertheless reserved an extra20px section gap after readiness.
+Material now mounts that region only for actual pending/error/preparing/
+unavailable feedback. Existing recovery content and actions are unchanged.
+Typecheck, architecture lint, draft guard and fresh single-worker export
+`bb54349b854791ca8de44fb2ae3c434b` pass. All18 existing Material editor,
+collection and proposal browser scenarios pass in19.2s, including native
+filter/count/paging/edit and crash-restart flows (`material-status-tests.log`
+and `material-status-results` in the current task root). No cosmetic-value
+test or acceptance assertion was added or weakened.
+
+Root finite native-backed captures reused the genuine GUI-authored profile
+`/tmp/mlearn-ci-independent.6EaZ3F/material-grid-baseline-native.E81938`.
+Before/scoped/after manifests and PNGs are `.mlearn/m10/material-grid-baseline`,
+`material-grid-scoped` and `material-grid-status` respectively. Both themes
+were captured at390/1080/1440/1920px and narrow end-of-list. Inspected after
+captures show first-card y250->230 desktop and518->498 narrow; card widths
+remain408px at1080,342px at390,286px at1440 and321.59px at1920.
+The scoped Material body is the sole results scroll owner and its last card,
+paging and Refresh remain reachable. The initial baseline's global shell
+selector targeted a retained hidden route; its supposed end capture is invalid
+scroll proof, preserved rather than overwritten. The corrected driver scopes
+to the actual Material card's ancestor and asserts last-card visibility.
+The first export invocation failed because root forwarded a worker flag through
+two npm script layers; direct workspace forwarding then exported successfully.
+Both failed-driver interpretation and failed invocation remain explicit.
+
+This repairs only the demonstrated empty status spacing. Material parity and
+applicable native layouts remain open: the reference has a220px sidebar,
+different header/filter/selection density and darker collection materials;
+current shared-shell width is200px. Narrow Chromium with touch emulation/DPR1
+is not native-device or compositor evidence. No Lighthouse, native-device,
+IME or new independent M10 gate verdict is claimed. Root capture/QA processes
+and preview4173 were absent after completion; genuine profiles are preserved.
+The unchanged4GiB resource reserve held. Last focused-test sample: OmO
+footprint3109729744, available8563212288, pressure1, swap4655022080 bytes.
+
 October 30 integrated JS/TypeScript owner checks pass at product625ef496 and
 test checkpointc9e13103:87 tooling checks plus202 package/client tests, with
 zero failures, skips or cancellations. Both stages ran serially using

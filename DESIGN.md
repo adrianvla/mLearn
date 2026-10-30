@@ -193,6 +193,9 @@ and card insets. At 1100 px its 220 px sidebar leaves two 408 px cards.
 At 390 px it has one 334 px card after padding and scrollbar. Preserve the
 single-column intent, not its clipped narrow bulk controls. Do not introduce
 nested vertical scrolling or stretch a lone final card across empty columns.
+Pending, failure and preparation feedback occupies a status region only while
+present; an empty status wrapper must not reserve another inter-section gap
+between selection controls and the grid. Keep the same body scroll owner.
 
 Primary action: Add Material. Priorities: phrase and reading, meaning/context,
 then edit and source-return actions. Required content: native exact count,

@@ -260,13 +260,13 @@ export function MaterialScreen() {
             setReload(value => value + 1);
           }} />
       </Panel></View> : null}
-      <View style={styles.notice}>
+      {pending || error || result?.state === 'preparing' || result?.state === 'unavailable' ? <View style={styles.notice}>
         {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
         {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
           onPress={() => { setAfter(null); setReload(value => value + 1); }} /></> : null}
         {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
         {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
-      </View>
+      </View> : null}
       <View style={styles.gridInset}>
       <View style={styles.grid} onLayout={event => setGridWidth(event.nativeEvent.layout.width)}>
         {page?.items.map(item => item.kind === 'material' ? <View key={item.material.id}
