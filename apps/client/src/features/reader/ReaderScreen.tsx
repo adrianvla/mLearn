@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, View, useWindowDimensions } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
@@ -48,6 +49,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const [imageView, setImageView] = useState<boolean | null>(null);
     const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView, proposalId);
     const router = useRouter();
+    const routeNavigation = useNavigation();
     const host = useRuntime();
     const viewport = useWindowDimensions();
     const { theme } = useUnistyles();
@@ -55,10 +57,12 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const insets = useSafeAreaInsets();
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [focused, setFocused] = useState(true);
+    const [departing, setDeparting] = useState(false);
+    const departure = useRef<object | null>(null);
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     useFocusEffect(useCallback(() => {
         setFocused(true);
-        return () => { setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
+        return () => { departure.current = null; setDeparting(false); setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
             setRecognitionOpen(false); setWordsOpen(false); setThumbnails({}); };
     }, []));
     const [optionsOpen, setOptionsOpen] = useState(false);
@@ -101,10 +105,22 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         ? blockPosition(sourceWindow.source, previousBlock) : sourceWindow?.previous;
     const next = sourceWindow && nextBlock
         ? blockPosition(sourceWindow.source, nextBlock) : sourceWindow?.next;
-    async function home() {
-        try { await reader.persist(); router.dismissTo('/'); }
-        catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+    async function depart(complete: () => void) {
+        if (departure.current) return;
+        const request = {}; departure.current = request;
+        const identity = current.current;
+        setDeparting(true); setNavigationError('');
+        try {
+            await reader.persist();
+            if (departure.current === request && current.current === identity) complete();
+        } catch (cause) {
+            if (departure.current === request && current.current === identity)
+                setNavigationError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (departure.current === request) { departure.current = null; setDeparting(false); }
+        }
     }
+    usePreventRemove(focused, ({ data }) => { void depart(() => routeNavigation.dispatch(data.action)); });
     function changeAppearance(change: Partial<DocumentAppearance>) {
         if (!source || reader.pending) return;
         setInspection(null);
@@ -151,7 +167,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
             >
             <View style={styles.toolbar}>
                 <Button label="Home" icon="arrowLeft" iconOnly={compact} size="compact" variant="secondary"
-                    disabled={reader.pending} onPress={() => void home()} />
+                    disabled={reader.pending || departing} onPress={() => router.dismissTo('/')} />
                 {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
                     icon="transcript" iconOnly size="compact" variant="quiet" accessibilityState={{ expanded: !!rail }}
                     onPress={() => setRailOpen(value => !value)} /> : null}
@@ -255,7 +271,8 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         {imageMode ? <ImageReaderFeedback reader={imageReader} cropMode={cropMode} magnifier={magnifier} /> : null}
             {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
                 <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
-                    <Button label="Reselect from Home" variant="quiet" size="compact" onPress={() => void home()} /></Row></View> : null}
+                    <Button label="Reselect from Home" variant="quiet" size="compact" disabled={departing}
+                        onPress={() => router.dismissTo('/')} /></Row></View> : null}
             {navigationError ? <Text accessibilityRole="alert">{navigationError}</Text> : null}
         <View style={styles.workspace}>
             {rail && sourceWindow ? <ScrollView style={styles.rail} contentContainerStyle={styles.railContent}>

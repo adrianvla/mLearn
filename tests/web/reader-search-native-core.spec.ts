@@ -18,6 +18,66 @@ function requestOf(payload: { args?: { request?: string } }) {
   return payload.args?.request ? JSON.parse(payload.args.request) : null;
 }
 
+for (const width of [390, 1080]) test(`Reader Back retains failed checkpoint recovery and the prior Material draft at ${width}`, async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('profile') });
+  const client = createRuntimeClient({
+    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
+  });
+  let rejectCheckpoints = true;
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await installEnglish(page);
+    const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
+    const original = document.source.appearance.fontSize;
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    const draft = 'Unsubmitted Material search before Reader Back';
+    await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    const isCheckpoint = (request: Request) => request.url() === `${backend.url}/invoke`
+      && request.method() === 'POST'
+      && requestOf(request.postDataJSON())?.type === 'checkpoint_document'
+      && requestOf(request.postDataJSON())?.checkpoint.sourceId === document.source.id;
+    await page.route(`${backend.url}/invoke`, async route => {
+      if (rejectCheckpoints && isCheckpoint(route.request())) await route.abort('failed');
+      else await route.continue();
+    });
+    const appearanceFailed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
+    await page.getByRole('button', { name: 'View options', exact: true }).click();
+    await page.getByRole('button', { name: 'Larger text', exact: true }).click();
+    await appearanceFailed;
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    const retry = page.getByRole('button', { name: 'Retry saving position', exact: true });
+    await expect(retry).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/reader\\?id=${document.source.id}`));
+    await expect(retry).toBeVisible();
+    expect((await client.resumeDocument(document.source.id)).source.appearance.fontSize).toBe(original);
+    await page.screenshot({ path: info.outputPath(`reader-back-failure-${width}.png`) });
+
+    rejectCheckpoints = false;
+    const persisted = page.waitForResponse(response => isCheckpoint(response.request()));
+    await retry.click();
+    await (await persisted).finished();
+    await expect(retry).toHaveCount(0);
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(draft);
+    await backend.crashRestart();
+    expect((await client.resumeDocument(document.source.id)).source.appearance.fontSize).toBe(original + 2);
+    await page.screenshot({ path: info.outputPath(`reader-back-material-restored-${width}.png`) });
+  } finally {
+    rejectCheckpoints = false;
+    try { await page.unroute(`${backend.url}/invoke`); }
+    finally { await backend.close(); }
+  }
+});
+
 test('Reader keeps failed checkpoint recovery before saved-Material departure', async ({ page }, info) => {
   test.setTimeout(90_000);
   const profile = info.outputPath('profile');

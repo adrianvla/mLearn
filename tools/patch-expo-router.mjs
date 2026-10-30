@@ -9,7 +9,10 @@ const before = `            if (record?.path === path && record?.state) {
             }`;
 const after = `            if (record?.path === path && record?.state) {
                 const previousState = navigation.getRootState();
-                (0, react_dom_1.flushSync)(() => navigation.resetRoot(record.state));
+                const [, changedState] = findMatchingState(previousState, record.state);
+                // Reset the changed navigator, not an unchanged parent shell whose
+                // nested-state replacement bypasses child beforeRemove listeners.
+                (0, react_dom_1.flushSync)(() => navigation.resetRoot(changedState ?? record.state));
                 // A prevented removal must restore the browser's history cursor too.
                 if (index !== previousIndex &&
                     !(0, fast_deep_equal_1.default)(previousState, record.state) &&
@@ -22,6 +25,11 @@ const after = `            if (record?.path === path && record?.state) {
                 }
                 return;
             }`;
+const previousAfter = after.replace(`                const [, changedState] = findMatchingState(previousState, record.state);
+                // Reset the changed navigator, not an unchanged parent shell whose
+                // nested-state replacement bypasses child beforeRemove listeners.
+                (0, react_dom_1.flushSync)(() => navigation.resetRoot(changedState ?? record.state));`,
+`                (0, react_dom_1.flushSync)(() => navigation.resetRoot(record.state));`);
 const cursorBefore = `                // This would happen if the user did a reset/conditionally changed navigators
                 history.replace({ path, state });
             }
@@ -56,13 +64,14 @@ export function patchRouterHistory(version, artifact, source) {
   if (version !== '57.0.25') throw new Error(`Revalidate the router history repair for ${version}`);
   const definition = artifacts[artifact];
   if (!definition) throw new Error(`Unexpected router history artifact: ${artifact}`);
+  const currentSource = artifact === 'useLinking.js' ? source.replace(previousAfter, after) : source;
   // The shipped artifact has no final newline; the managed patch adds one.
   const upstream = definition.changes.reduce((text, [before, after]) => text.replace(after, before),
-    source.endsWith('\n') ? source.slice(0, -1) : source);
+    currentSource.endsWith('\n') ? currentSource.slice(0, -1) : currentSource);
   if (createHash('sha256').update(upstream).digest('hex') !== definition.digest)
     throw new Error(`Unexpected router history source; revalidate ${artifact}`);
   const patched = `${definition.changes.reduce((text, [before, after]) => text.replace(before, after), upstream)}\n`;
-  if (source !== upstream && source !== patched) throw new Error('Partially patched router history source');
+  if (currentSource !== upstream && currentSource !== patched) throw new Error('Partially patched router history source');
   return patched;
 }
 

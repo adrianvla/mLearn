@@ -12,6 +12,14 @@ test('the router history repair is pinned and idempotent at the web linking boun
     assert.equal(patchRouterHistory(version, artifact, shipped), shipped);
     assert.throws(() => patchRouterHistory('unreviewed', artifact, shipped), Error);
     assert.throws(() => patchRouterHistory(version, artifact, `${shipped}\n`), Error);
+    if (artifact === 'useLinking.js') {
+      const previous = shipped.replace(
+        /                const \[, changedState\] = findMatchingState\(previousState, record\.state\);[\s\S]*?navigation\.resetRoot\(changedState \?\? record\.state\)\);/,
+        '                (0, react_dom_1.flushSync)(() => navigation.resetRoot(record.state));',
+      );
+      assert.notEqual(previous, shipped);
+      assert.equal(patchRouterHistory(version, artifact, previous), shipped);
+    }
   }
 });
 

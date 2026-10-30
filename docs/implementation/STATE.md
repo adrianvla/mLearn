@@ -26,6 +26,46 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+October 30 Reader Back checkpoint repair: the real-Rust browser harness reproduced
+Back reaching Home after a failed appearance checkpoint, losing the visible Retry
+owner. Reader now routes removal through its existing `persist()` operation,
+retains the workspace on failure, rejects duplicate departures while saving and
+replays the original action only for the current source after persistence succeeds.
+Home and Reselect use the same guard. No checkpoint/session/store authority changed.
+
+The guard alone still failed. Installed-router probes established that Back reset
+Expo's outer `__root` stack, whose direct routes did not change; replacing its
+nested state bypassed Reader's beforeRemove listener. The pinned Expo57.0.25 patch
+now reuses its existing `findMatchingState` helper to reset the changed navigator.
+The existing browser-cursor rollback remains. Exact prior managed output upgrades
+to the new output; original hashes, version/drift/partial-patch rejection remain.
+All temporary app/dependency probes were removed. Failed owner-only, focus and
+router probes remain in `reader-back-{red,green,probe,focus,context,activation,dispatch,target}.log`
+under `/tmp/mlearn-ci-independent.6EaZ3F`, not passing evidence.
+
+Export `f472384e4e607db2f35c7f7585711b70` passes typecheck, architecture lint,
+89 tooling tests and 202 client/owner tests (`reader-back-final.log`).
+That first wider browser run had 108 passes and one test timeout: changing
+viewport during retry triggered a normal layout checkpoint, detached Retry and
+intercepted its click. No assertion was relaxed; separate fixed-width flows and
+guaranteed backend cleanup repair the test. The complete affected browser run
+then passed all 110 cases once (`reader-back-fixed-width.log`, results directory
+of the same name). Both 390/1080 flows retain Reader and its URL after failed
+Back, retry the native checkpoint, return Home, preserve the unsubmitted Material
+query and verify the changed appearance after native process crash/restart.
+Root inspected all four failure/restored-draft PNGs. Reader source and new test
+have fresh clean LSP diagnostics; scratch/earlier timeout reports are not passes.
+This is browser UI plus real Rust persistence, not native OS gesture verification.
+Independent exact-source review remains pending; NAV-02/M10 are not closed.
+
+The final run's footprint was 3201283536 bytes, RSS6235045888,
+available7776780288, pressure1, swap4178051072; original 4 GiB reserve held.
+Earlier OmO footprint growth to about7.2GB was investigated with bounded vmmap
+(6.0GiB current, 14.4GiB historical peak), without assigning a cause; later
+admission samples returned near3.2GB and were stable. No devices, native rebuild,
+model run or heap dump. Owned QA browser/runtime/4173 processes are absent.
+Disk now has 4272220 KiB available; reserve capacity before substantial new work.
+
 October 30 Review Back departure repair: browser Back removed ready audio before
 its interruption could save, unlike the existing Home path. The complete Home
 fixture reproduces this (`review-back-fixture.log`, missing Saving Review and
