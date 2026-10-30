@@ -2,7 +2,7 @@
 import { expect, type Page, type Request } from '@playwright/test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { test } from './messenger-native-fixture';
@@ -44,6 +44,21 @@ async function watchSeek(page: Page) {
   });
 }
 
+async function decodedVideo(page: Page) {
+  await page.locator('video').evaluate(video => {
+    if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
+    if (video.readyState >= 2 && !video.seeking) return;
+    return new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => { cleanup(); reject(new Error('Authored video did not decode')); }, 10000);
+      const check = () => { if (video.readyState >= 2 && !video.seeking) { cleanup(); resolve(); } };
+      const cleanup = () => {
+        clearTimeout(timeout); video.removeEventListener('loadeddata', check); video.removeEventListener('seeked', check);
+      };
+      video.addEventListener('loadeddata', check); video.addEventListener('seeked', check); check();
+    });
+  });
+}
+
 for (const departure of ['Home', 'Back'] as const) test(`literal transcript search preserves playback across restart and checkpoint-safe ${departure} departure`, async ({ page, nativeCore }, info) => {
   test.setTimeout(120_000);
   // Only desktop shell event registration and media byte delivery are adapted.
@@ -56,16 +71,19 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     await route.continue();
   });
   const media = await readFile(videoPath);
+  const mediaVariants = new Map<string, typeof media>();
   await page.route(`${nativeCore.url}/unsupported-media/**`, async route => {
+    const source = decodeURIComponent(new URL(route.request().url()).pathname.split('/').at(-1) ?? '');
+    const bytes = mediaVariants.get(source) ?? media;
     const range = route.request().headers().range;
     if (!range) {
-      await route.fulfill({ body: media, contentType: 'video/mp4', headers: { 'Accept-Ranges': 'bytes' } }); return;
+      await route.fulfill({ body: bytes, contentType: 'video/mp4', headers: { 'Accept-Ranges': 'bytes' } }); return;
     }
     const match = /^bytes=(\d+)-(\d*)$/.exec(range);
     if (!match) throw new Error(`Unexpected browser media range: ${range}`);
-    const start = Number(match[1]), end = Math.min(Number(match[2] || media.length - 1), media.length - 1);
-    await route.fulfill({ status: 206, body: media.subarray(start, end + 1), contentType: 'video/mp4',
-      headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${media.length}` } });
+    const start = Number(match[1]), end = Math.min(Number(match[2] || bytes.length - 1), bytes.length - 1);
+    await route.fulfill({ status: 206, body: bytes.subarray(start, end + 1), contentType: 'video/mp4',
+      headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${bytes.length}` } });
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
@@ -90,18 +108,7 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByRole('button', { name: `Continue ${opened.window.source.title}`, exact: true }).click();
   } else await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
-  await page.locator('video').evaluate(video => {
-    if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
-    if (video.readyState >= 2 && !video.seeking) return;
-    return new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => { cleanup(); reject(new Error('Authored video did not decode')); }, 10000);
-      const check = () => { if (video.readyState >= 2 && !video.seeking) { cleanup(); resolve(); } };
-      const cleanup = () => {
-        clearTimeout(timeout); video.removeEventListener('loadeddata', check); video.removeEventListener('seeked', check);
-      };
-      video.addEventListener('loadeddata', check); video.addEventListener('seeked', check); check();
-    });
-  });
+  await decodedVideo(page);
   expect(await page.locator('video').evaluate(video => {
     if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
     return video.currentTime;
@@ -233,6 +240,59 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
       positionMs: stopped.positionMs, subtitleOffsetMs: 2000, playbackRate: 1.5,
     });
+    if (departure === 'Back') {
+      // Deliver a genuine host drop callback. The package/source operation and
+      // the replacement media bytes remain real, including distinct identity.
+      await page.addInitScript(() => {
+        Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', {
+          value: { unregisterListener(_event: string, eventId: number) {
+            Reflect.get(window, '__TAURI_INTERNALS__').unregisterCallback(eventId);
+          } },
+        });
+      });
+      await page.route(`${nativeCore.url}/invoke`, async route => {
+        const { command, args } = route.request().postDataJSON();
+        if (command === 'plugin:event|listen') {
+          await route.fulfill({ json: { value: args.handler } }); return;
+        }
+        if (command === 'plugin:event|unlisten') {
+          await route.fulfill({ json: { value: null } }); return;
+        }
+        await route.fallback();
+      });
+      const subscribed = page.waitForRequest(request => {
+        if (request.url() !== `${nativeCore.url}/invoke`) return false;
+        const { command, args } = request.postDataJSON();
+        return command === 'plugin:event|listen' && args.event === 'tauri://drag-drop';
+      });
+      await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
+      const handler = (await subscribed).postDataJSON().args.handler;
+      await decodedVideo(page);
+      const replacementPath = process.env.MLEARN_WATCH_REPLACEMENT_FIXTURE
+        ? resolve(process.env.MLEARN_WATCH_REPLACEMENT_FIXTURE) : join(dirname(videoPath), 'watch-japanese.mp4');
+      const replacement = await call({ type: 'open_source', path: replacementPath, packageId: 'org.mlearn.english' });
+      expect(replacement.window.source.id).not.toBe(sourceId);
+      mediaVariants.set(replacement.window.source.id, await readFile(replacementPath));
+      const openedDrop = page.waitForResponse(response => {
+        if (response.url() !== `${nativeCore.url}/invoke`) return false;
+        const raw = response.request().postDataJSON().args?.request;
+        return typeof raw === 'string' && JSON.parse(raw).type === 'open_source'
+          && JSON.parse(raw).path === replacementPath;
+      });
+      await page.evaluate(({ handler, replacementPath }) => {
+        const callback = Reflect.get(window, `_${handler}`);
+        if (typeof callback !== 'function') throw new Error('Watch drop subscription was released');
+        callback({ event: 'tauri://drag-drop', id: handler, payload: {
+          paths: [replacementPath], position: { x: 0, y: 0 },
+        } });
+      }, { handler, replacementPath });
+      await (await openedDrop).finished();
+      await expect(page).toHaveURL(new RegExp(`/watch\\?id=${replacement.window.source.id}`));
+      await expect(page.getByTestId('watch-source-title')).toHaveText(replacement.window.source.title);
+      await expect(page.locator('video')).toHaveAttribute('src', `${nativeCore.url}/unsupported-media/${replacement.window.source.id}`);
+      await decodedVideo(page);
+      await page.screenshot({ path: info.outputPath('watch-dropped-replacement-390.png') });
+    }
   } finally {
     checkpointMode = 'pass';
     releaseCheckpoint();

@@ -44,7 +44,7 @@ error in captures; checkpoint failures now remain solely with saveError, while
 post-checkpoint cancellation failures retain generic source recovery. The
 existing browser case asserts that checkpoint failure does not offer Retry source.
 
-Final export `806381c0831c415fe0e32d3946a4bfa9` passes typecheck, architecture
+Initial Watch checkpoint export `806381c0831c415fe0e32d3946a4bfa9` passes typecheck, architecture
 lint and all 114 affected browser scenarios in one serial run
 (`/tmp/mlearn-ci-independent.6EaZ3F/watch-back-final.log` and
 `watch-back-final-results/`). Root inspected final Back failed/held 390px
@@ -53,13 +53,39 @@ exact Retry, actual decoded playback pausing while a checkpoint is held,
 post-departure Space suppression, native crash/restart position/rate/offset,
 saved-Material returns and proposal source return pass. This is shared browser
 media plus real Rust persistence, not native OS player/gesture certification.
-Latest source/test LSP requests timed out after the final error-channel edit;
+At that checkpoint source/test LSP requests timed out after the error-channel edit;
 earlier clean diagnostics are not reused as final evidence. Exact-source
-independent review is pending; broader NAV-02/M10/native/maintainer gates stay open.
+review `st_01a18c9c` REQUESTS_CHANGES on `c368f450`: the guard can discard a
+video-drop replacement while busy. Report:
+`.omo/evidence/watch-back-c368f450-gate-review.md`. A host-drop regression is
+added to verify the replacement route/player. Broader NAV-02/M10/native/maintainer
+gates stay open.
+
+The new real host-drop case passed against the original web checkpoint
+(`watch-drop-red.log`, despite its historical filename); the conditional busy
+race was not reproduced there. Handoff is now explicit after busy clears:
+a source/focus-owned pending replacement dispatches from an effect, and the
+redundant success reload is removed because the new route initializes its source.
+The guard is not bypassed. The test invokes the actual Tauri drop callback,
+opens a distinct authored source through Rust, serves its actual media bytes,
+checks route/title/media URI and waits for real decoding. It retains the original
+checkpoint, draft, playback/rate/offset and restart assertions.
+Export `ec0e539ea25562acc17e1d7ac4a1ceca` passes typecheck, architecture lint and
+all five affected Watch cases (`watch-drop-green.log`, 30.6s); source/test have
+fresh clean LSP diagnostics. Root inspected the replacement player and failed/
+held recovery PNGs in `watch-drop-green-results/`. The earlier 114-case run stays
+bound to the earlier source; it was not rerun for this local handoff delta.
+Review of the new exact source is pending, not inferred from the earlier request.
+Latest footprint3256989136, RSS6201737216, available7191298048,
+pressure1, swap4165074944 bytes; original 4 GiB reserve held.
 Final guard footprint3212391888, RSS6569213952, available7592034304,
 pressure1, swap4404805632 bytes; original 4 GiB reserve held.
 Owned QA processes are absent. Disk has1526572 KiB available after this run;
 admit no further substantial local work until capacity is restored.
+Disk later recovered to about2.5GiB. Measuring existing QA profiles found a
+30172KiB maximum; only the focused reproduction/five-case delta and web export
+were admitted above a 2GiB disk gate, without a native rebuild. Disk is now
+1641060KiB; broader local work remains held. Profiles/evidence are preserved.
 
 October 30 Reader Back checkpoint repair: the real-Rust browser harness reproduced
 Back reaching Home after a failed appearance checkpoint, losing the visible Retry

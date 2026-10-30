@@ -75,6 +75,7 @@ function WatchWorkspace() {
     }, [batch]);
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [replacement, setReplacement] = useState<{ from: string; to: string; owner: object | null } | null>(null);
     const [opening, setOpening] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [vocabulary, setVocabulary] = useState(false);
@@ -432,6 +433,13 @@ function WatchWorkspace() {
     usePreventRemove(host.available && routeFocused, ({ data }) => {
         void depart(() => navigation.dispatch(data.action));
     });
+    useEffect(() => {
+        if (busy || !replacement) return;
+        setReplacement(null);
+        if (focused.current === replacement.owner && activeSource.current === replacement.from) {
+            router.replace({ pathname: '/watch', params: { id: replacement.to } });
+        }
+    }, [busy, replacement, router]);
     async function attach(droppedPath?: string) {
         if (!host.available)
             return;
@@ -484,6 +492,7 @@ function WatchWorkspace() {
             }
             setBusy(true);
             setError('');
+            const owner = focused.current;
             void (async () => {
                 try {
                     await session.current?.cancel();
@@ -495,12 +504,9 @@ function WatchWorkspace() {
                     } finally {
                         setOpening(false);
                     }
-                    router.replace({
-                        pathname: '/watch', params: {
-                            id: opened.source.id
-                        }
-                    });
-                    setSourceReload(v => v + 1);
+                    // Dispatch after the busy render has cleared, so the
+                    // removal guard can admit this operation's own handoff.
+                    setReplacement({ from: id, to: opened.source.id, owner });
                 }
                 catch (e) {
                     setError(e instanceof Error ? e.message : String(e));
