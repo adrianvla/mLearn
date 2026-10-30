@@ -394,8 +394,7 @@ function WatchWorkspace() {
         try {
             await session.current?.cancel();
             await pauseAndSave();
-            if (router.canGoBack()) router.back();
-            else router.replace('/');
+            router.dismissTo('/');
         }
         catch (e) {
             setSourceReload(v => v + 1);
@@ -695,7 +694,7 @@ function WatchWorkspace() {
                     <Row>
                         <Button label="Retry source" variant="secondary" onPress={() => { setError(''); setSourceReload(v => v + 1); }} />
                         <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
-                        <Button label="Reselect from Home" variant="secondary" onPress={() => router.replace('/')} />
+                        <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => void back().catch(() => {})} />
                     </Row>
                 </> : null}
                 {saveError ? <>
