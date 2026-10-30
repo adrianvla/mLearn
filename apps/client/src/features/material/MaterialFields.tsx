@@ -17,7 +17,7 @@ export function MaterialFields({ value, disabled, onChange }: {
 }) {
   function field(key: Exclude<MaterialTextField, 'examples'>, label: string, maxLength: number, multiline = false) {
     return <TextField label={label} testID={`material-${key}`} value={value[key]} maxLength={maxLength}
-      multiline={multiline} editable={!disabled} onChangeText={text => onChange(previous => ({
+      multiline={multiline} multilineSize="compact" editable={!disabled} onChangeText={text => onChange(previous => ({
         ...previous, [key]: text,
         attachments: key === 'phrase' ? previous.attachments.map(item => ({ ...item, audioBinding: null })) : previous.attachments,
       }), key)} />;

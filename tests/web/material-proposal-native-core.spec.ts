@@ -14,6 +14,115 @@ async function installEnglish(page: Page) {
   await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
 }
 
+test('Material multiline editing grows and shrinks within a bound without losing persisted text', async ({ page }, info) => {
+  test.setTimeout(60_000);
+  const backend = await startRuntimeBrowserQa({
+    profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/material-fields-${randomUUID()}`,
+  });
+  const client = createRuntimeClient({
+    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
+  });
+  const longNote = ['First paragraph.', '第二段落。', '仮名漢字'.repeat(120)].join('\n');
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await installEnglish(page);
+    const outcome = await client.createMaterial(client.prepareMaterial({
+      ...emptyMaterial('org.mlearn.english'), phrase: 'cat', meaning: 'cat',
+    }));
+    if (outcome.status !== 'saved') throw new Error('Expected a fresh authored Material');
+    await page.goto('/materials');
+    await page.getByRole('button', { name: 'Edit cat', exact: true }).click();
+    const notes = page.getByRole('textbox', { name: 'Notes', exact: true });
+    const observeHeight = (grow: boolean, baseline: number) => notes.evaluateHandle((node, { grow, baseline }) => {
+      let timer: ReturnType<typeof setTimeout>;
+      let observer: ResizeObserver;
+      const changed = new Promise<number | null>(resolve => {
+        const finish = (height: number | null) => { observer.disconnect(); clearTimeout(timer); resolve(height); };
+        observer = new ResizeObserver(() => {
+          const height = node.getBoundingClientRect().height;
+          if (grow ? height > baseline + 1 : height <= baseline + 1) finish(height);
+        });
+        observer.observe(node);
+        timer = setTimeout(() => finish(null), 5000);
+      });
+      return { changed };
+    }, { grow, baseline });
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      const empty = await notes.boundingBox();
+      if (!empty) throw new Error('Notes has no visible editing bounds');
+      const growing = await observeHeight(true, empty.height);
+      try {
+        await notes.fill(longNote);
+        const height = await growing.evaluate(value => value.changed);
+        expect(height, 'Overflowing authored text must grow its editing space').not.toBeNull();
+        expect(height).toBeLessThanOrEqual(200);
+      } finally { await growing.dispose(); }
+      await notes.press('End');
+      await page.keyboard.insertText('訂正');
+      await expect(notes).toHaveValue(`${longNote}訂正`);
+      expect(await notes.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+      await notes.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: info.outputPath(`material-fields-long-${width}.png`) });
+      const shrinking = await observeHeight(false, empty.height);
+      try {
+        await notes.fill('');
+        expect(await shrinking.evaluate(value => value.changed)).not.toBeNull();
+      } finally { await shrinking.dispose(); }
+      await page.screenshot({ path: info.outputPath(`material-fields-empty-${width}.png`) });
+    }
+    const finalEmpty = await notes.boundingBox();
+    if (!finalEmpty) throw new Error('Empty Notes has no editing bounds');
+    const finalGrowth = await observeHeight(true, finalEmpty.height);
+    try {
+      await notes.fill(`${longNote}訂正`);
+      expect(await finalGrowth.evaluate(value => value.changed)).not.toBeNull();
+    } finally { await finalGrowth.dispose(); }
+    const beforeHide = await notes.boundingBox();
+    if (!beforeHide) throw new Error('Authored Notes has no editing bounds');
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    const returnToMaterial = page.getByRole('button', { name: 'Material', exact: true });
+    await expect(returnToMaterial).toBeVisible();
+    await page.setViewportSize({ width: 1080, height: 900 });
+    const restoredHeight = await page.evaluateHandle(expected => {
+      let observer: MutationObserver;
+      let timer: ReturnType<typeof setTimeout>;
+      const changed = new Promise<number | null>(resolve => {
+        const finish = (height: number | null) => { observer.disconnect(); clearTimeout(timer); resolve(height); };
+        const check = () => {
+          const node = document.querySelector('[data-testid="material-notes"]');
+          const height = node?.getBoundingClientRect().height;
+          if (height === expected) finish(height);
+        };
+        observer = new MutationObserver(check);
+        observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+        timer = setTimeout(() => finish(null), 5000);
+        check();
+      });
+      return { changed };
+    }, beforeHide.height);
+    try {
+      await returnToMaterial.click();
+      await expect(notes).toHaveValue(`${longNote}訂正`);
+      expect(await restoredHeight.evaluate(value => value.changed), 'Hidden resize must restore the authored field height').not.toBeNull();
+    } finally { await restoredHeight.dispose(); }
+    const saved = page.waitForResponse(response => {
+      if (response.url() !== `${backend.url}/invoke`) return false;
+      const raw = response.request().postDataJSON().args?.request;
+      return typeof raw === 'string' && JSON.parse(raw).type === 'update_material';
+    });
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await (await saved).finished();
+    expect((await client.material(outcome.material.id)).content.notes).toBe(`${longNote}訂正`);
+    await page.goto('about:blank');
+    await backend.crashRestart();
+    expect((await client.material(outcome.material.id)).content.notes).toBe(`${longNote}訂正`);
+    await page.goto('/materials');
+    await page.getByRole('button', { name: 'Edit cat', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue(`${longNote}訂正`);
+  } finally { await backend.close(); }
+});
+
 test('proposal review restores its actual editor opener and preserves the unsaved Material draft', async ({ page }, info) => {
   const backend = await startRuntimeBrowserQa({
     profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/proposal-focus-${randomUUID()}`,

@@ -128,6 +128,76 @@ The genuine closed native profile is preserved at
 `.mlearn/m10/watch-checkpoint-08751247-native`; unused Chrome profile and manual
 harness are removed. M10 remains incomplete and M11 integration remains gated.
 
+Material reference inspection and the bounded multiline-field increment now have
+finite real-surface evidence; this is not whole-Material visual acceptance.
+A deliberately admitted retained
+Electron/Vite session reached readiness, but the resource supervisor stopped it
+before root could attach. OmO footprint changed 3304060344 -> 4442142136 ->
+11340527032 bytes, pressure rose to 2, and available memory fell to 2977906688.
+The reference connection was then refused. This is another OmO-process spike,
+not proof of a model/reference allocation or a failed product assertion. No
+reference editor measurement or Material styling change was made by that run. PIDs 60724/
+60749 and ports 3000/7752/7753/9229 were absent afterward; post-stop footprint
+6866531768, pressure 1 and swapUsed 4525064192 were recorded. The run exited 70.
+Raw evidence is `material-reference-manual.log` in the current task root.
+Do not repeat the live-ready/model-callback orchestration unchanged. A finite
+reference probe that closes its owned workload before returning observations was
+then exercised under the same admission/reserve/shutdown policy. It completed
+with exit 0, safe guard samples and no reference listeners afterward. Root
+inspected actual Browse captures at 1080/390px; the reference's narrow clipping/
+sidebar overlay is a legacy defect, not a target to copy.
+The first editor probe captured real short states at both widths, then failed
+omowright's strict contenteditable fill check for multiline input. The changed
+wrapped-paragraph case was not executed: its third admission sample held at
+4175167488 bytes projected headroom, below the unchanged 4294967296-byte reserve.
+No reference app was launched in that attempt. No competing compiler or QA
+owner was found; OmO dominated the process inventory. Preserve both failed/held
+receipts. The subsequently admitted wrapped-paragraph probe completed with exit 0,
+closed its reference owner before notifying, and cancelled rather than saved.
+Reference source is clean `1ab95600bee97017635afe538af4e890e0cded3a`.
+`material-reference-editor-wrapped-admitted.log` records actual short Meaning
+52.3984375px, empty example fields60px and long Meaning capped at200px, with
+internal overflow at1080/390. Reference captures use
+`.mlearn/m10/reference-material-editor-{short,long}-{1080,390}-dark-wrapped.png`;
+the long captures are partly scrolled past Meaning, so their measured geometry
+does not establish a fully framed long-field comparison.
+
+`TextField` adds one shared compact multiline role, reused by `MaterialFields`
+for Meaning, Context and Notes across saved/proposed/capture forms. It reuses
+the existing composer measurement owner: empty60px, grow/shrink through200px,
+then internal scrolling. Ordinary multiline remains180px; composer44–120px
+is unchanged. No observer framework, store or feature-local input styling was
+added. The new real-Rust/SQLite test failed against the old export because the
+overflowing Notes field did not grow. Normal typecheck, ownership lint, export
+`86bca5ba1062bf53a3000d7a8000d8c3`, and24 affected foundation/Material/proposal/
+Messenger tests passed (`material-fields-first-green.log`,24.5s). The augmented
+case then passed separately in3.1s (`material-fields-hidden.log`), covering
+retained navigation/hidden resize, exact Unicode input, shrink, save and native
+crash/restart. No product change followed the first green source.
+
+Root-authored finite omowright workflows drove actual GUI package installation,
+Material creation/save and both-theme1080/390 captures. Three driver failures
+(unsupported handle API, value-bearing accessible name, custom versus HTML
+select) are preserved under `material-root-{evaluate-handle-error,select-label-error,html-select-driver-error}.log`;
+they are not product failures or passing commands. The final continuation reused
+the closed, genuinely saved native profile rather than reinstalling/recreating.
+`.mlearn/m10/material-field-root-qa.json` is PASS and links the completed light
+evidence; `material-root-qa.log` exits0. It verifies exact saved text from a
+fresh browser and again after native crash/reload, the Rust-snapshot theme ID
+`mlearn.dark-quartz` before/after restart, and the adjacent default JSON field180px.
+No generation request occurred. Browser, native owner and preview close before
+notification. Guard samples stayed safe with the unchanged4GiB reserve; final
+footprint3559241168, available8362442752, pressure1, swap3935305728.
+Root inspected light/dark short and long captures under
+`.mlearn/m10/material-field-root-appearance-*`. Empty60/overflow200 remain
+contained and legible; narrow outer scrolling reaches the remaining form.
+These captures are browser/Rust proof, not native TextInput/IME certification.
+Caret position survives resize, but automatic caret reveal is not established.
+Meaning60px versus reference52.4px, body16/24 versus17.6/26.4, inline-editor versus
+modal composition, and the large persistent narrow management header remain
+explicit visual differences. Broader Material/native/M10 gates remain open;
+independent review and the compact-field checkpoint are next. M11 is still gated.
+
 Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
 save owner before Inspector opens saved Material. Failed saves retain the source,
