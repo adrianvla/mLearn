@@ -60,3 +60,15 @@ Recorded executor results were inspected, not rerun. The logs establish their pr
 Dark fallback, native/mobile rendering, and retained-management recovery through an actually unavailable Reader remain unverified. No new current-Reader native evidence was inspected or inferred from earlier Watch/hosted checks. Previous Watch resource exhaustion and the unexplained OmO memory category remain unresolved historical constraints; this review neither attributes them to Reader nor waives admission.
 
 Nonblocking documentation note: `docs/implementation/STATE.md:241` still calls the now-committed delta uncommitted, and line 246 still calls the older Reader fallback an explicit presentation gap immediately after recording its replacement. These stale phrases should be reconciled in the next checkpoint while retaining the separate retained-management and platform limits. They do not demonstrate a failure of the bounded shipped behavior.
+
+## Subsequent executor receipt
+
+The stale STATE phrases were corrected in receipt commit `35b9a3fb`, preserving
+the separate retained-management and platform limits. Desktop run 41119830983
+then passed on exact pushed source
+`35b9a3fb8f51c1423114bddddb345817a7651f5d`. Root readback verified successful
+native job 124283434381, real IPC/plugin-download/restart smoke and tracked-source
+integrity. This is current Reader desktop evidence, not mobile or whole-M10
+acceptance. A second same-source desktop run, 41119831247, subsequently passed;
+its fixed-ID reader validated the same SHA. It is recorded separately rather
+than being silently treated as the first run.

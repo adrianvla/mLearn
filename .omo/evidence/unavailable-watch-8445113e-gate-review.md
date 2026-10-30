@@ -85,3 +85,11 @@ Desktop run 41118373071 passed on exact pushed receipt source
 tracked-source integrity. This supplements the review's earlier native-evidence
 limit; it is not native-mobile or whole-M10 acceptance and does not cover the
 subsequent Reader fallback delta.
+
+Foundation run 41118372934 on the same `b819c18d` receipt source passed web,
+Rust, OCR detection and macOS, but Windows job 124284625336 failed before theme
+interaction: "Native UI did not publish the owned mLearn application window."
+The exact failed-step log is
+`/tmp/mlearn-ci-independent.6EaZ3F/foundation-b819c18d-windows-failed.log:15`.
+This leaves a Windows platform gate open; it does not identify a cause or
+demonstrate a fallback-screen defect. No assertion or workflow was changed.
