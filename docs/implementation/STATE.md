@@ -147,7 +147,9 @@ desktop jobs were skipped, not passed. Unconditional early cancellation had
 preserved the cancelled owner's cache. Repair `f3e7366a` restores source-only
 eviction while preserving nonwaiting operation-scoped cancellation. All22
 language-host tests and70 runtime caller tests pass after repair, warning-free
-with no ignored tests. Mobile40963943258 still awaits its terminal receipt.
+with no ignored tests. Mobile40963943258 is terminal: Android123763515735
+passed; iOS123763515335 built but failed the original Watch flow because
+`m01-watch, mp4` was not visible after1m32s.
 New exact-source hosted verification and independent review remain required.
 No deferred iOS diagnostic variant or milestone acceptance is introduced.
 
@@ -162,6 +164,30 @@ export `219225d61d656a13e338de4b0f00de01`. All18 PNGs were decoded, dimension-ch
 and inspected, including1080/390 pending/error states in light/dark. Evidence is in
 the retained orchestration root's `review-home-*` logs/results. Native audio/OS
 lifecycle parity, the other Home exits and M10 milestone gates remain open.
+
+Exact `139b78f8` hosted web123788934861, Rust123788935328, OCR123788935234
+and real desktop40971451775 passed. Foundation40971451738 failed both
+macOS123791352052 and Windows123791352101 at the all-feature compiler gate:
+the opt-in OCR probe still initialized the removed `NativeState.cancellation`.
+The minimal repair initializes the existing two-slot `read_controls` owner,
+matching normal startup, and removes the obsolete local handle. No OCR probe,
+model installation or inference was run. The full local desktop test attempt
+was automatically resource-stopped during dependency compilation before tests
+ran; its compiled artifacts remain. The smaller
+`cargo check --locked -p mlearn-desktop --lib --tests --all-features` passed
+warning-free in6.21s under serial1536/1024MiB supervision with the unchanged
+four-GiB reserve. Logs are `desktop-probe-*` in the orchestration root.
+OmO physical footprint was6.60GB, available6.00GB, pressure1 and swap3.26GB;
+the metadata check's maximum RSS399425536 is diagnostic, not physical headroom.
+Full desktop tests on repaired source remain for hosted verification.
+Windows also reported an untouched-file `ocr.rs` unused `PathBuf` import;
+it is not silently suppressed or claimed warning-free.
+Mobile40971451757 passed Android123788935658; iOS123788935607 built, then
+failed the original Watch flow after5m16s because enabled `Open local video`
+was not found. Its raw failed-step log is `139b78f8-ios-failure.log`.
+No unchanged rerun or deferred diagnostic variant was launched. Independent
+M10 review, native parity and maintainer acceptance remain open.
+
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
 M11 product integration remains gated on M10.

@@ -75,7 +75,6 @@ pub async fn run(
         vec![],
     )?;
     let documents = crate::document_resolver(&runtime)?;
-    let cancellation = runtime.cancellation_handle();
     let runtime = Arc::new(RuntimeExecutor::new(runtime));
     let install_runtime = runtime.clone();
     let install_id = format!("ocr-probe-{language}-{run_id}");
@@ -112,7 +111,7 @@ pub async fn run(
         media_base: String::new(),
         runtime: runtime.clone(),
         permits: Arc::new(tokio::sync::Semaphore::new(3)),
-        cancellation,
+        read_controls: Arc::new(tokio::sync::Semaphore::new(2)),
         material: Arc::new(Mutex::new(crate::window_material::WindowMaterial::default())),
         documents,
         ocr: Arc::new(ocr::OcrJobs::new()),
