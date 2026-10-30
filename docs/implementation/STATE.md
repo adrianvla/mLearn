@@ -157,6 +157,11 @@ Desktop41115838504/native124269718631 has now PASSED on exact8b74e7a6.
 Readback verified successful real IPC/plugin-download/restart and tracked-source
 integrity steps. The pending-preference cancellation repair is verified for
 continuation, not whole M10/native-mobile/maintainer acceptance.
+Foundation41115838452 also PASSED on exact8b74e7a6. Readback confirms web
+124269718130, Rust124269718595, OCR detector124269718693, macOS124272863540
+and Windows124272863580 all passed. This is current passing platform evidence;
+it does not diagnose or erase the historical intermittent Windows input-loss
+failures, and it is not native evidence for the later fallback deltas.
 
 The remaining-exit audit reproduced direct unavailable Watch displaying a
 permanent Opening source indicator at1080/390px instead of the host's actual
@@ -219,6 +224,10 @@ above belongs to8b74e7a6, not8445113e. Review receipt
 readback matched. The clean review checkout was unlocked/removed and absence
 verified. Its exact-source hosted runs are foundation41118372934,
 desktop41118373071 and mobile41118373139, observed without manual reruns.
+Desktop41118373071/native124278410272 PASSED on exactb819c18d; readback
+verified real IPC/plugin-download/restart smoke and tracked-source integrity.
+This is unavailable Watch's current desktop evidence, not the following Reader
+delta or native-mobile acceptance.
 
 Next, the existing direct-activity test reproduced the missing Reader heading
 (`unavailable-reader-red.log`, exit1). Root inspected that failed capture and
@@ -238,13 +247,23 @@ Home/Back departure, native-process restart, source Return and prior Material
 drafts. Final in-run footprint3404805608, RSS6478626816,
 available8079982592, pressure1 and swap4917755904 bytes held the original
 reserve. No new native build, device or model was launched.
-This uncommitted delta does not claim retained-management recovery from an
-unavailable Reader, dark/native/mobile rendering or whole-M10 acceptance.
+The Reader delta is committed as
+`e8bdcb7e2f3f995c05bd195c63bf12cd5faba722`. Independent reviewer
+`st_01a18e62` APPROVED it with no blocker after inspecting exact source, shared
+owners, red/green logs and1080/390px captures. Its report and explicit limits are
+`.omo/evidence/unavailable-reader-e8bdcb7e-gate-review.md`. Root inspected the
+report and verified the locked review checkout clean, including ignored files,
+at the expected SHA. Root's post-run readback found no owned QA runtime/preview
+process or listener4173. The reviewer did not rerun tests or independently
+verify LSP/teardown; those remain executor evidence. No retained-management
+recovery from unavailable Reader, dark/native/mobile rendering or whole-M10
+acceptance is claimed.
 Dark fallback remains unverified: browser-preview theme changes are unsaved
 module state and reset on a full route reload. No test-only theme override,
 new dev dependency or expanded visual acceptance claim was introduced.
-Reader's older unavailable fallback remains an explicit presentation gap; its
-retained-management route entry has not been reproduced through a real action.
+The older Reader fallback presentation gap is repaired by this bounded delta;
+retained-management route entry through unavailable Reader still has not been
+reproduced through a real action. Push remains pending.
 
 The latest mobile41101761469 result on03ab9e45 is Android job124220069561
 success and iOS job124220069124 failure; this API response supplied no failed

@@ -76,3 +76,12 @@ No builds, tests, browsers, devices, agents, network calls or Git writes were pe
 The available-path suite source and fixture were read, but its native binary/toolchain integrity was not revalidated. Prior hosted desktop results belong to `8b74e7a6`, not `8445113e`, and were not fetched or treated as current-source native acceptance. Dark unavailable fallback and native/mobile rendering remain unverified. Reader's existing fallback gap and whole-M10 gates remain open. No separate manual-QA matrix, code-review report or notepad path was supplied beyond the brief and leading STATE record; the four screenshots and logs above were inspected directly instead of accepting their summaries alone.
 
 No JS eval/toolkit-status tool or ULW attempt plan was available in this child session. The report therefore uses the requested `.omo/evidence/<goal>-gate-review.md` fallback location.
+
+## Subsequent executor receipt
+
+Desktop run 41118373071 passed on exact pushed receipt source
+`b819c18dcac09f6c2863429f624ca640b7765796`. Root readback verified native job
+124278410272, including successful real IPC/plugin-download/restart smoke and
+tracked-source integrity. This supplements the review's earlier native-evidence
+limit; it is not native-mobile or whole-M10 acceptance and does not cover the
+subsequent Reader fallback delta.

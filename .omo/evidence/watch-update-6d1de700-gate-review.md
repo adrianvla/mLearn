@@ -65,6 +65,12 @@ integrity step. This closes that increment's desktop-native gate, not mobile,
 whole M10 or visual parity. Watch source LSP timed out at the original source
 checkpoint; normal typecheck passed and the corrected test had clean diagnostics.
 
+Foundation run 41115838452 also passed on exact receipt source `8b74e7a6`.
+Readback confirmed successful web 124269718130, Rust 124269718595,
+OCR-detector 124269718693, macOS 124272863540 and Windows 124272863580 jobs.
+This does not diagnose or erase the historical intermittent Windows theme-input
+failures or certify either subsequent fallback delta.
+
 The reviewer ran no builds, tests, devices or network requests and did not
 independently observe process teardown. The actual host owner is
 `apps/client/src/host/createHost.web.ts`; the review brief incorrectly named
