@@ -25,6 +25,28 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+October 30 integrated JS/TypeScript owner checks pass at product625ef496 and
+test checkpointc9e13103:87 tooling checks plus202 package/client tests, with
+zero failures, skips or cancellations. Both stages ran serially using
+`node --test --test-concurrency=1 tools/checks/*.test.mjs` and
+`tsx --test --test-concurrency=1 packages/*/tests/*.test.ts tests/client/*.test.ts`.
+Evidence: task-root `m10-owner-suite-toolchain.log`, exit0. The original
+`m10-owner-suite.log` remains a failed run: root's login-shell wrapper selected
+Xcode Python3.9.6, causing seven offline character-converter syntax failures;
+its TypeScript stage never started. A non-login shell with explicit existing
+`/opt/homebrew/bin` PATH selects verified Python3.14.7. No product/test assertion
+or interpreter compatibility code changed. Node rejected test-concurrency in
+NODE_OPTIONS; the supported CLI flag was used instead.
+Rust source continuity was checked againstf3e7366a: `git diff --stat f3e7366a
+HEAD -- crates Cargo.toml Cargo.lock` is empty. Reuse the recorded warning-free
+22 language-host and70 runtime passes and exact139b78f8 hosted Rust evidence
+below, rather than rebuilding unchanged owners. This does not promote the
+separate native/platform/M10 gates to passing. The owner-suite guard stayed
+safe with the unchanged4GiB reserve; last sample footprint3445405136,
+available8293810176, pressure1, swap3987603456 bytes. Disk readback is8111908KiB
+available; owned verification roots were measured, not deleted or attributed
+to unexplained memory growth. Preserve genuine profiles and compiled artifacts.
+
 October 30 accepted source-proposal departure: Open saved Material bypassed
 Inspector's checkpoint-aware owner and left its source Inspector portaled over
 the editor. The new real-conversation regression reproduced expected0/received1
