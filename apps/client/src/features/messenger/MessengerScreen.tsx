@@ -27,7 +27,7 @@ export function MessengerScreen() {
   const host = useRuntime();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; messageId?: string; messageSequence?: string;
-    materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
   if (!host.available) return <AppShell header={<Row>
     <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
     <Text variant="heading" accessibilityRole="header">Conversation</Text>
@@ -37,16 +37,17 @@ export function MessengerScreen() {
     focusSequence={typeof params.messageSequence === 'string' && /^\d+$/.test(params.messageSequence)
       && Number(params.messageSequence) < 4294967295 ? Number(params.messageSequence) : undefined}
     materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
+    proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
     reviewSessionId={typeof params.reviewSessionId === 'string' ? params.reviewSessionId : undefined}
     reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined}
     windowControlsWidth={host.windowControlsWidth ?? 0} />;
 }
 
 export function MessengerWorkspace({ client, initialId = '', focusMessageId, focusSequence, windowControlsWidth = 0,
-  materialId, reviewSessionId, reviewEncounterId }: {
+  materialId, proposalId, reviewSessionId, reviewEncounterId }: {
   readonly client: RuntimeClient; readonly initialId?: string; readonly focusMessageId?: string;
   readonly focusSequence?: number; readonly windowControlsWidth?: number;
-  readonly materialId?: string; readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
+  readonly materialId?: string; readonly proposalId?: string; readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
 }) {
   const messenger = useMessenger(client, initialId, focusSequence);
   const actions = { ...messenger, client };
@@ -353,8 +354,8 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     {inspection && chat ? <Inspector inspection={inspection} packageId={chat.packageId} client={client}
       onBeforeOpenMaterial={messenger.persistDraft}
       onChanged={async () => { messenger.retryAnalysis(); }} onClose={() => setInspection(null)} /> : null}
-    {materialId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
-      materialId={materialId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}
+    {materialId || proposalId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
+      materialId={materialId} proposalId={proposalId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}
       onKnowledgeChanged={messenger.retryAnalysis} /> : null}
   </KeyboardAvoidingView></View>;
 }

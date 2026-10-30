@@ -42,11 +42,10 @@ test('Home releases Messenger status polling without cancelling the native gener
   await (await firstStatus).finished();
   await expect(composer).toHaveValue('');
   await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
-  await page.clock.pauseAt(new Date('2026-10-30T01:00:00Z'));
-  holdNext = true;
   const held = once(events, 'held', { signal: AbortSignal.timeout(15000) });
-  await page.clock.runFor(600);
+  holdNext = true;
   await held;
+  await page.clock.pauseAt(new Date('2026-10-30T01:00:00Z'));
   const readsBeforeHome = statusReads;
   const receipt = page.waitForResponse(isStatusReceipt);
   try {
@@ -265,6 +264,35 @@ test(`an edited question after ${terminal} is admitted with the new instruction`
   expect(nativeCore.metadata().providerRequests).toBe(3);
 });
 }
+
+test('message proposal Return restores the captured original instead of only opening its chat', async ({ page, nativeCore }, info) => {
+  await openNativeConversation(page, nativeCore);
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Give an example with children.');
+  await composer.press('Enter');
+  const analysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
+  await expect(analysis).toBeEnabled();
+  await analysis.click();
+  await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
+  await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Young people.');
+  await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();
+  await expect(proposals.getByTestId('material-proposal-result')).toHaveText('Proposal saved for review.');
+  await proposals.getByRole('button', { name: 'Return to proposal source', exact: true }).click();
+  await expect(proposals).toBeHidden();
+  const original = page.getByRole('dialog', { name: 'Captured message', exact: true });
+  await expect(original.getByText('Children walked home.', { exact: true })).toBeVisible();
+  await expect(original.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+  await expect(original.getByRole('button', { name: 'Explain', exact: true })).toBeDisabled();
+  await expect(page.getByTestId('inspector-panel')).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get('proposalId')).toBeTruthy();
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: info.outputPath(`message-proposal-return-${width}.png`) });
+  }
+  expect(nativeCore.metadata().providerRequests).toBe(1);
+});
 
 test('message Capture returns the immutable original after an edit and native restart', async ({ page, nativeCore }, info) => {
   test.setTimeout(60_000);

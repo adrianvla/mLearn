@@ -25,12 +25,13 @@ const running = (generation: ConversationGeneration | null) =>
   generation?.status === 'pending' || generation?.status === 'streaming';
 
 /** Presentation lifetime only; the shared native generation owner owns the job. */
-export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false }: {
+export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, onReturnToSource }: {
   readonly client: RuntimeClient;
   readonly source: SourceAnchor;
   readonly tone?: 'content' | 'media';
   readonly explanationDisabledReason?: string;
   readonly disabled?: boolean;
+  readonly onReturnToSource?: () => void;
 }) {
   const host = useRuntime();
   const router = useRouter();
@@ -303,7 +304,8 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     </Row>
     <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}
       focusTarget={() => proposalTrigger.current} seed={null} source={source}
-      onOpenMaterial={id => router.navigate({ pathname: '/materials', params: { id } })} />
+      onOpenMaterial={id => router.navigate({ pathname: '/materials', params: { id } })}
+      onReturnToSource={onReturnToSource} />
     {feedback ? <Text tone={tone} variant="caption" accessibilityLiveRegion="polite">{feedback}</Text> : null}
     {explanationDisabledReason ? <Text tone={tone} variant="caption" muted>{explanationDisabledReason}</Text> : null}
     {!open && error ? <Text tone={tone} variant="caption" accessibilityRole="alert">{error}</Text> : null}

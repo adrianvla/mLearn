@@ -244,10 +244,14 @@ test('source proposals retain edits and atomically recover acceptance after a lo
     const result = JSON.parse((await (await returned).json()).value);
     expect(result).toMatchObject({ type: 'document_material_source', anchor: pending[0].content.source });
     await expect(dialog).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    const returnedWord = page.getByRole('button', { name: 'Children: untracked', exact: true });
+    await expect(returnedWord).toBeVisible();
+    await expect(returnedWord.locator('[data-source-start]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     await page.screenshot({ path: info.outputPath('proposal-source-return-phone.png') });
     await page.setViewportSize({ width: 1080, height: 900 });
     await page.screenshot({ path: info.outputPath('proposal-source-return-desktop.png') });
+    await page.reload();
+    await expect(returnedWord.locator('[data-source-start]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     await page.unrouteAll({ behavior: 'wait' });
   } finally { await backend.close(); }
 });

@@ -13,15 +13,16 @@ type Original = Extract<Response, { type: 'conversation_material_source' }>;
 const readOnly = 'Captured original · open the current conversation to capture or explain again.';
 
 /** A captured revision is distinct from the editable current conversation. */
-export function ConversationSource({ client, materialId, reviewSessionId, reviewEncounterId, onKnowledgeChanged }: {
+export function ConversationSource({ client, materialId, proposalId, reviewSessionId, reviewEncounterId, onKnowledgeChanged }: {
   readonly client: RuntimeClient;
   readonly materialId?: string;
+  readonly proposalId?: string;
   readonly reviewSessionId?: string;
   readonly reviewEncounterId?: string;
   readonly onKnowledgeChanged: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  const originKey = JSON.stringify([materialId, reviewSessionId, reviewEncounterId]);
+  const originKey = JSON.stringify([materialId, proposalId, reviewSessionId, reviewEncounterId]);
   const [snapshot, setSnapshot] = useState<{ key: string; value: Original } | null>(null);
   const original = snapshot?.key === originKey ? snapshot.value : null;
   const scope = useRef<object | null>(null);
@@ -41,6 +42,7 @@ export function ConversationSource({ client, materialId, reviewSessionId, review
     setInspection(null);
     const read = async () => {
       const result = materialId ? await client.returnMaterialSource(materialId)
+        : proposalId ? await client.returnMaterialProposalSource(proposalId)
         : reviewSessionId && reviewEncounterId ? await client.returnReviewSource(reviewSessionId, reviewEncounterId) : null;
       if (!result || result.type !== 'conversation_material_source')
         throw new Error('This saved source does not identify an original conversation message.');
@@ -53,7 +55,7 @@ export function ConversationSource({ client, materialId, reviewSessionId, review
       if (active) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; if (scope.current === owner) scope.current = null; };
-  }, [client, materialId, reviewSessionId, reviewEncounterId, reload]);
+  }, [client, materialId, proposalId, reviewSessionId, reviewEncounterId, reload]);
   const analyzed = original ? batch?.messages.find(message => message.messageId === original.message.id
     && message.messageRevision === original.message.revision
     && message.contentRevision === original.message.contentRevision) : null;

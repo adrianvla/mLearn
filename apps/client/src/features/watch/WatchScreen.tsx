@@ -25,8 +25,8 @@ type VideoSelection = SourceAnchor & {
     readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
 };
 export function WatchScreen() {
-    const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
-    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+    const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="video" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
     return <WatchWorkspace />;
 }
@@ -36,6 +36,7 @@ function WatchWorkspace() {
     const params = useLocalSearchParams<{
         id: string;
         materialId?: string;
+        proposalId?: string;
         reviewSessionId?: string;
         reviewEncounterId?: string;
     }>();
@@ -161,11 +162,14 @@ function WatchWorkspace() {
         setCaptureOpen(false);
         setSubtitleCapture(null);
         void current.ready.then(async () => {
-            if (typeof params.reviewSessionId === 'string' && typeof params.reviewEncounterId === 'string') {
-                const restored = await host.client.returnReviewSource(params.reviewSessionId, params.reviewEncounterId);
+            const restored = typeof params.proposalId === 'string'
+                ? await host.client.returnMaterialProposalSource(params.proposalId)
+                : typeof params.reviewSessionId === 'string' && typeof params.reviewEncounterId === 'string'
+                    ? await host.client.returnReviewSource(params.reviewSessionId, params.reviewEncounterId) : null;
+            if (restored) {
                 if (restored.type !== 'material_source' || restored.window.source.id !== id
                     || restored.anchor.locator.kind !== 'video')
-                    throw new Error('This Review encounter does not return to the selected video.');
+                    throw new Error('This source return does not match the selected video.');
                 if (active && current.isCurrent())
                     setReturnedSelection({ ...restored.anchor, locator: restored.anchor.locator });
                 return restored.window;
@@ -223,7 +227,7 @@ function WatchWorkspace() {
                     setError(e instanceof Error ? e.message : String(e));
             });
         };
-    }, [host, id, params.materialId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
+    }, [host, id, params.materialId, params.proposalId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
     const bucket = Math.floor(position / 2000);
     const subtitleTime = position + (window?.source.subtitleOffsetMs ?? 0);
     const cues = window?.cues.filter(c => c.startMs <= subtitleTime && c.endMs > subtitleTime) ?? [];

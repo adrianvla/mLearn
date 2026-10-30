@@ -259,7 +259,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
                 {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
-                    disabled={busy} explanationDisabledReason={readOnlySourceReason} /> : null}
+                    disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close} /> : null}
             </>}>
             {entry && evidenceCapability ? <KnowledgeEvidence
                 key={JSON.stringify([packageId, entry.targetId, evidenceCapability])} client={client}

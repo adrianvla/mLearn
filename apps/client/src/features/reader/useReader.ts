@@ -13,7 +13,7 @@ type LocatedDocument = Extract<Awaited<ReturnType<RuntimeClient['returnSourceAnc
 
 /** The view holds only the current bounded window and native projections. */
 export function useReader(client: RuntimeClient, id: string, materialId?: string,
-    reviewSessionId?: string, reviewEncounterId?: string, originalPages: boolean | null = null) {
+    reviewSessionId?: string, reviewEncounterId?: string, originalPages: boolean | null = null, proposalId?: string) {
     const [window, setWindow] = useState<DocumentWindow | null>(null);
     const [batch, setBatch] = useState<DocumentAnalysisBatch | null>(null);
     const [contents, setContents] = useState<DocumentContentsPage | null>(null);
@@ -92,7 +92,8 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
             // current authored association instead.
             const result = reviewSessionId && reviewEncounterId
                 ? await client.returnReviewSource(reviewSessionId, reviewEncounterId)
-                : materialId ? await client.returnMaterialSource(materialId) : null;
+                : materialId ? await client.returnMaterialSource(materialId)
+                : proposalId ? await client.returnMaterialProposalSource(proposalId) : null;
             if (result) {
                 if (result.type === 'material_source' || result.type === 'conversation_material_source'
                     || result.window.source.id !== id)
@@ -128,7 +129,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 });
             }
         };
-    }, [client, id, materialId, reviewSessionId, reviewEncounterId, reload, persist]));
+    }, [client, id, materialId, proposalId, reviewSessionId, reviewEncounterId, reload, persist]));
 
     const identity = window ? JSON.stringify([window.source.id, window.source.contentRevision,
         window.source.parserRevision, window.source.packageId, window.source.packageVersion]) : '';

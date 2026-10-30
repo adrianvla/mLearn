@@ -26,9 +26,9 @@ import { ReaderSearch } from './ReaderSearch';
 
 export function ReaderScreen() {
     const host = useRuntime();
-    const params = useLocalSearchParams<{ id: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    const params = useLocalSearchParams<{ id: string; packageId?: string; materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
     const router = useRouter();
-    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+    if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="document" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
     if (!host.available) return <View style={styles.unavailable}>
         <Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
@@ -36,16 +36,17 @@ export function ReaderScreen() {
     </View>;
     return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
         materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
+        proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
         reviewSessionId={typeof params.reviewSessionId === 'string' ? params.reviewSessionId : undefined}
         reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined} />;
 }
 
-function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncounterId }: {
-    readonly client: RuntimeClient; readonly id: string; readonly materialId?: string;
+function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, reviewEncounterId }: {
+    readonly client: RuntimeClient; readonly id: string; readonly materialId?: string; readonly proposalId?: string;
     readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
 }) {
     const [imageView, setImageView] = useState<boolean | null>(null);
-    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView);
+    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView, proposalId);
     const router = useRouter();
     const host = useRuntime();
     const viewport = useWindowDimensions();

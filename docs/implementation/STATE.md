@@ -25,6 +25,40 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+October 30 proposal Return repair: the real Reader regression returned the
+right document but lost the captured selection (`Children` stayed transparent).
+Proposal navigation now carries only its stable proposal ID; existing Reader,
+Watch and captured-message owners resolve the authoritative anchor through
+`returnMaterialProposalSource`. No anchor store, protocol or Rust authority was
+added. Reader selection survives reload; Watch restores the original subtitle
+selection; Messenger opens its captured-original dialog rather than only a chat.
+The first integrated captures exposed the originating Inspector still portaled
+behind the destination. Successful Return now invokes that existing Inspector's
+close callback before navigation, and tests reject duplicate/stranded Inspectors.
+Failures retain the initiating proposal dialog.
+
+Typecheck, ownership lint and final export
+`a8e5f48bc2d012a3bd23050edd89a00f` passed. All40 affected proposal/Reader/Watch/
+Messenger scenarios then passed in1.1m (`proposal-selection-settled.log`/results).
+Desktop/narrow Reader, Watch and captured-message captures were inspected.
+The source-only Watch proposal fixture intentionally does not decode; the
+separate genuine-media departure case also passed in this run. Image proposal
+Return shares Reader's existing image-anchor path but was not independently
+exercised here. No native-device/platform certification or complete M10 claim.
+Original red evidence is `proposal-selection-red.log`/results. The earlier
+40-pass intermediate (`proposal-selection-integrated`) predates the portal fix.
+`proposal-selection-final` retains39 passes plus a polling-driver timing failure:
+virtual time advanced before an outstanding native poll scheduled its next timer.
+The repaired test awaits the exact held polling request before pausing time;
+it does not sleep, extend a timeout, weaken cleanup assertions or retry to green.
+Fresh diagnostics for all three affected test files were clean before that final
+small synchronization edit; normal product typecheck is clean. The final run
+kept the4GiB reserve: last sample footprint3335583184, available7760494592,
+pressure1, swap5011406848 bytes. QA native processes and preview4173 were absent
+afterward. Existing Inspector action-rail clipping/lexical-alternative differences
+remain outside this navigation repair. M10 review/native/visual gates and M11's
+dependency gate stay open.
+
 October 30 unavailable-Review recovery increment: the browser-preview Home
 action replaced Home and discarded the retained Knowledge workspace, even
 though an ordinary management roundtrip preserved its unsubmitted search.

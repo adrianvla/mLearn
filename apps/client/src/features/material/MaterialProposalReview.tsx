@@ -16,7 +16,7 @@ import { MaterialGenerationControls } from './MaterialGenerationControls';
 import { emptyMaterial } from './content';
 
 /** Unsubmitted fields live here; proposal identity, review and receipts stay native-owned. */
-export function MaterialProposalReview({ client, open, onOpenChange, focusTarget, seed, source, onChanged, onOpenMaterial }: {
+export function MaterialProposalReview({ client, open, onOpenChange, focusTarget, seed, source, onChanged, onOpenMaterial, onReturnToSource }: {
   readonly client: RuntimeClient;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -25,6 +25,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
   readonly source?: SourceAnchor;
   readonly onChanged?: () => void;
   readonly onOpenMaterial: (id: string) => void;
+  readonly onReturnToSource?: () => void;
 }) {
   const router = useRouter();
   const [page, setPage] = useState<MaterialProposalPage | null>(null);
@@ -139,13 +140,15 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
       const result = await client.returnMaterialProposalSource(proposal.id);
       if (!mounted.current) return;
       onOpenChange(false);
+      onReturnToSource?.();
       if (result.type === 'conversation_material_source') {
         router.push({ pathname: '../messenger', params: {
           id: result.conversation.id, messageId: result.message.id, messageSequence: String(result.message.sequence),
+          proposalId: proposal.id,
         } });
       } else {
         router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
-          params: { id: result.window.source.id } });
+          params: { id: result.window.source.id, proposalId: proposal.id } });
       }
     } catch (cause) {
       if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause));
