@@ -59,6 +59,26 @@ afterward. Existing Inspector action-rail clipping/lexical-alternative differenc
 remain outside this navigation repair. M10 review/native/visual gates and M11's
 dependency gate stay open.
 
+Root's separate finite omowright replay passed on exact product checkpoint
+`19e35a9a`, not a later renderer build. Actual GUI creation of an unaccepted
+proposal, Return, native SIGKILL/restart and route reload preserve the exact
+Children highlight at1080/390px, zero stranded Inspectors and no horizontal
+overflow. Home/Material/Review proposals reopens the same pending revision1
+with unchanged authored meaning/notes and zero provider requests. The manifest
+is `.mlearn/m10/proposal-return-root-qa.json`; linked pending/restart/management
+captures were inspected. `proposal-return-root.log` exits0. Its native profile
+`proposal-return-root-native.vkMSua` is preserved under the task root; owned
+browser/native/server were closed and exact profile processes/port4173 absent.
+The4GiB reserve remained unchanged; last sample footprint3340760528,
+available7888781312, pressure1, swap3773366272 bytes. The single read-only
+independent reviewer approved exact source `19e35a9a` with no blocker and
+moderate-high confidence for this bounded increment. It inspected source,
+native owners, tests, logs and captures without running workloads or writing
+files. Report: `.omo/evidence/proposal-return-19e35a9a-gate-review.md`.
+The clean locked review checkout was verified at that source and removed.
+Closed-dialog/route-change races remain statically audited only; image/native/
+visual limits remain open. This verdict is not milestone or maintainer acceptance.
+
 October 30 unavailable-Review recovery increment: the browser-preview Home
 action replaced Home and discarded the retained Knowledge workspace, even
 though an ordinary management roundtrip preserved its unsubmitted search.
