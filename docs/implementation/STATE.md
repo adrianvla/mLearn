@@ -41,8 +41,15 @@ retains explicit Retry, retries the identical command, then returns Home,
 preserves the Material query and restores the unsent draft after native process
 crash/restart, with zero provider calls. Root inspected pending/failed/restored
 390px captures. Source LSP is clean; test LSP timed out.
-Adjacent Messenger regressions, desktop-state inspection, independent review
-and push remain pending; this is not NAV-02/M10 or OS-native acceptance.
+The same case now runs at390/1080. The corrected grouped launch passes all five
+targeted cases: both Back widths, Home status-poll cleanup without cancelling
+native generation, accepted-source proposal checkpointing/management retention
+and exact message-proposal Return (`messenger-back-adjacent.log`,12.8s).
+Root inspected final desktop pending/failure and narrow restored-draft captures.
+Source and final test have fresh clean LSP diagnostics. Product source is
+`2d305a50a553ca98bb770cd208039efb2e6cc705`; only width parameterization and this
+evidence follow it. Independent review and push remain pending; broader
+regressions/native/milestone gates are not claimed from these five cases.
 
 The launch incorrectly continued despite1153644KiB disk because the environment
 prefix broke the intended shell AND chain. This is a root orchestration error,
@@ -50,8 +57,10 @@ not a waived disk gate. Grouping the prefix and gate in one child shell was
 verified without a workload:1089548KiB emitted DISK_ADMISSION_HELD and exited75.
 Use that grouped form for future work; memory reserve stayed4GiB in the run.
 Owned QA processes are absent. Preserve this candidate/evidence while adjacent
-execution waits for capacity; do not delete profiles or infer approval from
-the passing single case.
+execution uses the corrected admission. Final grouped run started at2140040KiB;
+its last footprint3302143440, RSS6771261440, available7703674880,
+pressure1, swap3693019136 bytes held the original4GiB memory reserve.
+Disk now1926348KiB. Do not delete profiles or infer milestone approval.
 
 October 30 Watch Back checkpoint repair: extending the existing decoded-video/
 real-Rust transcript case to browser Back reproduced Home becoming visible
