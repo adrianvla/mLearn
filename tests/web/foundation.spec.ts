@@ -147,3 +147,20 @@ test('Home recovers directly opened activities without navigation history', asyn
     }
   }
 });
+
+for (const width of [1080, 390]) test(`unavailable Watch exposes its runtime failure and Home recovery at ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto('/watch?id=unavailable');
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  await expect(home).toBeVisible();
+  await page.screenshot({ path: info.outputPath(`unavailable-watch-${width}.png`) });
+  await expect(page.getByRole('alert').filter({
+    hasText: 'The browser preview has no native runtime.',
+  })).toBeVisible();
+  await expect(page.getByText('Opening source…', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry source', exact: true })).toHaveCount(0);
+  const returned = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+  await home.click();
+  await returned;
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+});

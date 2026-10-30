@@ -148,6 +148,67 @@ probe had an awk quoting error and supplied no proof. The reviewer resolved the
 brief's incorrect host path to `apps/client/src/host/createHost.web.ts`.
 Desktop-native execution remains open. No milestone or visual-parity acceptance
 is claimed from these scoped renders and three browser-core scenarios.
+Review receipt `8b74e7a69fe89a0b5f17742e6f13d67be5f1b975` is pushed;
+HEAD/upstream readback matched. The clean exact-source review checkout was
+unlocked/removed, with absence verified. Exact-source hosted runs are
+foundation41115838452, desktop41115838504 and mobile41115838618, all observed
+through read-only subscriptions without manual reruns.
+Desktop41115838504/native124269718631 has now PASSED on exact8b74e7a6.
+Readback verified successful real IPC/plugin-download/restart and tracked-source
+integrity steps. The pending-preference cancellation repair is verified for
+continuation, not whole M10/native-mobile/maintainer acceptance.
+
+The remaining-exit audit reproduced direct unavailable Watch displaying a
+permanent Opening source indicator at1080/390px instead of the host's actual
+unavailability reason (`unavailable-watch-red.log`, two expected failures).
+Root inspected both before captures. WatchScreen now checks the existing host
+boundary before mounting WatchWorkspace and reuses the same AppShell/Row/
+Button/Text recovery composition as unavailable Review/Messenger. Empty source
+entry still uses SourceEntryScreen. No second host, cancellation, persistence
+or navigation owner was added. The Home action uses existing dismissTo behavior.
+Fresh export `d9c6f2db6b48e424187f0d8d1e6ce247` passes both new cases
+(`unavailable-watch-green.log`, exit0,1.5s). Root inspected1080/390px captures:
+the reason is visible, wraps within the shell and Home returns to real Home;
+there is no false opening or unsupported Retry source control. Source and test
+LSP are clean. Normal typecheck and ownership lint pass. The combined12-case
+foundation/Watch run was resource-stopped with exit70, without a final suite
+verdict (`unavailable-watch-adjacent.log`); it is incomplete, not a test assertion
+failure. OmO footprint jumped from3369858536 to7590032848 bytes; available fell
+to5101584384 and projected headroom4027842560 violated the unchanged4GiB
+reserve. The guard stopped its owned workload. Post-stop footprint7230404048,
+RSS3632300032, available6220038144, pressure1 and swap5585305600 bytes.
+No matching browser/runtime or preview listener4173 survived. Eval's small
+heap/external allocations do not explain the process footprint; no device/model
+was running or blamed. Bounded `omo-memory-summary-watch-stop.log` records6.7G
+physical footprint, with App-Specific Tag1 at5.6G resident/4.5G dirty/2.0G
+swapped; ordinary malloc and JS VM reservations are far smaller. This identifies
+a category, not the allocation's owner or cause. The first summary's terminal
+notification was truncated; the second was preserved as a bounded file rather
+than loading a heap dump. Do not accumulate substantial verification while
+unexplained growth continues. A read-only original2560MiB readiness observation
+may run; it must not automatically start or replay any app/device workload.
+That observation initially held, then footprint fell from7.13G to4.22G,
+3.41G and3.40G with three consecutive safe original-limit samples.
+Final available8526348288, pressure1, swap4085579776 bytes, projected
+headroom5841993728. Root inspected the falling/stable trend before resuming
+only the interrupted12-case batch (`unavailable-watch-resume.log`); passing
+typecheck/lint were not repeated. The cause remains unresolved and the same
+runtime guard/reserve remains active.
+The resumed batch passes all12 cases in32.9s, exit0. It covers the full
+foundation suite, both new unavailable Watch widths, direct activity Home
+recovery, retained Knowledge search after unavailable Review, accessibility/
+theme/focus checks and all three real-Rust Watch cancellation/departure/
+checkpoint/restart scenarios. No assertion was weakened or resource estimate
+lowered. Final in-run footprint3385669072, RSS6924468224,
+available7497007104, pressure1 and swap4159438848 bytes held the reserve.
+The earlier exit70 remains recorded as an incomplete resource-stopped run.
+Independent review and source checkpoint for the unavailable Watch delta remain
+pending; desktop success above belongs to8b74e7a6, not this uncommitted delta.
+Dark fallback remains unverified: browser-preview theme changes are unsaved
+module state and reset on a full route reload. No test-only theme override,
+new dev dependency or expanded visual acceptance claim was introduced.
+Reader's older unavailable fallback remains an explicit presentation gap; its
+retained-management route entry has not been reproduced through a real action.
 
 The latest mobile41101761469 result on03ab9e45 is Android job124220069561
 success and iOS job124220069124 failure; this API response supplied no failed

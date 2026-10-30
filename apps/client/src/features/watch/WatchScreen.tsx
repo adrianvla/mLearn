@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
@@ -26,9 +26,15 @@ type VideoSelection = SourceAnchor & {
     readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
 };
 export function WatchScreen() {
+    const host = useRuntime();
+    const router = useRouter();
     const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
     if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="video" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
+    if (!host.available) return <AppShell header={<Row>
+        <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+        <Text variant="heading" accessibilityRole="header">Watch</Text>
+    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
     return <WatchWorkspace />;
 }
 function WatchWorkspace() {

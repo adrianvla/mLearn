@@ -38,6 +38,15 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: direct Watch entry without an available runtime uses the same AppShell
+header/body composition as unavailable Review and Messenger. Home is the only
+action; the header identifies Watch, and the body exposes the host's actual
+unavailability reason as an alert. Existing shell, Row, Button and Text roles own
+spacing, theme, typography, wrapping and scrolling. No media workspace, opening
+indicator or retry action is mounted when opening cannot begin. Before captures
+are `unavailable-watch-red-results/` in the current orchestration root, at
+1080/390 pixels, showing the false permanent "Opening source..." state.
+
 Layout: Home, Knowledge and Material retain their existing shared compositions
 inside one lazy management tab navigator with no additional visible tab bar.
 The existing navigation controls switch those routes instead of constructing
