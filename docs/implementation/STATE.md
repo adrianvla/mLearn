@@ -25,6 +25,26 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+October 30 accepted source-proposal departure: Open saved Material bypassed
+Inspector's checkpoint-aware owner and left its source Inspector portaled over
+the editor. The new real-conversation regression reproduced expected0/received1
+Inspector before repair (`accepted-proposal-departure-red.log`/results).
+SourceActions now delegates that action to its parent Inspector when present,
+reusing the same draft/checkpoint acknowledgement, close and management-entry
+owner as ordinary captured Material. Standalone callers keep their existing
+route behavior; no duplicate departure implementation or new state owner.
+Normal typecheck, ownership lint and fresh export
+`9531139e3df9cdb27877868aa62d9e5a` pass. All41 affected proposal/Reader/Watch/
+Messenger cases pass in1.1m (`accepted-proposal-departure-green.log`/results).
+The actual conversation's unsent draft and retained unsubmitted Material search
+both survive opening the accepted editor and returning to the captured message.
+Desktop/narrow editor captures were inspected with no stranded Inspector.
+Product/test diagnostics and diff check are clean. Native QA processes and
+preview4173 were absent after completion. Resource reserve stayed4GiB; last
+sample footprint3354998224, available7352434688, pressure1,
+swap3634298880 bytes. Prior independent approval remains bound to19e35a9a,
+not this later two-owner callback increment; full M10 review is still required.
+
 October 30 proposal Return repair: the real Reader regression returned the
 right document but lost the captured selection (`Children` stayed transparent).
 Proposal navigation now carries only its stable proposal ID; existing Reader,

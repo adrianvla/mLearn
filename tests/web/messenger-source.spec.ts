@@ -265,6 +265,48 @@ test(`an edited question after ${terminal} is admitted with the new instruction`
 });
 }
 
+test('opening accepted source proposals checkpoints the conversation and preserves management drafts', async ({ page, nativeCore }, info) => {
+  await openNativeConversation(page, nativeCore);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Material', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
+  const managementDraft = 'Unsubmitted search before accepting a source proposal';
+  await search.fill(managementDraft);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Coach', exact: true }).click();
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Give an example with children.');
+  await composer.press('Enter');
+  const analysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
+  await expect(analysis).toBeEnabled();
+  const unsent = 'Keep this unsent conversation draft after proposal acceptance.';
+  await composer.fill(unsent);
+  await analysis.click();
+  await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
+  await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Accepted source meaning.');
+  await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();
+  await proposals.getByRole('button', { name: 'Accept proposal', exact: true }).click();
+  await expect(proposals.getByTestId('material-proposal-result')).toContainText('Saved Material · committed revision 1');
+  await proposals.getByRole('button', { name: 'Open saved Material', exact: true }).click();
+  await expect(page.getByTestId('inspector-panel')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted source meaning.');
+  await expect(search).toHaveValue(managementDraft);
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: info.outputPath(`accepted-proposal-material-${width}.png`) });
+  }
+  await page.getByRole('button', { name: 'Return to source', exact: true }).click();
+  const original = page.getByRole('dialog', { name: 'Captured message', exact: true });
+  await expect(original.getByText('Children walked home.', { exact: true })).toBeVisible();
+  await original.getByRole('button', { name: 'Close captured source', exact: true }).click();
+  await expect(composer).toHaveValue(unsent);
+  expect(nativeCore.metadata().providerRequests).toBe(1);
+});
+
 test('message proposal Return restores the captured original instead of only opening its chat', async ({ page, nativeCore }, info) => {
   await openNativeConversation(page, nativeCore);
   const composer = page.getByRole('textbox', { name: 'Message', exact: true });
