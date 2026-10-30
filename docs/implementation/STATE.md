@@ -63,6 +63,25 @@ last launch sample footprint3310302672, available8739602432, pressure1,
 swap4282777600 bytes. Owned native QA processes and preview4173 were absent after
 the finite test closed. Full navigation/M10 gates remain open.
 
+Messenger Home polling-lifetime regression passes in2.6s with the real native
+generation held streaming. After send/draft cleanup settles, the test holds one
+actual polling receipt, departs through Home, releases that receipt and advances
+four600ms polling periods with Playwright's virtual clock. No further status
+read is issued by the unmounted conversation. The native generation remains
+streaming with one provider request; reopening Coach permits explicit Stop,
+closes that same provider request and publishes cancelled. No product edit was
+needed. The first driver held the initial poll before send cleanup could finish,
+blocking the serialized request lane and leaving Home disabled; its AbortError
+and trace remain in `messenger-home-poll.log`/results. The corrected event-bound
+run is `messenger-home-poll-v2.log`/results; this is not a product-failure repair.
+Diff check passes. Fresh LSP diagnostics timed out after the change; the earlier
+initial diagnostics were clean, but that does not certify the final test source.
+The final test executed successfully. Guard samples stayed safe with unchanged
+4GiB reserve; last launch footprint3333420496, available8197242880, pressure1,
+swap4115005440 bytes. Native QA processes and preview4173 were absent afterward.
+This verifies Home unmount/stale-receipt cleanup, not a retained-but-hidden route
+or consuming-platform Watch playback lifetime.
+
 October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
 to Material instead of Home; Reselect from Home replaced the retained management
 workspace and erased its unsubmitted search. Both failures were reproduced against

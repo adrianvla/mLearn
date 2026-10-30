@@ -1,7 +1,82 @@
 /// <reference types="node" />
-import { expect, type Route } from '@playwright/test';
+import { expect, type Response, type Route } from '@playwright/test';
 import { EventEmitter, once } from 'node:events';
 import { test, openNativeConversation } from './messenger-native-fixture';
+
+test('Home releases Messenger status polling without cancelling the native generation', async ({ page, nativeCore }) => {
+  test.setTimeout(60_000);
+  await page.clock.install({ time: new Date('2026-10-30T00:00:00Z') });
+  await openNativeConversation(page, nativeCore);
+  nativeCore.providerMode('hold');
+  const events = new EventEmitter();
+  let generationId = '';
+  let statusReads = 0;
+  let holdNext = false;
+  await page.route(`${nativeCore.url}/invoke`, async route => {
+    const payload = route.request().postDataJSON();
+    const command = typeof payload.args?.request === 'string' ? JSON.parse(payload.args.request).command : null;
+    if (command?.action !== 'read_generation') { await route.continue(); return; }
+    statusReads++;
+    if (!holdNext || generationId) { await route.continue(); return; }
+    const response = await route.fetch();
+    const value = JSON.parse((await response.json()).value);
+    expect(value).toMatchObject({ type: 'conversation', result: { kind: 'generation' } });
+    generationId = value.result.generation.id;
+    const released = once(events, 'released', { signal: AbortSignal.timeout(15000) });
+    events.emit('held');
+    await released;
+    await route.fulfill({ response });
+  });
+  const isStatusReceipt = (response: Response) => {
+    if (response.url() !== `${nativeCore.url}/invoke`) return false;
+    const payload = response.request().postDataJSON();
+    return typeof payload.args?.request === 'string'
+      && JSON.parse(payload.args.request).command?.action === 'read_generation';
+  };
+  const firstStatus = page.waitForResponse(isStatusReceipt);
+  const started = nativeCore.nextProviderStart();
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Keep generating while I visit Home.');
+  await composer.press('Enter');
+  await started;
+  await (await firstStatus).finished();
+  await expect(composer).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
+  await page.clock.pauseAt(new Date('2026-10-30T01:00:00Z'));
+  holdNext = true;
+  const held = once(events, 'held', { signal: AbortSignal.timeout(15000) });
+  await page.clock.runFor(600);
+  await held;
+  const readsBeforeHome = statusReads;
+  const receipt = page.waitForResponse(isStatusReceipt);
+  try {
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  } finally {
+    events.emit('released');
+  }
+  await (await receipt).finished();
+  // Timer cleanup is the behavior under test. Advance four polling periods,
+  // rather than waiting in wall time for an absence of network activity.
+  await page.clock.runFor(2400);
+  expect(statusReads).toBe(readsBeforeHome);
+  expect(nativeCore.metadata()).toMatchObject({ providerRequests: 1, activeProvider: true });
+  const saved = JSON.parse(await nativeCore.invoke('runtime_execute', {
+    request: JSON.stringify({ type: 'conversation', command: { action: 'read_generation', id: generationId } }),
+  }));
+  expect(saved).toMatchObject({ type: 'conversation', result: { kind: 'generation',
+    generation: { id: generationId, status: 'streaming' } } });
+
+  await page.clock.resume();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Coach', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
+  const closed = nativeCore.nextProviderClose();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await closed;
+  await expect(page.getByText(/· cancelled$/)).toBeVisible();
+  expect(nativeCore.metadata()).toMatchObject({ providerRequests: 1, activeProvider: false });
+});
 
 for (const loss of ['admission', 'owner validation', 'history validation'] as const) {
 for (const action of ['Stop', 'Close', 'Close pending', 'source replacement', 'reopen'] as const) {
