@@ -7,7 +7,7 @@ import type { Contact, Conversation, ConversationMessage } from '@mlearn/contrac
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { SegmentedControl } from '@mlearn/ui/segmented-control';
 import { KeyboardAvoidingView } from '@mlearn/ui/keyboard-avoiding-view';
@@ -25,9 +25,13 @@ import { ConversationSource } from './ConversationSource';
 /** Return-to-message hook: /messenger?id=<conversationId>&messageId=<messageId>. */
 export function MessengerScreen() {
   const host = useRuntime();
+  const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; messageId?: string; messageSequence?: string;
     materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
-  if (!host.available) return <View style={styles.unavailable}><Text accessibilityRole="alert">{host.reason}</Text></View>;
+  if (!host.available) return <AppShell header={<Row>
+    <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+    <Text variant="heading" accessibilityRole="header">Conversation</Text>
+  </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
   return <MessengerWorkspace client={host.client} initialId={typeof params.id === 'string' ? params.id : ''}
     focusMessageId={typeof params.messageId === 'string' ? params.messageId : undefined}
     focusSequence={typeof params.messageSequence === 'string' && /^\d+$/.test(params.messageSequence)
@@ -358,7 +362,6 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
 const styles = StyleSheet.create(theme => ({
   screen: (top: number, bottom: number) => ({ flex: 1, minHeight: 0, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.shell.canvas }),
   workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
-  unavailable: { flex: 1, padding: theme.spacing.large },
   rail: (wide: boolean, controls: number) => ({ width: wide ? 300 : '100%', minWidth: 0, backgroundColor: theme.shell.navigation,
     borderRightWidth: wide ? 1 : 0, borderColor: theme.colors.border, paddingTop: Math.max(theme.spacing.small, controls ? 28 : 0), gap: theme.spacing.compact }),
   railHeader: { paddingHorizontal: theme.spacing.compact },

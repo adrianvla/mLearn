@@ -213,6 +213,27 @@ Other Home fallbacks, Watch checkpoint departure and hidden-work ownership
 remain open. Exact `764b9ac8` real desktop40977525036 passed; its separate
 foundation40977525010 receipt remains pending. No platform gate is waived.
 
+Unavailable Messenger now uses the same shared AppShell/Row/Button/Text recovery
+composition as Review, with a Conversation heading and Home action. Its prior
+alert-only screen had no recovery control; the new regression reproduced that
+missing button before repair. Home uses the existing `dismissTo('/')` behavior,
+including the no-history fallback. No native client or parallel recovery owner
+was added, and the obsolete local unavailable style was removed.
+All six foundation web tests passed in4.4s on fresh production export
+`fc3ea35690831ff70207dbe4f67c0a2f`, including direct Messenger, Reader, Review
+and Watch Home recovery at1080/390px. Normal typecheck, architecture lint,
+Messenger diagnostics and diff checks passed. Eight recovery PNGs were decoded,
+dimension-checked and inspected; Messenger matches Review's shared shell and
+its explanation wraps within390px. Logs/captures are `nav02-unavailable-*`
+in the retained orchestration root. The first test attempt incorrectly expected
+an unavailable alert from Watch; actual Watch still shows `Opening source…`
+without a runtime. The corrected test preserves the original Watch Home
+assertion rather than asserting a fabricated error state. That misleading
+pending state and Reader's older unthemed fallback remain explicit presentation
+gaps, not repaired or certified by Messenger's change. This browser-only
+fallback verification does not certify native conversation or media lifetimes,
+dark fallback rendering, retained unavailable Reader/Review return, or M10.
+
 M11's scratch finite reference matched all 40 original and 14 adversarial cases,
 but executed zero package/native session scenarios and granted no learner evidence.
 M11 product integration remains gated on M10.

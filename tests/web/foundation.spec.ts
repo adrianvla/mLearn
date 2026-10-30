@@ -95,10 +95,22 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });
 
-test('Home recovers a directly opened Watch route without navigation history', async ({ page }) => {
-  await page.goto('/watch?id=unavailable');
-  const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
-  await page.getByRole('button', { name: 'Home', exact: true }).click();
-  await home;
-  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+test('Home recovers directly opened activities without navigation history', async ({ page }, info) => {
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ['messenger', 'reader', 'review', 'watch']) {
+      await page.goto(`/${route}?id=unavailable`);
+      if (route !== 'watch') {
+        await expect(page.getByRole('alert').filter({
+          hasText: 'The browser preview has no native runtime.',
+        })).toBeVisible();
+      }
+      await page.screenshot({ path: info.outputPath(`unavailable-${route}-${width}.png`) });
+      await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+      const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await home;
+      await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    }
+  }
 });
