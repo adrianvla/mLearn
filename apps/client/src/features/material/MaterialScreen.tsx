@@ -76,6 +76,8 @@ export function MaterialScreen() {
   const triggers = useRef(new Map<string, View>());
   const collectionHeading = useRef<NativeText>(null);
   const loadedQuery = useRef('');
+  // Keep provenance across focus reads: the retained bookmark still contains
+  // its pre-edit revision even after an explicit native refresh succeeds.
   const refreshQuery = useRef<string | null>(null);
   const queryKey = JSON.stringify([after, query, filter, collectionPackageId, sort, sourceId, sourceOnly, includeExcluded]);
   const restore = useRef<string | null>(null);
@@ -116,7 +118,6 @@ export function MaterialScreen() {
       if (!active) return;
       const languages = snapshot.installedPlugins.filter(item => item.capabilities.includes('text.analyze.v1'));
       setResult(value); setPackages(languages); loadedQuery.current = queryKey;
-      if (refreshQuery.current === queryKey) refreshQuery.current = null;
       setPackageId(previous => languages.some(item => item.id === previous) ? previous : languages[0]?.id || '');
     }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : String(cause));

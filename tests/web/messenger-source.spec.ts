@@ -294,7 +294,9 @@ test('opening accepted source proposals checkpoints the conversation and preserv
   await expect(page.getByTestId('inspector-panel')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted source meaning.');
-  await expect(search).toHaveValue(managementDraft);
+  await expect(page.getByRole('textbox', {
+    name: 'Search Material', exact: true, includeHidden: true,
+  })).toHaveValue(managementDraft);
   for (const width of [1080, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.screenshot({ path: info.outputPath(`accepted-proposal-material-${width}.png`) });

@@ -77,18 +77,37 @@ test('Material collections preserve exact counts and native order through paging
     await search.fill('Unsubmitted collection query');
     const origin = page.getByRole('button', { name: 'Edit entry-40', exact: true });
     await origin.scrollIntoViewIfNeeded();
-    const scroll = await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop);
+    const scroller = page.getByTestId('app-shell')
+      .filter({ has: page.getByTestId('material-search') }).getByTestId('app-shell-content');
+    const scroll = await scroller.evaluate(node => node.scrollTop);
     expect(scroll).toBeGreaterThan(0);
     await origin.click();
     await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Retain the originating collection page.');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(page.getByTestId('material-result')).toContainText('Saved Material');
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    const resumed = page.waitForResponse(response => {
+      if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+      const request = JSON.parse(response.request().postDataJSON().args.request);
+      return (request.type === 'collection' || request.type === 'refresh_material_collection')
+        && request.query.surface === 'material';
+    });
+    const [resumedResponse] = await Promise.all([
+      resumed, page.getByRole('button', { name: 'Material', exact: true }).click(),
+    ]);
+    expect(JSON.parse((await resumedResponse.json()).value)).toMatchObject({
+      type: 'collection', result: { state: 'ready' },
+    });
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Retain the originating collection page.');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath('material-editor-after-save-refocus-1080.png') });
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeEnabled();
     await expect(origin).toBeFocused();
     await expect(search).toHaveValue('Unsubmitted collection query');
     await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
-    expect(await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop)).toBe(scroll);
+    expect(await scroller.evaluate(node => node.scrollTop)).toBe(scroll);
+    await page.screenshot({ path: info.outputPath('material-origin-after-save-refocus-1080.png') });
     await page.getByRole('button', { name: 'Edit entry-24', exact: true }).click();
     await page.getByRole('button', { name: 'Exclude Material', exact: true }).click();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();

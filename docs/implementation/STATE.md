@@ -26,6 +26,41 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+Latest Material checkpoint: `65c068ef` is pushed but remains REQUESTS_CHANGES under
+the independent review. Its saved-bookmark/refocus repair is currently
+uncommitted on export `c2c41cca07b4994c8b955cddcbd48efe`. The complete later-page
+Save/Knowledge/Material/Close case now passes in 4.7 s
+(`material-modal-refocus-scoped.log`), retaining the ready projection, note,
+page, focus, unsubmitted query, frozen selection and exact positive scroll.
+Twenty other Material scenarios passed the same product export. The first
+two scroll probes failed because retained tab panes shared the selector;
+the final probe identifies Material's AppShell by its existing search control.
+Root inspected the healthy editor and restored list frames.
+Hosted `65c068ef` foundation has 166 web passes and 3 failures in old inline
+interactions: accepted Messenger-proposal readonly search and two Watch
+departures trying to edit search behind the modal. Tests now inspect retained
+background state readonly, and enter Watch drafts through the real collection
+before opening the modal. Home/Reselect and 1080/390 coverage, exact source and
+conversation/draft assertions remain. All five cases pass in 10.1 s on the same
+`c2c41cca` export (`material-modal-hosted-regressions.log`). Root inspected
+the accepted-proposal narrow modal and Watch desktop/narrow return captures:
+controls and fields remain contained, with the retained modal and source action
+available. No hidden input is staged. Admission and runtime samples preserve
+the original 4 GiB reserve; footprint remained about 3.51 GB, pressure 1 and
+swap usage 4326817792 bytes throughout the run.
+Foundation Rust/OCR/macOS and real desktop integration pass on `65c068ef`.
+Windows job 124345537922 fails before theme interaction on the owned-window
+predicate, not an established paste/input or Material defect. Artifact 13018880734
+is preserved in `windows-65c068ef-startup/`: 249765-byte archive SHA-256
+baad37cb4db58d0f617e574963fc721834b2d9b650772e78a99958c600874b02 matches
+GitHub metadata. Its source binds `65c068ef`; process 5196 remains alive with
+HWND 852352, exposed as an unnamed UIA Pane, while the captured foreground is
+the hosted runner terminal. Cause remains unknown; no assertion was weakened
+or workflow rerun. Mobile observer 41137381329 remains active. Next: checkpoint
+the verified repair and independently recheck the P2.
+M10/M11/native/frozen-selection-window acceptance remains open.
+
+Detailed chronological continuation receipts follow.
 October 30 Messenger Back candidate: the new real-Rust recovery case reproduced
 Back reaching Home without issuing save_draft, removing the unsent draft/retry
 owner (`messenger-back-red.log`, actual Home capture inspected). Removal now
@@ -503,6 +538,68 @@ frozen-selection navigation or independent-review approval. Those gates remain
 open. The resource guard retained the4GiB reserve throughout; the last observed
 workload sample reports root footprint3490018768, available6964543488,
 pressure1, swap4638900224 bytes and safe projected headroom5890670749.
+The verified source increment is committed as
+`65c068efb697672386ffaead01ad06367546d2fb`; the preceding documentation-only
+receipt checkpoint is `6939b428`. Neither is pushed yet. The dedicated detached
+review checkout `/tmp/mlearn-material-modal-review-65c068ef` is locked at that
+exact source; no reviewer or workload has run there. A disposable, untracked
+`tests/web/material-modal-qa.spec.ts` capture probe adds no product change and
+will be removed after its evidence is inspected. Its paired persisted-palette
+captures and a final same-source Knowledge/selection/Dialog regression run are
+pending serially in `material-modal-final-adjacent.log`. The native UI/mobile,
+full selection-window navigation and M10 milestone gates remain open.
+The final same-source run completes exit0: the persisted light/dark palette
+probe passes, and all6 Knowledge/selection/Dialog scenarios pass in2.6m.
+Root inspected all8 normal/dirty-guard captures at1080/390 in batches of2;
+controls and fields are contained and readable with no blank/overlapping frame.
+The disposable probe was removed; its profile/captures remain preserved.
+Source65c068ef and documentation6939b428 are now pushed, with HEAD/upstream
+readback matching65c068ef. The existing push-triggered runs are pinned as
+foundation41137381403, desktop41137381334 and mobile41137381329. No workflow was
+manually launched or rerun. Their fixed-ID observers validate the source SHA
+in final metadata; watcher/reader exit codes are not CI conclusions. The first
+observer registrations were refused before launch because7200000ms exceeds
+the tool's3600000ms maximum; the corrected registrations are active.
+
+Independent reviewer `st_01a18ee4`, explicitly checked on the current
+chatgpt-subscription/gpt-6.1-sol route, returns REQUESTS_CHANGES on65c068ef.
+Report: `.omo/evidence/material-modal-65c068ef-gate-review.md`. Its P2 combines
+two previously separate passing cases: later-page Save clears refresh
+provenance without replacing `after`, so a later Knowledge round trip uses
+ordinary stale continuation and Retry loses the origin page. It found no
+additional concrete quality blocker, but did not execute the scenario.
+Root reopened the context task and extended the existing later-page regression
+with that exact round trip and an asserted native ready response. Its genuine
+red run is pending in `material-modal-refocus-red.log`; no repair or new pass is
+claimed yet. The RPC status watch timed out independently after the reviewer
+had already returned; that is not the review verdict or a product failure.
+The extended real-Rust case now genuinely fails on65c068ef: after a durable
+later-page Save and Knowledge/Material return, native replies with an error
+instead of a ready collection and the modal displays the conflict/retry.
+Root inspected the actual failure frame (`material-modal-refocus-red.log`).
+The minimal repair keeps refresh provenance for the retained native bookmark
+across focus reads; it removes the successful-read clear, without changing
+ordinary/native epoch validation. The regression now captures the healthy
+editor and originating list after that complete combination. Fresh source
+checks/export/all21 Material scenarios are pending in
+`material-modal-refocus-green.log`. Source LSP is clean; test LSP timed out.
+
+Desktop run41137381334 completed SUCCESS on exact65c068ef, native job124343069668.
+Root read back successful real IPC/plugin-download/restart and tracked-source
+integrity steps. This covers that source, not the subsequent provenance fix or
+native-mobile UI. Foundation/mobile observers remain active; no old iOS
+diagnostic variant or workflow rerun was launched.
+`material-modal-refocus-green.log` passes fresh typecheck/lint and exports
+`c2c41cca07b4994c8b955cddcbd48efe`. Twenty scenarios pass. The combined
+regression now receives the required native ready collection with no alert,
+retains the current note, and restores entry-40 focus, the later page, query
+and frozen selection. It then fails only because its unscoped
+app-shell-content locator matches both retained Knowledge and Material panes.
+Root inspected the actual healthy modal and restored entry-40 list frames
+before any further change. The test now measures the visible Material scroll
+owner explicitly, retaining its positive/exact-scroll assertions. No additional
+product change was made. Its focused complete rerun is pending in
+`material-modal-refocus-focused.log`; the failed unscoped run is preserved.
 
 The latest mobile41101761469 result on03ab9e45 is Android job124220069561
 success and iOS job124220069124 failure; this API response supplied no failed
