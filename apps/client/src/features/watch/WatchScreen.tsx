@@ -77,6 +77,7 @@ function WatchWorkspace() {
     const [busy, setBusy] = useState(false);
     const [replacement, setReplacement] = useState<{ from: string; to: string; owner: object | null } | null>(null);
     const [opening, setOpening] = useState(false);
+    const [updating, setUpdating] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [vocabulary, setVocabulary] = useState(false);
     const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= dialogSidebarBreakpoint ? dialogSidebarWidth : 0;
@@ -155,6 +156,7 @@ function WatchWorkspace() {
         session.current = current;
         setBusy(false);
         setOpening(false);
+        setUpdating(false);
         setWindow(previous => previous?.source.id === id ? previous : null);
         setBatch(null);
         setInspection(null);
@@ -335,6 +337,8 @@ function WatchWorkspace() {
         try {
             await pauseAndSave();
             if (!ownsOperation()) return;
+            // A pending checkpoint must retain its recovery owner, not offer cancellation.
+            setUpdating(true);
             if (reanalyze) {
                 await current?.cancel();
                 if (!ownsOperation()) return;
@@ -356,6 +360,7 @@ function WatchWorkspace() {
             if (ownsOperation()) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
         } finally {
             if (ownsOperation()) {
+                setUpdating(false);
                 setBusy(false);
                 // Focus cleanup owns the current replacement too. Re-enter that
                 // lifetime only if cancellation invalidated it.
@@ -715,9 +720,12 @@ function WatchWorkspace() {
                     <View style={styles.title}><Text testID="watch-source-title" numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
                     </Text></View>
-                    {opening && host.available ? (
-                        <Button label="Cancel opening" variant="secondary"
-                            onPress={() => void cancelOpening()} />
+                    {(opening || updating) && host.available ? (
+                        <Button label={opening ? 'Cancel opening' : 'Cancel source update'} variant="secondary"
+                            onPress={() => {
+                                if (opening) void cancelOpening();
+                                else setSourceReload(value => value + 1);
+                            }} />
                     ) : null}
                     {returnedSelection ? <Text testID="returned-source-selection" tone="media" variant="caption" selectable>
                         {returnedSelection.locator.cueIndex === null

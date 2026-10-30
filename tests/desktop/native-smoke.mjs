@@ -428,14 +428,26 @@ try {
         script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
       }),true,'Preference must reach the actual native owner before cancellation');
       await click('Close');
-      if (leave === 'cancel') {
-        await click('Cancel opening');
-      } else {
+      if (leave === 'blur') {
+        // A busy preference must not lose its checkpoint owner to browser Back.
+        // Observe the restored cursor, not a timing-dependent DOM snapshot.
+        await script(`const gate=window.__m02Preference,before=location.href;
+          gate.back=new Promise(resolve=>{
+            const restored=()=>{if(location.href===before){gate.stopBack();resolve(true);}};
+            gate.stopBack=()=>window.removeEventListener('popstate',restored);
+            window.addEventListener('popstate',restored);
+          });return true;`);
         await rpc('POST',`/session/${session}/back`,{});
-        await text('Recent sources');
+        assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+          script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.back.then(value=>{clearTimeout(timer);done(value);});',args:[],
+        }),true,'Pending source work must retain Watch and restore its browser cursor');
       }
+      await observeSourceView(`!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.getBoundingClientRect().width>0`);
+      await click('Cancel source update');
+      await observedSourceView('Explicit cancellation must replace the pending source lifetime before its late receipt');
+      // Admitted writes still own their serial receipt; cancellation does not
+      // discard a committed preference to let a later read overtake it.
       await script('window.__m02Preference.release();return true;');
-      if (leave === 'blur') await resumeWatch();
       // Observe the real replacement-source receipt instead of racing a raw
       // recent_sources request against the client's action and display lanes.
       const resumed=await rpc('POST',`/session/${session}/execute/async`,{
@@ -443,8 +455,13 @@ try {
       });
       assert.ok(resumed,'The resumed source must remain persisted');
       assert.equal(resumed.subtitleOffsetMs,offset);
-      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      if (leave === 'blur') {
+        await rpc('POST',`/session/${session}/back`,{});
+        await text('Recent sources');
+        await resumeWatch();
+      }
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
       // controller which queues seeks until metadata. First observe real resume
       // initialization so it cannot overwrite the test's subsequent raw seek.
@@ -460,7 +477,7 @@ try {
       assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
       assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {
-      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
+      await script('const gate=window.__m02Preference;gate.release();gate.stopBack?.();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
     }
   }
   // Real persisted source preferences feed the mounted host and untouched cues.

@@ -79,8 +79,87 @@ blocker after inspecting red/green logs and failed/restored Home captures.
 Code-quality coverage and review limits are recorded in the existing report.
 The exact-source review checkout was verified clean (including ignored files),
 unlocked and removed after the terminal verdict; its absence was read back.
-Push remains pending; broader
+Pushed through `03ab9e452869db726b7baebd7917d66aa2bc4100`; HEAD/upstream
+readback matched. Both PRs remain separate OPEN drafts. Broader
 regressions/native/milestone gates are not claimed from the earlier five cases.
+
+Watch pending-preference cancellation is the current increment.
+Hosted desktop41101759641/job124220064814 on03ab9e45 again fails on unavailable
+Cancel opening during the held preference receipt
+(`desktop-03ab9e45-failed.log:4265`). This is the actual job result; earlier
+desktop/mobile watcher exits were HTTP502 reader failures, not job conclusions.
+Foundation41101759648 passed. Mobile41101761469 has finished as recorded
+below; no workflow rerun was launched.
+
+The Watch source now distinguishes the cancellable update phase only after
+pauseAndSave succeeds. It reuses the shared header control and existing focus
+cleanup/source epoch, retaining actual-file Cancel opening and preserving
+admitted mutations on the runtime client's serial lane. New decoded-video
+coverage holds a real committed offset receipt and checks cancellation,
+late-receipt handoff, fresh checkpoint and restart. Native smoke retains its
+durable-offset/checkpoint assertions and now tests blocked Back restoration
+before explicit cancellation. At the initial source-only checkpoint these
+changes were unverified and the served bundle was still41c71e35; the subsequent
+fresh-export evidence follows below. Watch source LSP timed out; test LSP was clean.
+Bounded source-only checks now pass: normal typecheck, ownership lint and
+native-smoke syntax (`watch-source-checks.log`, exit0, compiler heap capped
+at768MiB with1024/512MiB guard estimates). That check launched no export/browser/
+native build.
+
+The first local Watch attempts did not run: build-sized2560MiB admission held
+for projected headroom. A test-only2048MiB preflight matched the existing
+startup guard, but its third startup sample lost headroom and exited70 BEFORE
+OWNED_WORKLOAD_STARTED. The4GiB reserve and runtime guard were unchanged;
+neither event is a test failure or cancellation proof. One GC pass reduced the
+eval heap63.7MB to36.8MB but did not resolve the process's roughly7GB physical
+footprint. No large child workload was found or blamed. Do not accumulate
+another UI edit before an admitted render of this one.
+
+After archive preservation, original2560MiB admission and the unchanged4GiB
+reserve admitted the single old-bundle regression. It genuinely failed at
+watch-search.spec.ts:149: Cancel source update was absent while the real
+committed preference receipt was held (`watch-update-red-original-bundle.log`,
+exit1). Root inspected its actual failed1100px capture. A guarded fresh export
+and the same regression ran (`watch-update-fresh-green.log`, exit1), exporting
+bundle5c9faba4392e87a2c92964d0eed2a926. Root inspected the pending control
+at1100/390px: visible and contained. Cancellation, late mutation receipt and
+canonical resume returned the committed375ms offset. The next assertion used
+the wrong accessible name: the real control is "Subtitle offset: 375 milliseconds",
+not "Subtitle offset". The failed capture/AX tree showed the correct0.38 value.
+Only the two new locators were corrected; fresh test LSP is clean. The same
+regression passes (`watch-update-green-corrected.log`, exit0,22.4s), including
+late-receipt handoff, a fresh11000ms checkpoint,375ms offset and1.5 rate after
+native-process crash/restart, with zero provider calls. Root inspected cancelled
+and restored390px captures; the controls remain contained and the restored
+playback position is0:11. Original4GiB reserve held throughout; final sample
+footprint3340940752, RSS6455361536, available8241971200, pressure1,
+swap4805165056 bytes. Both adjacent Home/Back cases pass
+(`watch-update-adjacent.log`, exit0,25.7s), preserving explicit checkpoint Retry,
+no cancellation escape during pending/failed saves, paused departure, Material
+draft retention and restart, plus existing video-replacement coverage. Root
+inspected both narrow checkpoint-failure captures: the recovery control remains
+visible without Cancel source update. Desktop-native execution and independent
+review of this increment remain open. No milestone or visual-parity acceptance
+is claimed from these scoped renders and three browser-core scenarios.
+
+The latest mobile41101761469 result on03ab9e45 is Android job124220069561
+success and iOS job124220069124 failure; this API response supplied no failed
+step details, so its iOS cause is not attributed. The newer compiled pair is
+selected for local preservation instead of duplicating the older0fa pair:
+Android13000422295 and iOS13002192618, both expiring November6,2026.
+Authenticated metadata/source/digests are recorded in
+`.mlearn/m10/native-03ab9e45/README.md`. Streaming transfer and exact-size/
+SHA-256 checks passed for both local archives under a512/256MiB I/O guard
+(`native-archive-stream.log`, exit0); both exact byte sizes were read back.
+Archives remain compressed and no app/device/model was launched.
+The initial binary-API route stopped at an OmO spike to12089341392 bytes,
+pressure2 and2967404544 available; the full Android partial was retained and
+verified without another download. A direct-file iOS transfer avoided repeating
+that route and completed without a guard stop. Final disk10982260KiB,
+footprint7116862928, RSS6525566976, available6305546240, pressure1,
+swap4714397696 bytes. The cause of the initial spike is not assigned.
+The original2560MiB read-only memory-readiness observer completed0, but the
+archive had not finished then; no heavyweight work was launched from that wake.
 
 The launch incorrectly continued despite1153644KiB disk because the environment
 prefix broke the intended shell AND chain. This is a root orchestration error,

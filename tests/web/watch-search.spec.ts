@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join, dirname } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { EventEmitter, once } from 'node:events';
 import { test } from './messenger-native-fixture';
 
 declare global { interface Window { __watchSearchSeek: Promise<number> } }
@@ -59,7 +60,9 @@ async function decodedVideo(page: Page) {
   });
 }
 
-for (const departure of ['Home', 'Back'] as const) test(`literal transcript search preserves playback across restart and checkpoint-safe ${departure} departure`, async ({ page, nativeCore }, info) => {
+for (const departure of ['Home', 'Back', 'Cancel source update'] as const) test(departure === 'Cancel source update'
+  ? 'Watch cancels a pending subtitle update without losing its checkpoint'
+  : `literal transcript search preserves playback across restart and checkpoint-safe ${departure} departure`, async ({ page, nativeCore }, info) => {
   test.setTimeout(120_000);
   // Only desktop shell event registration and media byte delivery are adapted.
   // Package execution, subtitle timing, source identity and persistence are real.
@@ -113,6 +116,93 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
     return video.currentTime;
   })).toBe(3);
+  if (departure === 'Cancel source update') {
+    const events = new EventEmitter();
+    const isPreference = (request: Request) => {
+      if (request.url() !== `${nativeCore.url}/invoke`) return false;
+      const raw = request.postDataJSON().args?.request;
+      if (typeof raw !== 'string') return false;
+      const value = JSON.parse(raw);
+      return value.type === 'set_subtitle_offset' && value.sourceId === sourceId && value.offsetMs === 375;
+    };
+    await page.route(`${nativeCore.url}/invoke`, async route => {
+      if (!isPreference(route.request())) { await route.fallback(); return; }
+      const response = await route.fetch();
+      expect(JSON.parse((await response.json()).value)).toMatchObject({
+        type: 'source', window: { source: { subtitleOffsetMs: 375, positionMs: 3000, playbackRate: 1.5 } },
+      });
+      const released = once(events, 'released', { signal: AbortSignal.timeout(15000) });
+      events.emit('held');
+      await released;
+      await route.fulfill({ response });
+    });
+    try {
+      await page.setViewportSize({ width: 1100, height: 760 });
+      await page.getByRole('button', { name: 'Playback options', exact: true }).click();
+      const options = page.getByRole('dialog', { name: 'Playback and subtitles', exact: true });
+      await options.getByRole('textbox', { name: 'Subtitle offset in milliseconds', exact: true }).fill('375');
+      const held = once(events, 'held', { signal: AbortSignal.timeout(5000) });
+      await Promise.all([held, options.getByRole('button', { name: 'Apply subtitle offset', exact: true }).click()]);
+      await options.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Cancel opening', exact: true })).toHaveCount(0);
+      const cancel = page.getByRole('button', { name: 'Cancel source update', exact: true });
+      await expect(cancel).toBeVisible();
+      await page.screenshot({ path: info.outputPath('watch-update-pending-1100.png') });
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.screenshot({ path: info.outputPath('watch-update-pending-390.png') });
+      const reloaded = page.waitForResponse(response => {
+        if (response.url() !== `${nativeCore.url}/invoke`) return false;
+        const raw = response.request().postDataJSON().args?.request;
+        return typeof raw === 'string' && JSON.parse(raw).type === 'resume_source';
+      });
+      const cancelled = page.waitForResponse(response => response.url() === `${nativeCore.url}/invoke`
+        && response.request().postDataJSON().command === 'cancel_source_open');
+      await cancel.click();
+      await (await cancelled).finished();
+      await expect(cancel).toHaveCount(0);
+      // Source cancellation must not discard an already-admitted mutation.
+      // Its receipt owns the serial command lane until delivery finishes.
+      const lateReceipt = page.waitForResponse(response => isPreference(response.request()));
+      events.emit('released');
+      await (await lateReceipt).finished();
+      expect(JSON.parse((await (await reloaded).json()).value)).toMatchObject({
+        type: 'source', window: { source: { subtitleOffsetMs: 375, positionMs: 3000, playbackRate: 1.5 } },
+      });
+      await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Subtitle offset: 375 milliseconds', exact: true })).toHaveText('0.38');
+      await page.screenshot({ path: info.outputPath('watch-update-cancelled-390.png') });
+      await watchSeek(page);
+      const checkpoint = page.waitForResponse(response => {
+        if (response.url() !== `${nativeCore.url}/invoke`) return false;
+        const raw = response.request().postDataJSON().args?.request;
+        return typeof raw === 'string' && JSON.parse(raw).type === 'save_position' && JSON.parse(raw).positionMs === 11000;
+      });
+      await page.locator('video').evaluate(video => {
+        if (!(video instanceof HTMLVideoElement)) throw new Error('Missing real video');
+        video.currentTime = 11;
+      });
+      expect(await page.evaluate(() => window.__watchSearchSeek)).toBe(11);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await (await checkpoint).finished();
+      await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+      await nativeCore.crashRestart();
+      expect((await call({ type: 'resume_source', sourceId })).window.source).toMatchObject({
+        positionMs: 11000, subtitleOffsetMs: 375, playbackRate: 1.5,
+      });
+      await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
+      await decodedVideo(page);
+      await expect(page.locator('video')).toHaveJSProperty('currentTime', 11);
+      await expect(page.locator('video')).toHaveJSProperty('playbackRate', 1.5);
+      await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Subtitle offset: 375 milliseconds', exact: true })).toHaveText('0.38');
+      await page.screenshot({ path: info.outputPath('watch-update-restored-390.png') });
+      expect(nativeCore.metadata().providerRequests).toBe(0);
+    } finally {
+      events.emit('released');
+      await page.unroute(`${nativeCore.url}/invoke`);
+    }
+    return;
+  }
   let dialog = await transcript(page);
   await dialog.getByRole('textbox', { name: 'Search transcript', exact: true }).fill('came');
   await dialog.getByRole('button', { name: 'Search', exact: true }).click();
@@ -189,6 +279,7 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     const retry = page.getByRole('button', { name: 'Retry saving position', exact: true });
     await expect(retry).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry source', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cancel source update', exact: true })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/watch');
     await expect(page.locator('video')).toBeVisible();
     await page.screenshot({ path: info.outputPath(`watch-${departure.toLowerCase()}-checkpoint-failed-390.png`) });
@@ -217,6 +308,7 @@ for (const departure of ['Home', 'Back'] as const) test(`literal transcript sear
     const admitted = page.waitForRequest(isCheckpoint);
     await leave();
     await admitted;
+    await expect(page.getByRole('button', { name: 'Cancel source update', exact: true })).toHaveCount(0);
     const stopped = await playback();
     expect(stopped.paused).toBe(true);
     await expect(home).toBeDisabled();
