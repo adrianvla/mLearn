@@ -26,6 +26,56 @@ admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish Material presentation and NAV-02 workspace/source departure
 and cancellation ownership.
+October 30 Review Back departure repair: browser Back removed ready audio before
+its interruption could save, unlike the existing Home path. The complete Home
+fixture reproduces this (`review-back-fixture.log`, missing Saving Review and
+Home already visible). The first red run also had missing drag-unlisten and
+recent-document fixture handlers; those were supplied before isolating the same
+product failure. Review now uses the installed router's usePreventRemove hook
+and reuses its existing departure/save/retry owner for route removal, including
+Home. It replays the original blocked action only after interruption is durable.
+No session/evidence authority or saved navigation store was added.
+
+The first owner repair retained Review but exposed an actual web history split:
+URL Home while Review/retry remained visible. Expo57.0.25's web linking fork
+does not restore a rejected reset. Its memory-history listener also leaves the
+internal cursor stale on external Back, making the restoring go(1) a no-op;
+a direct deterministic owner test reproduced '/' instead of '/review' before
+the one-line cursor update. The managed postinstall patch is version/hash-pinned
+to `build/fork/useLinking.js` and `build/fork/createMemoryHistory.js`. It tracks
+the committed index, flushes the external browser reset before distinguishing
+accepted from blocked navigation, and restores the existing history cursor on
+rejection. No renderer history handler, duplicate stack or new dependency.
+Fresh upstream strings produce exactly the installed patched artifacts; repeat
+application and altered-version/source rejection pass. Remove the patch only
+after upstream owns the repair and the held/failed Back workflow still passes.
+
+Failed attempts remain under task-root `review-back-{red,fixture,green,history,
+history-final,fork,probe,cursor,memory}.log` and results. The wrong bundled React
+Navigation target was restored before targeting Expo's actual fork. The first
+pin check stopped before build because root's edit added an EOF newline; the
+original hash remains enforced, with only the exact managed output accepted.
+Temporary route/index probes were removed. No URL, retry or prior Home assertion
+was weakened; the final regression covers both ready and genuinely playing audio.
+It holds then fails interruption, keeps Review and its URL, retries the identical
+command, and permits Back with the same encounter/completed count and no Submit.
+Existing playback tests now subscribe to the exact fixture commit signal before
+Play instead of polling.
+
+Final export `aa9fa4f39f97878d98e5bf467e682039` passes normal typecheck and
+architecture lint,89 tooling and202 package/client tests, then63 affected
+Foundation/Review/Material/Messenger/Reader/Watch browser cases in1.5m
+(`review-back-integrated.log`/results). Pending/failure captures for ready/light
+and playing/dark at1080/390 were inspected: stopped player, disabled departure
+while saving and a contained actionable Review retry. This is actual browser UI
+with mocked Review IPC, not native audio/OS gesture or new Rust persistence proof.
+Native gesture, whole NAV-02/M10, visual and independent-review gates stay open.
+Fresh test/scratch JS LSP requests timed out; package JSON LSP lacks Biome.
+No tool was installed: actual execution, owner tests and normal typecheck pass.
+Post-run preview4173 and QA owners were absent. Final guard sample:
+footprint3134174672, available7245856768, pressure1, swap4599644160 bytes,
+unchanged4GiB reserve. No device, reference app or CI campaign was restarted.
+
 October 30 shared collection disclosure: the full-width quiet action bar is
 replaced by an intrinsic, right-aligned shared Button with existing navigation
 material and chevron glyphs. CollectionFilters still owns expansion and the

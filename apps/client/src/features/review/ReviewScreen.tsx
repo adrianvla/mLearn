@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewSession } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
@@ -31,6 +32,7 @@ function ReviewWorkspace({ client, media }: {
 }) {
   const router = useRouter();
   const params = useLocalSearchParams<{ sessionId?: string }>();
+  const navigation = useNavigation();
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
   const [session, setSession] = useState<ReviewSession | null>(null);
   const current = useRef<ReviewSession | null>(null);
@@ -134,7 +136,7 @@ function ReviewWorkspace({ client, media }: {
     if (!saved) throw new RuntimeError('unavailable', 'Audio delivery could not be saved. Retry the Review save.');
   }, [client]);
 
-  async function home() {
+  async function depart(complete: () => void) {
     if (flight.current || failedCommand.current || returnLock.current) return;
     const active = scope.current;
     if (!active) return;
@@ -154,7 +156,7 @@ function ReviewWorkspace({ client, media }: {
         await delivery(latest.encounter.id, 'interrupted');
       }
       if (scope.current === active && !failedCommand.current
-        && current.current?.id === value?.id && current.current?.encounter?.id === encounterId) router.dismissTo('/');
+        && current.current?.id === value?.id && current.current?.encounter?.id === encounterId) complete();
     } catch (cause) {
       if (scope.current === active && !failedCommand.current) setError(messageOf(cause));
     } finally {
@@ -162,6 +164,12 @@ function ReviewWorkspace({ client, media }: {
       if (scope.current) setReturning(false);
     }
   }
+  // Keep the write/retry owner alive for Back and gestures as well as Home.
+  // Replay the original removal only after its audio interruption is durable.
+  usePreventRemove(focused && (pending || failed !== null || returning
+    || session?.state === 'active' && session.encounter?.requiredMedia != null
+      && (session.encounter.conditions.delivery === 'pending' || session.encounter.conditions.delivery === 'started')),
+  ({ data }) => { void depart(() => navigation.dispatch(data.action)); });
 
   async function open(id: string) {
     if (flight.current || failedCommand.current || loading || returnLock.current) return;
@@ -246,7 +254,7 @@ function ReviewWorkspace({ client, media }: {
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
     <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
-      onPress={() => void home()} />
+      onPress={() => router.dismissTo('/')} />
     <Text variant="heading" accessibilityRole="header">{purpose}</Text>
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} reviewed` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>

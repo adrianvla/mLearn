@@ -63,7 +63,7 @@ test.afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 });
 
-async function start(page: Page, dark: boolean, finite = false, audio = false, practice = false) {
+async function start(page: Page, dark: boolean, finite = false, audio = false, practice = false, fromHome = false) {
   page.on('pageerror', error => console.error('Review browser error:', error.message));
   page.on('console', message => { if (message.type() === 'error') console.error('Review browser console:', message.text()); });
   // Only the native IPC boundary is mocked. Session persistence, receipts and
@@ -83,11 +83,14 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
     const failure = (message: string) => JSON.stringify({ type: 'error', code: 'unavailable', message });
     Object.assign(window, {
       isTauri: true, __MLEARN_MEDIA_BASE__: 'http://127.0.0.1/fixture-media/', __reviewTest: state,
+      // Home installs host drag listeners; this fixture supplies no drag events.
+      __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: () => {} },
       __TAURI_INTERNALS__: {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
         transformCallback: () => 1, unregisterCallback: () => {},
         invoke: async (hostCommand: string, args: { request?: string }) => {
           if (hostCommand === 'plugin:event|listen') return 1;
+          if (hostCommand === 'plugin:event|unlisten') return;
           if (hostCommand === 'window_material_active') return false;
           if (hostCommand === 'authored_media_uri') return `${location.origin}/review-audio.wav`;
           if (hostCommand !== 'runtime_execute') throw new Error(`Unexpected host call: ${hostCommand}`);
@@ -99,6 +102,7 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
           } });
           if (request.type === 'review_sessions') return JSON.stringify({ type: 'review_sessions', sessions: state.session ? [state.session] : [] });
           if (request.type === 'recent_sources') return JSON.stringify({ type: 'sources', sources: [] });
+          if (request.type === 'recent_documents') return JSON.stringify({ type: 'documents', sources: [] });
           if (request.type === 'review_session') return JSON.stringify({ type: 'review_session', session: state.session });
           if (request.type !== 'review') return failure(`Unexpected Review request: ${request.type}`);
           const command: ReviewCommand = request.command;
@@ -148,6 +152,8 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
             receipts.set(identity.commandId, { revision: state.session.revision });
             sessionStorage.setItem('review-fixture', JSON.stringify(state.session));
           }
+          if (command.kind === 'delivery' && command.delivery === 'started')
+            console.debug('review-fixture-delivery-started');
           return JSON.stringify({ type: 'review', commit: {
             commandId: identity.commandId, committedRevision: receipts.get(identity.commandId)?.revision, session: state.session,
           } });
@@ -157,7 +163,10 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
   }, { encounter: audio ? { ...encounter, direction: 'audio', requiredMedia: 'authored-audio',
     conditions: { ...encounter.conditions, delivery: 'pending' } } satisfies ReviewEncounter : encounter,
     theme: dark ? builtInThemes[1] : initialTheme, practice });
-  await page.goto(`${origin}/review${practice ? '?sessionId=selected-practice' : ''}`);
+  if (fromHome) {
+    await page.goto(`${origin}/`);
+    await page.getByTestId('home-open-review').click();
+  } else await page.goto(`${origin}/review${practice ? '?sessionId=selected-practice' : ''}`);
   if (practice) {
     // Reader already admitted this native session; entering Review must only resume it.
     await expect(page.getByTestId('review-cue')).toBeVisible();
@@ -171,6 +180,60 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
   await expect(page.getByTestId('review-cue')).toBeVisible();
 }
 const submitCount = (page: Page) => page.evaluate(() => window.__reviewTest.commands.filter(command => command.kind === 'submit').length);
+async function playAudio(page: Page) {
+  const started = page.waitForEvent('console', {
+    predicate: message => message.type() === 'debug' && message.text() === 'review-fixture-delivery-started',
+  });
+  await Promise.all([started, page.locator('video').evaluate(async element => {
+    if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
+    await element.play();
+  })]);
+}
+
+for (const playing of [false, true]) {
+  test(`Back retains ${playing ? 'started' : 'ready'} Review audio until its interruption saves and preserves retry`, async ({ page }, info) => {
+    await start(page, playing, false, true, false, true);
+    await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeEnabled();
+    if (playing) await playAudio(page);
+    await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
+    const before = await page.evaluate(() => window.__reviewTest.session);
+    await page.evaluate(() => { window.__reviewTest.hold = true; window.__reviewTest.fail = true; });
+    try {
+      await page.goBack();
+      await expect(page.getByText('Saving Review…', { exact: true })).toBeVisible();
+      await expect(page).toHaveURL(/\/review(?:\?|$)/);
+      await expect(page.locator('video')).toHaveCount(0);
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: info.outputPath(`back-audio-${playing ? 'started' : 'ready'}-${width}-pending.png`) });
+      }
+      await page.evaluate(() => { window.__reviewTest.hold = false; window.__reviewTest.release?.(); });
+      const retry = page.getByRole('button', { name: 'Retry Review save', exact: true });
+      await expect(retry).toBeEnabled();
+      await expect(page.getByText('Review write unavailable', { exact: true })).toBeVisible();
+      await expect(page).toHaveURL(/\/review(?:\?|$)/);
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: info.outputPath(`back-audio-${playing ? 'started' : 'ready'}-${width}-failure.png`) });
+      }
+      await retry.click();
+      await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
+      await page.goBack();
+      await expect(page).toHaveURL(`${origin}/`);
+      const after = await page.evaluate(() => window.__reviewTest.session);
+      expect(after?.encounter?.conditions.delivery).toBe('interrupted');
+      expect(after?.encounter?.id).toBe(before?.encounter?.id);
+      expect(after?.completed).toBe(before?.completed);
+      expect(await submitCount(page)).toBe(0);
+      const terminal = await page.evaluate(() => window.__reviewTest.commands.filter(command =>
+        command.kind === 'delivery' && command.delivery === 'interrupted'));
+      expect(terminal).toHaveLength(2);
+      expect(terminal[0]).toEqual(terminal[1]);
+    } finally {
+      await page.evaluate(() => { window.__reviewTest.hold = false; window.__reviewTest.release?.(); });
+    }
+  });
+}
 
 test('selected Word Practice opens its admitted session and resumes without starting scheduled Review', async ({ page }, info) => {
   await start(page, info.project.name.endsWith('dark'), false, false, true);
@@ -198,12 +261,7 @@ for (const playing of [false, true]) {
     await start(page, playing || info.project.name.endsWith('dark'), false, true);
     await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeEnabled();
     if (playing) {
-      const started = page.waitForFunction(() => window.__reviewTest.session?.encounter?.conditions.delivery === 'started');
-      await page.locator('video').evaluate(async element => {
-        if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
-        await element.play();
-      });
-      await started;
+      await playAudio(page);
       await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
     }
     const before = await page.evaluate(() => window.__reviewTest.session);
@@ -229,12 +287,7 @@ for (const playing of [false, true]) {
     await start(page, playing || info.project.name.endsWith('dark'), false, true);
     await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeEnabled();
     if (playing) {
-      const started = page.waitForFunction(() => window.__reviewTest.session?.encounter?.conditions.delivery === 'started');
-      await page.locator('video').evaluate(async element => {
-        if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
-        await element.play();
-      });
-      await started;
+      await playAudio(page);
     }
     const home = page.getByRole('button', { name: 'Home', exact: true });
     await expect(home).toBeEnabled();
@@ -286,12 +339,7 @@ for (const playing of [false, true]) {
     await start(page, info.project.name.endsWith('dark'), false, true);
     await expect(page.getByRole('button', { name: 'Stop audio', exact: true })).toBeVisible();
     if (playing) {
-      const started = page.waitForFunction(() => window.__reviewTest.session?.encounter?.conditions.delivery === 'started');
-      await page.locator('video').evaluate(async element => {
-        if (!(element instanceof HTMLVideoElement)) throw new TypeError('Expected audio player');
-        await element.play();
-      });
-      await started;
+      await playAudio(page);
     }
     const pause = page.getByRole('button', { name: 'Pause', exact: true });
     await expect(pause).toBeEnabled();
