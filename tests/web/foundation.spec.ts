@@ -95,6 +95,39 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });
 
+test('unavailable Review Home preserves the retained Knowledge search', async ({ page }, info) => {
+  await page.goto('/');
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const draft = `Unsubmitted Knowledge search at ${width}`;
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    const search = page.getByRole('textbox', { name: 'Search Knowledge', exact: true });
+    await search.fill(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+
+    // Establish that ordinary management navigation retains this same draft
+    // before exercising the unavailable activity's departure.
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await expect(search).toHaveValue(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    const review = page.waitForURL(url => url.pathname === '/review', { timeout: 5000 });
+    await page.getByTestId('home-open-review').click();
+    await review;
+    await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Review', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath(`unavailable-review-before-home-${width}.png`) });
+    const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await home;
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.screenshot({ path: info.outputPath(`unavailable-review-retained-${width}.png`) });
+    await expect(search).toHaveValue(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+  }
+});
+
 test('Home recovers directly opened activities without navigation history', async ({ page }, info) => {
   for (const width of [1080, 390]) {
     await page.setViewportSize({ width, height: 900 });

@@ -20,7 +20,7 @@ export function ReviewScreen() {
   const host = useRuntime();
   const router = useRouter();
   return host.available ? <ReviewWorkspace client={host.client} media={host.authoredMedia} />
-    : <AppShell header={<Row><Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
+    : <AppShell header={<Row><Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
       <Text variant="heading" accessibilityRole="header">Review</Text></Row>}>
       <Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
 }

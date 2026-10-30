@@ -25,6 +25,28 @@ work stays serial and requires fresh disk/physical-footprint/pressure/swap
 admission. The four original untracked reports/Watch fixtures remain untouched.
 
 Current task: finish NAV-02 workspace/source departure and cancellation ownership.
+October 30 unavailable-Review recovery increment: the browser-preview Home
+action replaced Home and discarded the retained Knowledge workspace, even
+though an ordinary management roundtrip preserved its unsubmitted search.
+The real browser regression reproduced that reset before repair. The fallback
+now uses the same `dismissTo('/')` navigation as available Review; no session,
+audio or persistence owner changes. Typecheck, ownership lint and fresh export
+`334c468c247a93ef7e6f01fb82605df6` passed, followed by all20 affected foundation/
+Review tests in11.7s. Both1080/390px paths preserve the exact authored query.
+Root's separate finite omowright replay passed at both widths; all four captures
+were inspected for usable, contained unsupported/recovered states.
+Evidence: task-root `review-unavailable-red-admitted.log`,
+`review-unavailable-green.log`, `review-unavailable-root-qa.log`, and
+`.mlearn/m10/review-unavailable-root-qa.json` with linked PNGs. The earlier
+`review-unavailable-red.log` held before workload launch, not a test failure.
+The root replay loaded that exact fresh bundle without a native shim or state
+mock and closed its owned browser/server; port4173 and its profile process
+were absent afterward. Guard samples stayed safe with the unchanged4GiB
+reserve: final footprint3599087056, available7993245696, pressure1,
+swap4901371904 bytes. This proves browser-preview navigation, not Rust session
+persistence, native TextInput/IME or complete NAV-02/M10 acceptance. The wider
+M10 independent review remains required; M11 stays gated.
+
 October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
 to Material instead of Home; Reselect from Home replaced the retained management
 workspace and erased its unsubmitted search. Both failures were reproduced against
