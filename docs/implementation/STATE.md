@@ -195,8 +195,18 @@ These captures are browser/Rust proof, not native TextInput/IME certification.
 Caret position survives resize, but automatic caret reveal is not established.
 Meaning60px versus reference52.4px, body16/24 versus17.6/26.4, inline-editor versus
 modal composition, and the large persistent narrow management header remain
-explicit visual differences. Broader Material/native/M10 gates remain open;
-independent review and the compact-field checkpoint are next. M11 is still gated.
+explicit visual differences. Independent review approved exact source
+`94ff049b33abf61abcf6c7cec3cbaa01b9ece652` for this bounded web checkpoint only,
+with no blocker. The single reviewer used the current subscription GPT6.1Sol
+route, inspected source/callers/logs/receipts/images, and ran no workloads.
+Its report is `.omo/evidence/material-fields-94ff049b-gate-review.md`.
+The hidden-resize case proves no collapse at the cap, not intermediate-height
+remeasurement; no product failure was demonstrated. The clean locked review
+checkout is removed. Reference driver source is preserved byte-for-byte as
+`.mlearn/m10/material-reference-driver.mjs.txt`, with no runnable scratch copy;
+the retained reference and genuine native profiles are preserved. Inspected
+current images were opened in Preview. Broader Material/native/M10 gates remain
+open; M11 is still gated.
 
 Departure checkpoint `5a540c88` preserves Messenger's retained management
 workspace and waits for the existing Reader/image, Watch and Messenger source
