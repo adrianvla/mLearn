@@ -11,6 +11,7 @@ import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runti
 // host transport is adapted; native window/media/clipboard are not claimed.
 test('bounded Knowledge browsing captures source-free Material and preserves claims across restart', async ({ page }, info) => {
   test.setTimeout(300_000);
+  page.setDefaultTimeout(15_000);
   const backend = await startRuntimeBrowserQa({
     profile: `${process.env.RUN_TMP ?? '.mlearn/m10'}/knowledge-${randomUUID()}`,
   });
@@ -194,7 +195,9 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await page.getByRole('button', { name: 'Close editor', exact: true }).click();
-      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await expect(page).toHaveURL(/\/knowledge(?:\?|$)/);
+      await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeVisible();
+      await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue('');
       await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
       await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
       const materialReentry = page.waitForResponse(response => {
@@ -208,8 +211,8 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
         materialReentry, page.getByText(`Open saved ${target.summary.headword}`, { exact: true }).click(),
       ]);
       await materialReentryReceipt.finished();
-      await expect(page.getByRole('heading', { name: 'Material', exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: `Edit ${target.summary.headword}`, exact: true })).toBeEnabled();
+      await expect(page.getByRole('heading', { name: 'Material', exact: true, includeHidden: true })).toBeAttached();
+      await expect(page.getByRole('button', { name: `Edit ${target.summary.headword}`, exact: true, includeHidden: true })).toBeEnabled();
       await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue(target.summary.headword);
       reentryReceipts.push({ width, materialId: materials.items[0].id, editorVisible: true, url: page.url() });
@@ -217,6 +220,8 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     }
     await writeFile(info.outputPath('material-closed-reentry.json'), JSON.stringify(reentryReceipts));
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await expect(page).toHaveURL(/\/knowledge(?:\?|$)/);
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
     const materialDraft = 'NAV-02 unsubmitted Material search';
     const knowledgeDraft = 'NAV-02 unsubmitted Knowledge search';
     const navigationReceipts: {
@@ -340,7 +345,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-source-entry.png`) });
       await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
       await page.getByRole('button', { name: 'Material', exact: true }).click();
-      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
+      await expect(page.getByRole('textbox', { name: 'Search Material', exact: true, includeHidden: true })).toHaveValue(materialDraft);
     }
     await backend.crashRestart();
     await page.goto('/knowledge');

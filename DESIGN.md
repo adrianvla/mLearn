@@ -38,6 +38,27 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Material authoring moves into the existing shared dialog, using the
+reference editor's measured768px desktop bound and the shared narrow inset,
+header, close control and independently scrolling body. Compact Previous,
+current-selection and Next controls remain inside the modal, along with the
+existing Home/Knowledge exits. The underlying collection is not replaced or
+remounted. MaterialEditor retains the single draft, staged-media and exact-write
+recovery owner above dialog visibility; item changes and dismissal request
+Save / Discard / Cancel from that owner. Pending writes cannot discard it.
+Heading focus, Tab to Close and exact originating-context/focus restoration
+remain required. Do not force-mount hidden native dialog Content or introduce
+a new store, modal implementation or navigation architecture.
+Primary action: save the current Material. Reading order: current item and
+switching controls, authored fields, then save/recovery feedback. Required
+content and existing Material/source/proposal actions remain. This is a bounded
+composition migration, not a new theme or a wider UI redesign.
+Long selected labels remain single-line in the shared select button while the
+accessible value stays complete. The switcher container yields its width to the
+adjacent Previous/Next controls rather than wrapping a long title into a form
+section. The actual390px capture and keyboard-switch scenario pass; native
+rendering remains a separate gate.
+
 Layout: direct Watch entry without an available runtime uses the same AppShell
 header/body composition as unavailable Review and Messenger. Home is the only
 action; the header identifies Watch, and the body exposes the host's actual

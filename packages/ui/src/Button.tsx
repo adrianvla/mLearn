@@ -50,7 +50,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
         {description ? <Text numberOfLines={1} style={styles.rowDetail}>{description}</Text> : null}
         {detail ? <Text numberOfLines={1} style={styles.rowDetail}>{detail}</Text> : null}
       </View> : <>
-        {!iconOnly ? <Text numberOfLines={variant === 'dictionary' || variant === 'sourcePreview' ? 1 : undefined} style={styles.label(variant, size, tone, selected)}>{selected && variant !== 'navigation' && variant !== 'segment' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
+        {!iconOnly ? <Text numberOfLines={variant === 'dictionary' || variant === 'sourcePreview' || variant === 'select' || variant === 'mediaSelect' ? 1 : undefined} style={styles.label(variant, size, tone, selected)}>{selected && variant !== 'navigation' && variant !== 'segment' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
         {detail ? <Text numberOfLines={1} style={styles.detail}>{detail}</Text> : null}
       </>}
       {icon && iconPosition === 'trailing' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected)} /> : null}

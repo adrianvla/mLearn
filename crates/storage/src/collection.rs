@@ -366,11 +366,34 @@ impl ProfileStore {
         tx.commit()?;
         Ok(result)
     }
+
+    pub fn refresh_material_collection(
+        &self,
+        query: &CollectionQuery,
+    ) -> Result<CollectionResult, StorageError> {
+        if query.surface != CollectionSurface::Material {
+            return Err(StorageError::Invalid(
+                "Only Material bookmarks support explicit refresh".into(),
+            ));
+        }
+        let tx = self.connection.unchecked_transaction()?;
+        let result = read_collection_page(&tx, query, true)?;
+        tx.commit()?;
+        Ok(result)
+    }
 }
 
 pub(crate) fn read_collection(
     tx: &Connection,
     query: &CollectionQuery,
+) -> Result<CollectionResult, StorageError> {
+    read_collection_page(tx, query, false)
+}
+
+fn read_collection_page(
+    tx: &Connection,
+    query: &CollectionQuery,
+    refresh_material: bool,
 ) -> Result<CollectionResult, StorageError> {
     if let Some(package_id) = &query.package_id {
         bounded(package_id, 512)?;
@@ -466,10 +489,13 @@ pub(crate) fn read_collection(
             query.sort,
             CollectionSort::DueAscending | CollectionSort::DueDescending
         );
+        // Explicit refresh reuses the native keyset bookmark, not old membership.
+        // Query/package/Knowledge identities still match; ordinary continuation
+        // also requires the original Material revision.
         if cursor.fingerprint != fingerprint
             || cursor.package_revision != package_revision
             || cursor.knowledge_revision != knowledge_revision
-            || cursor.material_revision != material_revision
+            || !refresh_material && cursor.material_revision != material_revision
             || matches!(&cursor.value, CursorValue::Due(_)) != due
         {
             return Err(StorageError::Conflict);

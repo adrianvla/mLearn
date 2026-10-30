@@ -228,7 +228,8 @@ impl Runtime {
     fn metadata(&mut self, request: Request) -> Result<Response, execution::Failure> {
         use execution::Failure;
         match request {
-            Request::Collection { query } => self.collection_query(query),
+            Request::Collection { query } => self.collection_query(query, false),
+            Request::RefreshMaterialCollection { query } => self.collection_query(query, true),
             Request::CreateCollectionSelection { command } => {
                 self.create_collection_selection(command)
             }

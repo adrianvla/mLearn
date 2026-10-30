@@ -87,6 +87,12 @@ export function createCollectionClient(request: Execute, commandId: () => string
         throw new RuntimeError('protocol', 'Malformed bounded collection.');
       return response.result;
     },
+    async refreshMaterialCollection(query: CollectionQuery) {
+      const response = await request({ type: 'refresh_material_collection', query });
+      if (!isCollectionResponse(response) || response.type !== 'collection')
+        throw new RuntimeError('protocol', 'Malformed refreshed Material collection.');
+      return response.result;
+    },
     prepareCollection(packageId: string): CollectionPreparationCommand {
       return { packageId, commandId: commandId() };
     },

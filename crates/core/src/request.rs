@@ -315,6 +315,11 @@ pub enum Request {
     Collection {
         query: crate::CollectionQuery,
     },
+    /// Explicitly refresh a Material view's existing native bookmark after edits.
+    /// Ordinary Collection continuation remains revision-bound.
+    RefreshMaterialCollection {
+        query: crate::CollectionQuery,
+    },
     CreateCollectionSelection {
         command: crate::CollectionSelectionCreate,
     },

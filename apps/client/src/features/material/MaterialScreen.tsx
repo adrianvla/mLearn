@@ -3,6 +3,7 @@ import { AccessibilityInfo, findNodeHandle, Platform, View, type Text as NativeT
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from 'expo-router/react-navigation';
 import type { CollectionFilter, CollectionItemId, CollectionQuery, CollectionResult, CollectionSort, Material, MaterialContent, PluginSummary } from '@mlearn/contracts';
 import { AppShell, Panel, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
@@ -10,8 +11,9 @@ import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
 import { Badge } from '@mlearn/ui/badge';
+import { Dialog } from '@mlearn/ui/dialog';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
-import { MaterialEditor } from './MaterialEditor';
+import { MaterialEditor, type MaterialEditorHandle } from './MaterialEditor';
 import { MaterialProposalReview } from './MaterialProposalReview';
 import { emptyMaterial } from './content';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
@@ -39,6 +41,7 @@ export function MaterialScreen() {
   const cardWidth = gridWidth ? (gridWidth - (columns - 1) * theme.spacing.medium) / columns : undefined;
   const host = useRuntime();
   const router = useRouter();
+  const focused = useIsFocused();
   const params = useLocalSearchParams<{ sourceId?: string; id?: string }>();
   const sourceId = typeof params.sourceId === 'string' ? params.sourceId : null;
   const [sourceOnly, setSourceOnly] = useState(true);
@@ -53,10 +56,14 @@ export function MaterialScreen() {
   const page = result?.state === 'ready' ? result.page : null;
   const [packages, setPackages] = useState<PluginSummary[]>([]);
   const [packageId, setPackageId] = useState('');
-  const [editor, setEditor] = useState<{ key: string; content: MaterialContent; material?: Material; trigger: string | null } | null>(null);
+  const [editor, setEditor] = useState<{ key: string; content: MaterialContent; material?: Material; trigger: string | null;
+    items: readonly { value: string; label: string }[]; returnToOrigin: boolean } | null>(null);
+  const editorActions = useRef<MaterialEditorHandle>(null);
+  const currentItems = useRef<readonly { value: string; label: string }[]>([]);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
-  const [opening, setOpening] = useState<{ id: string; pending: boolean; error: string; trigger: string | null } | null>(null);
+  const [opening, setOpening] = useState<{ id: string; pending: boolean; error: string; trigger: string | null;
+    returnToOrigin: boolean } | null>(null);
   const [returning, setReturning] = useState<{ material: Material; location: string; pending: boolean; error: string } | null>(null);
   const [reload, setReload] = useState(0);
   const [proposalsOpen, setProposalsOpen] = useState(false);
@@ -67,13 +74,11 @@ export function MaterialScreen() {
   const openRequest = useRef<object | null>(null);
   const returnRequest = useRef<{ location: string } | null>(null);
   const triggers = useRef(new Map<string, View>());
-  const heading = useRef<NativeText>(null);
   const collectionHeading = useRef<NativeText>(null);
   const loadedQuery = useRef('');
+  const refreshQuery = useRef<string | null>(null);
   const queryKey = JSON.stringify([after, query, filter, collectionPackageId, sort, sourceId, sourceOnly, includeExcluded]);
   const restore = useRef<string | null>(null);
-  const focusedEditor = useRef<string | null>(null);
-  const opened = useRef('');
   const collectionQuery = useMemo<CollectionQuery>(() => {
     const filters: CollectionFilter[] = [filter];
     if (query) filters.push({ kind: 'text', text: query });
@@ -84,10 +89,15 @@ export function MaterialScreen() {
   const visibleItems = useMemo<CollectionItemId[]>(() => page?.items.flatMap(item => item.kind === 'material'
     ? [{ kind: 'material' as const, id: item.material.id }] : []) ?? [], [page]);
   const selection = useCollectionSelection(host.available ? host.client : null, collectionQuery, visibleItems);
+  currentItems.current = page?.items.flatMap(item => item.kind === 'material'
+    ? [{ value: item.material.id, label: item.material.content.phrase || item.material.id }] : []) ?? [];
   useLayoutEffect(() => {
-    if (editor) {
-      if (Platform.OS === 'web') focus(heading.current);
-    } else if (restore.current) {
+    if (!page?.items.length) return;
+    setEditor(previous => previous && !previous.items.length
+      ? { ...previous, items: currentItems.current } : previous);
+  }, [page, editor?.key]);
+  useLayoutEffect(() => {
+    if (!editor && restore.current) {
       focus(triggers.current.get(restore.current) ?? collectionHeading.current);
       restore.current = null;
     }
@@ -98,48 +108,72 @@ export function MaterialScreen() {
     setPending(true); setError('');
     if (loadedQuery.current !== queryKey) setResult(null);
     void Promise.all([
-      host.client.collection({ ...collectionQuery, after }),
+      refreshQuery.current === queryKey
+        ? host.client.refreshMaterialCollection({ ...collectionQuery, after })
+        : host.client.collection({ ...collectionQuery, after }),
       host.client.snapshot(),
     ]).then(([value, snapshot]) => {
       if (!active) return;
       const languages = snapshot.installedPlugins.filter(item => item.capabilities.includes('text.analyze.v1'));
       setResult(value); setPackages(languages); loadedQuery.current = queryKey;
+      if (refreshQuery.current === queryKey) refreshQuery.current = null;
       setPackageId(previous => languages.some(item => item.id === previous) ? previous : languages[0]?.id || '');
     }).catch((cause: unknown) => {
       if (active) setError(cause instanceof Error ? cause.message : String(cause));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, after, collectionQuery, reload, queryKey]));
-  const open = useCallback(async (id: string, trigger: string | null) => {
+  const open = useCallback(async (id: string, trigger: string | null, returnToOrigin = false) => {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
     const request = {}; openRequest.current = request;
-    setOpening({ id, trigger, pending: true, error: '' });
+    setOpening({ id, trigger, returnToOrigin, pending: true, error: '' });
     try {
       const material = await host.client.material(id);
       if (scope && owner.current === scope && openRequest.current === request) {
         if (returnRequest.current?.location === 'editor') returnRequest.current = null;
         setReturning(previous => previous?.location === 'editor' ? null : previous);
-        opened.current = id;
-        setEditor({ key: `${id}:${material.revision}`, material, content: material.content, trigger });
+        editorActions.current?.replace(material);
+        setEditor(previous => ({ key: previous?.key ?? `${id}:${material.revision}`, material, content: material.content,
+          trigger: previous ? previous.trigger : trigger, items: (previous?.items ?? currentItems.current)
+            .map(item => item.value === material.id ? { ...item, label: material.content.phrase || material.id } : item),
+          returnToOrigin: previous?.returnToOrigin ?? returnToOrigin }));
         setOpening(null);
+        // Consume this entry intent. Keeping an old route id would reopen it
+        // after a later in-dialog switch and management-route round trip.
+        router.setParams({ id: undefined });
       }
     } catch (cause) {
       if (owner.current === scope && openRequest.current === request)
-        setOpening({ id, trigger, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
+        setOpening({ id, trigger, returnToOrigin, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
     } finally { if (openRequest.current === request) openRequest.current = null; }
-  }, [host]);
+  }, [host, router]);
+  const requestOpen = useCallback((id: string, trigger: string | null, returnToOrigin = false) => {
+    const scope = owner.current;
+    const proceed = () => { if (scope && owner.current === scope) void open(id, trigger, returnToOrigin); };
+    if (editorActions.current) editorActions.current.requestLeave(proceed);
+    else proceed();
+  }, [open]);
   useFocusEffect(useCallback(() => {
     if (!host.available) return;
     const scope = {}; owner.current = scope;
-    if (typeof params.id === 'string' && opened.current !== params.id) void open(params.id, null);
+    if (typeof params.id === 'string') requestOpen(params.id, null, true);
     return () => {
       if (owner.current === scope) {
         owner.current = null; openRequest.current = null; returnRequest.current = null;
         setOpening(null); setReturning(null);
       }
     };
-  }, [host, params.id, open]));
+  }, [host, params.id, requestOpen]));
+  function closeEditor() {
+    const returnToOrigin = editor?.returnToOrigin;
+    restore.current = editor?.trigger ?? null;
+    router.setParams({ id: undefined });
+    openRequest.current = null; setOpening(null);
+    if (returning?.location === 'editor') { returnRequest.current = null; setReturning(null); }
+    setEditor(null);
+    if (returnToOrigin && router.canGoBack()) router.back();
+  }
   async function returnSource(material: Material, location: string) {
     if (!host.available || returnRequest.current) return;
     const scope = owner.current;
@@ -168,7 +202,8 @@ export function MaterialScreen() {
     return opening?.id === id ? <>
       {opening.pending ? <Text accessibilityLiveRegion="polite">Opening Material…</Text> : null}
       {opening.error ? <><Text accessibilityRole="alert">{opening.error}</Text>
-        <Button label="Retry opening Material" onPress={() => void open(opening.id, opening.trigger)} /></> : null}
+        <Button label="Retry opening Material"
+          onPress={() => requestOpen(opening.id, opening.trigger, opening.returnToOrigin)} /></> : null}
     </> : null;
   }
   function returnStatus(location: string) {
@@ -178,6 +213,20 @@ export function MaterialScreen() {
         <Button label="Retry returning to source" onPress={() => void returnSource(returning.material, location)} /></> : null}
     </> : null;
   }
+  const editorItems = editor?.material && !editor.items.some(item => item.value === editor.material?.id)
+    ? [...editor.items, { value: editor.material.id, label: editor.material.content.phrase || editor.material.id }]
+    : editor?.items ?? [];
+  const editorIndex = editorItems.findIndex(item => item.value === editor?.material?.id);
+  const listStatus = pending || error || result?.state === 'preparing' || result?.state === 'unavailable' ? <View style={styles.notice}>
+    {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
+    {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
+      onPress={() => {
+        if (refreshQuery.current !== queryKey) setAfter(null);
+        setReload(value => value + 1);
+      }} /></> : null}
+    {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
+    {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
+  </View> : null;
   return <AppShell contentInset="none" navigation={<>
       <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
       <Button label="Home" variant="navigation" size="compact" onPress={() => router.navigate('/')} />
@@ -190,7 +239,8 @@ export function MaterialScreen() {
         disabled={!packageId || !!opening?.pending} onPress={() => {
           if (returnRequest.current?.location === 'editor') returnRequest.current = null;
           setReturning(previous => previous?.location === 'editor' ? null : previous);
-          setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add' });
+          setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add',
+            items: currentItems.current, returnToOrigin: false });
         }} />
       <Button ref={proposalTrigger} label="Review proposals" variant="secondary" onPress={() => {
         proposalFocus.current = proposalTrigger.current;
@@ -228,45 +278,59 @@ export function MaterialScreen() {
       <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
         ready={!!page && !pending} surface="material" packages={packages} client={host.client}
         onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
-      {opening?.trigger === null ? openStatus(opening.id) : null}
-      {editor ? <View style={styles.notice}><Panel>
-        <Row><Text ref={heading} variant="section" accessibilityRole="header" accessible tabIndex={-1}
-          onLayout={() => {
-            if (Platform.OS !== 'web' && focusedEditor.current !== editor.key) {
-              focusedEditor.current = editor.key; focus(heading.current);
-            }
-          }}>{editor.material ? 'Edit Material' : 'Add Material'}</Text>
-          <Button label="Close editor" variant="quiet" onPress={() => {
-            restore.current = editor.trigger;
-            opened.current = '';
-            router.setParams({ id: undefined });
-            openRequest.current = null; setOpening(null);
-            if (returning?.location === 'editor') { returnRequest.current = null; setReturning(null); }
-            focusedEditor.current = null; setEditor(null);
-          }} /></Row>
-        {editor.material?.content.source ? <>
-          <Button label="Return to source" busy={returning?.location === 'editor' && returning.pending} disabled={!!returning?.pending}
-            onPress={() => { if (editor.material) void returnSource(editor.material, 'editor'); }} />
-          {returnStatus('editor')}
-        </> : null}
-        <MaterialEditor key={editor.key} client={host.client} authoredMedia={host.authoredMedia} initial={editor.content} material={editor.material}
+      {opening?.trigger === null && !editor ? openStatus(opening.id) : null}
+      {editor ? <MaterialEditor key={editor.key} ref={editorActions} client={host.client}
+          authoredMedia={host.authoredMedia} initial={editor.content} material={editor.material}
+          navigationPending={!!opening?.pending}
+          renderFrame={(body, blocked) => <Dialog open={focused} title={editor.material ? 'Edit Material' : 'Add Material'}
+            description="" size="wide" closeLabel="Close editor" initialFocus="title" focusTarget={() => null}
+            onOpenChange={open => {
+              if (!open && focused) {
+                const scope = owner.current;
+                editorActions.current?.requestLeave(() => { if (scope && owner.current === scope) closeEditor(); });
+              }
+            }}>
+            <Row>
+              <Button label="Home" variant="quiet" size="compact" onPress={() => router.navigate('/')} />
+              <Button label="Knowledge" variant="quiet" size="compact"
+                onPress={() => router.navigate({ pathname: '/knowledge', params: { packageId } })} />
+            </Row>
+            <Row>
+              <Button label="Previous" accessibilityLabel="Previous Material" variant="secondary" size="compact"
+                disabled={blocked || !!opening?.pending || editorIndex <= 0}
+                onPress={() => requestOpen(editorItems[editorIndex - 1].value, editor.trigger)} />
+              <View style={styles.editorSelection}>
+                <Select label="Current Material selection" size="compact" value={editor.material?.id ?? ''}
+                  placeholder="New Material" options={editorItems} disabled={blocked || !!opening?.pending}
+                  onValueChange={id => { if (id !== editor.material?.id) requestOpen(id, editor.trigger); }} />
+              </View>
+              <Button label="Next" accessibilityLabel="Next Material" variant="secondary" size="compact"
+                disabled={blocked || !!opening?.pending || editorIndex + 1 >= editorItems.length}
+                onPress={() => requestOpen(editorItems[editorIndex + 1].value, editor.trigger)} />
+            </Row>
+            {listStatus}
+            {opening ? openStatus(opening.id) : null}
+            {editor.material?.content.source ? <>
+              <Button label="Return to source" busy={returning?.location === 'editor' && returning.pending}
+                disabled={!!returning?.pending} onPress={() => {
+                  if (editor.material) void returnSource(editor.material, 'editor');
+                }} />
+              {returnStatus('editor')}
+            </> : null}
+            {body}
+          </Dialog>}
           onPropose={(material, trigger) => {
             proposalFocus.current = trigger;
             setProposalSeed(material); setProposalsOpen(true);
           }}
           onSaved={material => {
-            setEditor(previous => previous ? { ...previous, material } : previous);
-            setAfter(null);
+            setEditor(previous => previous ? { ...previous, material,
+              items: previous.items.map(item => item.value === material.id
+                ? { ...item, label: material.content.phrase || material.id } : item) } : previous);
+            refreshQuery.current = queryKey;
             setReload(value => value + 1);
-          }} />
-      </Panel></View> : null}
-      {pending || error || result?.state === 'preparing' || result?.state === 'unavailable' ? <View style={styles.notice}>
-        {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
-        {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
-          onPress={() => { setAfter(null); setReload(value => value + 1); }} /></> : null}
-        {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
-        {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
-      </View> : null}
+          }} /> : null}
+      {!editor ? listStatus : null}
       <View style={styles.gridInset}>
       <View style={styles.grid} onLayout={event => setGridWidth(event.nativeEvent.layout.width)}>
         {page?.items.map(item => item.kind === 'material' ? <View key={item.material.id}
@@ -285,11 +349,11 @@ export function MaterialScreen() {
               onPress={() => selection.toggle({ kind: 'material', id: item.material.id })} /> : null}
             <Button label="Edit" accessibilityLabel={`Edit ${item.material.content.phrase}`} variant="secondary" size="compact" disabled={!!opening?.pending}
               ref={node => { if (node) triggers.current.set(item.material.id, node); else triggers.current.delete(item.material.id); }}
-              busy={opening?.id === item.material.id && opening.pending} onPress={() => void open(item.material.id, item.material.id)} />
+              busy={opening?.id === item.material.id && opening.pending} onPress={() => requestOpen(item.material.id, item.material.id)} />
             {item.material.content.source ? <Button label="Return to source" accessibilityLabel={`Return to source: ${item.material.content.phrase}`} size="compact" disabled={!!returning?.pending}
               busy={returning?.location === item.material.id && returning.pending}
               variant="quiet" onPress={() => void returnSource(item.material, item.material.id)} /> : null}</Row></View>
-          {opening?.trigger === item.material.id ? openStatus(item.material.id) : null}
+          {!editor && opening?.trigger === item.material.id ? openStatus(item.material.id) : null}
           {returnStatus(item.material.id)}
         </Panel></View> : null)}
       </View>
@@ -303,14 +367,15 @@ export function MaterialScreen() {
       </View>
       <MaterialProposalReview client={host.client} open={proposalsOpen} onOpenChange={setProposalsOpen}
         seed={proposalSeed} focusTarget={() => proposalFocus.current ?? proposalTrigger.current}
-        onOpenMaterial={id => void open(id, null)}
-        onChanged={() => { setAfter(null); setReload(value => value + 1); }} />
+        onOpenMaterial={id => requestOpen(id, null)}
+        onChanged={() => { refreshQuery.current = queryKey; setReload(value => value + 1); }} />
     </>}
   </AppShell>;
 }
 
 const styles = StyleSheet.create(theme => ({
   search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   notice: { paddingHorizontal: theme.spacing.large, gap: theme.spacing.small },
   gridInset: { padding: theme.spacing.large },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.medium, alignItems: 'flex-start' },

@@ -97,17 +97,26 @@ fn amended_selection_keeps_frozen_preconditions_and_projects_only_requested_memb
             id: MaterialId(format!("material-{index}")),
         })
         .collect::<Vec<_>>();
-    assert!(store
-        .collection_selection_membership(&amended.id, None, CollectionSurface::Material, &oversized)
-        .is_err());
-    assert!(store
-        .collection_selection_membership(
-            &amended.id,
-            None,
-            CollectionSurface::Material,
-            &[item(0), item(0)]
-        )
-        .is_err());
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                None,
+                CollectionSurface::Material,
+                &oversized
+            )
+            .is_err()
+    );
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                None,
+                CollectionSurface::Material,
+                &[item(0), item(0)]
+            )
+            .is_err()
+    );
     let overlap = CollectionSelectionCreate {
         command_id: "overlap".into(),
         source: CollectionSelectionSource::Amend {
@@ -197,16 +206,18 @@ fn removing_frozen_targets_survives_catalog_eviction_without_cross_package_alias
             .collect::<Vec<_>>(),
         vec![false, true]
     );
-    assert!(store
-        .collection_selection_membership(
-            &amended.id,
-            Some("other.package"),
-            CollectionSurface::Knowledge,
-            &keys
-        )
-        .unwrap()
-        .iter()
-        .all(|row| !row.selected));
+    assert!(
+        store
+            .collection_selection_membership(
+                &amended.id,
+                Some("other.package"),
+                CollectionSurface::Knowledge,
+                &keys
+            )
+            .unwrap()
+            .iter()
+            .all(|row| !row.selected)
+    );
     let add = CollectionSelectionCreate {
         command_id: "add-without-catalog".into(),
         source: CollectionSelectionSource::Amend {
@@ -219,17 +230,19 @@ fn removing_frozen_targets_survives_catalog_eviction_without_cross_package_alias
     assert!(store.create_collection_selection(&add).is_err());
     let mut foreign_query = selection_query;
     foreign_query.package_id = Some("other.package".into());
-    assert!(store
-        .create_collection_selection(&CollectionSelectionCreate {
-            command_id: "foreign-amendment".into(),
-            source: CollectionSelectionSource::Amend {
-                selection_id: amended.id,
-                query: foreign_query,
-                add: vec![],
-                remove: vec![item(1)],
-            },
-        })
-        .is_err());
+    assert!(
+        store
+            .create_collection_selection(&CollectionSelectionCreate {
+                command_id: "foreign-amendment".into(),
+                source: CollectionSelectionSource::Amend {
+                    selection_id: amended.id,
+                    query: foreign_query,
+                    add: vec![],
+                    remove: vec![item(1)],
+                },
+            })
+            .is_err()
+    );
 }
 
 #[test]
@@ -451,9 +464,11 @@ fn explicit_selection_rejects_missing_filtered_duplicate_and_wrong_kind_items() 
         ),
         ("oversized", vec![target_id(0); 257]),
     ] {
-        assert!(store
-            .create_collection_selection(&command(id, items))
-            .is_err());
+        assert!(
+            store
+                .create_collection_selection(&command(id, items))
+                .is_err()
+        );
     }
     assert!(matches!(
         store.create_collection_selection(&command("explicit", vec![target_id(4)])),
@@ -489,16 +504,20 @@ fn releasing_selection_frees_capacity_without_resurrecting_retry() {
 
     // Then capacity returns, released handles fail, and retries cannot select new data.
     assert!(store.collection_selection(&retained[0].id).is_err());
-    assert!(store
-        .collection_selection_page(&retained[0].id, None)
-        .is_err());
+    assert!(
+        store
+            .collection_selection_page(&retained[0].id, None)
+            .is_err()
+    );
     assert!(store.create_collection_selection(&command(0)).is_err());
     assert_eq!(store.collection_selections().unwrap().len(), 7);
-    assert!(store
-        .collection_selections()
-        .unwrap()
-        .iter()
-        .all(|item| item.id != retained[0].id));
+    assert!(
+        store
+            .collection_selections()
+            .unwrap()
+            .iter()
+            .all(|item| item.id != retained[0].id)
+    );
     assert!(store.create_collection_selection(&command(8)).is_ok());
     store.release_collection_selection(&retained[0].id).unwrap();
 }
@@ -534,15 +553,19 @@ fn selecting_an_incomplete_catalog_or_page_cursor_does_not_freeze_a_prefix() {
     };
 
     // When the incomplete collection or an opaque page cursor is used for selection.
-    assert!(store
-        .create_collection_selection(&command(selection_query.clone()))
-        .is_err());
+    assert!(
+        store
+            .create_collection_selection(&command(selection_query.clone()))
+            .is_err()
+    );
     selection_query.after = Some("cursor".into());
 
     // Then neither input can establish partial collection membership.
-    assert!(store
-        .create_collection_selection(&command(selection_query))
-        .is_err());
+    assert!(
+        store
+            .create_collection_selection(&command(selection_query))
+            .is_err()
+    );
     store
         .put_collection_catalog_page(
             PACKAGE,
@@ -775,10 +798,11 @@ fn saved_material_remains_readable_while_catalog_filters_are_preparing() {
     // Then authored rows stay readable, but metadata predicates cannot count a prefix.
     assert_eq!(page.count, 2);
     assert_eq!(page.items.len(), 2);
-    assert!(page
-        .items
-        .iter()
-        .all(|item| matches!(item, CollectionItem::Material { .. })));
+    assert!(
+        page.items
+            .iter()
+            .all(|item| matches!(item, CollectionItem::Material { .. }))
+    );
     assert_eq!(
         store
             .collection(&query(
@@ -831,19 +855,21 @@ fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
     ));
     let mut malformed = target(1);
     malformed.capabilities.push("other.package:injected".into());
-    assert!(store
-        .put_collection_catalog_page(
-            PACKAGE,
-            "revision-one",
-            1,
-            Some("lemma/漢字:2"),
-            &CollectionCatalogPage {
-                items: vec![malformed],
-                next: None,
-                total: 2,
-            }
-        )
-        .is_err());
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-one",
+                1,
+                Some("lemma/漢字:2"),
+                &CollectionCatalogPage {
+                    items: vec![malformed],
+                    next: None,
+                    total: 2,
+                }
+            )
+            .is_err()
+    );
     drop(store);
     // When the real owner resumes after restart.
     let mut store = ProfileStore::open(&path).unwrap();
@@ -1104,19 +1130,21 @@ fn level_filters_use_all_source_memberships_not_only_inline_display() {
     store
         .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
         .unwrap();
-    assert!(store
-        .put_collection_catalog_page(
-            PACKAGE,
-            "revision-two",
-            0,
-            None,
-            &CollectionCatalogPage {
-                items: vec![invalid],
-                next: None,
-                total: 1
-            }
-        )
-        .is_err());
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-two",
+                0,
+                None,
+                &CollectionCatalogPage {
+                    items: vec![invalid],
+                    next: None,
+                    total: 1
+                }
+            )
+            .is_err()
+    );
     assert_eq!(
         store
             .begin_collection_catalog(PACKAGE, "revision-two", &description(), 1)
@@ -1145,9 +1173,17 @@ fn opaque_catalog_progress_rejects_stalls_and_replayed_pages_atomically() {
         next: first.next.clone(),
         total: 3,
     };
-    assert!(store
-        .put_collection_catalog_page(PACKAGE, "revision-one", 1, first.next.as_deref(), &stalled)
-        .is_err());
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-one",
+                1,
+                first.next.as_deref(),
+                &stalled
+            )
+            .is_err()
+    );
     assert!(matches!(
         store.put_collection_catalog_page(PACKAGE, "revision-one", 0, None, &first),
         Err(StorageError::Conflict)
@@ -1443,6 +1479,113 @@ fn tied_sort_pages_are_bounded_and_reject_changed_membership() {
     selection.after = first.next;
     assert!(matches!(
         store.collection(&selection),
+        Err(StorageError::Conflict)
+    ));
+}
+
+#[test]
+fn material_bookmark_refresh_preserves_the_window_without_weakening_continuation() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 52);
+    for index in 0..52 {
+        save(&mut store, index);
+    }
+    let mut browse = query(
+        CollectionSurface::Material,
+        CollectionFilter::All { filters: vec![] },
+    );
+    browse.sort = CollectionSort::LabelAscending;
+    browse.after = ready(&store, &browse).next;
+    let original = ready(&store, &browse);
+    let CollectionItem::Material { material, .. } = &original.items[0] else {
+        panic!("Expected authored Material");
+    };
+    let mut content = material.content.clone();
+    content.notes = "A durable edit in the originating window".into();
+    store
+        .update_material(&MaterialEdit {
+            command_id: "edit-window".into(),
+            id: material.id.clone(),
+            expected_revision: material.revision,
+            content,
+            excluded: false,
+            media_imports: vec![],
+        })
+        .unwrap();
+    assert!(matches!(
+        store.collection(&browse),
+        Err(StorageError::Conflict)
+    ));
+    let CollectionResult::Ready { page: refreshed } =
+        store.refresh_material_collection(&browse).unwrap()
+    else {
+        panic!("Expected the native refreshed window");
+    };
+    assert_eq!(refreshed.count, 52);
+    assert_eq!(refreshed.items.len(), 24);
+    assert!(serde_json::to_vec(&refreshed).unwrap().len() <= 262144);
+    for (before, after) in original.items.iter().zip(&refreshed.items) {
+        let (
+            CollectionItem::Material {
+                material: before, ..
+            },
+            CollectionItem::Material {
+                material: after, ..
+            },
+        ) = (before, after)
+        else {
+            panic!("Expected only Material");
+        };
+        assert_eq!(before.id, after.id);
+    }
+    let CollectionItem::Material {
+        material: edited, ..
+    } = &refreshed.items[0]
+    else {
+        panic!("Expected edited Material");
+    };
+    assert_eq!(edited.revision, material.revision + 1);
+    assert_eq!(
+        edited.content.notes,
+        "A durable edit in the originating window"
+    );
+    let mut following = browse.clone();
+    following.after = refreshed.next;
+    assert_eq!(ready(&store, &following).items.len(), 4);
+
+    let mut foreign_query = browse.clone();
+    foreign_query.sort = CollectionSort::LabelDescending;
+    assert!(matches!(
+        store.refresh_material_collection(&foreign_query),
+        Err(StorageError::Conflict)
+    ));
+    let mut knowledge = browse.clone();
+    knowledge.surface = CollectionSurface::Knowledge;
+    assert!(matches!(
+        store.refresh_material_collection(&knowledge),
+        Err(StorageError::Invalid(_))
+    ));
+    store
+        .change_claim(&ClaimChange {
+            command_id: "change-window-knowledge".into(),
+            key: KnowledgeKey {
+                package_id: PACKAGE.into(),
+                target_id: "entry-000".into(),
+                capability: format!("{PACKAGE}:meaning"),
+            },
+            claim: Some(true),
+        })
+        .unwrap();
+    assert!(matches!(
+        store.refresh_material_collection(&browse),
+        Err(StorageError::Conflict)
+    ));
+    browse.after = None;
+    browse.after = ready(&store, &browse).next;
+    store.evict_collection_catalog(PACKAGE).unwrap();
+    assert!(matches!(
+        store.refresh_material_collection(&browse),
         Err(StorageError::Conflict)
     ));
 }

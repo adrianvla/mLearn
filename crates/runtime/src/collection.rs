@@ -1,17 +1,17 @@
 //! Collection preparation uses the host's existing blocking call and admission.
 //! Only one command is active; each page releases guest and Runtime ownership.
 use crate::{
+    Installed, Runtime,
     execution::{Cancellation, Failure},
     guest_gate::GuestGate,
-    Installed, Runtime,
 };
 use mlearn_core::{
     CollectionCatalogPage, CollectionCatalogRequest, CollectionPreparationCommand,
     CollectionPreparationPhase, CollectionPreparationStatus, Response,
 };
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
 };
 
 #[derive(Default)]
@@ -351,7 +351,7 @@ impl Runtime {
         // Apply the same installed-package/revision authority as normal browsing.
         // Removing frozen keys does not need an installed or rebuilt catalog.
         if let Some(query) = query {
-            match self.collection_query(query.clone())? {
+            match self.collection_query(query.clone(), false)? {
                 Response::Collection {
                     result: mlearn_core::CollectionResult::Ready { .. },
                 } => {}
@@ -383,7 +383,14 @@ impl Runtime {
     pub(super) fn collection_query(
         &mut self,
         query: mlearn_core::CollectionQuery,
+        refresh_material: bool,
     ) -> Result<Response, Failure> {
+        if refresh_material && query.surface != mlearn_core::CollectionSurface::Material {
+            return Err(Failure::Protocol(
+                "invalid_request",
+                "Only Material bookmarks support explicit refresh".into(),
+            ));
+        }
         if query.surface == mlearn_core::CollectionSurface::Knowledge
             && query
                 .package_id
@@ -418,7 +425,12 @@ impl Runtime {
                     .map_err(|error| Failure::Operation(error.to_string()))?;
             }
         }
-        let result = self.store.collection(&query).map_err(|error| match error {
+        let result = if refresh_material {
+            self.store.refresh_material_collection(&query)
+        } else {
+            self.store.collection(&query)
+        }
+        .map_err(|error| match error {
             mlearn_storage::StorageError::Conflict => {
                 Failure::Protocol("conflict", error.to_string())
             }
@@ -431,7 +443,7 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{catalog::Manifest, BundledPlugin, RuntimeExecutor};
+    use crate::{BundledPlugin, RuntimeExecutor, catalog::Manifest};
     use mlearn_core::{
         CollectionFilter, CollectionQuery, CollectionResult, CollectionSort, CollectionSurface,
         Request,
@@ -489,6 +501,38 @@ mod tests {
             Response::CollectionPreparation { status } => status,
             other => panic!("Expected native preparation status, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn material_bookmark_refresh_is_a_material_only_metadata_read() {
+        let directory = tempfile::tempdir().unwrap();
+        let executor = RuntimeExecutor::new(
+            Runtime::open(
+                &directory.path().join("profile"),
+                CodePolicy::MobileBundled,
+                None,
+                vec![],
+            )
+            .unwrap(),
+        );
+        let mut query = CollectionQuery {
+            package_id: None,
+            surface: CollectionSurface::Material,
+            filter: CollectionFilter::All { filters: vec![] },
+            sort: CollectionSort::Default,
+            after: None,
+        };
+        assert!(matches!(
+            call(&executor, Request::RefreshMaterialCollection { query: query.clone() }),
+            Response::Collection { result: CollectionResult::Ready { page } }
+                if page.items.is_empty() && page.count == 0
+        ));
+        query.surface = CollectionSurface::Knowledge;
+        query.package_id = Some("not-installed".into());
+        assert!(matches!(
+            call(&executor, Request::RefreshMaterialCollection { query }),
+            Response::Error { code, .. } if code == "invalid_request"
+        ));
     }
 
     #[test]
@@ -1062,13 +1106,15 @@ mod tests {
 
             // When resumed, the next committed page starts at the saved cursor.
             assert_eq!(committed.recv_timeout(Duration::from_secs(10)).unwrap(), 48);
-            assert!(status(call(
-                &executor,
-                Request::CancelCollectionPreparation {
-                    command_id: command.command_id.clone()
-                },
-            ))
-            .is_none());
+            assert!(
+                status(call(
+                    &executor,
+                    Request::CancelCollectionPreparation {
+                        command_id: command.command_id.clone()
+                    },
+                ))
+                .is_none()
+            );
             call(
                 &executor,
                 Request::CancelCollectionPreparation {

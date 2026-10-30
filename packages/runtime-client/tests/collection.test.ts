@@ -12,6 +12,33 @@ const query: CollectionQuery = {
   after: null,
 };
 
+test('Material bookmark refresh is explicit and validates the bounded native projection', async () => {
+  const materialQuery: CollectionQuery = { ...query, surface: 'material', after: 'native-bookmark' };
+  const requests: unknown[] = [];
+  const result = { state: 'ready', page: {
+    items: [], count: 0, next: null, packageRevision: null,
+    knowledgeRevision: 1, materialRevision: 2,
+  } };
+  let response: unknown = { type: 'collection', result };
+  const client = createRuntimeClient({
+    commandId: () => 'unused',
+    execute: async raw => {
+      requests.push(JSON.parse(raw));
+      return JSON.stringify(response);
+    },
+  });
+  assert.deepEqual(await client.collection(materialQuery), result);
+  assert.deepEqual(await client.refreshMaterialCollection(materialQuery), result);
+  assert.deepEqual(requests, [
+    { type: 'collection', query: materialQuery },
+    { type: 'refresh_material_collection', query: materialQuery },
+  ]);
+  response = { type: 'collection', result: {
+    ...result, page: { ...result.page, next: 'x'.repeat(8193) },
+  } };
+  await assert.rejects(client.refreshMaterialCollection(materialQuery), { code: 'protocol' });
+});
+
 test('selection amendment freezes its draft and visible membership validates exact requested keys', async () => {
   // Given a prepared amendment whose unsubmitted draft later changes.
   const selected = {

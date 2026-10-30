@@ -438,6 +438,7 @@ impl Runtime {
                 Ok(Prepared::Immediate(Box::new(response?)))
             }
             request @ (Request::Collection { .. }
+            | Request::RefreshMaterialCollection { .. }
             | Request::CreateCollectionSelection { .. }
             | Request::CollectionSelection { .. }
             | Request::CollectionSelections

@@ -1,7 +1,9 @@
 /// <reference types="node" />
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { EventEmitter, once } from 'node:events';
 import { resolve } from 'node:path';
+import type { MaterialEdit } from '@mlearn/contracts';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import { emptyMaterial } from '../../apps/client/src/features/material/content';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
@@ -13,6 +15,98 @@ async function installEnglish(page: Page) {
   await page.getByRole('button', { name: /^Install .*English/ }).click();
   await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
 }
+
+test('Material item switching retains its draft through cancelled departure and a lost save receipt', async ({ page }, info) => {
+  test.setTimeout(60_000);
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('profile') });
+  const client = createRuntimeClient({
+    commandId: randomUUID, execute: request => backend.invoke('runtime_execute', { request }),
+  });
+  const events = new EventEmitter();
+  const commands: MaterialEdit[] = [];
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await installEnglish(page);
+    for (const phrase of ['cat', 'dog']) {
+      const saved = await client.createMaterial(client.prepareMaterial({
+        ...emptyMaterial('org.mlearn.english'), phrase,
+      }));
+      if (saved.status !== 'saved') throw new Error('Expected fresh authored Material');
+    }
+    await page.goto('/materials');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('combobox', { name: /^Material order:/ }).click();
+    await page.getByRole('option', { name: 'Text A–Z', exact: true }).click();
+    const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
+    await search.fill('Unsubmitted collection query');
+    const opener = page.getByRole('button', { name: 'Edit cat', exact: true });
+    await opener.scrollIntoViewIfNeeded();
+    const scroll = await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop);
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Edit Material', exact: true });
+    const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true });
+    const next = dialog.getByRole('button', { name: 'Next Material', exact: true });
+    await notes.fill('Keep this authored draft.');
+    await next.click();
+    await expect(dialog.getByRole('button', { name: 'Discard', exact: true })).toBeVisible();
+    await expect(notes).toHaveValue('Keep this authored draft.');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Discard', exact: true })).toHaveCount(0);
+    await expect(notes).toHaveValue('Keep this authored draft.');
+    const isSave = (request: { url(): string; postDataJSON(): { args?: { request?: string } } }) =>
+      request.url() === `${backend.url}/invoke`
+      && JSON.parse(request.postDataJSON().args?.request ?? '{}').type === 'update_material';
+    await page.route(`${backend.url}/invoke`, async route => {
+      if (!isSave(route.request())) { await route.continue(); return; }
+      const request: { command: MaterialEdit } = JSON.parse(route.request().postDataJSON().args.request);
+      commands.push(request.command);
+      const response = await route.fetch();
+      if (commands.length === 1) {
+        const released = once(events, 'released', { signal: AbortSignal.timeout(15000) });
+        events.emit('held');
+        await released;
+        await route.abort('failed');
+      } else await route.fulfill({ response });
+    });
+    await next.click();
+    const held = once(events, 'held', { signal: AbortSignal.timeout(5000) });
+    await Promise.all([held, dialog.getByRole('button', { name: 'Save', exact: true }).click()]);
+    await expect(next).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Discard', exact: true })).toBeDisabled();
+    await expect(notes).toHaveValue('Keep this authored draft.');
+    await page.screenshot({ path: info.outputPath('material-switch-save-pending-390.png') });
+    const failed = page.waitForEvent('requestfailed', { predicate: isSave });
+    events.emit('released');
+    await failed;
+    await expect(dialog.getByTestId('material-error')).toBeVisible();
+    await expect(dialog.getByRole('combobox', { name: /^Current Material selection:/ })).toHaveText('cat');
+    await expect(notes).toHaveValue('Keep this authored draft.');
+    await page.screenshot({ path: info.outputPath('material-switch-save-failed-390.png') });
+    const recovered = page.waitForResponse(response => isSave(response.request()));
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await (await recovered).finished();
+    await expect(dialog.getByRole('combobox', { name: /^Current Material selection:/ })).toHaveText('dog');
+    await expect(notes).toHaveValue('');
+    expect(commands).toHaveLength(2);
+    expect(commands[1]).toEqual(commands[0]);
+    expect((await client.material(commands[0].id)).content.notes).toBe('Keep this authored draft.');
+    await notes.fill('Discard only by explicit choice.');
+    await dialog.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(notes).toHaveValue('Discard only by explicit choice.');
+    await dialog.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
+    await expect(search).toHaveValue('Unsubmitted collection query');
+    expect(await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop)).toBe(scroll);
+    await page.screenshot({ path: info.outputPath('material-switch-origin-restored-390.png') });
+  } finally {
+    events.emit('released');
+    await page.unroute(`${backend.url}/invoke`);
+    await backend.close();
+  }
+});
 
 test('Material multiline editing grows and shrinks within a bound without losing persisted text', async ({ page }, info) => {
   test.setTimeout(60_000);
@@ -32,6 +126,7 @@ test('Material multiline editing grows and shrinks within a bound without losing
     if (outcome.status !== 'saved') throw new Error('Expected a fresh authored Material');
     await page.goto('/materials');
     await page.getByRole('button', { name: 'Edit cat', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Edit Material', exact: true })).toBeVisible();
     const notes = page.getByRole('textbox', { name: 'Notes', exact: true });
     const observeHeight = (grow: boolean, baseline: number) => notes.evaluateHandle((node, { grow, baseline }) => {
       let timer: ReturnType<typeof setTimeout>;
@@ -435,6 +530,8 @@ test('opening an accepted replacement explicitly reloads the saved revision inst
 
     // Then: that explicit navigation reloads the committed revision, not the obsolete draft.
     await expect(dialog).toBeHidden();
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Unsubmitted old draft.');
+    await page.getByRole('button', { name: 'Discard', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted replacement meaning.');
     await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Saved note.');
     expect((await client.material(saved.material.id)).revision).toBe(2);

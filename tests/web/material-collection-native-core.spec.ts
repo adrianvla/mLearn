@@ -70,15 +70,34 @@ test('Material collections preserve exact counts and native order through paging
       await expect(page.getByRole('button', { name: `Edit ${material.content.phrase}`, exact: true })).toBeAttached();
     await page.getByRole('button', { name: 'Next Material page', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit entry-00', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Select items', exact: true }).click();
+    await page.getByRole('button', { name: 'Select entry-40', exact: true }).click();
+    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
+    const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
+    await search.fill('Unsubmitted collection query');
+    const origin = page.getByRole('button', { name: 'Edit entry-40', exact: true });
+    await origin.scrollIntoViewIfNeeded();
+    const scroll = await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop);
+    expect(scroll).toBeGreaterThan(0);
+    await origin.click();
+    await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Retain the originating collection page.');
+    await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect(page.getByTestId('material-result')).toContainText('Saved Material');
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeEnabled();
+    await expect(origin).toBeFocused();
+    await expect(search).toHaveValue('Unsubmitted collection query');
+    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
+    expect(await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop)).toBe(scroll);
     await page.getByRole('button', { name: 'Edit entry-24', exact: true }).click();
     await page.getByRole('button', { name: 'Exclude Material', exact: true }).click();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(page.getByText('24 of 51 items', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
 
-    // Then: the revised native membership resets the cursor and remains durable.
+    // Then: revised native membership retains the origin window and remains durable.
     await expect(page.getByRole('heading', { name: 'Material', exact: true })).toBeFocused();
-    await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeEnabled();
     expect((await client.material(saved[24].id)).excluded).toBe(true);
     await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill('entry-24');
     await page.getByRole('button', { name: 'Search Material', exact: true }).click();

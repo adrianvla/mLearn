@@ -447,6 +447,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Collection { .. }
+        | Request::RefreshMaterialCollection { .. }
         | Request::CreateCollectionSelection { .. }
         | Request::CollectionSelection { .. }
         | Request::CollectionSelections

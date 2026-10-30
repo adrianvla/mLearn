@@ -228,6 +228,33 @@ Desktop41118373071/native124278410272 PASSED on exactb819c18d; readback
 verified real IPC/plugin-download/restart smoke and tracked-source integrity.
 This is unavailable Watch's current desktop evidence, not the following Reader
 delta or native-mobile acceptance.
+Foundation41118372934 on exactb819c18d has completed with overall failure.
+Web124281630539, Rust124281631060, OCR124281631040 and macOS124284625258
+passed. Windows124284625336 reported a failed "Exercise actual Windows native
+theme materials" step while its job conclusion field was empty in that
+response. Exact failed-step log retrieval is pending
+(`foundation-b819c18d-windows-failed.log`); no cause or native fallback defect
+is inferred and no workflow rerun or assertion change was made.
+The first log reader was refused while that job was still in progress, despite
+the run's terminal summary. A fixed job/SHA observer then confirmed completion
+and preserved the actual log, exit0. Its failure is
+`foundation-b819c18d-windows-failed.log:15`: "Native UI did not publish the owned
+mLearn application window", raised from window-materials.ps1:352 before theme
+interaction. This is a startup/window-publication failure, not the earlier
+paste/input-loss assertion and not proof of an unavailable-Watch defect.
+Artifact metadata is being checked for bounded startup evidence only; no new
+Windows workload, diagnostic workflow or local device was launched.
+Preserved only251KB artifact13008982337 (`windows-native-materials`, expires
+2027-01-28) at `/tmp/mlearn-ci-independent.6EaZ3F/windows-b819-startup/`.
+Its source.txt confirmsb819c18d/tree6d8780a987a526fb6babeebe125594ff9e2165d0.
+Root inspected failure.txt, run.log, UIA dump and actual desktop capture.
+Process3256 was alive with HWND459240, exposed as an unnamed ControlType.Pane;
+the required visible named mLearn ControlType.Window was absent. The source
+predicate deliberately rejects an unnamed startup helper, so it was not
+relaxed. The desktop capture shows the hosted runner terminal foreground;
+that does not establish a causal focus defect. No native-stderr.log is present
+in the artifact. Startup cause and Windows acceptance remain open; no speculative
+product/test patch or diagnostic rerun was made.
 
 Next, the existing direct-activity test reproduced the missing Reader heading
 (`unavailable-reader-red.log`, exit1). Root inspected that failed capture and
@@ -263,7 +290,219 @@ module state and reset on a full route reload. No test-only theme override,
 new dev dependency or expanded visual acceptance claim was introduced.
 The older Reader fallback presentation gap is repaired by this bounded delta;
 retained-management route entry through unavailable Reader still has not been
-reproduced through a real action. Push remains pending.
+reproduced through a real action. Review receipt
+`35b9a3fb8f51c1423114bddddb345817a7651f5d` is pushed; HEAD/upstream
+readback matched. Exact-source API inspection found duplicate hosted push runs:
+foundation41119831315 pending and41119830982 cancelled; desktop41119830983
+active and41119831247 queued; mobile41119831009 cancelled and41119831073
+queued. The single-result workflow observers could select different runs for
+the same source, so they were replaced with fixed-ID, SHA-validating readers
+for every nonterminal Reader run. Their cancellation is not a product failure
+or evidence that all runs stopped. One observer cleanup returned EPERM on its
+state-file removal; session status still verified that its process was killed.
+No workflow was rerun or cancelled by root. Earlier-source enumeration confirms
+8b74e7a6 mobile41115838618 andb819c18d foundation41118372934 still active;
+b819 mobile41118373139 is cancelled with no jobs. These do not certify mobile.
+The earlier8b74e7a6 mobile41115838618 has completed: Android124269718657
+PASSED; iOS124269719282 FAILED its actual UI/persistence step. The preserved
+failed-step log is `mobile-8b74e7a6-ios-failed.log:198`: "Assertion is false:
+id: m01-watch, mp4 is not visible" in Watch Inspector Knowledge and native source
+resume. This is the same visible assertion family as the retained platform gap,
+not proof of its cause. No new diagnostic variant, native workload or workflow
+rerun was launched. Latest Reader mobile41119831073 remains independently
+observed and cannot inherit an older source's Android pass.
+Reader desktop41119830983 has now PASSED on exact35b9a3fb. Readback verified
+native124283434381, real IPC/plugin-download/restart smoke and tracked-source
+integrity. The separate same-source desktop41119831247 has also PASSED with
+its fixed-ID reader validating35b9a3fb. Both terminal results are preserved;
+neither erases cancelled runs, certifies mobile or closes M10.
+Latest Reader foundation41119831315 PASSED on exact35b9a3fb: web124292157023,
+Rust124292157007, OCR124292156681, Windows124295443471 and macOS124295443561.
+That passing Windows run does not diagnose or erase b819's startup failure.
+Reader mobile41119831073 completed with Android124287183396 PASS and
+iOS124287183168 FAIL. The exact iOS log
+`mobile-35b9a3fb-ios-failed.log:210` reports "Element not found: Text matching
+regex: Open local video, Enabled". This differs from8b's mp4-visibility assertion;
+no causal equivalence, current modal evidence or mobile acceptance is inferred.
+All fixed Reader CI observers are now terminal; no rerun was launched.
+
+The duplicate lifecycle ledger item is reconciled against existing evidence:
+Messenger's full38-case source/recovery run includes the deterministic
+Home status-poll cleanup test, which leaves native generation alive and stops
+it explicitly after returning. Current Watch regressions pause actual decoded
+playback before held departure, keep it paused offscreen and reject hidden
+Space-key playback. No extra workload was launched just to repeat these cases.
+
+The next Material presentation increment is source-only preparation. Root read
+the retained actual reference modal and current inline editor captures plus
+MaterialScreen/MaterialEditor/MaterialMedia/Dialog ownership. The inline form
+differs structurally from the reference; the existing real multiline/draft/
+restart regression now also requires Edit Material dialog semantics.
+`material-modal-red.log` initially held at original2560MiB admission, roughly
+7.19G OmO footprint and3.62-3.66G projected headroom, below the unchanged4GiB
+reserve. It subsequently admitted at3.38G footprint with safe samples and
+genuinely failed on the missing Edit Material dialog. Root inspected the actual
+failed inline-editor capture. No editor/dialog production code has changed.
+Retain the existing MaterialEditor draft, exact save retry and staged-import
+owner across route hiding. A naive modal wrapper would unmount them. Installed
+RN Primitives1.5.2 force-mounted native Content also installs a BackHandler while
+hidden, so forceMount is not a safe shortcut. Shared modal presentation must
+preserve real Home/Knowledge exits and focus/close behavior; no new store or
+feature-local modal implementation is authorized by this preparation.
+Existing Material editor tests also require opening another visible item while
+retaining the current draft on failed opening, plus Home/Knowledge navigation.
+A modal would block those external controls. Root surfaced the composition/
+placement conflict and asked asynchronously whether to add compact Home,
+Knowledge and a bounded Material switcher inside the modal (recommended), or
+keep the inline editor pending design review. The maintainer selected Modal with
+controls, following the approved v2 reference, and explicitly requires compact
+Previous/Next plus current-selection access, preserved Knowledge/Material
+filters/search/selection/scroll, Save / Discard / Cancel protection,
+recoverable pending/failed writes, exact originating-context return, existing
+identity/persistence/navigation owners and responsive keyboard access without
+a large redesign.
+
+The first coherent source iteration now uses the existing Dialog with a
+reference-measured wide bound, descriptive Close editor and heading focus.
+MaterialEditor remains mounted above dialog visibility and across item changes;
+its existing draft, retry, save and staged-import owner gates departure.
+MaterialScreen retains its existing native read/route/focus owner and records
+only bounded originating-page item identities/labels. Guarded native item
+replacement does not restart the dialog workflow. A real-Rust regression now
+holds and loses a committed save receipt, requires exact retry, and checks
+Cancel/Discard, current item, query/scroll and originating-trigger restoration.
+Dialog production defaults remain unchanged for other callers. Media content
+unmount clears its existing parent busy presentation and aborts owned work.
+`material-modal-first.log` never reached source checks or rendering:
+original2560MiB admission held around7.23G footprint, with projected headroom
+roughly3.43G. Root killed only that queued launch, then split normal typecheck/
+ownership lint into the already established1024/512MiB source-only guard and
+768MiB compiler cap (`material-modal-source.log`, pending). This does not lower
+the build/browser estimate or waive the4GiB reserve. No renderer/browser was
+started, and no passing or visual verdict is claimed yet.
+Those source-only checks now PASS, exit0: normal typecheck and ownership lint.
+Their samples remain safe at roughly7.21G root footprint with5.39G projected
+headroom under the smaller source-check budget. No export/browser ran in that
+command. A separate first export/two-scenario render is now queued behind the
+unchanged original2560MiB admission and2048/1024MiB runtime guard
+(`material-modal-render.log`). That run completed exit0: fresh export
+`ebdf15fe832a5b3659718e7bdfe05d52`, both focused real-Rust scenarios passing
+in5.1s. Root inspected the1080px empty and390px long-field captures, plus
+the390px failed-save guard: modal containment and bounded field scrolling are
+usable, and the explicit save/discard/cancel controls remain inside the modal.
+The pending/lost-receipt scenario preserves the current item/draft, retries the
+identical command, switches only after durable recovery, and restores the
+originating trigger, unsubmitted query and numeric scroll. These are focused
+results, not full presentation/native/selection-context acceptance.
+The first switcher window is the originating bounded collection page. Complete
+frozen-selection/page-boundary behavior, full originating-source coverage,
+media cancellation, nested proposals, keyboard/long-label and native gates
+still require verification; do not claim the new task set complete.
+The first adjacent run (`material-modal-adjacent.log`) finishes exit1:
+12 passed,7 failed. Three failures expose the missing accessible heading role
+on the new shared dialog title; the focus contract is retained and must be
+repaired, not removed from tests. Three old inline interactions attempt to use
+background list controls while the authorized modal is open; their scenarios
+are being moved through the real in-modal switcher or retained Knowledge
+navigation, preserving failed-open, draft, list-recovery and stale-publication
+assertions. Accepted-proposal reentry now correctly encounters the new dirty
+guard and needs an explicit Discard choice before replacing the old draft.
+No failing result is counted as passed, and direct-entry switching receives
+its own regression before the next production change.
+`material-entry-red.log` now reproduces that regression after normal admission:
+the native list has two items, but a direct-entry editor captures its cohort
+before the list arrives and leaves Next disabled. Root inspected the actual
+failure frame. The next source iteration fills only an empty originating-page
+cohort when that owned bounded page arrives, consumes accepted route-entry ids,
+refreshes displayed labels from accepted native Material and exposes existing
+list recovery inside the active modal. Shared Dialog titles now carry their
+required heading semantics. A fresh serial source/export/affected-suite run is
+in progress (`material-modal-repair.log`); this iteration is not yet rendered
+or verified, and no additional UI edit may precede inspecting its captures.
+That run completed on fresh export `10f04663cc8e08fe103ad22af2d0660d`:
+normal typecheck/ownership lint pass,19 affected scenarios pass,1 fails.
+Direct-entry switching, saved selector labels, heading/Close keyboard focus,
+failed opens, accepted-proposal explicit Discard and lost-save recovery now
+pass. Root inspected the new1080px empty and390px failed-save captures before
+any further UI change. The remaining recovery assertion counted all collection
+requests despite its new real Knowledge round trip; its observed4 requests
+are3 Material reads plus1 Knowledge read. The assertion now names both scopes
+explicitly instead of dropping the request-count protection. The next serial
+run includes that suite, actual Knowledge/source navigation, frozen-selection
+and shared-dialog regressions (`material-modal-context.log`, pending behind
+the unchanged resource admission). No full-context/native verdict is claimed.
+That run completed exit1 with16 passing scenarios and1 stale close-destination
+failure. The corrected scoped retry assertion, all Material editor owner cases,
+native frozen-selection persistence and shared-dialog regressions pass. The
+Knowledge case reached the real originating Knowledge screen on Close, then
+waited for the old Material-screen Knowledge button; root inspected its actual
+Knowledge capture. It now asserts that originating route/search before
+reopening the saved item, and treats the inaccessible background list as retained
+content rather than modal controls. Subsequent source-navigation assertions
+remain intact. A selected run of this corrected flow and a new bounded
+long-label/keyboard scenario is pending in `material-modal-origin.log`.
+The Knowledge case now bounds ordinary actions at15s while preserving the
+explicit240s package-preparation allowance, so a missing control cannot consume
+its whole300s suite budget.
+The exact-context regression now also exercises a nonzero-scroll later Material
+page, one retained frozen selection, an unsubmitted search and a durable note
+edit before closing. Existing code unconditionally resets `after` on Save;
+this added case is not yet run and no later-page preservation is claimed.
+The original exclusion/count/persistence assertions remain, with the requested
+origin-window expectation replacing the old first-page reset expectation.
+Native cursors remain query/package/Knowledge/Material-revision bound: preserving
+that context must use an explicit owning native refresh, not renderer cursor
+rewrites or a silent weakening of ordinary continuation validation.
+`material-modal-origin.log` completes with the corrected full real-Rust
+Knowledge/source workflow passing; its separate long-label scenario fails
+because the selected label grows to262px at390px width. Root inspected the
+actual desktop capture showing the switcher wrapping onto three rows.
+The next coherent visual iteration limits shared select/media-select button
+labels to one line while preserving the full accessible value, and gives the
+Material switcher container a zero flex basis. Its fresh source/export render
+and later-page context regression are pending in `material-modal-compact.log`.
+No option-list redesign or new navigation state was added.
+`material-modal-compact.log` now passes normal typecheck/lint and the full
+long-label/keyboard scenario on export `0599144a9b8e086168e48aee0c9c7d2f`.
+Root inspected its390px capture: Previous/current/Next fit one compact row,
+the full phrase remains editable and the accessible label is not truncated.
+The other scenario genuinely reproduces the later-page Save reset: after a
+durable note write, First Material page becomes disabled and entry-00 replaces
+the originating entry-40 page. Root inspected that failure frame.
+
+The repair adds explicit `refresh_material_collection` to the existing Rust
+collection authority. It reuses only the native keyset bookmark while reading
+fresh bounded membership/counts; query fingerprint, package and Knowledge
+revision checks remain strict, and ordinary Collection still checks Material
+revision too. Refresh rejects Knowledge, follows existing metadata admission
+and adds no source scope, slot, store or navigation owner. MaterialScreen marks
+only its current query for that refresh after a durable write/proposal change;
+it does not reset the cursor or synthesize a page. Failed refresh retains the
+projection and explicit retry intent. Storage/client regressions cover strict
+continuation, refreshed identities/current content/following page, foreign
+queries, package/Knowledge epoch changes, Material-only execution and bounded
+response validation. Native LSP reports no diagnostics. Generated contracts,
+serial owner tests, exact native QA binary rebuild and final affected-browser
+render are pending in `material-modal-refresh.log`; transient TS diagnostics
+for the not-yet-generated Request variant are not suppressed.
+`material-modal-refresh.log` completes exit0. Rust generated the Request contract;
+all23 collection storage tests pass, including the new strict/refresh epoch
+regression. The Material-only runtime metadata test passes, and the actual
+`runtime_browser_qa` binary was rebuilt from this source with one Cargo job.
+All8 client/focus owner tests, normal typecheck/ownership lint and generated
+contract consistency pass. Fresh export `a1cd96328f79c7b7da14b823fab07b4f`
+passes all21 affected Material editor/collection/proposal browser scenarios
+in23.8s. The later-page case now preserves positive scroll, entry-40 focus,
+the unsubmitted query and frozen selection through durable Save, then verifies
+fresh exclusion counts and persistence. Root inspected final1080px and390px
+captures. Fresh editor/screen/Dialog/client LSP diagnostics are clean.
+Some pre-existing Rust test expressions/imports were mechanically reformatted by
+the tool's automatic rustfmt; their assertions are unchanged. This is a verified
+local increment, not complete M10, current native-mobile UI evidence, exhaustive
+frozen-selection navigation or independent-review approval. Those gates remain
+open. The resource guard retained the4GiB reserve throughout; the last observed
+workload sample reports root footprint3490018768, available6964543488,
+pressure1, swap4638900224 bytes and safe projected headroom5890670749.
 
 The latest mobile41101761469 result on03ab9e45 is Android job124220069561
 success and iOS job124220069124 failure; this API response supplied no failed

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Platform, View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AuthoredMediaId, Material, MaterialContent, MaterialCreate, MaterialEdit } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
@@ -8,16 +8,24 @@ import { MaterialFields } from './MaterialFields';
 import { mediaImportOf, releaseStaged, type MaterialMediaHost, type StagedMedia } from './media';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
-import { Row } from '@mlearn/ui/layout';
+import { Panel, Row } from '@mlearn/ui/layout';
 
-export function MaterialEditor({ client, authoredMedia, initial, material, onSaved, onPropose }: {
+export type MaterialEditorHandle = {
+  readonly requestLeave: (proceed: () => void) => void;
+  readonly replace: (material: Material) => void;
+};
+
+export const MaterialEditor = forwardRef<MaterialEditorHandle, {
   readonly client: RuntimeClient;
   readonly authoredMedia: MaterialMediaHost | null;
   readonly initial: MaterialContent;
   readonly material?: Material;
   readonly onSaved?: (material: Material) => void;
   readonly onPropose?: (material: Material, trigger: View | null) => void;
-}) {
+  readonly navigationPending?: boolean;
+  readonly renderFrame?: (body: ReactNode, blocked: boolean) => ReactNode;
+}>(function MaterialEditor({ client, authoredMedia, initial, material, onSaved, onPropose,
+  navigationPending = false, renderFrame }, ref) {
   const [draft, setDraft] = useState(initial);
   const [base, setBase] = useState(material);
   const [excluded, setExcluded] = useState(material?.excluded ?? false);
@@ -32,20 +40,63 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
   const [duplicates, setDuplicates] = useState<Material[]>([]);
   const [staged, setStaged] = useState<readonly StagedMedia[]>([]);
   const [boundStaged, setBoundStaged] = useState<readonly string[]>([]);
+  const [departing, setDeparting] = useState(false);
+  const leaveIntent = useRef<(() => void) | null>(null);
+  const cancelDeparture = useRef<View>(null);
+  const saveTrigger = useRef<View>(null);
+  const focusedDeparture = useRef(false);
   const stagedRef = useRef<readonly StagedMedia[]>([]);
   stagedRef.current = staged;
   const inFlight = useRef<readonly StagedMedia[] | null>(null);
   const owner = useRef<object | null>({});
+  const dirty = retry !== null || staged.length > 0 || excluded !== (base?.excluded ?? false)
+    || JSON.stringify(draft) !== JSON.stringify(base?.content ?? initial);
+  function cancelLeave() {
+    leaveIntent.current = null;
+    setDeparting(false);
+    if (Platform.OS === 'web') saveTrigger.current?.focus();
+    else if (saveTrigger.current) AccessibilityInfo.sendAccessibilityEvent(saveTrigger.current, 'focus');
+  }
+  useImperativeHandle(ref, () => ({
+    replace: replaceDraft,
+    requestLeave(proceed) {
+      if (leaveIntent.current) { cancelLeave(); return; }
+      if (locked.current || mediaPending || dirty) {
+        leaveIntent.current = proceed;
+        setDeparting(true);
+      } else proceed();
+    },
+  }), [dirty, mediaPending]);
+  useLayoutEffect(() => {
+    focusedDeparture.current = false;
+    if (departing && Platform.OS === 'web') cancelDeparture.current?.focus();
+  }, [departing]);
+  useEffect(() => {
+    if (!departing || pending || locked.current || mediaPending || dirty || !leaveIntent.current) return;
+    const proceed = leaveIntent.current;
+    leaveIntent.current = null;
+    setDeparting(false);
+    proceed();
+  }, [departing, pending, mediaPending, dirty]);
   useEffect(() => {
     const scope = {};
     owner.current = scope;
     return () => {
       if (owner.current === scope) owner.current = null;
+      leaveIntent.current = null;
       // A durable save in flight keeps ownership of its imports and releases
       // them when it settles; everything else is abandoned temp work.
       for (const item of stagedRef.current) if (!inFlight.current?.includes(item)) releaseStaged(item);
     };
   }, []);
+  function replaceDraft(item: Material, message = '') {
+    for (const staged of stagedRef.current) releaseStaged(staged);
+    stagedRef.current = [];
+    setStaged([]); setBoundStaged([]);
+    setBase(item); setDraft(item.content); setExcluded(item.excluded);
+    setRetry(null); setError(''); setConflict(false); setDuplicates([]);
+    setReceipt(message);
+  }
   function stage(item: StagedMedia) {
     const replaced = stagedRef.current.find(existing => existing.key === item.key);
     if (replaced) releaseStaged(replaced);
@@ -115,7 +166,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     }
   }
   function submit(distinct = false) {
-    if (mediaPending) return;
+    if (mediaPending || navigationPending) return;
     try {
       const prepared = base ? client.prepareMaterialEdit(base, draft, excluded) : client.prepareMaterial(draft, distinct);
       const imports = stagedRef.current;
@@ -143,14 +194,35 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
       if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
     } finally { locked.current = false; if (scope && owner.current === scope) setPending(false); }
   }
-  return <View style={styles.editor}>
-    <MaterialFields value={draft} disabled={pending || !!retry} onChange={(update, key) => {
+  const body = <View style={styles.editor}>
+    {departing ? <Panel>
+      <Text accessibilityRole="alert">Save changes before leaving this Material?</Text>
+      {pending ? <Text accessibilityLiveRegion="polite">Waiting for the current save…</Text> : null}
+      <Row>
+        <Button label="Save" disabled={pending || mediaPending || navigationPending}
+          onPress={() => { if (retry) void save(retry, stagedRef.current); else submit(); }} />
+        <Button label="Discard" variant="secondary" disabled={pending || mediaPending} onPress={() => {
+          if (!leaveIntent.current || locked.current || mediaPending) return;
+          const proceed = leaveIntent.current;
+          leaveIntent.current = null; setDeparting(false);
+          proceed();
+        }} />
+        <Button ref={cancelDeparture} label="Cancel" variant="quiet" onPress={cancelLeave}
+          onLayout={() => {
+            if (Platform.OS !== 'web' && !focusedDeparture.current && cancelDeparture.current) {
+              focusedDeparture.current = true;
+              AccessibilityInfo.sendAccessibilityEvent(cancelDeparture.current, 'focus');
+            }
+          }} />
+      </Row>
+    </Panel> : null}
+    <MaterialFields value={draft} disabled={pending || !!retry || navigationPending} onChange={(update, key) => {
       setDraft(update);
       if (key === 'phrase') setBoundStaged([]);
       setReceipt('');
     }} />
-    {authoredMedia ? <MaterialMedia host={authoredMedia} source={draft.source} base={base}
-      attachments={draft.attachments} staged={staged} disabled={pending || !!retry}
+    {authoredMedia ? <MaterialMedia key={base?.id ?? 'new'} host={authoredMedia} source={draft.source} base={base}
+      attachments={draft.attachments} staged={staged} disabled={pending || !!retry || navigationPending}
       canBindAudio={draft.phrase.trim().length > 0} boundStaged={boundStaged}
       onBindStaged={(key, bound) => {
         setBoundStaged(previous => bound ? [...previous.filter(value => value !== key), key] : previous.filter(value => value !== key));
@@ -165,12 +237,12 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
       onBusyChange={setMediaPending}
       onStage={stage} onDiscardStaged={discardStaged} onRemoveAttachment={removeAttachment} /> : null}
     {base ? <Row><Button label={excluded ? 'Include Material' : 'Exclude Material'} variant="secondary"
-      disabled={pending || !!retry} accessibilityState={{ selected: excluded }} onPress={() => setExcluded(value => !value)} />
+      disabled={pending || !!retry || navigationPending} accessibilityState={{ selected: excluded }} onPress={() => setExcluded(value => !value)} />
       <Text variant="caption">{excluded ? 'Excluded from learning' : 'Included in learning'}</Text></Row> : null}
-    <Row><Button label={base ? 'Save changes' : 'Save Material'} testID="material-save" busy={pending}
-      disabled={!!retry || mediaPending} onPress={() => submit()} />
+    <Row><Button ref={saveTrigger} label={base ? 'Save changes' : 'Save Material'} testID="material-save" busy={pending}
+      disabled={!!retry || mediaPending || navigationPending} onPress={() => submit()} />
       {base && onPropose ? <Button ref={proposeTrigger} label="Propose changes to saved Material" variant="secondary"
-        disabled={pending || !!retry || mediaPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}</Row>
+        disabled={pending || !!retry || mediaPending || navigationPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}</Row>
     {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
     {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
     {retry ? <Row>
@@ -181,18 +253,16 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     {duplicates.length ? <View style={styles.reference} testID="material-duplicates">
       <Text>Existing Material found. Choose an existing item or keep this context distinct.</Text>
       {duplicates.map(item => <Button key={item.id} label={`Use existing: ${item.content.phrase}`}
-        detail={item.content.context || item.content.meaning} variant="secondary" onPress={() => {
+        detail={item.content.context || item.content.meaning} variant="secondary"
+        disabled={pending || mediaPending || navigationPending} onPress={() => {
           // The abandoned draft's staged imports were never saved; release them.
-          for (const entry of stagedRef.current) releaseStaged(entry);
-          setStaged([]);
-          setBoundStaged([]);
-          setBase(item); setDraft(item.content); setExcluded(item.excluded); setDuplicates([]);
-          setReceipt('Existing Material selected.'); onSaved?.(item);
+          replaceDraft(item, 'Existing Material selected.'); onSaved?.(item);
         }} />)}
       <Button label="Keep distinct" disabled={pending} onPress={() => submit(true)} />
     </View> : null}
   </View>;
-}
+  return renderFrame ? renderFrame(body, pending || mediaPending || navigationPending || departing) : body;
+});
 
 const styles = StyleSheet.create(theme => ({
   editor: { gap: theme.spacing.compact, minWidth: 0 },
