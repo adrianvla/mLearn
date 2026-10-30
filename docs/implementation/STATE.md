@@ -73,7 +73,13 @@ draft restoration all pass with zero provider calls in these departure cases.
 Owned runtimes/preview port4173 are released, profiles/evidence preserved.
 The green log is8958 bytes. Final disk12521148KiB, OmO footprint7089206736,
 RSS5992677376, available6624133120, pressure1, swap4711251968 bytes; the original
-4GiB reserve held. Independent follow-up and push remain pending; broader
+4GiB reserve held. Fresh reviewer `st_01a18deb` APPROVED exact
+`d70f6d8d5bc1a12a3006ad80b0bb4e3882385beb`, resolving the prior P2 with no
+blocker after inspecting red/green logs and failed/restored Home captures.
+Code-quality coverage and review limits are recorded in the existing report.
+The exact-source review checkout was verified clean (including ignored files),
+unlocked and removed after the terminal verdict; its absence was read back.
+Push remains pending; broader
 regressions/native/milestone gates are not claimed from the earlier five cases.
 
 The launch incorrectly continued despite1153644KiB disk because the environment
