@@ -1,6 +1,52 @@
 # Current implementation checkpoint
 
-## Material window continuation - 2026-10-31
+## M10 verified_for_continuation - 2026-10-31
+
+Product/test/native candidate:
+`5fa83f47cddf78a9c0e47dff5c4112fd80926100`, pushed to draft PR45.
+Independent re-review `st_01a1939e` returns APPROVE, high confidence, no blocking
+findings, after4m27s. Its verified routing is
+`chatgpt-subscription / gpt-6.1-sol / medium`. It audited the repaired native
+rows, exact Material layout delta, hashes and unchanged cancellation owners
+read-only; no workloads or files were written. The clean owned review checkout
+was unlocked and removed after its terminal verdict. The earlier review and
+all failed invocation receipts remain in the existing gate report.
+
+Actual Android graph Stop, evidence Inspector dismissal and document-search
+Stop now prove real native admission, cancellation while capacity stays
+charged, drainage, stale-publication rejection and useful rereads. Evidence
+and search also observe prearmed successful post-join acknowledgement.
+Native Material cross-window navigation, keyboard Save/Discard/Cancel, origin,
+restart and retained selection are supported on both iOS and Android. Both
+minimum-width defects are repaired and rendered on desktop/narrow/native.
+The failed Android empty-text predicate is not green: command receipts plus
+independently inspected empty native Reading XML supply that scenario's proof.
+Cancellation execution is Android/Expo, not iOS/Tauri certification; mobile
+keyboard/accessibility-focus restoration remains unestablished.
+
+Exact-source Foundation41234326537, Desktop41234326567 and Mobile Android
+job124634813285 pass. Mobile41234326545 is terminal failure in iOS
+job124634813085, step13: `Exercise actual iOS UI and Rust persistence`.
+Its log at2026-10-31T20:23:03.7257180Z reports the retained Watch failure:
+`Assertion is false: id: m01-watch, mp4 is not visible`. This matches the
+earlier a54 picker assertion, not af9's distinct earlier Open-local-video
+assertion. No hosted diagnostic variant or rerun was launched. Targeted local
+M10 native proof is independently approved; the unresolved hosted Watch
+platform acceptance failure and provisional M03-M07 status are not waived.
+
+All owned native cases, debuggers, deadlines and observers are stopped; the
+exact forward/staged server are removed and adbd was restored to uid2000.
+PID15882 is absent and ADB lists no device. Peak physical700255160B root /
+3749875672B QEMU, minimum available6516948992B; pressure1 and
+swapOut314122223616B unchanged. Post-stop root584092624B, available8508489728B,
+disk10906164KiB. Profiles, binaries and artifacts remain. No automatic restart.
+
+This evidence-only checkpoint records engineering continuation, not maintainer
+acceptance, merge or release. PR44/45 remain drafts and all historical
+platform/visual limits persist. M11 requirements recovery is next under the
+existing M10-then-M11 authorization; no M11 implementation has started.
+
+## Historical Material window continuation - 2026-10-31
 
 Committed base before the selector repair: `af9ddf9f89370e1ef8f44d6c4ce16b68422a2d47`
 (`fix: keep native Material search editable`), pushed to draft PR45.

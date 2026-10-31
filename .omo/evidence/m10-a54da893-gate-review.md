@@ -1,5 +1,45 @@
 # M10 independent gate review
 
+## Current verdict: APPROVE for M10 engineering continuation
+
+Re-reviewed candidate: `5fa83f47cddf78a9c0e47dff5c4112fd80926100`.
+Reviewer `st_01a1939e` returns APPROVE, high confidence, no blocking findings,
+in4m27s. Actual routing: `chatgpt-subscription / gpt-6.1-sol / medium`.
+The reviewer inspected primary JUnit/XML/PNG artifacts, the exact two Material
+layout repairs and strengthened existing tests, matching retained binary/UI
+hashes, and UI invalidation through native cancellation/lease cleanup.
+No reviewer files or workloads were created. The clean owned5fa review
+checkout was unlocked/removed after completion; older worktrees were untouched.
+
+The previously missing graph, evidence, document-search and both mobile
+Material rows below are supported. The reviewer explicitly distinguishes
+scenario proof from a green invocation: `android-draft-scroll/junit.xml`
+fails its empty-text predicate. Its `commands.json:721-995` records successful
+Cancel/draft retention and Discard/navigation, and `android-discard.xml`
+independently establishes empty Reading; later durable-save JUnit passes.
+That failed invocation is retained, not reclassified or weakened.
+
+Residual limits remain: the LLDB extract is manually copied and labelled;
+cancellation execution is Android only; mobile keyboard/accessibility-focus
+restoration is unestablished. The prior report does not explicitly document
+the same programming/slop checklist coverage as this reviewer; that is a
+reporting note, not a demonstrated product blocker. Historical platform and
+visual failures and provisional M03-M07 status are preserved.
+
+After review, exact-source Mobile run41234326545 completed with Android
+job124634813285 SUCCESS and iOS job124634813085 failure in step13,
+`Exercise actual iOS UI and Rust persistence`. The decisive log at
+`2026-10-31T20:23:03.7257180Z` is:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+This is the retained a54 Watch-picker assertion, distinct from af9's earlier
+Open-local-video assertion. Foundation41234326537 and Desktop41234326567
+pass. No CI rerun or deferred diagnostic variant was launched, and no iOS
+platform pass is claimed. The targeted repaired M10 gate is independently
+approved for continuation; M11 and maintainer acceptance are not approved by
+that verdict. PR44/45 remain drafts, unmerged and unreleased.
+
+## Original independent review and repair history
+
 Candidate: `a54da893511102374b3ddbb91903c5d048a48dc1`.
 Reviewer: `st_01a19234`, configured GPT-6.1 Sol, medium.
 Scope: read-only source and recorded evidence in the locked candidate checkout.
@@ -358,3 +398,171 @@ QEMU3505442656B, available6680002560B, pressure1 and unchanged
 swapOut314122223616B. The owned emulator was stopped afterward; exact PID/device
 readbacks are empty and profiles remain. Native in-flight cancellation/reuse
 and independent gate approval are still open. M11 remains untouched.
+
+## Root native graph cancellation: `5fa83f47`
+
+The consuming Android APK and its exact native libraries above were reused,
+without a source patch, rebuild, reinstall or profile reset. The isolated
+English profile had no collection catalog; one actual preparation completed
+with206978 entries, then the `run` query returned1943 entries in2m2s. Root
+inspected the real collection and opened `active: untracked`.
+
+Stock debugging on this owned userdebug emulator succeeded with SELinux still
+Enforcing. The installed Apple LLDB requires explicit `remote-android` here:
+the first generic-platform connection stalled. Its server was stopped and the
+app explicitly resumed before changing the platform. The NDK client could not
+start because `libpython3.11.dylib` is absent; no dependency was installed.
+The successful connection used the existing NDK27.1.12297006 arm64 server,
+only appPID3149, and a finite app-stop failsafe. Runtime-handled SIGSEGV/SIGBUS
+were passed through, not suppressed.
+
+The actual APK-backed ELF mapping begins at `0x72dc110000`. Before setting a
+breakpoint, root compared the mapped instruction at `0x72edb97548` with the
+exact packaged library: `080940f9`, followed by the same three instructions.
+This is `execute_bounded_read` after lease claim and heavy admission, before
+its first cancellation check; the lease mutex is already released.
+
+| Boundary | Observed native state |
+| --- | --- |
+| Real Linguistic relationships action hits the barrier | TID3202, request `graph_neighborhood`, package `org.mlearn.english`, target `wn30:a:00041618:active`, active1, operation flag0 |
+| Only that worker suspended; all other threads resumed | Actual loading text and enabled Stop loading relations; Refresh disabled |
+| Actual Stop action,3s passing native flow | Actual stopped state; native operation flag1 while worker remains suspended and active count remains1 |
+| Worker resumed | Native active count0; worker no longer suspended |
+| Debugger detached, native flow repeated without a barrier | Stopped state remains after drain, no late loading publication; Refresh completes in6s |
+
+The request uses package revision
+`0e3fcf644b46f81662a28ffad112f8b8e00d643701837db1dd52830ba301fe98`
+and `after:null`. The admitted counter is `0xb40000776fe51ab8`; the operation
+flag is `0xb40000775fe36020`. These are observed QA-process addresses, not
+product constants. Root inspected the refreshed native entity and scrolled
+its real body to the `active -> Alternative lexical sense -> active`
+relationship, with the second sense's distinct definition. Thus reuse is an
+actual package read, not a synthetic success or a hidden completed request.
+
+Artifacts under the task root include `android-native-{catalog,graph-open,
+graph-trigger,graph-stop,graph-reuse}/`, corresponding pending/refreshed/data
+PNG/XML captures, `android-native-debug-maps.txt` and
+`android-lldb-packets.log`. The pending and stopped states were observed while
+the real worker was held; no arbitrary delay or fake transport was inserted.
+The debugger deleted its own breakpoint and detached successfully, its server
+exited0, the exact50397 forward and staged server were removed, and adbd was
+restored to uid2000. The finite deadline was cancelled after safe detach.
+
+Resource observer limits were unchanged. Its first real summary records peak
+physical700255160B root /3479654192B QEMU, minimum available6516948992B,
+pressure1 and unchanged swapOut314122223616B. A replacement observer preserves
+the same baseline/maxima and corrects only the event filter from `ALARM` to the
+script's actual `STOP`; it remains active for the owned case. Native evidence
+and document-search cancellation/dismissal plus subsequent use remain open,
+as does independent M10 approval. Exact-source Foundation and Desktop CI now
+pass for `5fa83f47`; Mobile remains pending. M11 has not started.
+
+## Root native evidence dismissal and acknowledged drain
+
+The same running Android app and packaged native instructions were used.
+Root prepared the actual Knowledge -> Inspect evidence action, then verified
+the original admission-barrier instruction again. A second breakpoint was
+armed before triggering the action, at `0x72ed9ce2e4`: the instruction
+immediately after the Rust `cancel_bounded_read` call returns to its UniFFI
+wrapper. The mapped `e81f8052` bytes match the packaged library. That Rust call
+signals this lease and joins its cleanup before returning.
+
+The actual `knowledge_evidence` request selects the same English target and
+`org.mlearn.english:written-recognition`, `after:null`. TID3177 hit the
+admission barrier with native active1 and operation flag0
+(`0xb40000775fe7cd90`). Only that worker was suspended. The actual Inspector
+Close action passes in4s while the worker remains held: loading evidence was
+present, then the collection's1943 entries returned and Back to entry was
+absent.
+
+After dismissal, native flag1, active1 and zero acknowledgement-breakpoint
+hits were observed while the worker was still suspended. Releasing that worker
+caused the prearmed post-join breakpoint to fire on TID3202, with successful
+Rust return value255, native active0 and no suspended worker. This observes the
+real control acknowledgement after cleanup rather than guessing from UI
+pending state. Both owned breakpoints were deleted, detach succeeded and the
+client/server exited0. The finite app-stop deadline and exact forward were
+removed; adbd returned to normal non-root operation. The inert staged server
+file is retained only for the following document-search case.
+
+The10s post-drain flow first verifies that dismissed evidence stays dismissed,
+then opens a fresh evidence request through the actual native action. Root
+inspected its rendered authoritative projection: untracked status, no explicit
+claim, unmeasured self-report, unavailable prediction and explicitly no recorded
+Review observations. No claim/history fixture was fabricated. Artifacts are
+`android-native-evidence-{entry,trigger,dismiss,reuse}/` and
+`android-native-evidence.xml` under the task root.
+
+Current physical footprints are579947448B root /3614969720B QEMU, with
+6687457280B available, pressure1, swap3188391936B and unchanged
+swapOut314122223616B. Disk available10912516KiB remains above the unchanged
+2621440KiB floor. Document-search Stop/dismissal and reuse remain the native
+engineering gap; M10 independent approval and M11 remain gated.
+
+## Root native document-search Stop and acknowledged drain
+
+Root reused the already imported `m05-journey.pdf` through its actual native
+Home continuation. There was no reimport or profile reset. Its retained
+page2 displays `Turn the page.`; the exact case-sensitive query is `Turn`.
+The source separately reports that language analysis requires its original
+package version. That warning remains: this case proves canonical document
+search, not successful language analysis or source-package recovery.
+
+The actual native `search_document` request has source identity
+`document-31aac431ada2633c09a8a99bc8605369d839df5265f153dc8d7db409a990ce90`,
+content revision
+`4dfbed3f5ca686720d2e0176565d8b73fb1fa821844d975a116a537fb65d13b9`,
+parser revision `mlearn-document-1`, scope `text`, query `Turn`, `after:null`.
+The same two mapped instructions were verified before enabling breakpoints.
+TID7093 hit the native admission barrier with active1 and operation flag0
+at `0xb40000775fe676d0`; only that worker was suspended.
+
+Actual Stop search passes in3s while the native worker remains held. The
+subsequent native observation is flag1, active1 and acknowledgement-hit0.
+After worker release, the prearmed post-join breakpoint fires on TID3177 with
+successful return255, active0 and no suspended worker. Both owned breakpoints
+were deleted and detach succeeded; client/server exited0. The finite deadline,
+exact forward and staged debugger file were removed; adbd is confirmed uid2000,
+appPID3149 remains running normally and no debugserver remains.
+
+The5s post-drain flow first confirms the stopped state is stable, then issues
+a fresh real query. Root inspected PNG/XML showing `3 of 3 blocks scanned`,
+the actual `Turn the page.` hit and `page:2 · byte 0`. This is a useful native
+reread with source location, not a completed promise substituted for work.
+Artifacts are `android-native-search-{home,source,entry,trigger,stop,reuse}/`
+and `android-native-search-result.{xml,png}` under the task root.
+
+`native-cancellation-selected-output.txt` is a clearly labelled root-copied,
+bounded extract of exact LLDB output from the three monitor sessions, not an
+automatically generated full transcript. It retains the observed request
+identities, flag/capacity values, acknowledgement results and safe detach
+receipts. The scratch `.lldb` script and flow YAML files remain alongside it.
+
+The resource observer's actual final summary records peak physical700255160B
+root /3749875672B QEMU, minimum available6516948992B, pressure1 and unchanged
+swapOut314122223616B. Only the owned emulator and observer were stopped.
+Readbacks show PID15882 absent and the ADB device list empty. Post-stop root
+physical584092624B, available8508489728B, swap3180003328B and disk10906164KiB.
+Profiles, compiled artifacts and all evidence remain; no automatic restart is
+registered.
+
+## Native QA matrix supplied to independent re-review
+
+At submission, the original REQUESTS_CHANGES verdict remained open: root's
+results did not grant approval. These repaired rows were supplied to the
+independent evidence/source audit; its current verdict is recorded above.
+Common command: `maestro --device emulator-5556 test --format junit` with
+the recorded task-root YAML and same-named artifact directory; exact output,
+test-output and debug-output arguments are retained in the notepad.
+
+| Scenario | Expected | Observed | Verdict | Artifact relative to `/tmp/mlearn-resume.i3aHcr/` |
+| --- | --- | --- | --- | --- |
+| Real graph action -> Stop while admitted -> release -> refresh | Cancel current lease, retain capacity until cleanup, reject old publication, useful fresh result | Flag0->1 with active1, release->active0, stopped stable, real alternative lexical sense | PASS | `android-native-graph-stop/junit.xml`, `android-native-graph-reuse/junit.xml`, `android-native-graph-data.png`, `native-cancellation-selected-output.txt` |
+| Real evidence action -> Inspector dismissal while admitted -> joined release -> reopen | Dismissal cancels native work, acknowledgement waits for cleanup, old result cannot reopen UI, useful fresh projection | Flag0->1 with active1/ack0, release->active0/successful ack, dismissed stable, real untracked/no-claim projection | PASS | `android-native-evidence-dismiss/junit.xml`, `android-native-evidence-reuse/junit.xml`, `android-native-evidence.xml`, `native-cancellation-selected-output.txt` |
+| Real document search -> Stop while admitted -> joined release -> new query | Stop current quantum and continuation, drain before acknowledgement, reject stale result, useful source-bound hit | Flag0->1 with active1/ack0, release->active0/successful ack, stopped stable,3/3 blocks and page2 byte0 hit | PASS | `android-native-search-stop/junit.xml`, `android-native-search-reuse/junit.xml`, `android-native-search-result.png`, `android-native-search-result.xml`, `native-cancellation-selected-output.txt` |
+| Android native Material boundary/draft/origin/frozen selection | Save/Discard/Cancel, cross-window navigation and retained collection/selection | Boundary/durable/reverse/layout flows pass; failed empty-text predicate remains, with command receipts and independent empty Reading XML supplying that scenario | PASS (scenario, not every invocation) | `android-window-boundary/`, `android-draft-scroll/`, `android-discard.xml`, `android-durable-origin/`, `android-reverse-selection/`, `android-selector-repaired.xml` |
+| iOS native Material boundary/draft/origin/restart/frozen selection | Same native behavior, acknowledged keyboard input, persisted save and retained snapshot |25 real fixtures,24->23->24, draft guards, durable restart, explicit retained-snapshot selection; inspected actual geometry | PASS | `ios-window-discard/`, `ios-save-origin/`, `ios-window-restart/`, `ios-selection-body-visible.png` |
+
+Cancellation rows above are Android/Expo evidence, not claims of actual iOS or
+Tauri cancellation execution. Native Material platform-specific focus limits
+and the original historical platform/visual discrepancies remain as stated.
