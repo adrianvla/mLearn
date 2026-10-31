@@ -420,7 +420,7 @@ export function MaterialScreen() {
 }
 
 const styles = StyleSheet.create(theme => ({
-  search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 220 },
   editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   notice: { paddingHorizontal: theme.spacing.large, gap: theme.spacing.small },
   gridInset: { padding: theme.spacing.large },

@@ -47,10 +47,74 @@ preview sessions stopped; port4173/9223/52313 and native-process readbacks are
 empty. Four disposable task browser profiles were removed with absence
 receipts; native profiles and evidence remain. No shared cleanup was performed.
 
-This is a verified Material increment, not M10 approval. Whole-M10 independent
-review and affected native scope remain open. Existing208c6226 native/storage
-evidence is reused only for its unchanged owners. All provisional M07,
-platform/visual and draft-PR limits below remain. M11 is untouched and gated
+The increment is committed/pushed as `a54da893511102374b3ddbb91903c5d048a48dc1`;
+PR45 remains draft. Independent whole-M10 review `st_01a19234` returned
+REQUESTS_CHANGES with no blocking implementation findings. Its P2 is missing
+affected native-flow evidence: Stop/dismissal, drain/reuse and Material
+navigation/draft/origin behavior through actual host adapters. Frozen-selection
+scope was satisfied, not replaced by a selected-only modal. Review and evidence:
+`.omo/evidence/m10-a54da893-gate-review.md`.
+
+Root subsequently drove the isolated real Tauri window: Add/Previous disabled,
+entry47/48, keyboard Cancel, Discard, Save/reload and exact originating query,
+focus and scroll geometry all pass. Current-source Foundation and Desktop CI
+pass. Mobile41206790229 has Android pass and iOS compile/retained-app pass,
+but its existing Watch-only flow fails `m01-watch, mp4 is not visible`.
+The deferred picker campaign was not resumed.
+
+Source-bound mobile artifacts are retained under the same task root. The local
+iOS attempt never reached mLearn: captured Apple boot logo, driver-start timeout;
+its owned device was shut down without erasure. Android installed the verified
+APK without clearing data and reached the real app. Initial software-renderer
+QEMU growth to5.82GB triggered owned teardown. A materially changed explicit
+low-RAM/host-GPU configuration passed fresh unchanged admission and yields
+stable observed3.39GB QEMU footprint, pressure1 and unchanged swapOut, not a
+leak-fix claim. Actual Android Add/Previous disabled is verified in native XML
+and an inspected frame. One real native item now passes acknowledged input,
+save receipt and actual process-stop/relaunch/reopen persistence in15s, with
+its restarted frame inspected. Further fixture authoring, window/draft/origin
+and native cancellation/reuse proof remain in progress. No full mobile
+Material pass is claimed.
+
+Native verification also reproduced a functional blocker: closed Android
+Material search collapses to its icon and exposes no editable field.
+The existing mobile Material test now fails at visible `material-search`
+before Add on the unchanged installed APK. A one-line minimum-width repair
+in the existing Material layout passes TypeScript LSP, typecheck, lint, export
+and22 connected regressions in27.7s; root inspected desktop1080/narrow390
+collection renders. The consuming Android app now passes the original
+unweakened native assertion, authoring and process restart in56s. A separate
+14s native flow enters `Native entry`, submits the actual Rust-owned query,
+observes1of1, finds the persisted Native entry00 and excludes M03card.
+Root inspected its native frame: input and surrounding controls are contained
+and usable. This closes the search repair, not the remaining M10 native gates.
+The owned device is stopped; authored items/profile are preserved.
+
+The consuming Android preparation was stopped when a transient Rust allocation
+crossed the disk floor; no preparation pass is claimed and no artifacts were
+cleaned. After teardown, disk rebounded to3816564KiB. Native/guest/FFI sources are
+identical to `a54da893`, so the four exact JNI libraries from its retained CI APK
+were restored into generated packaging outputs, each verified byte-for-byte by
+SHA-256. Kotlin binding generation had completed through the normal owner.
+Frontend-only Gradle packaging passed in1m49 with one Metro/Gradle worker and
+bounded Java memory. The preserved consuming APK is
+`/tmp/mlearn-resume.i3aHcr/material-search-native-current.apk`,
+SHA-256 `d0e7dad59c47e46fe67713938610b8bcba1cf9ab09896a8025014f1da77f9fde`.
+Its current UI bundle is
+`d8e68de85eb541d82cde7f6d9967799aff0afeb94b34982ba6bcd7fab057c875`;
+all four packaged native libraries still match the exact `a54da893` CI bytes.
+Manifest identity remains `net.kikan.mlearn.v3dev`. Fresh unchanged admission
+passed for the actual mobile replay. Native green artifacts are
+`/tmp/mlearn-resume.i3aHcr/android-search-green/` and
+`/tmp/mlearn-resume.i3aHcr/android-search-usable/`;
+the earlier exact native red remains under `android-search-red/`. Final owned
+device/PID readbacks are empty; post-QA footprint487557424B,
+available7967916032B, pressure1, swap3247112192B, swapOut unchanged,
+disk18211648KiB. No cleanup campaign or profile erasure occurred.
+
+This is a verified Material increment, not M10 approval. Existing208c6226
+native/storage evidence is reused only for its unchanged owners. All provisional
+M07, platform/visual and draft-PR limits below remain. M11 is untouched and gated
 on actual M10 engineering and independent review.
 
 ## Restart handoff - 2026-10-31, passive resource cycling stopped
