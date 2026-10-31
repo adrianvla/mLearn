@@ -1,5 +1,133 @@
 # Current implementation checkpoint
 
+## M11 package/task unit verified - 2026-10-31
+
+M10 evidence checkpoint `0d3732dbbe81faa0ef57d89d852c626369fc8a7c` is
+committed and pushed. Its independently approved product candidate remains
+`5fa83f47`; the documentation-only checkpoint changes no product/native bytes.
+M11 requirements and retained prerequisite reports are recovered. The current
+SDK increment is not M11 delivery: no new task is admitted, persisted or shown
+through the application yet.
+
+Root extended the existing SDK learning owner with `learning::tasks`: explicit
+typed/choice response shapes, package-target exact-key input without fabricated
+Material, task/validator identity and attribution/limitations, raw response
+preservation, and output binding to exactly the admitted tested rows. Existing
+v1 probe wire and retrospective behavior remain unchanged. New file:
+`crates/language-sdk/src/learning/tasks.rs`; `learning.rs` exports it.
+LSP diagnostics are clean. Scoped rustfmt and the single serial
+`CARGO_BUILD_JOBS=1 cargo test -p mlearn-language-sdk --lib` run pass:
+9 tests, 0 failures; compilation6.81s, tests0.00s. This proves the SDK boundary,
+not grammar content, native validator execution or learner evidence.
+
+Fresh unchanged2560MiB admission initially held: projected headroom was below
+the4GiB reserve. Root traced analyzerPID25305 -> owned tool host90249 ->
+root62039, cwd this workspace; its physical footprint was2474545040B
+(RSS4134289408B). After collecting diagnostics, root terminated only that
+idle owned analyzer; its macro workers also exited. No user process was touched.
+Fresh three-sample admission then passed: root578587576/578653112/578538424B,
+final available8995487744B/projected6311133184B, pressure1, unchanged
+swapOut314122223616B. The original guard stayed active for the SDK test and
+was stopped afterward. Post-test root578784208B, available8559247360B,
+pressure1, unchanged swap/swapOut; disk before test10868708KiB. Do not leave a
+large Rust analyzer resident beside local builds or weaken the reserve.
+
+Read-only native dependency map `st_01a193ab` is complete. Actual blockers to
+Knowledge-only practice are Material-bound contracts/lookups, not a Material
+FK; frozen collection membership also lacks exact capability membership.
+Extend the existing Review admission/work/evidence owners with actual package
+provenance, copied/pinned exact scope and explicit practice/calibration purpose.
+Preserve old command serialization/receipt digests, source Return, assistance,
+no practice/calibration scheduling writes, and exact resume. Do not manufacture
+Material IDs or widen partial capability scope.
+
+English source unit `st_01a193b4` has returned on the configured subscription
+GPT-6.1 Sol/medium route. Root inspected the actual source and tests. It adds
+one original package target `org.mlearn.english:grammar/past-simple-negative`,
+three revision1 typed/contrast/recall tasks, conservative finite validation,
+and real description/inspection/catalog/graph reachability. Catalog total
+increases by one. Unknown targets/validators/choice IDs fail; unlisted text is
+unassessed, and recall has no validator. Root registered the two operations in
+English plugin version `0.1.6-wn30-graph1-grammar1-ocr2`, preserving v1.
+
+New package files are `grammar.rs`, `grammar_tasks.rs` and its tests; existing
+dispatch/catalog/graph changed. The child extracted unchanged morphology and
+graph tests into their named modules; root inspected those moves. Root removed
+a tautological caller-clone assertion while retaining all finite-outcome
+checks, and added two real authenticated Wasmi tests in runtime `review.rs`.
+The first English run passed24 tests in3.63s compilation/0.01s execution.
+Normal `npm run build:plugin` passed using retained verified offline resources:
+English/hello6.31s and Japanese9.28s. English code SHA-256 was
+`7ac1a17c3a297ca84c7b6de8cea20cc767f295a6983e6cfeaa496649995a043f`
+(567275B), lexicon
+`f84820618b7bbb180f5eb032fbd33a8fc197f94b9641fc1afcc2b1f34968ee98`
+(29753344B). Both actual authenticated Wasmi tests then passed: compilation
+30.71s,2 tests/0.31s. They execute real typed accepted/rejected/unassessed
+outcomes and reject a supported-shape request for an unsupported target.
+No capture, session, learner observation or frontend support is claimed yet.
+
+The first package verification stopped at formatting before Cargo ran. New
+file formatting is repaired; the recursive check also exposed untouched
+legacy `english/src/review.rs` formatting differences, which remain a baseline
+finding. All changed Rust files pass scoped formatting (`skip_children=true`)
+and English/runtime LSP diagnostics are clean. Source-edit tooling restarted
+the owned large analyzer; its2.54GB physical footprint caused another unchanged
+admission hold/guard stop while no Cargo job was running. Root collected final
+diagnostics and stopped only ownedPID28457 before fresh admission. Do not
+overlap that analyzer with the serial tests or silently reduce resource limits.
+
+Root then reproduced a newly introduced due-queue hazard: saving the valid
+grammar target made the v1 generator fail with `Unknown English target identity`.
+The actual production-dispatch regression failed1/1 before repair. V1 now
+explicitly omits this v2-only target rather than poisoning due Review or
+fabricating lexical recall. A new native finite-queue test includes ordinary
+vocabulary and that genuine grammar Material, scans all candidates, and checks
+that only the two lexical probes are committed. It now passes in the complete
+Review-owner run recorded below.
+
+Final English/runtime LSP diagnostics and the full recursive touched-root
+Rustfmt check now pass. The v1 file was legitimately touched for the repair,
+so its previous formatting differences were also resolved. Final owned
+analyzer29971 was stopped before fresh unchanged admission: physical
+606260344/594070648/594037880B, final available8674017280B and projected
+5989662720B, pressure1, swapOut unchanged. The25-case English run, rebuilt
+bundle and full runtime Review-owner run then executed serially under the
+original guard, including the queue repair.
+The repaired run now passes all25 English tests (compile1.01s, tests0.01s).
+The normal rebuilt bundle passes (English5.23s, unchanged Japanese0.05s).
+All9 runtime Review-owner unit tests pass on that rebuilt package, including
+both real Wasmi grammar tests, the finite-queue regression and prior admission/
+source-cancellation/eligibility cases (compile3.71s, tests1.60s).
+The red failure was not waived: the same package regression is now green and
+the native owner actually commits only the two ordinary lexical probes.
+
+Exact product/test delta against `0d3732db`:
+`bffc11a4fc6620bce58be5a7088d9798dd1e21ad7375d6609a16f735328523e2`.
+Final English Wasm SHA-256
+`84778559350c065c019fbed7e9616cc98f4671aeb9a127a9eec0a3d337a94dad`
+(567988B); lexicon hash/size remain unchanged above. The first Wasm hash is
+historical, not this repaired source's identity. The actual Wasmi checks use
+the bundled-code policy; they do not certify desktop catalog download,
+iOS/Android UI, durable response capture or completed M11 behavior.
+
+Reported maximum resident set sizes from `time -l`:
+216825856 English test,336871424 bundle build,560414720 runtime test.
+Post-native root physical591957112B, available8110931968B, pressure1,
+swap3163226112B and unchanged swapOut314122223616B; disk10446056KiB.
+The original guard is stopped after the checks. No devices, models, persistent
+servers or analyzers were kept alive for this unit.
+
+Next connect native capture/Reveal and exact Review scope/provenance through
+the existing owners. There is no new native session schema yet: preserve old
+command bytes/receipts, represent actual package targets without fake Material,
+freeze exact capability eligibility and purpose, keep validator results private
+until Reveal, and commit captured raw response/outcomes once. Root retains all
+native/core/storage/client integration and serial verification. This is a
+verified package/backend checkpoint, not the M11 milestone or maintainer acceptance.
+All five LRN-12/13/14/15/18 behaviors, shared-session integration and M11
+independent/native gates remain open. No devices or persistent test servers
+were restarted.
+
 ## M10 verified_for_continuation - 2026-10-31
 
 Product/test/native candidate:

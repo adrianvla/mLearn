@@ -5,12 +5,16 @@ use mlearn_language_sdk::{
     Call,
     serde_json::{self, Value, json},
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use unicode_segmentation::UnicodeSegmentation;
 mod catalog;
+mod grammar;
+mod grammar_tasks;
 mod graph;
+mod morphology;
 mod ocr;
 mod review;
+use morphology::candidates;
 const PACKAGE: &str = "org.mlearn.english";
 fn capabilities() -> Vec<Capability> {
     vec![
@@ -33,86 +37,6 @@ fn read(key: &str) -> Result<Option<Value>, String> {
         .map(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))
         .transpose()
 }
-fn candidates(
-    word: &str,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Vec<String>, String> {
-    let normalized = word.to_lowercase().replace('’', "'");
-    let mut forms: BTreeMap<String, BTreeSet<&str>> = BTreeMap::new();
-    forms.insert(
-        normalized.clone(),
-        BTreeSet::from(["n", "v", "a", "s", "r"]),
-    );
-    // Morphy substitutions and POS constraints belong exclusively to this package.
-    for (pos, tags, rules) in [
-        (
-            "noun",
-            &["n"][..],
-            &[
-                ("s", ""),
-                ("ses", "s"),
-                ("xes", "x"),
-                ("zes", "z"),
-                ("ches", "ch"),
-                ("shes", "sh"),
-                ("men", "man"),
-                ("ies", "y"),
-            ][..],
-        ),
-        (
-            "verb",
-            &["v"][..],
-            &[
-                ("s", ""),
-                ("ies", "y"),
-                ("es", "e"),
-                ("es", ""),
-                ("ed", "e"),
-                ("ed", ""),
-                ("ing", "e"),
-                ("ing", ""),
-            ][..],
-        ),
-        (
-            "adj",
-            &["a", "s"][..],
-            &[("er", ""), ("est", ""), ("er", "e"), ("est", "e")][..],
-        ),
-        ("adv", &["r"][..], &[][..]),
-    ] {
-        let mut bases = BTreeSet::new();
-        if let Some(Value::Array(exceptions)) = lookup(&format!("exception/{pos}/{normalized}"))? {
-            for value in exceptions {
-                if let Some(v) = value.as_str() {
-                    bases.insert(v.to_owned());
-                }
-            }
-        }
-        for (suffix, ending) in rules {
-            if let Some(stem) = normalized.strip_suffix(suffix) {
-                if !stem.is_empty() {
-                    bases.insert(format!("{stem}{ending}"));
-                }
-            }
-        }
-        for base in bases {
-            forms.entry(base).or_default().extend(tags.iter().copied());
-        }
-    }
-    let mut targets = BTreeSet::new();
-    for (form, tags) in forms {
-        if let Some(Value::Array(values)) = lookup(&format!("lemma/{form}"))? {
-            for value in values {
-                if let Some(id) = value.as_str() {
-                    if id.split(':').nth(1).is_some_and(|tag| tags.contains(tag)) {
-                        targets.insert(id.to_owned());
-                    }
-                }
-            }
-        }
-    }
-    Ok(targets.into_iter().collect())
-}
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
         "image.ocr.profile.v1" => Ok(ocr::profile()),
@@ -120,8 +44,10 @@ fn handle(call: Call) -> Result<Value, String> {
         "image.ocr.recognition.v1" => ocr::recognition(call.input),
         "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
+        "learning.probes.v2" => grammar_tasks::generate(call.input),
+        "learning.validate.v1" => grammar_tasks::validate(call.input),
         "language.describe.v1" => Ok(
-            json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities(),"annotationCapability":"org.mlearn.english:meaning","attribution":"Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation.","catalog":catalog::description()}),
+            json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities().into_iter().chain(grammar::capabilities()).collect::<Vec<_>>(),"annotationCapability":"org.mlearn.english:meaning","attribution":format!("Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation. {}",grammar::ATTRIBUTION),"catalog":catalog::description()}),
         ),
         "collection.targets.v1" => {
             serde_json::to_value(catalog::page(call.input, &read, &|after| {
@@ -219,6 +145,9 @@ fn inspect(
     id: &str,
     lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
 ) -> Result<LexicalEntry, String> {
+    if id == grammar::TARGET {
+        return Ok(grammar::entry());
+    }
     let sense = validate_target(id, lookup)?;
     let headword = id.splitn(4, ':').nth(3).ok_or("Target lemma missing")?;
     Ok(LexicalEntry {

@@ -1,4 +1,4 @@
-use super::{PACKAGE, capabilities, inspect};
+use super::{PACKAGE, capabilities, grammar, inspect};
 use mlearn_core::{
     CollectionCatalogPage, CollectionCatalogRequest, CollectionDescription, CollectionTarget,
     LinguisticLabel,
@@ -16,13 +16,19 @@ fn scope_id(pos: &str) -> String {
 
 pub(super) fn description() -> CollectionDescription {
     CollectionDescription {
-        capabilities: capabilities(),
-        kinds: vec![LinguisticLabel {
-            id: format!("{PACKAGE}:lexical-sense"),
-            label: "Lexical sense".into(),
-            color: None,
-            attribution: "Princeton WordNet 3.0".into(),
-        }],
+        capabilities: capabilities()
+            .into_iter()
+            .chain(grammar::capabilities())
+            .collect(),
+        kinds: vec![
+            LinguisticLabel {
+                id: format!("{PACKAGE}:lexical-sense"),
+                label: "Lexical sense".into(),
+                color: None,
+                attribution: "Princeton WordNet 3.0".into(),
+            },
+            grammar::kind(),
+        ],
         scopes: [
             ("noun", "Nouns"),
             ("verb", "Verbs"),
@@ -65,7 +71,10 @@ pub(super) fn page(
         .as_u64()
         .and_then(|count| u32::try_from(count).ok())
         .filter(|count| *count <= 1_000_000)
-        .ok_or("Invalid WordNet target count")?;
+        .ok_or("Invalid WordNet target count")?
+        .checked_add(1)
+        .ok_or("English catalog count overflow")?;
+    let include_grammar = request.after.is_none();
     let mut cursor = match request.after {
         Some(after) => {
             Some(serde_json::from_str::<Cursor>(&after).map_err(|error| error.to_string())?)
@@ -77,6 +86,9 @@ pub(super) fn page(
             .map(|lemma| Cursor { lemma, sense: 0 }),
     };
     let mut items = Vec::with_capacity(limit);
+    if include_grammar {
+        items.push(grammar::collection_target());
+    }
     while items.len() < limit {
         let Some(mut current) = cursor.take() else {
             break;
@@ -179,11 +191,13 @@ mod tests {
             })
         };
         description().validate(PACKAGE).unwrap();
-        let first = page(json!({"after":null,"limit":2}), &lookup, &keys).unwrap();
-        assert_eq!(first.total, 4);
-        assert_eq!(first.items.len(), 2);
-        assert_eq!(first.items[0].summary.summary, "First line");
-        assert_eq!(first.items[0].summary.target_id, "wn30:n:00000001:alpha");
+        let first = page(json!({"after":null,"limit":3}), &lookup, &keys).unwrap();
+        assert_eq!(first.total, 5);
+        assert_eq!(first.items.len(), 3);
+        assert_eq!(first.items[0].summary.target_id, grammar::TARGET);
+        assert_eq!(first.items[0].kind, grammar::kind().id);
+        assert_eq!(first.items[1].summary.summary, "First line");
+        assert_eq!(first.items[1].summary.target_id, "wn30:n:00000001:alpha");
         let last = page(json!({"after":first.next,"limit":2}), &lookup, &keys).unwrap();
         assert_eq!(
             last.items
@@ -196,5 +210,45 @@ mod tests {
         assert_eq!(last.next, None);
         assert!(page(json!({"after":"not a cursor","limit":2}), &lookup, &keys).is_err());
         assert!(page(json!({"after":null,"limit":65}), &lookup, &keys).is_err());
+    }
+
+    #[test]
+    fn single_item_page_resumes_from_grammar_into_unchanged_lexical_identity() {
+        // Given one lexical record in addition to the package-owned grammar target.
+        let lookup = |key: &str| -> Result<Option<Value>, String> {
+            Ok(match key {
+                "metadata" => Some(json!({"schemaVersion":1,"entries":1})),
+                "lemma/cat" => Some(json!(["wn30:n:0001:cat"])),
+                "sense/n:0001" => Some(json!({"pos":"noun","definition":"a feline"})),
+                _ => None,
+            })
+        };
+        let keys = |after: Option<&str>| {
+            Ok(ResourceKeyPage {
+                keys: match after {
+                    None => vec!["lemma/cat".into()],
+                    Some("lemma/cat") => vec![],
+                    Some(_) => return Err("Invalid fixture cursor".into()),
+                },
+                next: None,
+            })
+        };
+        // When traversing the production catalog with the smallest admitted page size.
+        let first = page(json!({"after":null,"limit":1}), &lookup, &keys).unwrap();
+        let second = page(json!({"after":first.next,"limit":1}), &lookup, &keys).unwrap();
+        // Then the grammar target appears once and lexical capabilities stay lexical.
+        assert_eq!(first.total, 2);
+        assert_eq!(first.items.len(), 1);
+        assert_eq!(first.items[0].summary.target_id, grammar::TARGET);
+        assert_eq!(second.items.len(), 1);
+        assert_eq!(second.items[0].summary.target_id, "wn30:n:0001:cat");
+        assert_eq!(
+            second.items[0].capabilities,
+            capabilities()
+                .into_iter()
+                .map(|value| value.id)
+                .collect::<Vec<_>>()
+        );
+        assert!(second.next.is_none());
     }
 }
