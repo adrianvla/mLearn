@@ -205,6 +205,28 @@ export type ReviewTarget = { id: string, label: string, mnemonic: string | null,
 
 export type ReviewProbe = { id: string, contractVersion: number, direction: ReviewDirection, cue: string, answer: string, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, };
 
+export type ChoiceOption = { id: string, label: string, };
+
+export type ResponseSpec = { "kind": "self_report" } | { "kind": "typed_text", maxBytes: number, } | { "kind": "choice_id", options: Array<ChoiceOption>, };
+
+export type TaskResponse = { "kind": "typed_text", text: string, } | { "kind": "choice_id", id: string, };
+
+export type TaskContract = { revision: number, responseSpec: ResponseSpec, validatorId: string | null,
+/**
+ * Knowledge disclosed by revealing the answer, including related task directions.
+ */
+answerSupplied: Array<KnowledgeKey>, attribution: string, limitations: string, };
+
+export type ValidationResult = "accepted" | "rejected" | "unassessed";
+
+export type ValidationOutcome = {
+/**
+ * The admitted probe row ID, not an independently supplied Knowledge identity.
+ */
+targetId: string, result: ValidationResult, reason: string, };
+
+export type ValidationOutput = { contractVersion: number, taskId: string, taskRevision: number, validatorId: string, outcomes: Array<ValidationOutcome>, };
+
 export type PracticeItem = { materialId: MaterialId, source: SourceAnchor | null, };
 
 export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, };

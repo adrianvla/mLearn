@@ -1,5 +1,58 @@
 # Current implementation checkpoint
 
+## M11 canonical native/package task protocol - 2026-10-31
+
+Disclosure/browser repair checkpoint
+`80afcd0f0132dd222da2cbdc9b04be59b4e401c7` is committed and pushed.
+Next native consumer must not copy the SDK task/validation protocol into
+another owner. Root moved those existing contracts and their behavioral tests
+to `crates/core/src/learning_task.rs`. SDK `learning::tasks` reexports that
+authority; SDK's duplicated probe/target/key/direction models now reexport the
+existing core models too. Both English/Japanese audio producers and assertions
+use the transparent native `AuthoredMediaId`, preserving the v1 string wire.
+No language grading was moved out of the packages. Generated TypeScript adds
+seven task/response/validation declarations; existing declarations are unchanged.
+This is shared protocol foundation, not native response capture or M11 delivery.
+
+Diagnostics and scoped Rustfmt pass. First test compilation caught the two
+stale string-only audio assertions; both are repaired rather than weakening
+their bound-media identity checks. Final serial Cargo run passes core10 unit
+and5 theme integration tests, English26, SDK5, with8.09s compilation and no
+test failures. The native non-test English library also emits36 dead-code
+warnings for its guest-only private entry paths; no warning was suppressed.
+Japanese's11 affected Review tests pass (8.62s compilation/0.01s execution).
+
+`npm run codegen`, `npm run typecheck`, `npm run lint`, and
+`npm run check:contracts` pass. The first normal bundle build stopped at
+Japanese's `--locked` check: its separate lockfile needed the new local
+SDK->core dependency. `cargo metadata --no-deps` did not resolve that edge.
+Targeted offline `cargo update -p mlearn-language-sdk` changed exactly that
+one lock entry, with zero package-version updates. Both root and Japanese
+lockfile deltas were inspected. Normal locked `npm run build:plugin` then
+passes (English cached0.07s, Japanese13.87s). All9 native runtime Review tests
+pass against the rebuilt actual authenticated modules (28.85s compilation,
+1.41s execution), including finite grammar validation and legacy due admission.
+
+Rebuilt English module SHA-256
+`cbe547379d9d8ffe4d02b1cf13e5d9fa281f8db0b017f6fa66840b05375ea3ec`,
+569503B; Japanese
+`30f840e38a81f180e8822dc8c574ed0eba781fda8cae17f73a7e40843fcdcf95`,
+2590659B. Actual module hashes match their generated catalog identities.
+Package resources are unchanged; builds use retained verified offline inputs.
+No new downloaded models, inference, devices or servers were launched.
+
+Owned idle analyzers37775 and then38557 were released after diagnostics,
+before Cargo. Fresh unchanged admission preceding the repaired run passes
+three samples: root598101112/597970040/597986424B, final
+available9012477952B/projected6328123392B, pressure1,
+swap3104505856B/swapOut314122223616B unchanged. Original guard
+`mon_5FPKZGJAFGQWSR7P` stopped after all serial checks. Post-native sample:
+root598625400B, available8434270208B, same pressure/swap counters,
+disk8103976KiB. Native app/UI capture and persistence are not established by
+these package tests. Next implement actual package-target provenance, exact
+selected scope and response capture through the existing Review owners;
+M11 feature/native/independent-review gates all remain open.
+
 ## M11 disclosure repair and exact-source CI - 2026-10-31
 
 Package checkpoint `e69576ec4e8f46c5d6e326201cdcf0ce2ef944d7` is

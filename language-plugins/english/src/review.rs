@@ -96,7 +96,7 @@ pub(super) fn generate(
             },
             targets,
             supplied: vec![],
-            required_media: Some(media.id.clone()),
+            required_media: Some(mlearn_core::AuthoredMediaId(media.id.clone())),
         });
     }
     probes.retain(|probe| probe.cue.len() <= 16_384 && probe.answer.len() <= 16_384);
@@ -167,7 +167,10 @@ mod tests {
         .unwrap();
         // Then only bound audio is required and all rows stay local.
         assert_eq!(output.probes.len(), 3);
-        assert_eq!(output.probes[2].required_media.as_deref(), Some("bound"));
+        assert_eq!(
+            output.probes[2].required_media,
+            Some(mlearn_core::AuthoredMediaId("bound".into()))
+        );
         assert!(
             output
                 .probes
