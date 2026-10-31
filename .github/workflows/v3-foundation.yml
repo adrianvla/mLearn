@@ -12,7 +12,10 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Includes full cold preparation of the pinned 232031-target Japanese
+    # package, followed by the existing suite and native interruption checks.
+    # Keep the fixture/setup and assertion deadlines bounded independently.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under test
@@ -27,14 +30,15 @@ jobs:
       - name: Configure bounded Ubuntu acquisition
         run: bash tools/configure-ci-apt.sh
       - run: npx playwright install chromium --with-deps
-      - name: Provide Linux CJK fonts for vertical source text
+      - name: Provide Linux CJK fonts and offline media fixture tooling
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          timeout 180s sudo apt-get --download-only install -y fonts-noto-cjk
-          sudo apt-get --no-download install -y fonts-noto-cjk
+          timeout 180s sudo apt-get --download-only install -y fonts-noto-cjk ffmpeg
+          sudo apt-get --no-download install -y fonts-noto-cjk ffmpeg
           dpkg-query -W -f='${binary:Package} ${Version}\n' fonts-noto-cjk | tee verification/cjk-font-package.txt
+          dpkg-query -W -f='${binary:Package} ${Version}\n' ffmpeg | tee verification/media-fixture-package.txt
           # Playwright's legacy WenQuanYi face has zero CJK vertical advances.
           sudo apt-get remove -y fonts-wqy-zenhei
           fc-list :lang=ja file > verification/cjk-fonts.txt

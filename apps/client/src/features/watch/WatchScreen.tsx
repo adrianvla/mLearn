@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useIsFocused, usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
@@ -25,17 +26,26 @@ type VideoSelection = SourceAnchor & {
     readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
 };
 export function WatchScreen() {
-    const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
-    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+    const host = useRuntime();
+    const router = useRouter();
+    const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="video" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
+    if (!host.available) return <AppShell header={<Row>
+        <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+        <Text variant="heading" accessibilityRole="header">Watch</Text>
+    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
     return <WatchWorkspace />;
 }
 function WatchWorkspace() {
     const host = useRuntime();
     const router = useRouter();
+    const navigation = useNavigation();
+    const routeFocused = useIsFocused();
     const params = useLocalSearchParams<{
         id: string;
         materialId?: string;
+        proposalId?: string;
         reviewSessionId?: string;
         reviewEncounterId?: string;
     }>();
@@ -71,6 +81,9 @@ function WatchWorkspace() {
     }, [batch]);
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [replacement, setReplacement] = useState<{ from: string; to: string; owner: object | null } | null>(null);
+    const [opening, setOpening] = useState(false);
+    const [updating, setUpdating] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [vocabulary, setVocabulary] = useState(false);
     const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= dialogSidebarBreakpoint ? dialogSidebarWidth : 0;
@@ -99,6 +112,7 @@ function WatchWorkspace() {
     const consumedReturn = useRef('');
     const activeSource = useRef(id);
     const focused = useRef<object | null>(null);
+    const departure = useRef<object | null>(null);
     activeSource.current = id;
     useEffect(() => {
         const node = returnedCue.current;
@@ -147,6 +161,8 @@ function WatchWorkspace() {
         const current = host.client.beginSourceSession();
         session.current = current;
         setBusy(false);
+        setOpening(false);
+        setUpdating(false);
         setWindow(previous => previous?.source.id === id ? previous : null);
         setBatch(null);
         setInspection(null);
@@ -159,11 +175,14 @@ function WatchWorkspace() {
         setCaptureOpen(false);
         setSubtitleCapture(null);
         void current.ready.then(async () => {
-            if (typeof params.reviewSessionId === 'string' && typeof params.reviewEncounterId === 'string') {
-                const restored = await host.client.returnReviewSource(params.reviewSessionId, params.reviewEncounterId);
+            const restored = typeof params.proposalId === 'string'
+                ? await host.client.returnMaterialProposalSource(params.proposalId)
+                : typeof params.reviewSessionId === 'string' && typeof params.reviewEncounterId === 'string'
+                    ? await host.client.returnReviewSource(params.reviewSessionId, params.reviewEncounterId) : null;
+            if (restored) {
                 if (restored.type !== 'material_source' || restored.window.source.id !== id
                     || restored.anchor.locator.kind !== 'video')
-                    throw new Error('This Review encounter does not return to the selected video.');
+                    throw new Error('This source return does not match the selected video.');
                 if (active && current.isCurrent())
                     setReturnedSelection({ ...restored.anchor, locator: restored.anchor.locator });
                 return restored.window;
@@ -213,6 +232,7 @@ function WatchWorkspace() {
         });
         return () => {
             active = false;
+            departure.current = null;
             setLiveWordsOpen(false);
             if (focused.current === owner) focused.current = null;
             const owned = session.current;
@@ -221,7 +241,7 @@ function WatchWorkspace() {
                     setError(e instanceof Error ? e.message : String(e));
             });
         };
-    }, [host, id, params.materialId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
+    }, [host, id, params.materialId, params.proposalId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
     const bucket = Math.floor(position / 2000);
     const subtitleTime = position + (window?.source.subtitleOffsetMs ?? 0);
     const cues = window?.cues.filter(c => c.startMs <= subtitleTime && c.endMs > subtitleTime) ?? [];
@@ -323,6 +343,8 @@ function WatchWorkspace() {
         try {
             await pauseAndSave();
             if (!ownsOperation()) return;
+            // A pending checkpoint must retain its recovery owner, not offer cancellation.
+            setUpdating(true);
             if (reanalyze) {
                 await current?.cancel();
                 if (!ownsOperation()) return;
@@ -344,6 +366,7 @@ function WatchWorkspace() {
             if (ownsOperation()) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
         } finally {
             if (ownsOperation()) {
+                setUpdating(false);
                 setBusy(false);
                 // Focus cleanup owns the current replacement too. Re-enter that
                 // lifetime only if cancellation invalidated it.
@@ -380,26 +403,54 @@ function WatchWorkspace() {
         void changeSource(client => client.alignSubtitleOffset(command), true);
     }
     function seekTranscript(positionMs: number) {
-        controller.current?.seekTo(positionMs);
+        const player = controller.current;
+        const previous = player?.pauseAndRead();
+        if (!player || !previous || !Number.isFinite(previous.positionMs)
+            || !Number.isFinite(previous.durationMs) || previous.durationMs <= 0) return null;
+        player.seekTo(positionMs);
         setInspection(null);
         setTranscriptOpen(false);
+        return previous.positionMs;
     }
-    async function back() {
+    async function depart(complete: () => void) {
+        if (busy || departure.current) return;
+        const request = {}; departure.current = request;
+        const owner = focused.current;
+        const current = session.current;
+        const ownsDeparture = () => mounted.current && focused.current === owner
+            && activeSource.current === id && departure.current === request;
+        let checkpointSaved = false;
         setBusy(true);
         try {
-            await session.current?.cancel();
             await pauseAndSave();
-            if (router.canGoBack()) router.back();
-            else router.replace('/');
+            checkpointSaved = true;
+            if (!ownsDeparture()) return;
+            await current?.cancel();
+            if (ownsDeparture()) complete();
         }
         catch (e) {
-            setSourceReload(v => v + 1);
-            throw e;
+            if (checkpointSaved && ownsDeparture()) {
+                setError(e instanceof Error ? e.message : String(e));
+                if (current && !current.isCurrent()) setSourceReload(v => v + 1);
+            }
         }
         finally {
-            setBusy(false);
+            if (departure.current === request) {
+                if (ownsDeparture()) setBusy(false);
+                departure.current = null;
+            }
         }
     }
+    usePreventRemove(host.available && routeFocused, ({ data }) => {
+        void depart(() => navigation.dispatch(data.action));
+    });
+    useEffect(() => {
+        if (busy || !replacement) return;
+        setReplacement(null);
+        if (focused.current === replacement.owner && activeSource.current === replacement.from) {
+            router.replace({ pathname: '/watch', params: { id: replacement.to } });
+        }
+    }, [busy, replacement, router]);
     async function attach(droppedPath?: string) {
         if (!host.available)
             return;
@@ -452,17 +503,21 @@ function WatchWorkspace() {
             }
             setBusy(true);
             setError('');
+            const owner = focused.current;
             void (async () => {
                 try {
                     await session.current?.cancel();
                     await pauseAndSave();
-                    const opened = await host.client.openSource(path, window.source.packageId);
-                    router.replace({
-                        pathname: '/watch', params: {
-                            id: opened.source.id
-                        }
-                    });
-                    setSourceReload(v => v + 1);
+                    setOpening(true);
+                    let opened;
+                    try {
+                        opened = await host.client.openSource(path, window.source.packageId);
+                    } finally {
+                        setOpening(false);
+                    }
+                    // Dispatch after the busy render has cleared, so the
+                    // removal guard can admit this operation's own handoff.
+                    setReplacement({ from: id, to: opened.source.id, owner });
                 }
                 catch (e) {
                     setError(e instanceof Error ? e.message : String(e));
@@ -507,6 +562,7 @@ function WatchWorkspace() {
     const inspector = inspection && window && host.available ? (
         <Inspector key={JSON.stringify([inspection.sourceAnchor, inspection.targets, inspection.initialTargetId])}
             inspection={inspection} packageId={window.source.packageId} client={host.client}
+            onBeforeOpenMaterial={pauseAndSave}
             onChanged={changedInspection} onClose={() => { setInspection(null); setReturnedSelection(null); }} />
     ) : null;
     const overlayTop = insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8);
@@ -666,13 +722,16 @@ function WatchWorkspace() {
                 paddingLeft: host.available ? Math.max(16, host.windowControlsWidth ?? 0) : 16 }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
                 <Row>
                     <Button label="Home" icon="arrowLeft" size="compact" variant="media"
-                        disabled={busy} onPress={() => void back().catch(() => {})} />
+                        disabled={busy} onPress={() => router.dismissTo('/')} />
                     <View style={styles.title}><Text testID="watch-source-title" numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
                     </Text></View>
-                    {busy && host.available ? (
-                        <Button label="Cancel opening" variant="secondary"
-                            onPress={() => void cancelOpening()} />
+                    {(opening || updating) && host.available ? (
+                        <Button label={opening ? 'Cancel opening' : 'Cancel source update'} variant="secondary"
+                            onPress={() => {
+                                if (opening) void cancelOpening();
+                                else setSourceReload(value => value + 1);
+                            }} />
                     ) : null}
                     {returnedSelection ? <Text testID="returned-source-selection" tone="media" variant="caption" selectable>
                         {returnedSelection.locator.cueIndex === null
@@ -689,7 +748,7 @@ function WatchWorkspace() {
                     <Row>
                         <Button label="Retry source" variant="secondary" onPress={() => { setError(''); setSourceReload(v => v + 1); }} />
                         <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
-                        <Button label="Reselect from Home" variant="secondary" onPress={() => router.replace('/')} />
+                        <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => router.dismissTo('/')} />
                     </Row>
                 </> : null}
                 {saveError ? <>

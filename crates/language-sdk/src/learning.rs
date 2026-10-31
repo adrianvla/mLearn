@@ -1,6 +1,8 @@
 //! Versioned learning task wire types. Packages own linguistic task semantics.
 use serde::{Deserialize, Serialize};
 
+pub mod tasks;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProbeInput {

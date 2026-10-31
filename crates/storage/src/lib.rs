@@ -1,15 +1,23 @@
+mod collection;
+mod collection_catalog;
+mod collection_selection;
 mod conversation;
 mod conversation_generation;
 mod conversation_read;
 mod document;
 mod document_read;
+mod document_search;
 mod document_validation;
 mod knowledge;
 mod material;
+mod material_bulk;
+mod material_generation;
 mod material_identity;
 mod material_media;
+mod material_proposal;
 mod material_read;
 mod material_receipts;
+mod material_removal;
 mod material_validation;
 mod ocr;
 mod ocr_validation;
@@ -24,7 +32,7 @@ mod view_preferences;
 mod watch;
 pub use material_media::PreparedAuthoredMedia;
 use mlearn_core::{PackageInstallCommand, PluginSummary, Response, ThemeDocument};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 use std::{path::Path, time::Duration};
 pub use watch::SourceReader;
@@ -57,7 +65,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 11 {
+        if version > 19 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -98,6 +106,30 @@ impl ProfileStore {
         }
         if version < 11 {
             view_preferences::migrate_collapse(&transaction)?;
+        }
+        if version < 12 {
+            collection_catalog::migrate(&transaction)?;
+        }
+        if version < 13 {
+            collection_catalog::migrate_cursors(&transaction)?;
+        }
+        if version < 14 {
+            collection_selection::migrate(&transaction)?;
+        }
+        if version < 15 {
+            material_removal::migrate(&transaction)?;
+        }
+        if version < 16 {
+            material_bulk::migrate(&transaction)?;
+        }
+        if version < 17 {
+            material_bulk::migrate_projection(&transaction)?;
+        }
+        if version < 18 {
+            material_proposal::migrate(&transaction)?;
+        }
+        if version < 19 {
+            material_generation::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

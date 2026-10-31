@@ -23,7 +23,7 @@ const message = (cause: unknown) => cause instanceof Error ? cause.message : Str
  */
 export function useImageReader(host: ImageHost | null, source: DocumentRecord | undefined,
     pageIndex: number, enabled: boolean, frozen: OcrPage | null, canInterpret: boolean,
-    onNavigate: (position: DocumentPosition) => Promise<void>) {
+    onNavigate: (position: DocumentPosition) => Promise<boolean>) {
     const [settings, setSettings] = useState<ImageReaderSettings | null>(null);
     const [providers, setProviders] = useState<OcrProvider[]>([]);
     const [providerId, setProviderId] = useState('');
@@ -218,13 +218,13 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             if (!owner || scope.current !== owner) return;
             preparedPages.current = prepared;
             const target = prepared.find(item => item.descriptor.pageIndex === index);
-            if (target) await callbacks.current.navigate(target.descriptor.position);
+            if (target && !await callbacks.current.navigate(target.descriptor.position)) preparedPages.current = null;
         } catch (cause) { if (scope.current === owner) setError(message(cause)); }
         finally { navigating.current = false; if (scope.current === owner) setPending(false); }
     }
     async function navigate(position: DocumentPosition) {
         operation.current?.controller.abort();
-        await callbacks.current.navigate(position);
+        return callbacks.current.navigate(position);
     }
     async function refreshKnowledge() {
         for (const item of currentPages.current)

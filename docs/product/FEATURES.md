@@ -173,6 +173,16 @@ Reference entries: `ReaderRoute.tsx`, its navigation/sidebar/status/layout/resum
 | NAV-01 | Open useful recents/Resume from Home | Actual content and unfinished activities, direct entry without mandatory setup, honest missing-source state | M01 |
 | NAV-02 | Navigate Plan, Knowledge, Material and active tasks | Shared route/source context; no duplicate activity applications or automatic remount/reset when revisiting | M10 |
 
+Material editing uses the approved reference modal without restarting the editing
+workflow between items. Compact Previous/Next controls and access to the current
+Material selection preserve the underlying Knowledge/Material filters, search,
+selection and scroll. Switching or closing must protect unsaved edits with
+Save / Discard / Cancel; pending writes and save failures retain the current
+item, draft and exact recovery command. Closing returns to the originating
+context. Existing Material identity, persistence and navigation remain the
+owners; no duplicate editor state or new navigation architecture is introduced.
+The same controls must remain responsive and keyboard-accessible.
+
 ## Conversations, people and world continuity
 
 Reference entry: `src/shared/world.ts`, plus actual messenger/participant/scenario/journal consumers. The later conversation behavior is a strong reference; it is not permission to import its storage/layout wholesale.

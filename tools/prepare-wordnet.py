@@ -95,7 +95,7 @@ if __name__ == '__main__':
     if not line or not line[0].isdigit(): continue
     data,definition=line.split('|',1); fields=data.split(); offset,_,tag,n=fields[:4]
     words=[fields[4+i*2].replace('(a)','').replace('(p)','').replace('(ip)','') for i in range(int(n,16))]
-    value={'pos':pos,'definition':definition.strip()}
+    value={'pos':pos,'definition':definition.strip(),'words':words}
     db.execute('INSERT INTO resource_entries VALUES(?,?)',('sense/'+tag+':'+offset,json.dumps(value,separators=(',',':')).encode()))
     for word in words:
      target=f'wn30:{tag}:{offset}:{word}'

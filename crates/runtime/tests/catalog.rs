@@ -1,6 +1,6 @@
-use base64::{engine::general_purpose::STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ed25519_dalek::{Signer, SigningKey};
-use mlearn_runtime::catalog::{verify_artifact, verify_catalog, Artifact};
+use mlearn_runtime::catalog::{Artifact, verify_artifact, verify_catalog};
 use sha2::{Digest, Sha256};
 
 mod readiness {
@@ -37,7 +37,9 @@ mod readiness {
     }
     impl Drop for StreamGate {
         fn drop(&mut self) {
-            if let Err(error) = self.release.send(()) { eprintln!("Stream gate already closed: {error}"); }
+            if let Err(error) = self.release.send(()) {
+                eprintln!("Stream gate already closed: {error}");
+            }
         }
     }
     impl Catalog {
@@ -69,7 +71,11 @@ mod readiness {
                     let body = responses.lock().unwrap().get(path).unwrap().clone();
                     let barrier = {
                         let mut held = held.lock().unwrap();
-                        if held.as_ref().is_some_and(|hold| hold.path == path) { held.take() } else { None }
+                        if held.as_ref().is_some_and(|hold| hold.path == path) {
+                            held.take()
+                        } else {
+                            None
+                        }
                     };
                     write!(
                         stream,
@@ -81,8 +87,13 @@ mod readiness {
                         stream.write_all(&body[..1]).unwrap();
                         stream.flush().unwrap();
                         barrier.entered.send(()).unwrap();
-                        barrier.release.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
-                        if let Err(error) = stream.write_all(&body[1..]) { eprintln!("Cancelled stream closed: {error}"); }
+                        barrier
+                            .release
+                            .recv_timeout(std::time::Duration::from_secs(10))
+                            .unwrap();
+                        if let Err(error) = stream.write_all(&body[1..]) {
+                            eprintln!("Cancelled stream closed: {error}");
+                        }
                     } else {
                         stream.write_all(&body).unwrap();
                     }
@@ -98,8 +109,15 @@ mod readiness {
         fn hold(&self, path: &str) -> StreamGate {
             let (entered, ready) = mpsc::sync_channel(1);
             let (release, resumed) = mpsc::sync_channel(1);
-            *self.hold.lock().unwrap() = Some(StreamHold { path: format!("/{path}"), entered, release: resumed });
-            StreamGate { entered: ready, release }
+            *self.hold.lock().unwrap() = Some(StreamHold {
+                path: format!("/{path}"),
+                entered,
+                release: resumed,
+            });
+            StreamGate {
+                entered: ready,
+                release,
+            }
         }
         fn trust(&self) -> CatalogTrust {
             CatalogTrust {
@@ -178,29 +196,172 @@ mod readiness {
     }
 
     #[test]
+    fn real_catalog_pages_execute_sdk_imports_and_reuse_inspection_identity() {
+        use mlearn_core::{
+            CollectionCatalogPage, CollectionCatalogRequest, LanguageDescription, LexicalEntry,
+            LexicalSummary, Request, Response,
+        };
+        use mlearn_runtime::BundledPlugin;
+        use std::collections::BTreeSet;
+
+        for id in ["org.mlearn.english", "org.mlearn.japanese"] {
+            let directory = tempfile::tempdir().unwrap();
+            let (manifest, code, assets) = bundle(id);
+            let mut runtime = Runtime::open(
+                &directory.path().join("profile"),
+                CodePolicy::MobileBundled,
+                None,
+                vec![BundledPlugin {
+                    manifest,
+                    code,
+                    assets: assets
+                        .into_iter()
+                        .map(|(key, bytes)| (key, bytes.into()))
+                        .collect(),
+                }],
+            )
+            .unwrap();
+            let described = call(
+                &mut runtime,
+                serde_json::to_value(Request::DescribeLanguage {
+                    package_id: id.into(),
+                })
+                .unwrap(),
+            );
+            let schema: LanguageDescription =
+                match serde_json::from_value::<Response>(described).unwrap() {
+                    Response::Language { description } => description,
+                    other => panic!("{other:?}"),
+                };
+            let catalog = schema
+                .catalog
+                .as_ref()
+                .expect("Real package declares its catalog");
+            catalog.validate(id).unwrap();
+            let mut invoke = |capability: &str, input: Value| {
+                let response = call(
+                    &mut runtime,
+                    serde_json::to_value(Request::InvokePlugin {
+                        plugin_id: id.into(),
+                        capability: capability.into(),
+                        input,
+                    })
+                    .unwrap(),
+                );
+                match serde_json::from_value::<Response>(response).unwrap() {
+                    Response::PluginResult { output } => output,
+                    other => panic!("{other:?}"),
+                }
+            };
+            let request = CollectionCatalogRequest {
+                after: None,
+                limit: 3,
+            };
+            let first: CollectionCatalogPage = serde_json::from_value(invoke(
+                "collection.targets.v1",
+                serde_json::to_value(&request).unwrap(),
+            ))
+            .unwrap();
+            assert_eq!(first.items.len(), 3);
+            assert!(first.total > 6);
+            assert!(first.next.is_some());
+            let repeated: CollectionCatalogPage = serde_json::from_value(invoke(
+                "collection.targets.v1",
+                serde_json::to_value(&request).unwrap(),
+            ))
+            .unwrap();
+            assert_eq!(repeated, first);
+            let second: CollectionCatalogPage = serde_json::from_value(invoke(
+                "collection.targets.v1",
+                serde_json::to_value(CollectionCatalogRequest {
+                    after: first.next.clone(),
+                    limit: 3,
+                })
+                .unwrap(),
+            ))
+            .unwrap();
+            assert_eq!(second.items.len(), 3);
+            assert_eq!(second.total, first.total);
+            let mut identities = BTreeSet::new();
+            for item in first.items.iter().chain(&second.items) {
+                assert!(identities.insert(&item.summary.target_id));
+                assert!(catalog.kinds.iter().any(|kind| kind.id == item.kind));
+                assert!(item.capabilities.iter().all(|id| {
+                    schema
+                        .capabilities
+                        .iter()
+                        .any(|capability| &capability.id == id)
+                }));
+                assert!(
+                    item.levels.iter().all(|level| catalog
+                        .levels
+                        .iter()
+                        .any(|choice| choice.scale_id == level.scale_id
+                            && choice.level == level.level))
+                );
+                let entry: LexicalEntry = serde_json::from_value(invoke(
+                    "target.inspect.v1",
+                    json!({"targetId":item.summary.target_id}),
+                ))
+                .unwrap();
+                assert_eq!(item.summary, LexicalSummary::from(entry));
+            }
+            assert_eq!(identities.len(), 6);
+        }
+    }
+
+    #[test]
     fn authenticated_transfer_reports_progress_cancels_without_activation_and_retries() {
         // Given an installed real language package, claim and saved source.
         let directory = tempfile::tempdir().unwrap();
         let catalog = Catalog::new();
         let (original, code, assets) = bundle("org.mlearn.english");
         catalog.publish(&original, &code, &assets);
-        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
         assert_eq!(install(&mut runtime, &original.id)["type"], "installed");
         let video = directory.path().join("fixture.mp4");
         let subtitles = directory.path().join("fixture.srt");
         std::fs::write(&video, b"isolated source; no playback assertion").unwrap();
-        std::fs::write(&subtitles, "1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n").unwrap();
-        let opened = call(&mut runtime, json!({"type":"open_source","path":video,"packageId":original.id}));
+        std::fs::write(
+            &subtitles,
+            "1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n",
+        )
+        .unwrap();
+        let opened = call(
+            &mut runtime,
+            json!({"type":"open_source","path":video,"packageId":original.id}),
+        );
         let source_id = opened["window"]["source"]["id"].clone();
         assert!(source_id.is_string(), "{opened}");
-        call(&mut runtime, json!({"type":"attach_subtitles","sourceId":source_id,"path":subtitles}));
-        let analyzed = call(&mut runtime, json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}));
+        call(
+            &mut runtime,
+            json!({"type":"attach_subtitles","sourceId":source_id,"path":subtitles}),
+        );
+        let analyzed = call(
+            &mut runtime,
+            json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}),
+        );
         let key = json!({"packageId":original.id,"targetId":analyzed["batch"]["cues"][0]["tokens"][0]["targets"][0],"capability":"org.mlearn.english:meaning"});
-        let claim = call(&mut runtime, json!({"type":"change_claim","change":{"key":key,"claim":true,"commandId":"retained-claim"}}));
+        let claim = call(
+            &mut runtime,
+            json!({"type":"change_claim","change":{"key":key,"claim":true,"commandId":"retained-claim"}}),
+        );
         assert_eq!(claim["type"], "claim_changed", "{claim}");
-        call(&mut runtime, json!({"type":"save_position","sourceId":source_id,"positionMs":1234,"durationMs":10000}));
+        call(
+            &mut runtime,
+            json!({"type":"save_position","sourceId":source_id,"positionMs":1234,"durationMs":10000}),
+        );
         let executor = Arc::new(RuntimeExecutor::new(runtime));
-        let before = execute(&executor, json!({"type":"resume_source","sourceId":source_id}));
+        let before = execute(
+            &executor,
+            json!({"type":"resume_source","sourceId":source_id}),
+        );
         let mut candidate = original.clone();
         candidate.version = "explicit-retry".into();
         catalog.publish(&candidate, &code, &assets);
@@ -214,36 +375,111 @@ mod readiness {
         let installing = executor.clone();
         let request = json!({"type":"install_package","command":command});
         let worker = thread::spawn(move || finished.send(execute(&installing, request)).unwrap());
-        gate.entered.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
-        let status = execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}));
+        gate.entered
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap();
+        let status = execute(
+            &executor,
+            json!({"type":"package_install_status","commandId":"cancel-this-install"}),
+        );
         assert_eq!(status["status"]["phase"], "downloading", "{status}");
         let downloaded = status["status"]["downloadedBytes"].as_u64().unwrap();
-        let total = candidate.code.byte_length + candidate.assets.values().map(|artifact| artifact.byte_length).sum::<usize>();
-        assert!(downloaded >= candidate.code.byte_length as u64 && downloaded < total as u64, "{status}");
+        let total = candidate.code.byte_length
+            + candidate
+                .assets
+                .values()
+                .map(|artifact| artifact.byte_length)
+                .sum::<usize>();
+        assert!(
+            downloaded >= candidate.code.byte_length as u64 && downloaded < total as u64,
+            "{status}"
+        );
         assert_eq!(status["status"]["totalBytes"], total);
-        assert!(std::fs::read_dir(directory.path().join("plugin-blobs")).unwrap().any(|entry| {
-            entry.unwrap().file_name().to_string_lossy().starts_with(".tmp")
-        }), "The held transfer must own a pending NamedTempFile");
-        assert_eq!(execute(&executor, json!({"type":"install_package","command":{"pluginId":candidate.id,"commandId":"competing-install"}}))["code"], "busy");
+        assert!(
+            std::fs::read_dir(directory.path().join("plugin-blobs"))
+                .unwrap()
+                .any(|entry| {
+                    entry
+                        .unwrap()
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".tmp")
+                }),
+            "The held transfer must own a pending NamedTempFile"
+        );
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"install_package","command":{"pluginId":candidate.id,"commandId":"competing-install"}})
+            )["code"],
+            "busy"
+        );
         // Source cancellation has its own epoch, independent from the transfer.
-        executor.cancellation_handle().fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}))["status"]["phase"], "downloading");
-        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"older-install"}))["status"], Value::Null);
-        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"cancel-this-install"}))["status"]["command"], command);
+        executor
+            .cancellation_handle()
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"package_install_status","commandId":"cancel-this-install"})
+            )["status"]["phase"],
+            "downloading"
+        );
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"cancel_package_install","commandId":"older-install"})
+            )["status"],
+            Value::Null
+        );
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"cancel_package_install","commandId":"cancel-this-install"})
+            )["status"]["command"],
+            command
+        );
         // Then cancellation completes while the server still withholds the body,
         // cleans NamedTempFile data and retains the previous usable owner.
-        let cancelled = result.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        let cancelled = result
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
         worker.join().unwrap();
         assert_eq!(cancelled["code"], "cancelled", "{cancelled}");
-        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}))["status"]["phase"], "cancelled");
-        assert!(std::fs::read_dir(directory.path().join("plugin-blobs")).unwrap().all(|entry| {
-            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
-            name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
-        }));
-        assert_eq!(execute(&executor, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"], original.version);
-        assert_eq!(execute(&executor, json!({"type":"resume_source","sourceId":source_id})), before);
-        assert_eq!(execute(&executor, json!({"type":"knowledge","keys":[key]}))["projections"][0], claim["projection"]);
-        let retained = execute(&executor, json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}));
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"package_install_status","commandId":"cancel-this-install"})
+            )["status"]["phase"],
+            "cancelled"
+        );
+        assert!(
+            std::fs::read_dir(directory.path().join("plugin-blobs"))
+                .unwrap()
+                .all(|entry| {
+                    let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+                    name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+        );
+        assert_eq!(
+            execute(&executor, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"],
+            original.version
+        );
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"resume_source","sourceId":source_id})
+            ),
+            before
+        );
+        assert_eq!(
+            execute(&executor, json!({"type":"knowledge","keys":[key]}))["projections"][0],
+            claim["projection"]
+        );
+        let retained = execute(
+            &executor,
+            json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}),
+        );
         assert_eq!(retained["batch"]["cues"], analyzed["batch"]["cues"]);
         assert_eq!(retained["batch"]["packageVersion"], original.version);
         drop(gate);
@@ -254,21 +490,51 @@ mod readiness {
         let running = executor.clone();
         let retry_request = retry.clone();
         let worker = thread::spawn(move || execute(&running, retry_request));
-        retry_gate.entered.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
-        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"cancel-this-install"}))["status"], Value::Null);
-        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"explicit-retry"}))["status"]["phase"], "downloading");
+        retry_gate
+            .entered
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap();
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"cancel_package_install","commandId":"cancel-this-install"})
+            )["status"],
+            Value::Null
+        );
+        assert_eq!(
+            execute(
+                &executor,
+                json!({"type":"package_install_status","commandId":"explicit-retry"})
+            )["status"]["phase"],
+            "downloading"
+        );
         drop(retry_gate);
         let installed = worker.join().unwrap();
         assert_eq!(installed["type"], "installed", "{installed}");
         assert_eq!(installed["plugin"]["version"], candidate.version);
-        let succeeded = execute(&executor, json!({"type":"package_install_status","commandId":"explicit-retry"}));
+        let succeeded = execute(
+            &executor,
+            json!({"type":"package_install_status","commandId":"explicit-retry"}),
+        );
         assert_eq!(succeeded["status"]["phase"], "succeeded", "{succeeded}");
         assert_eq!(succeeded["status"]["downloadedBytes"], total);
         assert_eq!(execute(&executor, retry), installed);
         drop(executor);
-        let mut restored = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
-        assert_eq!(call(&mut restored, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"], candidate.version);
-        assert_eq!(call(&mut restored, json!({"type":"knowledge","keys":[key]}))["projections"][0], claim["projection"]);
+        let mut restored = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            None,
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(
+            call(&mut restored, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"],
+            candidate.version
+        );
+        assert_eq!(
+            call(&mut restored, json!({"type":"knowledge","keys":[key]}))["projections"][0],
+            claim["projection"]
+        );
     }
 
     #[test]
@@ -277,21 +543,45 @@ mod readiness {
         let catalog = Catalog::new();
         let (mut manifest, code, assets) = bundle("example.hello");
         catalog.publish(&manifest, &code, &assets);
-        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
         let first_command = json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"first-durable-install"}});
         let first = call(&mut runtime, first_command.clone());
         assert_eq!(first["type"], "installed", "{first}");
         manifest.version = "0.2.0-next-explicit-install".into();
         catalog.publish(&manifest, &code, &assets);
-        let second = call(&mut runtime, json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"second-durable-install"}}));
+        let second = call(
+            &mut runtime,
+            json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"second-durable-install"}}),
+        );
         assert_eq!(second["type"], "installed", "{second}");
         drop(runtime);
-        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
         // A transport replay keeps its admitted outcome, not today's catalog.
         assert_eq!(call(&mut runtime, first_command), first);
         let snapshot = call(&mut runtime, json!({"type":"snapshot"}));
-        assert_eq!(snapshot["snapshot"]["installedPlugins"][0]["version"], second["plugin"]["version"]);
-        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"first-durable-install"}}))["type"], "error");
+        assert_eq!(
+            snapshot["snapshot"]["installedPlugins"][0]["version"],
+            second["plugin"]["version"]
+        );
+        assert_eq!(
+            call(
+                &mut runtime,
+                json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"first-durable-install"}})
+            )["type"],
+            "error"
+        );
     }
 
     #[test]
@@ -303,22 +593,62 @@ mod readiness {
         let mut corrupted = code.clone();
         corrupted[0] ^= 1;
         catalog.publish(&manifest, &corrupted, &assets);
-        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
         let command = json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"failed-transfer"}});
         // When a transfer fails and the server is subsequently repaired.
         let failed = call(&mut runtime, command.clone());
         assert_eq!(failed["type"], "error");
-        assert_eq!(call(&mut runtime, json!({"type":"package_install_status","commandId":"failed-transfer"}))["status"]["phase"], "failed");
+        assert_eq!(
+            call(
+                &mut runtime,
+                json!({"type":"package_install_status","commandId":"failed-transfer"})
+            )["status"]["phase"],
+            "failed"
+        );
         catalog.publish(&manifest, &code, &assets);
         // Then a transport replay does not secretly retry; a new command does.
         assert_eq!(call(&mut runtime, command.clone()), failed);
-        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"failed-transfer"}}))["type"], "error");
-        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"new-explicit-attempt"}}))["type"], "installed");
-        assert_eq!(hello(&mut runtime)["output"]["message"], "Hello, still installed!");
+        assert_eq!(
+            call(
+                &mut runtime,
+                json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"failed-transfer"}})
+            )["type"],
+            "error"
+        );
+        assert_eq!(
+            call(
+                &mut runtime,
+                json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"new-explicit-attempt"}})
+            )["type"],
+            "installed"
+        );
+        assert_eq!(
+            hello(&mut runtime)["output"]["message"],
+            "Hello, still installed!"
+        );
         drop(runtime);
-        let mut restored = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
-        assert_eq!(call(&mut restored, command), failed, "Failed command replay must remain explicit after another install and restart");
-        assert_eq!(hello(&mut restored)["output"]["message"], "Hello, still installed!");
+        let mut restored = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            None,
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(
+            call(&mut restored, command),
+            failed,
+            "Failed command replay must remain explicit after another install and restart"
+        );
+        assert_eq!(
+            hello(&mut restored)["output"]["message"],
+            "Hello, still installed!"
+        );
     }
 
     #[test]
@@ -393,7 +723,10 @@ mod readiness {
                     .unwrap();
             assert_eq!(
                 stored,
-                vec![(manifest.id.clone(), serde_json::to_string(&manifest).unwrap())],
+                vec![(
+                    manifest.id.clone(),
+                    serde_json::to_string(&manifest).unwrap()
+                )],
                 "replaced manifest for {}",
                 candidate.version
             );
@@ -529,11 +862,17 @@ fn signature_and_expiry_are_verified_before_accepting_catalog() {
 #[test]
 fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
     use mlearn_runtime::catalog::{CatalogClient, CatalogTrust};
-    use std::{io::{Read, Write}, net::{Shutdown, TcpListener}, sync::mpsc, time::Duration};
+    use std::{
+        io::{Read, Write},
+        net::{Shutdown, TcpListener},
+        sync::mpsc,
+        time::Duration,
+    };
     let key = SigningKey::from_bytes(&[42; 32]);
     let payload = serde_json::to_vec(&serde_json::json!({
         "schemaVersion":1,"expiresAt":4102444800_u64,"plugins":[],
-    })).unwrap();
+    }))
+    .unwrap();
     let body = serde_json::to_vec(&serde_json::json!({
         "payload":STANDARD.encode(&payload),"signature":STANDARD.encode(key.sign(&payload).to_bytes()),
     })).unwrap();
@@ -544,7 +883,9 @@ fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
     let server = std::thread::spawn(move || {
         for index in 0..2 {
             let (mut stream, _) = listener.accept().unwrap();
-            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             let mut request = Vec::new();
             let mut byte = [0];
             while !request.ends_with(b"\r\n\r\n") {
@@ -552,11 +893,18 @@ fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
                 stream.read_exact(&mut byte).unwrap();
                 request.push(byte[0]);
             }
-            write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).unwrap();
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+                body.len()
+            )
+            .unwrap();
             stream.write_all(&body).unwrap();
             stream.flush().unwrap();
             if index == 0 {
-                close_requested.recv_timeout(Duration::from_secs(5)).unwrap();
+                close_requested
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap();
                 stream.shutdown(Shutdown::Both).unwrap();
                 closed.send(()).unwrap();
             }
@@ -565,7 +913,8 @@ fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
     let client = CatalogClient::new(CatalogTrust {
         url: format!("http://{address}/catalog.json"),
         public_key: STANDARD.encode(key.verifying_key().to_bytes()),
-    }).unwrap();
+    })
+    .unwrap();
     assert!(client.manifests().unwrap().is_empty());
     close.send(()).unwrap();
     peer_closed.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -576,7 +925,11 @@ fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
 #[test]
 fn digest_size_and_safe_paths_are_required() {
     let bytes = b"sample";
-    let mut artifact = Artifact { path: "objects/sample.wasm".into(), sha256: format!("{:x}", Sha256::digest(bytes)), byte_length: bytes.len() };
+    let mut artifact = Artifact {
+        path: "objects/sample.wasm".into(),
+        sha256: format!("{:x}", Sha256::digest(bytes)),
+        byte_length: bytes.len(),
+    };
     assert!(verify_artifact(&artifact, bytes).is_ok());
     assert!(verify_artifact(&artifact, b"tamper").is_err());
     artifact.path = "../escape".into();
@@ -587,28 +940,52 @@ fn digest_size_and_safe_paths_are_required() {
 fn streamed_artifacts_reject_truncation_overflow_and_wrong_digest() {
     use mlearn_runtime::catalog::copy_artifact;
     let bytes = vec![42; 65536 * 3 + 11];
-    let artifact = Artifact { path: "objects/data.bin".into(), sha256: format!("{:x}", Sha256::digest(&bytes)), byte_length: bytes.len() };
+    let artifact = Artifact {
+        path: "objects/data.bin".into(),
+        sha256: format!("{:x}", Sha256::digest(&bytes)),
+        byte_length: bytes.len(),
+    };
     let mut output = Vec::new();
     copy_artifact(&artifact, &mut bytes.as_slice(), &mut output).unwrap();
     assert_eq!(output, bytes);
-    assert!(copy_artifact(&artifact, &mut &bytes[..bytes.len()-1], &mut std::io::sink()).is_err());
-    let mut extra = bytes.clone(); extra.push(0);
+    assert!(
+        copy_artifact(
+            &artifact,
+            &mut &bytes[..bytes.len() - 1],
+            &mut std::io::sink()
+        )
+        .is_err()
+    );
+    let mut extra = bytes.clone();
+    extra.push(0);
     assert!(copy_artifact(&artifact, &mut extra.as_slice(), &mut std::io::sink()).is_err());
-    extra.pop(); extra[1] ^= 1;
+    extra.pop();
+    extra[1] ^= 1;
     assert!(copy_artifact(&artifact, &mut extra.as_slice(), &mut std::io::sink()).is_err());
 }
 
 #[test]
 fn unknown_resource_compatibility_and_unbounded_manifest_are_rejected() {
     use mlearn_runtime::catalog::Manifest;
-    let artifact = serde_json::json!({"path":"objects/data.bin","sha256":"a".repeat(64),"byteLength":32});
+    let artifact =
+        serde_json::json!({"path":"objects/data.bin","sha256":"a".repeat(64),"byteLength":32});
     let mut value = serde_json::json!({"id":"test.package","version":"1","abiVersion":1,"capabilities":["test"],"code":artifact,"assets":{"dict":artifact},"resources":{"dict":"bytes-v1"},"execution":"persistent-v1"});
-    assert!(serde_json::from_value::<Manifest>(value.clone()).unwrap().validate().is_ok());
+    assert!(
+        serde_json::from_value::<Manifest>(value.clone())
+            .unwrap()
+            .validate()
+            .is_ok()
+    );
     value["resources"]["dict"] = "bytes-v999".into();
     assert!(serde_json::from_value::<Manifest>(value.clone()).is_err());
     value["resources"]["dict"] = "bytes-v1".into();
     value["assets"]["dict"]["byteLength"] = (128 * 1024 * 1024 + 1).into();
-    assert!(serde_json::from_value::<Manifest>(value).unwrap().validate().is_err());
+    assert!(
+        serde_json::from_value::<Manifest>(value)
+            .unwrap()
+            .validate()
+            .is_err()
+    );
 }
 
 #[test]
@@ -617,7 +994,9 @@ fn abi1_defaults_keep_legacy_asset_count_digest_case_and_small_budgets() {
     use mlearn_runtime::catalog::{Manifest, copy_artifact};
     let bytes = b"legacy";
     let artifact = serde_json::json!({"path":"objects/legacy.bin","sha256":format!("{:X}",Sha256::digest(bytes)),"byteLength":bytes.len()});
-    let assets = (0..32).map(|i| (format!("asset-{i}.json"), artifact.clone())).collect::<serde_json::Map<_, _>>();
+    let assets = (0..32)
+        .map(|i| (format!("asset-{i}.json"), artifact.clone()))
+        .collect::<serde_json::Map<_, _>>();
     let value = serde_json::json!({"id":"existing.package","version":"1","abiVersion":1,"capabilities":["existing"],"code":artifact,"assets":assets});
     let manifest: Manifest = serde_json::from_value(value.clone()).unwrap();
     assert_eq!(manifest.execution, ExecutionPolicy::Fresh);
@@ -627,15 +1006,26 @@ fn abi1_defaults_keep_legacy_asset_count_digest_case_and_small_budgets() {
     copy_artifact(&manifest.code, &mut bytes.as_slice(), &mut std::io::sink()).unwrap();
     let mut oversized = value;
     oversized["assets"]["asset-0.json"]["byteLength"] = (8 * 1024 * 1024 + 1).into();
-    assert!(serde_json::from_value::<Manifest>(oversized).unwrap().validate().is_err());
+    assert!(
+        serde_json::from_value::<Manifest>(oversized)
+            .unwrap()
+            .validate()
+            .is_err()
+    );
 
     let mut indexed = manifest.clone();
     indexed.assets.clear();
     let mut index = manifest.code.clone();
     index.byte_length = 32 * 1024 * 1024;
-    indexed.assets.insert("lexicon.sqlite".into(), index.clone());
+    indexed
+        .assets
+        .insert("lexicon.sqlite".into(), index.clone());
     indexed.validate().unwrap();
-    indexed.assets.get_mut("lexicon.sqlite").unwrap().byte_length += 1;
+    indexed
+        .assets
+        .get_mut("lexicon.sqlite")
+        .unwrap()
+        .byte_length += 1;
     assert!(indexed.validate().is_err());
 
     indexed.assets.clear();
@@ -643,6 +1033,8 @@ fn abi1_defaults_keep_legacy_asset_count_digest_case_and_small_budgets() {
     indexed.assets.insert("one.sqlite".into(), index.clone());
     indexed.assets.insert("two.sqlite".into(), index);
     indexed.validate().unwrap();
-    indexed.assets.insert("extra.json".into(), manifest.code.clone());
+    indexed
+        .assets
+        .insert("extra.json".into(), manifest.code.clone());
     assert!(indexed.validate().is_err());
 }

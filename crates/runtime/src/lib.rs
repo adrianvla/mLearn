@@ -1,6 +1,8 @@
 mod analysis;
+mod bounded_reads;
 mod capture;
 pub mod catalog;
+mod collection;
 mod conversation;
 mod conversation_execution;
 mod conversation_provider;
@@ -10,11 +12,16 @@ mod document_projection;
 mod document_recovery;
 mod document_transport;
 mod execution;
+mod graph;
 mod guest;
+mod guest_gate;
 mod language;
 mod linguistic;
 mod material;
+mod material_bulk;
+mod material_generation;
 mod material_media;
+mod material_proposal;
 mod material_source;
 mod media_file;
 mod media_format;
@@ -28,9 +35,10 @@ mod packages;
 mod review;
 mod source_file;
 mod watch;
-use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
+pub use bounded_reads::BoundedReadError;
+use catalog::{verify_artifact, CatalogClient, CatalogTrust, Manifest};
 pub use execution::RuntimeExecutor;
-use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
+use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{
@@ -99,6 +107,9 @@ impl Runtime {
             .interrupt_conversation_generations()
             .map_err(|error| error.to_string())?;
         store.interrupt_ocr().map_err(|error| error.to_string())?;
+        store
+            .interrupt_material_bulk()
+            .map_err(|error| error.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
         let mut runtime = Self {
             store,
@@ -217,6 +228,50 @@ impl Runtime {
     fn metadata(&mut self, request: Request) -> Result<Response, execution::Failure> {
         use execution::Failure;
         match request {
+            Request::Collection { query } => self.collection_query(query, false),
+            Request::RefreshMaterialCollection { query } => self.collection_query(query, true),
+            Request::CreateCollectionSelection { command } => {
+                self.create_collection_selection(command)
+            }
+            Request::CollectionSelection { id } => Ok(Response::CollectionSelection {
+                selection: self
+                    .store
+                    .collection_selection(&id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+            }),
+            Request::CollectionSelections => Ok(Response::CollectionSelections {
+                selections: self
+                    .store
+                    .collection_selections()
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+            }),
+            Request::CollectionSelectionMembership {
+                id,
+                package_id,
+                surface,
+                items,
+            } => Ok(Response::CollectionSelectionMembership {
+                items: self
+                    .store
+                    .collection_selection_membership(&id, package_id.as_deref(), surface, &items)
+                    .map_err(|error| Failure::Operation(error.to_string()))?,
+                id,
+            }),
+            Request::CollectionSelectionPage { id, after } => {
+                Ok(Response::CollectionSelectionPage {
+                    page: self
+                        .store
+                        .collection_selection_page(&id, after.as_deref())
+                        .map_err(|error| Failure::Operation(error.to_string()))?,
+                    id,
+                })
+            }
+            Request::ReleaseCollectionSelection { id } => {
+                self.store
+                    .release_collection_selection(&id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?;
+                Ok(Response::CollectionSelectionReleased { id })
+            }
             Request::Snapshot => {
                 let (revision, theme) = self
                     .store
@@ -309,11 +364,23 @@ impl Runtime {
                     })?;
                 Ok(Response::Saved { revision })
             }
+            request @ (Request::MaterialProposals { .. }
+            | Request::MaterialGeneration { .. }
+            | Request::MaterialGenerations { .. }
+            | Request::CollectMaterialGeneration { .. }
+            | Request::MaterialProposal { .. }
+            | Request::SuggestMaterial { .. }
+            | Request::ReviewMaterialProposal { .. }
+            | Request::ReturnMaterialProposalSource { .. }) => self.material_proposal_metadata(
+                request,
+                self.cancellation.load(std::sync::atomic::Ordering::Relaxed),
+            ),
             request @ (Request::Materials { .. }
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }
             | Request::Material { .. }
             | Request::UpdateMaterial { .. }
+            | Request::RemoveMaterial { .. }
             | Request::MaterialEligibility { .. }
             | Request::SetCaptureExclusion { .. }
             | Request::ReturnMaterialSource { .. }) => self.material_metadata(

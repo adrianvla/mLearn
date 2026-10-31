@@ -12,6 +12,12 @@ public class MlearnNativeModule: Module {
   private var mediaExportPending = false
   private var mediaClosed = false
 
+  private func boundedReadControl(_ promise: Promise, _ operation: () throws -> String?) {
+    do { promise.resolve(try operation()) }
+    catch let BridgeError.BoundedRead(code, reason) { promise.reject(code, reason) }
+    catch { promise.reject(error) }
+  }
+
   private func mediaResponse(_ action: [String: Any], expected: String) throws -> [String: Any] {
     let request = String(decoding: try JSONSerialization.data(withJSONObject: action), as: UTF8.self)
     let response = try bridge().execute(request: request)
@@ -50,6 +56,7 @@ public class MlearnNativeModule: Module {
       self.initializationLock.lock()
       let runtime = self.bridgeInstance
       self.initializationLock.unlock()
+      runtime?.cancelSourceOpen()
       if let runtime, !cancelledOcr.isEmpty {
         DispatchQueue.global(qos: .userInitiated).async {
           for id in cancelledOcr {
@@ -174,6 +181,18 @@ public class MlearnNativeModule: Module {
     }.runOnQueue(.main)
     AsyncFunction("cancelSourceOpen") { () throws -> Void in
       try self.bridge().cancelSourceOpen()
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("beginBoundedRead") { (promise: Promise) in
+      self.boundedReadControl(promise) { try self.bridge().beginBoundedRead() }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("executeBoundedRead") { (id: String, request: String) throws -> String in
+      try self.bridge().executeBoundedRead(id: id, request: request)
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("cancelBoundedRead") { (id: String, promise: Promise) in
+      self.boundedReadControl(promise) {
+        try self.bridge().cancelBoundedRead(id: id)
+        return nil
+      }
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     // Expo's serial default queue would put checkpoints behind cold guest work.
     // Rust owns bounded admission and releases storage while the guest runs.

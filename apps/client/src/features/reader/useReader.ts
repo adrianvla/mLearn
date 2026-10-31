@@ -8,10 +8,12 @@ import { blockPosition, byteLength, positionKey } from './documentFlow';
 
 const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
 type Session = ReturnType<RuntimeClient['beginSourceSession']>;
+type LocatedDocument = Extract<Awaited<ReturnType<RuntimeClient['returnSourceAnchor']>>,
+    { type: 'document_material_source' | 'image_material_source' }>;
 
 /** The view holds only the current bounded window and native projections. */
 export function useReader(client: RuntimeClient, id: string, materialId?: string,
-    reviewSessionId?: string, reviewEncounterId?: string, originalPages: boolean | null = null) {
+    reviewSessionId?: string, reviewEncounterId?: string, originalPages: boolean | null = null, proposalId?: string) {
     const [window, setWindow] = useState<DocumentWindow | null>(null);
     const [batch, setBatch] = useState<DocumentAnalysisBatch | null>(null);
     const [contents, setContents] = useState<DocumentContentsPage | null>(null);
@@ -90,7 +92,8 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
             // current authored association instead.
             const result = reviewSessionId && reviewEncounterId
                 ? await client.returnReviewSource(reviewSessionId, reviewEncounterId)
-                : materialId ? await client.returnMaterialSource(materialId) : null;
+                : materialId ? await client.returnMaterialSource(materialId)
+                : proposalId ? await client.returnMaterialProposalSource(proposalId) : null;
             if (result) {
                 if (result.type === 'material_source' || result.type === 'conversation_material_source'
                     || result.window.source.id !== id)
@@ -126,7 +129,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 });
             }
         };
-    }, [client, id, materialId, reviewSessionId, reviewEncounterId, reload, persist]));
+    }, [client, id, materialId, proposalId, reviewSessionId, reviewEncounterId, reload, persist]));
 
     const identity = window ? JSON.stringify([window.source.id, window.source.contentRevision,
         window.source.parserRevision, window.source.packageId, window.source.packageVersion]) : '';
@@ -153,30 +156,44 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
         return () => { live = false; };
     }, [client, identity, admissionKey, pending, analysisReload, imageMode]);
 
-    async function change(read: () => Promise<DocumentWindow>, point?: DocumentPosition | null) {
+    async function change(read: () => Promise<DocumentWindow | LocatedDocument>, point?: DocumentPosition | null): Promise<boolean> {
         const active = scope.current;
-        if (!active || operation.current) return;
+        if (!active || operation.current) return false;
         const intent = {}; operation.current = intent;
         setPending(true); setError('');
         try {
             await persist();
             await session.current?.cancel();
-            if (scope.current !== active || operation.current !== intent) return;
+            if (scope.current !== active || operation.current !== intent) return false;
             const owned = client.beginSourceSession(); session.current = owned;
             await owned.ready;
-            if (scope.current !== active || operation.current !== intent) return;
+            if (scope.current !== active || operation.current !== intent) return false;
             const value = await read();
             if (scope.current === active && operation.current === intent && owned.isCurrent()) {
-                publish(value, point); setReturned(null); setReturnedPage(null);
+                publish('window' in value ? value.window : value, point);
+                setReturned('anchor' in value ? value.anchor : null);
+                setReturnedPage('page' in value ? value.page : null);
+                return true;
             }
+            return false;
         } catch (cause) {
             if (scope.current === active && operation.current === intent) setError(message(cause));
+            return false;
         } finally {
             if (scope.current === active && operation.current === intent) { operation.current = null; setPending(false); }
         }
     }
     function navigate(point: DocumentPosition | null) {
         return change(() => client.documentWindow(id, point), point);
+    }
+    function locate(anchor: SourceAnchor) {
+        return change(async () => {
+            const result = await client.returnSourceAnchor(anchor);
+            if (result.type === 'material_source' || result.type === 'conversation_material_source'
+                || result.window.source.id !== id)
+                throw new RuntimeError('invalid_request', 'This source return does not match the selected document.');
+            return result;
+        });
     }
     async function cancel() {
         const active = scope.current;
@@ -242,7 +259,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
             setBatch(previous => previous === value ? refreshed : previous);
     }
     return { window, batch, contents, languages, position, returned, returnedPage, imageMode, pending, analysisPending, contentsPending,
-        error, analysisError, contentsError, saveError, persist, navigate, cancel, onPosition, appearance,
+        error, analysisError, contentsError, saveError, persist, navigate, locate, cancel, onPosition, appearance,
         loadContents, refreshKnowledge, retry: () => setReload(value => value + 1),
         retryAnalysis: () => setAnalysisReload(value => value + 1),
         setLanguage: (packageId: string) => change(() => client.setDocumentLanguage(id, packageId)) };

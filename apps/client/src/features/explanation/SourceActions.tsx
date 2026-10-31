@@ -9,6 +9,7 @@ import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { MaterialProposalReview } from '../material';
 
 type Flight = {
   readonly admit: () => Promise<ConversationGeneration>;
@@ -24,15 +25,20 @@ const running = (generation: ConversationGeneration | null) =>
   generation?.status === 'pending' || generation?.status === 'streaming';
 
 /** Presentation lifetime only; the shared native generation owner owns the job. */
-export function SourceActions({ client, source, tone = 'content', explanationDisabledReason }: {
+export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, onReturnToSource, onOpenMaterial }: {
   readonly client: RuntimeClient;
   readonly source: SourceAnchor;
   readonly tone?: 'content' | 'media';
   readonly explanationDisabledReason?: string;
+  readonly disabled?: boolean;
+  readonly onReturnToSource?: () => void;
+  readonly onOpenMaterial?: (id: string) => void;
 }) {
   const host = useRuntime();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [proposalsOpen, setProposalsOpen] = useState(false);
+  const proposalTrigger = useRef<View>(null);
   const [instruction, setInstruction] = useState('');
   const submittedInstruction = useRef('');
   const instructionChanged = instruction.trim() !== submittedInstruction.current;
@@ -257,7 +263,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         description="Feedback is linked to the original source, not learner evidence."
         trigger={<Button label="Explain" variant={variant} size="compact"
           tone={tone === 'media' ? 'info' : undefined} icon={tone === 'media' ? 'conversation' : undefined}
-          disabled={!selected || !!explanationDisabledReason} />}>
+          disabled={disabled || !selected || !!explanationDisabledReason} />}>
         <Text selectable>{selected}</Text>
         <Button label={contextOpen ? 'Hide original context' : 'Show original context'} variant="quiet"
           accessibilityState={{ expanded: contextOpen }} onPress={() => setContextOpen(value => !value)} />
@@ -290,11 +296,17 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
           }} />
         </Row>
       </Dialog>
-      <Button label="Copy selected text" variant={variant} size="compact" disabled={!selected}
+      <Button label="Copy selected text" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => void copy(selected)} />
-      <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
+      <Button label="Copy context" variant={variant} size="compact" disabled={disabled || !source.text}
         onPress={() => void copy(source.text)} />
+      <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={disabled || !selected}
+        onPress={() => setProposalsOpen(true)} />
     </Row>
+    <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}
+      focusTarget={() => proposalTrigger.current} seed={null} source={source}
+      onOpenMaterial={onOpenMaterial ?? (id => router.navigate({ pathname: '/materials', params: { id } }))}
+      onReturnToSource={onReturnToSource} />
     {feedback ? <Text tone={tone} variant="caption" accessibilityLiveRegion="polite">{feedback}</Text> : null}
     {explanationDisabledReason ? <Text tone={tone} variant="caption" muted>{explanationDisabledReason}</Text> : null}
     {!open && error ? <Text tone={tone} variant="caption" accessibilityRole="alert">{error}</Text> : null}

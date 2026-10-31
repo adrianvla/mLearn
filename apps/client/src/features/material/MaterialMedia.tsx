@@ -59,8 +59,9 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
     return () => {
       if (owner.current === scope) owner.current = null;
       abort.current?.abort();
+      onBusyChange(false);
     };
-  }, []);
+  }, [onBusyChange]);
   const mediaById = new Map((base?.media ?? []).map(item => [item.id, item]));
   const full = attachments.length + staged.length >= MAX_ATTACHMENTS;
   const busy = disabled || pickPending !== null || capturePending !== null;

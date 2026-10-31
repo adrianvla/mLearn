@@ -1,5 +1,6 @@
 export { MaterialScreen } from './MaterialScreen';
 export { MaterialEditor } from './MaterialEditor';
+export { MaterialProposalReview } from './MaterialProposalReview';
 export { AttachmentPlayer } from './AttachmentPlayer';
 export type { MaterialMediaHost } from './media';
 export { CaptureList, type CaptureCandidate } from './CaptureList';

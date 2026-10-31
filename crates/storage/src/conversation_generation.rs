@@ -210,6 +210,7 @@ pub(super) fn retry(
         Some(previous.id.clone()),
     )?;
     db.execute("INSERT INTO conversation_generation_inputs SELECT ?1,message_id,revision FROM conversation_generation_inputs WHERE generation_id=?2", params![value.id.0, previous.id.0])?;
+    crate::material_generation::copy_retry(db, &previous.id, &value.id)?;
     Ok(value)
 }
 

@@ -125,6 +125,20 @@ fn retained_abi1_modules_and_saved_source_run_offline_without_reinstallation() {
         call(&mut runtime, json!({"type":"snapshot"}))["snapshot"]["catalogConfigured"],
         false
     );
+    let schema = call(
+        &mut runtime,
+        json!({"type":"describe_language","packageId":source.package_id}),
+    );
+    assert!(schema["description"].get("catalog").is_none());
+    let denied: Value = serde_json::from_str(
+        &runtime.execute(
+            &json!({"type":"invoke_plugin","pluginId":source.package_id,
+            "capability":"collection.targets.v1","input":{"after":null,"limit":1}})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(denied["type"], "error");
     assert_eq!(
         call(
             &mut runtime,

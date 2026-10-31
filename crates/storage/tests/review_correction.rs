@@ -124,6 +124,17 @@ fn correction_uses_original_conditions_and_claims_remain_separate() {
         .unwrap()
         .session;
     assert!(schedule(&store, &item).is_none());
+    let inactive = store
+        .knowledge_evidence(&KnowledgeEvidenceQuery {
+            key: key("meaning"),
+            after: None,
+        })
+        .unwrap();
+    assert_eq!(inactive.projection.claim, Some(true));
+    assert_eq!(inactive.projection.assessed, None);
+    assert_eq!(inactive.assessed_attempt, None);
+    assert_eq!(inactive.observations.len(), 1);
+    assert!(!inactive.observations[0].active);
     // When correction replaces rather than adds evidence under original conditions.
     store
         .review_apply(
@@ -139,6 +150,34 @@ fn correction_uses_original_conditions_and_claims_remain_separate() {
     assert_eq!(projection.claim, claimed.claim);
     assert_eq!(projection.status, "claimed_known");
     assert_eq!(projection.assessed, Some(false));
+    let evidence = store
+        .knowledge_evidence(&KnowledgeEvidenceQuery {
+            key: key("meaning"),
+            after: None,
+        })
+        .unwrap();
+    assert_eq!(&evidence.projection, projection);
+    assert_eq!(evidence.projection.prediction, None);
+    assert_eq!(evidence.claim_revision, Some(claimed.revision));
+    assert_eq!(evidence.observations.len(), 1);
+    let observation = &evidence.observations[0];
+    assert_eq!(observation.attempt_id, inactive.observations[0].attempt_id);
+    assert_eq!(
+        evidence.assessed_attempt.as_ref(),
+        Some(&observation.attempt_id)
+    );
+    assert!(observation.active);
+    assert_eq!(observation.created_at, 102);
+    assert_eq!(observation.conditions, inactive.observations[0].conditions);
+    assert_eq!(observation.grade.quality, Some(AttemptQuality::Missed));
+    assert_eq!(observation.grade.method, ResponseMethod::Remembered);
+    assert_eq!(observation.assessed, Some(false));
+    assert_eq!(observation.material_id, item.material_id);
+    assert_eq!(observation.material_revision, item.material_revision);
+    assert_eq!(observation.package_version, item.package_version);
+    assert_eq!(observation.package_revision, item.package_revision);
+    assert_eq!(observation.source, item.source);
+    assert!(!observation.practice);
     assert_eq!(schedule(&store, &item).unwrap().due_at, 162);
     let withdrawn = store
         .change_claim(&ClaimChange {

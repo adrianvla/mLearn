@@ -1,7 +1,9 @@
 /// <reference types="node" />
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createRuntimeClient } from '@mlearn/runtime-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
 // The browser substitutes only the host transport. Profile mutations, signed
@@ -155,6 +157,89 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await expect(composer).toBeInViewport();
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeInViewport();
     await page.screenshot({ path: info.outputPath('messenger-phone.png') });
+    // Given: the existing native conversation and its analyzed message source.
+    const client = createRuntimeClient({
+      commandId: randomUUID,
+      execute: request => backend.invoke('runtime_execute', { request }),
+    });
+    const chats = await client.conversations();
+    const coach = chats.items.find(chat => chat.title === 'Coach');
+    if (!coach) throw new Error('Actual Coach conversation is missing');
+    const historyBefore = await client.conversationMessages(coach.id);
+    const reply = historyBefore.items.find(message => message.role === 'assistant' && message.text === 'Children walked home.');
+    if (!reply) throw new Error('Actual assistant message source is missing');
+    const sourceBefore = await client.analyzeVisibleMessages(coach.id, [{ id: reply.id, revision: reply.revision }]);
+    const restorationReceipts = [];
+    for (const width of [1212, 390]) {
+      await page.setViewportSize({ width, height: 872 });
+      if (width === 390) await page.getByRole('button', { name: 'Chats and People', exact: true }).click();
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      const materialSearch = page.getByRole('textbox', { name: 'Search Material', exact: true });
+      const materialDraft = `M10 Messenger return ${width} unsubmitted Material search`;
+      await materialSearch.fill(materialDraft);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+      await page.getByRole('button', { name: 'Coach', exact: true }).click();
+      await expect(composer).toBeEnabled();
+      const draftBefore = await client.conversationDraft(coach.id);
+      const messageDraft = `M10 Messenger return ${width} unsent message`;
+      await composer.fill(messageDraft);
+      // When: Home checkpoints the unsent draft, then its Material action
+      // revisits the retained management surface without a reload.
+      const persisted = page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+        const payload = response.request().postDataJSON();
+        if (typeof payload.args?.request !== 'string') return false;
+        const request = JSON.parse(payload.args.request);
+        return request.type === 'conversation' && request.command.action === 'save_draft'
+          && request.command.draft.conversationId === coach.id && request.command.draft.text === messageDraft;
+      });
+      if (width === 390) await page.getByRole('button', { name: 'Chats and People', exact: true }).click();
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      const savedDraft = JSON.parse((await (await persisted).json()).value);
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      const materialAfter = await materialSearch.inputValue();
+      await page.screenshot({ path: info.outputPath(`messenger-home-material-${width}.png`) });
+      const conversationAfter = await client.conversation(coach.id);
+      const draftAfter = await client.conversationDraft(coach.id);
+      const historyAfter = await client.conversationMessages(coach.id);
+      const sourceAfter = await client.analyzeVisibleMessages(coach.id, [{ id: reply.id, revision: reply.revision }]);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+      await page.getByRole('button', { name: 'Coach', exact: true }).click();
+      await expect(composer).toBeEnabled();
+      const composerAfter = await composer.inputValue();
+      restorationReceipts.push({ width, materialDraft, materialAfter, messageDraft, composerAfter,
+        draftBefore, savedDraft, conversationAfter, draftAfter, historyAfter, sourceAfter });
+    }
+    const restorationReceipt = JSON.stringify({
+      transport: 'real_core_browser_adapter', profile: backend.profile, nativePid: backend.pid,
+      catalog: backend.catalogUrl, coach, historyBefore, sourceBefore, restorationReceipts,
+      activity: backend.metadata(),
+      uiScripts: await page.locator('script[src]').evaluateAll(nodes => nodes.map(node => node.getAttribute('src'))),
+    }, null, 2);
+    await writeFile(info.outputPath('messenger-home-material-restoration.json'), restorationReceipt);
+    await info.attach('messenger-home-material-restoration.json', {
+      body: restorationReceipt, contentType: 'application/json',
+    });
+    // Then: the native draft/source and management presentation survive
+    // independently, without another sent turn or provider request.
+    for (const receipt of restorationReceipts) {
+      expect(receipt.savedDraft).toMatchObject({ type: 'conversation', result: { kind: 'draft', draft: {
+        conversationId: coach.id, text: receipt.messageDraft, revision: receipt.draftBefore.revision + 1,
+      } } });
+      expect(receipt.conversationAfter).toEqual(coach);
+      expect(receipt.draftAfter).toEqual({
+        ...receipt.draftBefore, text: receipt.messageDraft, revision: receipt.draftBefore.revision + 1,
+      });
+      expect(receipt.composerAfter).toBe(receipt.messageDraft);
+      expect(receipt.historyAfter).toEqual(historyBefore);
+      expect(receipt.sourceAfter).toEqual(sourceBefore);
+      expect(receipt.materialAfter, `Material draft after Messenger Home at ${receipt.width}px`).toBe(receipt.materialDraft);
+    }
+    expect(backend.metadata().providerRequests).toBe(1);
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const savedTheme = page.waitForResponse(response => {

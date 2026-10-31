@@ -1,6 +1,200 @@
 use mlearn_core::*;
 use mlearn_storage::{ProfileStore, StorageError};
 
+#[test]
+fn retained_bulk_edit_content_reserves_recoverable_wire_capacity() {
+    // Given large valid edit drafts retained for explicit native recovery.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    store.create_material(&capture("saved")).unwrap();
+    let selected = select_materials(&mut store, "select-for-edit");
+    let command = |index| MaterialBulkStart {
+        command_id: format!("large-edit-{index}"),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("n".repeat(32000)),
+                meaning: Some("m".repeat(32000)),
+                ..Default::default()
+            },
+        },
+    };
+    for index in 0..4 {
+        store.begin_material_bulk(&command(index)).unwrap();
+        store
+            .cancel_material_bulk(&format!("large-edit-{index}"))
+            .unwrap();
+    }
+
+    // When another edit would consume the recovery response's reserved headroom.
+    assert!(store.begin_material_bulk(&command(4)).is_err());
+
+    // Then releasing an old result, not dropping unread handles, restores capacity.
+    assert_eq!(store.material_bulk_jobs().unwrap().len(), 4);
+    store.release_material_bulk("large-edit-0").unwrap();
+    store.begin_material_bulk(&command(4)).unwrap();
+    assert!(
+        serde_json::to_vec(&store.material_bulk_jobs().unwrap())
+            .unwrap()
+            .len()
+            < 524288
+    );
+}
+
+#[test]
+fn released_bulk_receipts_discard_edit_text_but_keep_exact_replay_identity() {
+    // Given a completed edit whose authored content and recovery draft have different lifetimes.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let original = saved(store.create_material(&capture("saved")).unwrap());
+    let selected = select_materials(&mut store, "select-retirement");
+    let command = MaterialBulkStart {
+        command_id: "retire-edit".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("retained authored notes".into()),
+                ..Default::default()
+            },
+        },
+    };
+    store.begin_material_bulk(&command).unwrap();
+    store
+        .apply_material_bulk_item(&command.command_id, &original.id.0, None)
+        .unwrap();
+    store
+        .finish_material_bulk(&command.command_id, None)
+        .unwrap();
+
+    // When recovery results and then their frozen selection are explicitly released.
+    store.release_material_bulk(&command.command_id).unwrap();
+    store.release_material_bulk(&command.command_id).unwrap();
+    store.release_collection_selection(&selected.id).unwrap();
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then cleared drafts/labels are gone, current authored content stays, and retries never reapply.
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let document: String = db
+        .query_row(
+            "SELECT document FROM material_bulk_jobs WHERE command_id=?1",
+            [&command.command_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let summary: serde_json::Value = serde_json::from_str(&document).unwrap();
+    assert!(summary.get("command").is_none());
+    assert_eq!(summary["phase"], "completed");
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM material_bulk_results WHERE command_id=?1",
+            [&command.command_id],
+            |row| row.get::<_, u32>(0)
+        )
+        .unwrap(),
+        0
+    );
+    assert!(store.material_bulk_status(&command.command_id).is_err());
+    let (receipt, admitted) = store.begin_material_bulk(&command).unwrap();
+    assert!(!admitted);
+    assert!(!receipt.results_available);
+    assert_eq!(receipt.command, command);
+    assert_eq!((receipt.processed, receipt.succeeded), (1, 1));
+    let current = store.material(&original.id).unwrap();
+    assert_eq!(current.revision, original.revision + 1);
+    assert_eq!(current.content.notes, "retained authored notes");
+}
+
+#[test]
+fn schema_sixteen_bulk_migration_compacts_retired_drafts_without_inventing_removed_labels() {
+    // Given a historical removed-item receipt and a retired full edit document.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let original = saved(store.create_material(&capture("legacy-material")).unwrap());
+    let selected = select_materials(&mut store, "legacy-selection");
+    let remove = MaterialBulkStart {
+        command_id: "legacy-remove".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Remove,
+    };
+    store.begin_material_bulk(&remove).unwrap();
+    store
+        .apply_material_bulk_item(&remove.command_id, &original.id.0, None)
+        .unwrap();
+    store
+        .finish_material_bulk(&remove.command_id, None)
+        .unwrap();
+    let page = store.material_bulk_page(&remove.command_id, None).unwrap();
+    assert_eq!(page.items[0].label, original.content.phrase);
+    let edit = MaterialBulkStart {
+        command_id: "legacy-retired".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("discarded recovery input".into()),
+                ..Default::default()
+            },
+        },
+    };
+    store.begin_material_bulk(&edit).unwrap();
+    let mut legacy = store.cancel_material_bulk(&edit.command_id).unwrap();
+    store.release_material_bulk(&edit.command_id).unwrap();
+    legacy.results_available = false;
+    drop(store);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute(
+        "UPDATE material_bulk_jobs SET document=?2 WHERE command_id=?1",
+        rusqlite::params![edit.command_id, serde_json::to_string(&legacy).unwrap()],
+    )
+    .unwrap();
+    db.execute_batch(
+        "ALTER TABLE material_bulk_results DROP COLUMN label; PRAGMA user_version=16;",
+    )
+    .unwrap();
+    drop(db);
+
+    // When the current owner migrates that actual prior row shape.
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then identity/progress survive, retired edit text is dropped, and missing historical labels stay honest.
+    assert_eq!(store.collection_selection(&selected.id).unwrap(), selected);
+    let page = store.material_bulk_page(&remove.command_id, None).unwrap();
+    assert_eq!(page.items[0].label, original.id.0);
+    assert!(matches!(
+        page.items[0].outcome,
+        Some(MaterialBulkOutcome::Removed { .. })
+    ));
+    let (receipt, admitted) = store.begin_material_bulk(&edit).unwrap();
+    assert!(!admitted);
+    assert_eq!(receipt.phase, MaterialBulkPhase::Cancelled);
+    assert_eq!(receipt.command, edit);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    let document: String = db
+        .query_row(
+            "SELECT document FROM material_bulk_jobs WHERE command_id=?1",
+            [&edit.command_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(
+        serde_json::from_str::<serde_json::Value>(&document)
+            .unwrap()
+            .get("command")
+            .is_none()
+    );
+    assert!(
+        store
+            .remove_material(&MaterialRemove {
+                command_id: "unrelated-removal".into(),
+                id: original.id,
+                expected_revision: 1,
+            })
+            .is_err()
+    );
+}
+
 fn capture(command: &str) -> MaterialCreate {
     MaterialCreate {
         command_id: command.into(),
@@ -59,6 +253,491 @@ fn edit(item: &Material, command: &str) -> MaterialEdit {
         content: item.content.clone(),
         excluded: item.excluded,
     }
+}
+
+fn select_materials(store: &mut ProfileStore, command: &str) -> CollectionSelection {
+    store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: command.into(),
+            source: CollectionSelectionSource::Matching {
+                query: CollectionQuery {
+                    package_id: None,
+                    surface: CollectionSurface::Material,
+                    filter: CollectionFilter::All { filters: vec![] },
+                    sort: CollectionSort::Default,
+                    after: None,
+                },
+            },
+        })
+        .unwrap()
+}
+
+fn selected_material_id(entry: &CollectionSelectionEntry) -> &MaterialId {
+    match &entry.item {
+        CollectionItemId::Material { id } => id,
+        CollectionItemId::Target { .. } => panic!("Expected authored Material"),
+    }
+}
+
+#[test]
+fn bulk_edit_and_its_progress_rollback_together_and_replay_once() {
+    // Given a frozen selection, a later outsider and a real failing progress write.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let original = saved(store.create_material(&capture("selected")).unwrap());
+    let selected = select_materials(&mut store, "select-once");
+    let mut outside = capture("outside");
+    outside.distinct = true;
+    let outside = saved(store.create_material(&outside).unwrap());
+    let command = MaterialBulkStart {
+        command_id: "bulk-edit".into(),
+        selection_id: selected.id,
+        action: MaterialBulkAction::Edit {
+            patch: MaterialBulkPatch {
+                notes: Some("new notes".into()),
+                ..Default::default()
+            },
+        },
+    };
+    assert!(store.begin_material_bulk(&command).unwrap().1);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute_batch("CREATE TRIGGER reject_bulk_result BEFORE INSERT ON material_bulk_results BEGIN SELECT RAISE(ABORT,'fixture result write rejected'); END;").unwrap();
+
+    // When Material succeeds internally but the same transaction cannot save progress.
+    assert!(
+        store
+            .apply_material_bulk_item(&command.command_id, &original.id.0, None)
+            .is_err()
+    );
+
+    // Then neither mutation nor receipt escapes; the admitted retry later commits once.
+    assert_eq!(store.material(&original.id).unwrap(), original);
+    assert_eq!(
+        store
+            .material_bulk_status(&command.command_id)
+            .unwrap()
+            .processed,
+        0
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM material_receipts WHERE command_id LIKE 'bulk-%'",
+            [],
+            |row| row.get::<_, u32>(0)
+        )
+        .unwrap(),
+        0
+    );
+    db.execute_batch("DROP TRIGGER reject_bulk_result;")
+        .unwrap();
+    let result = store
+        .apply_material_bulk_item(&command.command_id, &original.id.0, None)
+        .unwrap();
+    assert_eq!(
+        store
+            .apply_material_bulk_item(&command.command_id, &original.id.0, None)
+            .unwrap(),
+        result
+    );
+    let changed = store.material(&original.id).unwrap();
+    assert_eq!(changed.revision, original.revision + 1);
+    assert_eq!(changed.content.notes, "new notes");
+    assert_eq!(changed.content.source, original.content.source);
+    assert_eq!(store.material(&outside.id).unwrap(), outside);
+    let finished = store
+        .finish_material_bulk(&command.command_id, None)
+        .unwrap();
+    assert_eq!(finished.phase, MaterialBulkPhase::Completed);
+    assert_eq!(
+        (finished.total, finished.processed, finished.succeeded),
+        (1, 1, 1)
+    );
+    assert_eq!(
+        store
+            .material_bulk_page(&command.command_id, None)
+            .unwrap()
+            .items[0]
+            .outcome,
+        Some(result)
+    );
+}
+
+#[test]
+fn bulk_recovery_retries_only_failed_and_pending_frozen_identities() {
+    for cancelled in [false, true] {
+        // Given one success, one recoverable failure and one pending selected item.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("profile");
+        let mut store = ProfileStore::open(&path).unwrap();
+        for index in 0..3 {
+            let mut create = capture(&format!("item-{index}"));
+            create.distinct = true;
+            store.create_material(&create).unwrap();
+        }
+        let selected = select_materials(&mut store, "select-three");
+        let command = MaterialBulkStart {
+            command_id: "bulk-exclude".into(),
+            selection_id: selected.id.clone(),
+            action: MaterialBulkAction::Exclude { excluded: true },
+        };
+        store.begin_material_bulk(&command).unwrap();
+        let rows = store
+            .material_bulk_page(&command.command_id, None)
+            .unwrap()
+            .items;
+        let first = selected_material_id(&rows[0].entry);
+        let second = selected_material_id(&rows[1].entry);
+        let third = selected_material_id(&rows[2].entry);
+        let committed = store
+            .apply_material_bulk_item(&command.command_id, &first.0, None)
+            .unwrap();
+        store
+            .fail_material_bulk_item(&command.command_id, &second.0, "Temporary failure")
+            .unwrap();
+        if cancelled {
+            store.cancel_material_bulk(&command.command_id).unwrap();
+            assert!(
+                store
+                    .apply_material_bulk_item(&command.command_id, &third.0, None)
+                    .is_err()
+            );
+        }
+        assert!(store.release_collection_selection(&selected.id).is_err());
+        drop(store);
+
+        // When restart recovery interrupts abandoned work, then retry is explicit.
+        let mut store = ProfileStore::open(&path).unwrap();
+        store.interrupt_material_bulk().unwrap();
+        let stopped = store.material_bulk_status(&command.command_id).unwrap();
+        assert_eq!(
+            stopped.phase,
+            if cancelled {
+                MaterialBulkPhase::Cancelled
+            } else {
+                MaterialBulkPhase::Interrupted
+            }
+        );
+        assert!(!store.material(third).unwrap().excluded);
+        let retried = store.retry_material_bulk(&command.command_id).unwrap();
+
+        // Then successes remain receipts, and only failed/pending items execute.
+        assert_eq!(
+            (retried.processed, retried.succeeded, retried.failed),
+            (1, 1, 0)
+        );
+        assert_eq!(
+            store
+                .apply_material_bulk_item(&command.command_id, &first.0, None)
+                .unwrap(),
+            committed
+        );
+        let mut resumed = 0;
+        while let Some(entry) = store.next_material_bulk_item(&command.command_id).unwrap() {
+            let id = selected_material_id(&entry);
+            assert_ne!(id, first);
+            store
+                .apply_material_bulk_item(&command.command_id, &id.0, None)
+                .unwrap();
+            resumed += 1;
+        }
+        assert_eq!(resumed, 2);
+        let finished = store
+            .finish_material_bulk(&command.command_id, None)
+            .unwrap();
+        assert_eq!(finished.phase, MaterialBulkPhase::Completed);
+        assert_eq!(
+            (finished.processed, finished.succeeded, finished.failed),
+            (3, 3, 0)
+        );
+        for row in &rows {
+            let material = store.material(selected_material_id(&row.entry)).unwrap();
+            assert_eq!(material.revision, 2);
+            assert!(material.excluded);
+        }
+        store.release_material_bulk(&command.command_id).unwrap();
+        store.release_collection_selection(&selected.id).unwrap();
+        assert!(store.material_bulk_jobs().unwrap().is_empty());
+        assert!(store.retry_material_bulk(&command.command_id).is_err());
+        let (receipt, admitted) = store.begin_material_bulk(&command).unwrap();
+        assert!(!admitted);
+        assert!(!receipt.results_available);
+    }
+}
+
+#[test]
+fn bulk_removal_pages_are_bounded_and_result_capacity_is_explicitly_released() {
+    // Given 35 authored identities and a matching frozen native scope.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    for index in 0..35 {
+        let mut create = capture(&format!("page-{index}"));
+        create.distinct = true;
+        store.create_material(&create).unwrap();
+    }
+    let selected = select_materials(&mut store, "select-pages");
+    let command = |index| MaterialBulkStart {
+        command_id: format!("remove-{index}"),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Remove,
+    };
+
+    // When the operation is admitted, results page without copying the full collection.
+    store.begin_material_bulk(&command(0)).unwrap();
+    let first = store.material_bulk_page("remove-0", None).unwrap();
+    let last = store
+        .material_bulk_page("remove-0", first.next.as_deref())
+        .unwrap();
+
+    // Then pending identity pages are bounded and another action cannot reuse the receipt.
+    assert_eq!(first.items.len(), 24);
+    assert_eq!(last.items.len(), 11);
+    assert!(last.next.is_none());
+    assert!(
+        first
+            .items
+            .iter()
+            .chain(&last.items)
+            .all(|row| row.outcome.is_none())
+    );
+    let mut collision = command(0);
+    collision.action = MaterialBulkAction::Exclude { excluded: true };
+    assert!(store.begin_material_bulk(&collision).is_err());
+    let item_id = selected_material_id(&first.items[0].entry);
+    assert!(matches!(
+        store
+            .apply_material_bulk_item("remove-0", &item_id.0, None)
+            .unwrap(),
+        MaterialBulkOutcome::Removed { .. }
+    ));
+    assert!(store.material(item_id).is_err());
+    store.cancel_material_bulk("remove-0").unwrap();
+    for index in 1..8 {
+        store.begin_material_bulk(&command(index)).unwrap();
+        store
+            .cancel_material_bulk(&format!("remove-{index}"))
+            .unwrap();
+    }
+    assert!(store.begin_material_bulk(&command(8)).is_err());
+    store.release_material_bulk("remove-0").unwrap();
+    assert!(store.material_bulk_page("remove-0", None).is_err());
+    store.begin_material_bulk(&command(8)).unwrap();
+}
+
+#[test]
+fn bulk_add_preserves_package_identity_and_reports_duplicates_before_distinct_admission() {
+    // Given a real saved reference and a package-shaped target catalog.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    let original = saved(store.create_material(&capture("already-saved")).unwrap());
+    let metadata = CollectionDescription {
+        capabilities: vec![Capability {
+            id: "example.language:meaning".into(),
+            label: "Meaning".into(),
+        }],
+        kinds: vec![LinguisticLabel {
+            id: "example.language:lexeme".into(),
+            label: "Lexeme".into(),
+            color: None,
+            attribution: "Fixture".into(),
+        }],
+        scopes: vec![],
+        levels: vec![],
+    };
+    store
+        .begin_collection_catalog("example.language", "package-v1", &metadata, 1)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            "example.language",
+            "package-v1",
+            0,
+            None,
+            &CollectionCatalogPage {
+                items: vec![CollectionTarget {
+                    summary: LexicalSummary {
+                        target_id: "target-one".into(),
+                        headword: "語".into(),
+                        reading: None,
+                        summary: "word".into(),
+                        presentation: None,
+                    },
+                    kind: "example.language:lexeme".into(),
+                    capabilities: vec!["example.language:meaning".into()],
+                    scopes: vec![],
+                    levels: vec![],
+                    extensions: Default::default(),
+                }],
+                next: None,
+                total: 1,
+            },
+        )
+        .unwrap();
+    let selected = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "select-target".into(),
+            source: CollectionSelectionSource::Matching {
+                query: CollectionQuery {
+                    package_id: Some("example.language".into()),
+                    surface: CollectionSurface::Knowledge,
+                    filter: CollectionFilter::All { filters: vec![] },
+                    sort: CollectionSort::Default,
+                    after: None,
+                },
+            },
+        })
+        .unwrap();
+    let command = MaterialBulkStart {
+        command_id: "add-target".into(),
+        selection_id: selected.id.clone(),
+        action: MaterialBulkAction::Add { distinct: false },
+    };
+    store.begin_material_bulk(&command).unwrap();
+    let mut content = original.content.clone();
+    content.source = None;
+    let mut foreign = content.clone();
+    foreign.package_revision = Some("another-package-revision".into());
+
+    // When native admission receives an identity mismatch, then the correct snapshot.
+    assert!(
+        store
+            .apply_material_bulk_item("add-target", "target-one", Some(&foreign))
+            .is_err()
+    );
+    assert_eq!(
+        store.material_bulk_status("add-target").unwrap().processed,
+        0
+    );
+    let outcome = store
+        .apply_material_bulk_item("add-target", "target-one", Some(&content))
+        .unwrap();
+
+    // Then ambiguity is not reported as a save; a distinct action is a separate intent.
+    assert_eq!(
+        outcome,
+        MaterialBulkOutcome::Duplicate {
+            material_ids: vec![original.id.clone()]
+        }
+    );
+    let finished = store.finish_material_bulk("add-target", None).unwrap();
+    assert_eq!(
+        (finished.succeeded, finished.duplicates, finished.failed),
+        (0, 1, 0)
+    );
+    let distinct = MaterialBulkStart {
+        command_id: "add-distinct-target".into(),
+        selection_id: selected.id,
+        action: MaterialBulkAction::Add { distinct: true },
+    };
+    store.begin_material_bulk(&distinct).unwrap();
+    let MaterialBulkOutcome::Saved {
+        material_id,
+        reused,
+        ..
+    } = store
+        .apply_material_bulk_item(&distinct.command_id, "target-one", Some(&content))
+        .unwrap()
+    else {
+        panic!("Expected explicit distinct admission");
+    };
+    assert!(!reused);
+    assert_ne!(material_id, original.id);
+    assert_eq!(store.material(&material_id).unwrap().content, content);
+}
+
+#[test]
+fn removal_preserves_receipts_and_claims_without_recreating_authored_material() {
+    // Given a saved target, its edit receipt, a claim and a frozen selection.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let create = capture("create-before-removal");
+    let original = saved(store.create_material(&create).unwrap());
+    let mut change = edit(&original, "edit-before-removal");
+    change.content.notes = "retained until removal".into();
+    let current = saved(store.update_material(&change).unwrap());
+    let key = KnowledgeKey {
+        package_id: create.content.package_id.clone(),
+        target_id: create.content.target_id.clone().unwrap(),
+        capability: "example.language:meaning".into(),
+    };
+    let claim = store
+        .change_claim(&ClaimChange {
+            command_id: "claim-before-removal".into(),
+            key: key.clone(),
+            claim: Some(true),
+        })
+        .unwrap();
+    let selected = store
+        .create_collection_selection(&CollectionSelectionCreate {
+            command_id: "select-before-removal".into(),
+            source: CollectionSelectionSource::Matching {
+                query: CollectionQuery {
+                    package_id: None,
+                    surface: CollectionSurface::Material,
+                    filter: CollectionFilter::All { filters: vec![] },
+                    sort: CollectionSort::Default,
+                    after: None,
+                },
+            },
+        })
+        .unwrap();
+    let command = MaterialRemove {
+        command_id: "remove-once".into(),
+        id: current.id.clone(),
+        expected_revision: current.revision,
+    };
+    let mut stale = command.clone();
+    stale.expected_revision = original.revision;
+    assert!(matches!(
+        store.remove_material(&stale),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(store.material(&current.id).unwrap(), current);
+    let mut collision = command.clone();
+    collision.command_id = create.command_id.clone();
+    assert!(matches!(
+        store.remove_material(&collision),
+        Err(StorageError::Invalid(_))
+    ));
+
+    // When removed and the same native command is retried after restart.
+    let removed = store.remove_material(&command).unwrap();
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+
+    // Then retries have the original receipt, never a new card or deleted claim.
+    assert_eq!(removed.committed_revision, current.revision + 1);
+    assert_eq!(store.remove_material(&command).unwrap(), removed);
+    assert!(store.material(&current.id).is_err());
+    assert_eq!(store.knowledge(&[key]).unwrap(), vec![claim]);
+    assert!(store.create_material(&create).is_err());
+    assert!(store.update_material(&change).is_err());
+    assert_eq!(
+        store
+            .collection_selection_page(&selected.id, None)
+            .unwrap()
+            .items[0]
+            .item,
+        CollectionItemId::Material {
+            id: current.id.clone()
+        }
+    );
+    let empty = store
+        .materials(&MaterialQuery {
+            after: None,
+            query: "".into(),
+            source_id: None,
+            include_excluded: true,
+        })
+        .unwrap();
+    assert!(empty.items.is_empty());
+    let fresh = saved(
+        store
+            .create_material(&capture("explicitly-add-again"))
+            .unwrap(),
+    );
+    assert_ne!(fresh.id, current.id);
 }
 
 #[test]

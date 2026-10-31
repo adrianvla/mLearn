@@ -1,5 +1,42 @@
 # mLearn engineering contract
 
+## Active authorization — implement M10 then M11, 2026-10-27
+
+The maintainer cannot perform comprehensive M03–M07 review yet and explicitly
+authorizes productive development on their **provisional, committed foundation**.
+They are not maintainer-accepted. Preserve every recorded M07 blocker, source
+identity, verification limit and visual discrepancy. Keep PR #44 draft,
+unmerged and unreleased; its unresolved acceptance gates are not silently closed.
+
+Implement **M10, then M11** on a separate stacked development branch and draft
+PR based on the committed M07 source. The initial stack base is
+`2a1f13a53b6cc4852e6b4fea24881d05d31f8af9`; its product/test evidence remains
+bound to `3ffc28fb7599bbf4945787b9ca8b23c84ea04761`.
+
+- M10 delivers real bounded Knowledge/Material collections, compound filters,
+  bulk operations, grounded generation/suggestion review, source search,
+  evidence inspection, graph relationships and supported character views.
+- After M10 passes engineering and independent-review gates, M11 delivers
+  deliberate Word Practice, Word Sync/calibration, grammar tasks and expert
+  probe authoring, including actual content/validator execution.
+- Reuse existing Rust Knowledge, Material, learning-session and language-package
+  authorities. Do not add competing stores, speculative abstractions or
+  incompatible frontend state owners. Preserve approved v2.9 interactions.
+- Verify genuine functionality, persistence/restart, cancellation and recoverable
+  failures at each milestone, including independent review with blockers repaired.
+  Commit/push small coherent exact-source checkpoints. Reviewers and agents do
+  not grant maintainer acceptance.
+- Keep disk/memory admission, bounded serial local builds and prompt resource
+  cleanup mandatory. Do not keep unnecessary devices alive, restart workloads
+  on recovery, repeat infrastructure investigations without new evidence, or
+  resume the old hosted-iOS diagnostic campaign.
+- M08/M09 architectural research may run only as independent, resource-bounded
+  work that does not disrupt current contracts. Their implementation is not
+  authorized by this batch. No M12+, merge, release or self-acceptance.
+
+This direct authorization supersedes the older M07 ceiling and manual-review
+wait below, not their architecture, resource, verification or preservation rules.
+
 ## Active execution-resource constraint — 16 GB Mac, 2026-10-23
 
 On October 24 the maintainer reported a second exhaustion incident: OmO used

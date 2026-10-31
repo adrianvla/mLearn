@@ -48,7 +48,7 @@ export function createReviewAudioDelivery({
     return writes;
   };
   async function finish(delivery: 'completed' | 'interrupted' | 'failed', message?: string) {
-    if (terminal || writeFailed) return;
+    if (terminal || writeFailed) { await writes; return; }
     terminal = true;
     show({ kind: 'settling' });
     await commit(delivery);

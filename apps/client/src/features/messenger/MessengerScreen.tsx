@@ -1,13 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FlatList, Platform, ScrollView, View, useWindowDimensions, type ViewToken } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useIsFocused, usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import type { Contact, Conversation, ConversationMessage } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { SegmentedControl } from '@mlearn/ui/segmented-control';
 import { KeyboardAvoidingView } from '@mlearn/ui/keyboard-avoiding-view';
@@ -25,28 +26,35 @@ import { ConversationSource } from './ConversationSource';
 /** Return-to-message hook: /messenger?id=<conversationId>&messageId=<messageId>. */
 export function MessengerScreen() {
   const host = useRuntime();
+  const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; messageId?: string; messageSequence?: string;
-    materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
-  if (!host.available) return <View style={styles.unavailable}><Text accessibilityRole="alert">{host.reason}</Text></View>;
+    materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+  if (!host.available) return <AppShell header={<Row>
+    <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+    <Text variant="heading" accessibilityRole="header">Conversation</Text>
+  </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
   return <MessengerWorkspace client={host.client} initialId={typeof params.id === 'string' ? params.id : ''}
     focusMessageId={typeof params.messageId === 'string' ? params.messageId : undefined}
     focusSequence={typeof params.messageSequence === 'string' && /^\d+$/.test(params.messageSequence)
       && Number(params.messageSequence) < 4294967295 ? Number(params.messageSequence) : undefined}
     materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
+    proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
     reviewSessionId={typeof params.reviewSessionId === 'string' ? params.reviewSessionId : undefined}
     reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined}
     windowControlsWidth={host.windowControlsWidth ?? 0} />;
 }
 
 export function MessengerWorkspace({ client, initialId = '', focusMessageId, focusSequence, windowControlsWidth = 0,
-  materialId, reviewSessionId, reviewEncounterId }: {
+  materialId, proposalId, reviewSessionId, reviewEncounterId }: {
   readonly client: RuntimeClient; readonly initialId?: string; readonly focusMessageId?: string;
   readonly focusSequence?: number; readonly windowControlsWidth?: number;
-  readonly materialId?: string; readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
+  readonly materialId?: string; readonly proposalId?: string; readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
 }) {
   const messenger = useMessenger(client, initialId, focusSequence);
   const actions = { ...messenger, client };
   const router = useRouter();
+  const navigation = useNavigation();
+  const focused = useIsFocused();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const wide = width >= 760;
@@ -72,6 +80,13 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
   const chat = messenger.conversation;
   useEffect(() => { setShownAnalysis(new Set()); }, [chat?.id]);
   const selected = useRef(messenger.id); selected.current = messenger.id;
+  usePreventRemove(focused, ({ data }) => {
+    const id = selected.current;
+    void messenger.act({ origin: chat ? 'composer' : 'rail', run: async () => {
+      await messenger.persistDraft();
+      if (navigation.isFocused() && selected.current === id) navigation.dispatch(data.action);
+    } });
+  });
   const visibleChanged = useRef(({ viewableItems }: { viewableItems: ViewToken<ConversationMessage>[] }) => {
     const ids = viewableItems.filter(item => item.isViewable).map(item => item.item.id);
     visibleIds.current = ids; messenger.setVisibleMessages(ids);
@@ -92,7 +107,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     setDirectPerson(null); setToolsOpen(false);
   }, [chat?.id]);
   useEffect(() => {
-    if (!inspection || inspection.sourceAnchor.locator.kind !== 'message') return;
+    if (!inspection?.sourceAnchor || inspection.sourceAnchor.locator.kind !== 'message') return;
     const locator = inspection.sourceAnchor.locator;
     if (locator.conversationId !== messenger.id || !messenger.messages.some(message =>
       message.id === locator.messageId && message.revision === locator.messageRevision)) setInspection(null);
@@ -158,7 +173,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
     {wide || rail ? <View style={styles.rail(wide, windowControlsWidth)}>
       <View style={styles.railHeader}><Row>
         <Button label="Home" icon="arrowLeft" iconOnly variant="quiet" size="compact" disabled={messenger.busy}
-          onPress={() => void messenger.act({ origin: 'rail', run: async () => { await messenger.persistDraft(); router.replace('/'); } })} />
+          onPress={() => router.dismissTo('/')} />
         <View style={styles.grow}><Text variant="heading">{tab === 'chats' ? 'Chats' : 'People'}</Text></View>
         {tab === 'chats' ? <ConversationEditor key={`new:${messenger.id}`} actions={actions} conversation={null}
           people={messenger.contacts} languages={messenger.languages} onSaved={openCreated}
@@ -175,7 +190,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
           options={[{ value: 'all', label: 'All conversations' }, { value: 'direct', label: 'Direct conversations' }, { value: 'thread', label: 'Temporary Threads' }]} />
           : <Select label="People filter" value={messenger.archived ? 'archived' : 'active'} onValueChange={value => messenger.setArchived(value === 'archived')}
             options={[{ value: 'active', label: 'Active People' }, { value: 'archived', label: 'Archived People' }]} />}
-        <ActionFeedback actions={actions} origin="rail" />
+        <ActionFeedback actions={actions} origin={!wide && messenger.origin === 'composer' ? 'composer' : 'rail'} />
         {messenger.error && messenger.origin === 'rail' ? <Button label="Retry loading lists" variant="quiet" size="compact"
           onPress={messenger.refreshLists} /> : null}
       </View>
@@ -347,9 +362,10 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
         {messenger.error && messenger.origin === 'history' ? <Button label="Reload conversation" variant="secondary" onPress={messenger.reload} /> : null}</View> : null}
     </View> : null}
     {inspection && chat ? <Inspector inspection={inspection} packageId={chat.packageId} client={client}
+      onBeforeOpenMaterial={messenger.persistDraft}
       onChanged={async () => { messenger.retryAnalysis(); }} onClose={() => setInspection(null)} /> : null}
-    {materialId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
-      materialId={materialId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}
+    {materialId || proposalId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
+      materialId={materialId} proposalId={proposalId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}
       onKnowledgeChanged={messenger.retryAnalysis} /> : null}
   </KeyboardAvoidingView></View>;
 }
@@ -357,7 +373,6 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
 const styles = StyleSheet.create(theme => ({
   screen: (top: number, bottom: number) => ({ flex: 1, minHeight: 0, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.shell.canvas }),
   workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
-  unavailable: { flex: 1, padding: theme.spacing.large },
   rail: (wide: boolean, controls: number) => ({ width: wide ? 300 : '100%', minWidth: 0, backgroundColor: theme.shell.navigation,
     borderRightWidth: wide ? 1 : 0, borderColor: theme.colors.border, paddingTop: Math.max(theme.spacing.small, controls ? 28 : 0), gap: theme.spacing.compact }),
   railHeader: { paddingHorizontal: theme.spacing.compact },

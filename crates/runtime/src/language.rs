@@ -4,45 +4,82 @@ use mlearn_core::{
 };
 use serde_json::Value;
 
+pub(super) fn description(
+    package: &crate::Installed,
+    cancellation: &crate::execution::Cancellation,
+) -> Result<LanguageDescription, Failure> {
+    let id = &package.manifest.id;
+    let mut description: LanguageDescription = serde_json::from_value(cancellation.invoke(
+        package,
+        "language.describe.v1",
+        Value::Null,
+    )?)
+    .map_err(|e| Failure::Operation(e.to_string()))?;
+    // Optional metadata cannot expand an authenticated manifest's authority.
+    // Retained ABI1 manifests can predate this extension of the same ABI.
+    if !package
+        .manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == "collection.targets.v1")
+    {
+        description.catalog = None;
+    }
+    if !description
+        .capabilities
+        .iter()
+        .any(|c| c.id == description.annotation_capability)
+        || description.capabilities.is_empty()
+        || description.capabilities.len() > 8
+        || description.capabilities.iter().any(|c| {
+            !c.id.starts_with(&format!("{id}:")) || c.id.len() > 256 || c.label.len() > 128
+        })
+    {
+        return Err(Failure::Operation(
+            "Invalid package capability schema".into(),
+        ));
+    }
+    let mut scales = std::collections::BTreeSet::new();
+    let declared_scales = description.level_scales.as_deref().unwrap_or_default();
+    if declared_scales.len() > 16
+        || declared_scales.iter().any(|scale| {
+            !scale.id.starts_with(&format!("{id}:"))
+                || scale.id.len() > 512
+                || !scales.insert(&scale.id)
+                || scale.label.is_empty()
+                || scale.label.len() > 128
+                || scale.attribution.is_empty()
+                || scale.attribution.len() > 2048
+        })
+    {
+        return Err(Failure::Operation("Invalid package level scales".into()));
+    }
+    if let Some(catalog) = &description.catalog {
+        catalog.validate(id).map_err(Failure::Operation)?;
+        if catalog
+            .capabilities
+            .iter()
+            .any(|capability| !description.capabilities.contains(capability))
+            || catalog.levels.iter().any(|level| {
+                !declared_scales
+                    .iter()
+                    .any(|scale| scale.id == level.scale_id)
+            })
+        {
+            return Err(Failure::Operation(
+                "Catalog declares an unavailable capability or level scale".into(),
+            ));
+        }
+    }
+    Ok(description)
+}
+
 impl LanguageWork {
     pub(super) fn invoke(&self, capability: &str, input: Value) -> Result<Value, Failure> {
         self.cancellation.invoke(&self.package, capability, input)
     }
     pub(super) fn description(&self) -> Result<LanguageDescription, Failure> {
-        let id = &self.package.manifest.id;
-        let description: LanguageDescription =
-            serde_json::from_value(self.invoke("language.describe.v1", Value::Null)?)
-                .map_err(|e| Failure::Operation(e.to_string()))?;
-        if !description
-            .capabilities
-            .iter()
-            .any(|c| c.id == description.annotation_capability)
-            || description.capabilities.is_empty()
-            || description.capabilities.len() > 8
-            || description.capabilities.iter().any(|c| {
-                !c.id.starts_with(&format!("{id}:")) || c.id.len() > 256 || c.label.len() > 128
-            })
-        {
-            return Err(Failure::Operation(
-                "Invalid package capability schema".into(),
-            ));
-        }
-        let mut scales = std::collections::BTreeSet::new();
-        let declared_scales = description.level_scales.as_deref().unwrap_or_default();
-        if declared_scales.len() > 16
-            || declared_scales.iter().any(|scale| {
-                !scale.id.starts_with(&format!("{id}:"))
-                    || scale.id.len() > 512
-                    || !scales.insert(&scale.id)
-                    || scale.label.is_empty()
-                    || scale.label.len() > 128
-                    || scale.attribution.is_empty()
-                    || scale.attribution.len() > 2048
-            })
-        {
-            return Err(Failure::Operation("Invalid package level scales".into()));
-        }
-        Ok(description)
+        description(&self.package, &self.cancellation)
     }
     pub(super) fn entry(&self, target: &str) -> Result<LexicalEntry, Failure> {
         self.entry_with_schema(target, &self.description()?)

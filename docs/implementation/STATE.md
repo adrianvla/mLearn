@@ -1,5 +1,5291 @@
 # Current implementation checkpoint
 
+## M11 package/task unit verified - 2026-10-31
+
+M10 evidence checkpoint `0d3732dbbe81faa0ef57d89d852c626369fc8a7c` is
+committed and pushed. Its independently approved product candidate remains
+`5fa83f47`; the documentation-only checkpoint changes no product/native bytes.
+M11 requirements and retained prerequisite reports are recovered. The current
+SDK increment is not M11 delivery: no new task is admitted, persisted or shown
+through the application yet.
+
+Root extended the existing SDK learning owner with `learning::tasks`: explicit
+typed/choice response shapes, package-target exact-key input without fabricated
+Material, task/validator identity and attribution/limitations, raw response
+preservation, and output binding to exactly the admitted tested rows. Existing
+v1 probe wire and retrospective behavior remain unchanged. New file:
+`crates/language-sdk/src/learning/tasks.rs`; `learning.rs` exports it.
+LSP diagnostics are clean. Scoped rustfmt and the single serial
+`CARGO_BUILD_JOBS=1 cargo test -p mlearn-language-sdk --lib` run pass:
+9 tests, 0 failures; compilation6.81s, tests0.00s. This proves the SDK boundary,
+not grammar content, native validator execution or learner evidence.
+
+Fresh unchanged2560MiB admission initially held: projected headroom was below
+the4GiB reserve. Root traced analyzerPID25305 -> owned tool host90249 ->
+root62039, cwd this workspace; its physical footprint was2474545040B
+(RSS4134289408B). After collecting diagnostics, root terminated only that
+idle owned analyzer; its macro workers also exited. No user process was touched.
+Fresh three-sample admission then passed: root578587576/578653112/578538424B,
+final available8995487744B/projected6311133184B, pressure1, unchanged
+swapOut314122223616B. The original guard stayed active for the SDK test and
+was stopped afterward. Post-test root578784208B, available8559247360B,
+pressure1, unchanged swap/swapOut; disk before test10868708KiB. Do not leave a
+large Rust analyzer resident beside local builds or weaken the reserve.
+
+Read-only native dependency map `st_01a193ab` is complete. Actual blockers to
+Knowledge-only practice are Material-bound contracts/lookups, not a Material
+FK; frozen collection membership also lacks exact capability membership.
+Extend the existing Review admission/work/evidence owners with actual package
+provenance, copied/pinned exact scope and explicit practice/calibration purpose.
+Preserve old command serialization/receipt digests, source Return, assistance,
+no practice/calibration scheduling writes, and exact resume. Do not manufacture
+Material IDs or widen partial capability scope.
+
+English source unit `st_01a193b4` has returned on the configured subscription
+GPT-6.1 Sol/medium route. Root inspected the actual source and tests. It adds
+one original package target `org.mlearn.english:grammar/past-simple-negative`,
+three revision1 typed/contrast/recall tasks, conservative finite validation,
+and real description/inspection/catalog/graph reachability. Catalog total
+increases by one. Unknown targets/validators/choice IDs fail; unlisted text is
+unassessed, and recall has no validator. Root registered the two operations in
+English plugin version `0.1.6-wn30-graph1-grammar1-ocr2`, preserving v1.
+
+New package files are `grammar.rs`, `grammar_tasks.rs` and its tests; existing
+dispatch/catalog/graph changed. The child extracted unchanged morphology and
+graph tests into their named modules; root inspected those moves. Root removed
+a tautological caller-clone assertion while retaining all finite-outcome
+checks, and added two real authenticated Wasmi tests in runtime `review.rs`.
+The first English run passed24 tests in3.63s compilation/0.01s execution.
+Normal `npm run build:plugin` passed using retained verified offline resources:
+English/hello6.31s and Japanese9.28s. English code SHA-256 was
+`7ac1a17c3a297ca84c7b6de8cea20cc767f295a6983e6cfeaa496649995a043f`
+(567275B), lexicon
+`f84820618b7bbb180f5eb032fbd33a8fc197f94b9641fc1afcc2b1f34968ee98`
+(29753344B). Both actual authenticated Wasmi tests then passed: compilation
+30.71s,2 tests/0.31s. They execute real typed accepted/rejected/unassessed
+outcomes and reject a supported-shape request for an unsupported target.
+No capture, session, learner observation or frontend support is claimed yet.
+
+The first package verification stopped at formatting before Cargo ran. New
+file formatting is repaired; the recursive check also exposed untouched
+legacy `english/src/review.rs` formatting differences, which remain a baseline
+finding. All changed Rust files pass scoped formatting (`skip_children=true`)
+and English/runtime LSP diagnostics are clean. Source-edit tooling restarted
+the owned large analyzer; its2.54GB physical footprint caused another unchanged
+admission hold/guard stop while no Cargo job was running. Root collected final
+diagnostics and stopped only ownedPID28457 before fresh admission. Do not
+overlap that analyzer with the serial tests or silently reduce resource limits.
+
+Root then reproduced a newly introduced due-queue hazard: saving the valid
+grammar target made the v1 generator fail with `Unknown English target identity`.
+The actual production-dispatch regression failed1/1 before repair. V1 now
+explicitly omits this v2-only target rather than poisoning due Review or
+fabricating lexical recall. A new native finite-queue test includes ordinary
+vocabulary and that genuine grammar Material, scans all candidates, and checks
+that only the two lexical probes are committed. It now passes in the complete
+Review-owner run recorded below.
+
+Final English/runtime LSP diagnostics and the full recursive touched-root
+Rustfmt check now pass. The v1 file was legitimately touched for the repair,
+so its previous formatting differences were also resolved. Final owned
+analyzer29971 was stopped before fresh unchanged admission: physical
+606260344/594070648/594037880B, final available8674017280B and projected
+5989662720B, pressure1, swapOut unchanged. The25-case English run, rebuilt
+bundle and full runtime Review-owner run then executed serially under the
+original guard, including the queue repair.
+The repaired run now passes all25 English tests (compile1.01s, tests0.01s).
+The normal rebuilt bundle passes (English5.23s, unchanged Japanese0.05s).
+All9 runtime Review-owner unit tests pass on that rebuilt package, including
+both real Wasmi grammar tests, the finite-queue regression and prior admission/
+source-cancellation/eligibility cases (compile3.71s, tests1.60s).
+The red failure was not waived: the same package regression is now green and
+the native owner actually commits only the two ordinary lexical probes.
+
+Exact product/test delta against `0d3732db`:
+`bffc11a4fc6620bce58be5a7088d9798dd1e21ad7375d6609a16f735328523e2`.
+Final English Wasm SHA-256
+`84778559350c065c019fbed7e9616cc98f4671aeb9a127a9eec0a3d337a94dad`
+(567988B); lexicon hash/size remain unchanged above. The first Wasm hash is
+historical, not this repaired source's identity. The actual Wasmi checks use
+the bundled-code policy; they do not certify desktop catalog download,
+iOS/Android UI, durable response capture or completed M11 behavior.
+
+Reported maximum resident set sizes from `time -l`:
+216825856 English test,336871424 bundle build,560414720 runtime test.
+Post-native root physical591957112B, available8110931968B, pressure1,
+swap3163226112B and unchanged swapOut314122223616B; disk10446056KiB.
+The original guard is stopped after the checks. No devices, models, persistent
+servers or analyzers were kept alive for this unit.
+
+Next connect native capture/Reveal and exact Review scope/provenance through
+the existing owners. There is no new native session schema yet: preserve old
+command bytes/receipts, represent actual package targets without fake Material,
+freeze exact capability eligibility and purpose, keep validator results private
+until Reveal, and commit captured raw response/outcomes once. Root retains all
+native/core/storage/client integration and serial verification. This is a
+verified package/backend checkpoint, not the M11 milestone or maintainer acceptance.
+All five LRN-12/13/14/15/18 behaviors, shared-session integration and M11
+independent/native gates remain open. No devices or persistent test servers
+were restarted.
+
+## M10 verified_for_continuation - 2026-10-31
+
+Product/test/native candidate:
+`5fa83f47cddf78a9c0e47dff5c4112fd80926100`, pushed to draft PR45.
+Independent re-review `st_01a1939e` returns APPROVE, high confidence, no blocking
+findings, after4m27s. Its verified routing is
+`chatgpt-subscription / gpt-6.1-sol / medium`. It audited the repaired native
+rows, exact Material layout delta, hashes and unchanged cancellation owners
+read-only; no workloads or files were written. The clean owned review checkout
+was unlocked and removed after its terminal verdict. The earlier review and
+all failed invocation receipts remain in the existing gate report.
+
+Actual Android graph Stop, evidence Inspector dismissal and document-search
+Stop now prove real native admission, cancellation while capacity stays
+charged, drainage, stale-publication rejection and useful rereads. Evidence
+and search also observe prearmed successful post-join acknowledgement.
+Native Material cross-window navigation, keyboard Save/Discard/Cancel, origin,
+restart and retained selection are supported on both iOS and Android. Both
+minimum-width defects are repaired and rendered on desktop/narrow/native.
+The failed Android empty-text predicate is not green: command receipts plus
+independently inspected empty native Reading XML supply that scenario's proof.
+Cancellation execution is Android/Expo, not iOS/Tauri certification; mobile
+keyboard/accessibility-focus restoration remains unestablished.
+
+Exact-source Foundation41234326537, Desktop41234326567 and Mobile Android
+job124634813285 pass. Mobile41234326545 is terminal failure in iOS
+job124634813085, step13: `Exercise actual iOS UI and Rust persistence`.
+Its log at2026-10-31T20:23:03.7257180Z reports the retained Watch failure:
+`Assertion is false: id: m01-watch, mp4 is not visible`. This matches the
+earlier a54 picker assertion, not af9's distinct earlier Open-local-video
+assertion. No hosted diagnostic variant or rerun was launched. Targeted local
+M10 native proof is independently approved; the unresolved hosted Watch
+platform acceptance failure and provisional M03-M07 status are not waived.
+
+All owned native cases, debuggers, deadlines and observers are stopped; the
+exact forward/staged server are removed and adbd was restored to uid2000.
+PID15882 is absent and ADB lists no device. Peak physical700255160B root /
+3749875672B QEMU, minimum available6516948992B; pressure1 and
+swapOut314122223616B unchanged. Post-stop root584092624B, available8508489728B,
+disk10906164KiB. Profiles, binaries and artifacts remain. No automatic restart.
+
+This evidence-only checkpoint records engineering continuation, not maintainer
+acceptance, merge or release. PR44/45 remain drafts and all historical
+platform/visual limits persist. M11 requirements recovery is next under the
+existing M10-then-M11 authorization; no M11 implementation has started.
+
+## Historical Material window continuation - 2026-10-31
+
+Committed base before the selector repair: `af9ddf9f89370e1ef8f44d6c4ce16b68422a2d47`
+(`fix: keep native Material search editable`), pushed to draft PR45.
+The current one-line selector minimum and existing layout-test extension have
+product/test delta SHA-256
+`45a712fea98118dfb38b5c7776099067b3807c86be465fa0549bb442dd1368df`
+against that base. This verified increment does not close the M10 gate.
+Current native window QA has confirmed52 matching authored Native entry items
+through actual controls/save receipts on the preserved Android QA profile.
+Actual Android page-two setup preserves two frozen selected items (01/40).
+Native modal47 ->48 ->47 passes. Keyboard-authored Cancel retains the draft;
+Discard reaches48 and native reload47 has an independently verified empty
+Reading value. Save-before-navigation reaches48 and reloading47 returns the
+exact durable Reading. Close retains the unsubmitted query, Text A–Z order,
+page2 and positive body scroll. Root inspected the actual guard, boundary and
+origin frames. Saving adds a Reading line to the row, so unchanged Edit-button
+pixel geometry is not claimed; native keyboard/accessibility-focus restoration
+is also not established. Actual selector24 ->Previous23 ->Next24 passes;
+Close restores the original47, and the two-item frozen selection remains.
+Evidence is under `/tmp/mlearn-resume.i3aHcr/android-{window-boundary,draft-scroll,durable-origin}/`.
+The final reverse/selection run passes62s under `android-reverse-selection/`.
+Owned Android and diagnostic observer are stopped with empty PID/device
+readbacks; all authored data/evidence remain. No resource alarm occurred:
+peak physical footprints525142344B OmO /3722006440B QEMU, minimum observed
+available6663520256B, pressure1 and unchanged swapOut314122223616B.
+Whole-M10 review remains REQUESTS_CHANGES; M11 is untouched.
+Targeted current-source iOS Material now passes its existing native search,
+input, save and process-restart/reopen flow in53s on a new isolated iPhone16/
+iOS26.5 device; the old stalled iOS27 profile remains untouched. Root inspected
+the actual restarted modal. That native capture/hierarchy exposed an additional
+blocker: the166pt selector occupies `[139,198][305,242]`, overlapping Next
+`[291,198][348,242]` by14pt. Its existing flex wrapper could shrink below the
+shared native Select minimum. The one-line wrapper minimum repair and extended
+existing non-overlap checks pass LSP, typecheck, lint, normal export and13
+connected modal/native-core cases. Root inspected1080/390/320 captures.
+Actual repaired-iOS replay passes12s on preserved M03card/sense. Root inspected
+the native result and asserted non-overlap from native rectangles: Previous
+`[45,198][127,242]`, selector `[139,198][348,242]`, Next
+`[45,254][101,298]`. The unchanged af9 native instructions were reused with
+normally generated Expo/Hermes consuming UI; hashes are in the gate report.
+Actual Android replay of this additional repair now passes19s on preserved
+Native entry00/Native sense. Root inspected the normal native frame and asserted
+non-overlap from XML: Previous `[119,527][330,643]`, selector
+`[362,527][963,643]`, Next `[119,674][264,790]`. Consuming Gradle passes47s;
+APK SHA-256 `21126fb11393b977e8ca113f258bbf4ff75cbddc0e8824393f2abe02f9a54b7d`,
+embedded/current UI `71d15658e2f37044e2224f90f8e4c685e3dfcbd9a217fe4260f60a3276b61ac0`.
+All four JNI libraries remain exact recorded CI bytes. This closes the native
+selector defect on both platforms; native in-flight cancellation is still open.
+The new device `A5EAA41D-B8F0-4264-A9CA-9F6ECC7EF2F5` completed the bounded
+iOS window case and is now shut down, preserving its profile/evidence.
+Native save receipts and inspected collection
+confirm25 distinct matching fixtures00..24; the final11-item batch14..24 passes
+in7m54s and root inspected the actual24-of25 collection. Actual iOS24->23->24,
+keyboard draft Cancel/Discard, Save-before-switch/reload, query/order/page2/
+positive-scroll origin and two-item frozen selection all pass. Actual process
+stop/relaunch reloads the saved Reading and exposes the same retained snapshot,
+which root explicitly selects; no automatic volatile-pointer restoration is
+claimed. Root inspected all final frames, including a fresh compositor capture
+when Maestro's screenshot/parent-clipping visibility was insufficient.
+Detailed invocations,31s/36s/39s results and limits are in the gate report/notepad.
+Separate M03card/profile
+are preserved. Whole-string automation probes
+reordered phrase/meaning characters before save; those failures remain. Only
+their unsaved QA drafts were discarded. The existing acknowledged per-character
+pattern now passes the12-item02..13 batch in8m11s, with no repeated writes.
+The additional observer retained its original baseline and was stopped before
+deliberate process restart; no final summary was delivered, so no peak summary
+is invented. Post-device teardown root574147488B, available8676114432B,
+pressure1, swap3196780544B and unchanged swapOut314122223616B. Only the next
+serial Android consuming-layout replay ran. Its owned emulator is now stopped;
+PID/device readbacks are empty and the profile/evidence remain. Post-stop root
+568904608B, available8685518848B, pressure1 and unchanged swapOut.
+Native cancellation remains an open engineering gate.
+Exact af9 Desktop CI passes. Foundation passes web/Rust/OCR/macOS but fails the
+previously recorded Windows theme-input loss: expected Slate, retained Dark
+Quartz. Mobile Android passes; iOS fails its existing Watch flow earlier at
+`Open local video, Enabled` not found. Preserve these distinct failures;
+no workflow rerun or platform acceptance waiver was introduced.
+
+Resumed `agent/m10-m11` at `3ae38153b693be8893d4b9e6f4eea7aaac00c83c`.
+Before editing, the two dirty modal files matched the recorded binary-diff
+SHA-256 `25e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671`.
+The earlier restart handoff below remains historical evidence, not the current
+verification state. Unrelated reports, Watch fixtures and Python cache remain
+untouched.
+
+The retained modal increment now passes real native-backed window navigation:
+entry47 Next48, Previous47, Previous24/23 and Next24, dirty Cancel/Save,
+durable notes, exact origin query/focus/positive scroll, and crash/restart.
+One bounded modal window uses native opaque bookmarks without moving the
+underlying collection. The recorded Add Material concern was reproduced in
+personal browser QA and the native test (`Expected disabled; Received enabled`).
+Previous now stays disabled when the new item has no saved current identity.
+Actual failed-window retry retains47 and reaches48 after recovery; a held
+successful native response after Close cannot reopen the modal on refocus.
+The native frozen selection includes entry01/40 from different pages and keeps
+its exact identity, membership and revisions through modal saves/navigation,
+origin restoration and native restart.
+
+Verification: `npm test` passes89 tooling and203 client/owner tests;
+`npm run typecheck` and `npm run lint` pass. Normal single-worker web export
+passes. The connected Material collection/editor/proposal and native selection
+run passes22 browser scenarios in27.2s. Source LSP is clean; test-file fresh
+diagnostics time out, so no test-LSP pass is claimed. The first browser run
+failed before Material because the existing development catalog expired;
+`node tools/prepare-plugins.mjs --sign-bundle` refreshed only its authenticated
+signature/expiry. No native rebuild, plugin rebuild or asset download occurred.
+
+Root personally drove the final native-backed app with omowright: Add on a
+later page, disabled Previous, entry47/48 forward/reverse, dirty Cancel,
+Save-before-switch and saved-note reload. Desktop1080/narrow390 captures were
+inspected. Evidence is `/tmp/mlearn-resume.i3aHcr/material-final-results/`
+and repository `tmp/manual-{add,window}-fixed{1080,390}.png`,
+`tmp/manual-window-save1080.png`; these are local evidence, not staged assets.
+Notepad:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261031-resume.XXXXXX.md.Nujle2G5SI`.
+
+Fresh admission passed three samples at the unchanged2560MiB budget and4GiB
+reserve. Final post-QA footprint294323904B, available9391652864B, pressure1,
+swap3490381824B, with swapOut unchanged. All owned personal browser/backend/
+preview sessions stopped; port4173/9223/52313 and native-process readbacks are
+empty. Four disposable task browser profiles were removed with absence
+receipts; native profiles and evidence remain. No shared cleanup was performed.
+
+The increment is committed/pushed as `a54da893511102374b3ddbb91903c5d048a48dc1`;
+PR45 remains draft. Independent whole-M10 review `st_01a19234` returned
+REQUESTS_CHANGES with no blocking implementation findings. Its P2 is missing
+affected native-flow evidence: Stop/dismissal, drain/reuse and Material
+navigation/draft/origin behavior through actual host adapters. Frozen-selection
+scope was satisfied, not replaced by a selected-only modal. Review and evidence:
+`.omo/evidence/m10-a54da893-gate-review.md`.
+
+Root subsequently drove the isolated real Tauri window: Add/Previous disabled,
+entry47/48, keyboard Cancel, Discard, Save/reload and exact originating query,
+focus and scroll geometry all pass. Current-source Foundation and Desktop CI
+pass. Mobile41206790229 has Android pass and iOS compile/retained-app pass,
+but its existing Watch-only flow fails `m01-watch, mp4 is not visible`.
+The deferred picker campaign was not resumed.
+
+Source-bound mobile artifacts are retained under the same task root. The local
+iOS attempt never reached mLearn: captured Apple boot logo, driver-start timeout;
+its owned device was shut down without erasure. Android installed the verified
+APK without clearing data and reached the real app. Initial software-renderer
+QEMU growth to5.82GB triggered owned teardown. A materially changed explicit
+low-RAM/host-GPU configuration passed fresh unchanged admission and yields
+stable observed3.39GB QEMU footprint, pressure1 and unchanged swapOut, not a
+leak-fix claim. Actual Android Add/Previous disabled is verified in native XML
+and an inspected frame. One real native item now passes acknowledged input,
+save receipt and actual process-stop/relaunch/reopen persistence in15s, with
+its restarted frame inspected. Further fixture authoring, window/draft/origin
+and native cancellation/reuse proof remain in progress. No full mobile
+Material pass is claimed.
+
+Native verification also reproduced a functional blocker: closed Android
+Material search collapses to its icon and exposes no editable field.
+The existing mobile Material test now fails at visible `material-search`
+before Add on the unchanged installed APK. A one-line minimum-width repair
+in the existing Material layout passes TypeScript LSP, typecheck, lint, export
+and22 connected regressions in27.7s; root inspected desktop1080/narrow390
+collection renders. The consuming Android app now passes the original
+unweakened native assertion, authoring and process restart in56s. A separate
+14s native flow enters `Native entry`, submits the actual Rust-owned query,
+observes1of1, finds the persisted Native entry00 and excludes M03card.
+Root inspected its native frame: input and surrounding controls are contained
+and usable. This closes the search repair, not the remaining M10 native gates.
+The owned device is stopped; authored items/profile are preserved.
+
+The consuming Android preparation was stopped when a transient Rust allocation
+crossed the disk floor; no preparation pass is claimed and no artifacts were
+cleaned. After teardown, disk rebounded to3816564KiB. Native/guest/FFI sources are
+identical to `a54da893`, so the four exact JNI libraries from its retained CI APK
+were restored into generated packaging outputs, each verified byte-for-byte by
+SHA-256. Kotlin binding generation had completed through the normal owner.
+Frontend-only Gradle packaging passed in1m49 with one Metro/Gradle worker and
+bounded Java memory. The preserved consuming APK is
+`/tmp/mlearn-resume.i3aHcr/material-search-native-current.apk`,
+SHA-256 `d0e7dad59c47e46fe67713938610b8bcba1cf9ab09896a8025014f1da77f9fde`.
+Its current UI bundle is
+`d8e68de85eb541d82cde7f6d9967799aff0afeb94b34982ba6bcd7fab057c875`;
+all four packaged native libraries still match the exact `a54da893` CI bytes.
+Manifest identity remains `net.kikan.mlearn.v3dev`. Fresh unchanged admission
+passed for the actual mobile replay. Native green artifacts are
+`/tmp/mlearn-resume.i3aHcr/android-search-green/` and
+`/tmp/mlearn-resume.i3aHcr/android-search-usable/`;
+the earlier exact native red remains under `android-search-red/`. Final owned
+device/PID readbacks are empty; post-QA footprint487557424B,
+available7967916032B, pressure1, swap3247112192B, swapOut unchanged,
+disk18211648KiB. No cleanup campaign or profile erasure occurred.
+
+This is a verified Material increment, not M10 approval. Existing208c6226
+native/storage evidence is reused only for its unchanged owners. All provisional
+M07, platform/visual and draft-PR limits below remain. M11 is untouched and gated
+on actual M10 engineering and independent review.
+
+## Restart handoff - 2026-10-31, passive resource cycling stopped
+
+The maintainer redirected this process to one inspection/admission decision,
+then direct work if safe or a verified-only pushed checkpoint and clean process
+exit if unsafe. Do not resume the old passive readiness/cache-warm cycle.
+
+- **Source:** branch `agent/m10-m11`, pre-handoff HEAD/upstream
+  `3410883c5483824e275bc1484872ae7e43b7cdc1`. This handoff is a documentation-only
+  checkpoint; it does not ship the dirty modal increment. PR45 was freshly
+  queried OPEN/draft at that source; keep it open/draft, with M11 still gated
+  on actual M10 engineering and independent review. PR44/M07 limits remain.
+- **Preserved dirty implementation:** `apps/client/src/features/material/MaterialScreen.tsx`
+  (77-line delta) and `tests/web/material-collection-native-core.spec.ts`
+  (33 added lines). Their combined `git diff --binary -- <these two paths>`
+  SHA-256 is `25e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671`.
+  Neither path is staged in this handoff commit. Unrelated untracked old M03/M04
+  reports, `tests/fixtures/reader/m07-qa-watch.{mov,srt}` and
+  `tools/__pycache__/` are unchanged and must not be removed or staged.
+- **Verified foundation:** native previous bookmarks and reverse byte-budget
+  regression are pushed as `9a85a881`/`208c6226`. The reused reviewer
+  `st_01a18ee4` is terminal APPROVE for the bounded `208c6226` repair, not the
+  modal or M10. The final restored storage suite passed 24 tests; both boundary
+  mutations failed and were restored. Exact-source `208c6226` Foundation
+  41145140460 and Desktop 41145140717 pass. Mobile 41145140565 has Android pass,
+  iOS compile/retained-app pass and the unresolved `m01-watch, mp4 is not visible`
+  UI failure. No CI rerun or acceptance waiver was introduced.
+- **Actual modal result:** the fresh native-backed red run exported
+  `69d7f7ffcc870f750252a41bfc57dd33` and failed at test line112: Next Material
+  disabled on entry-47 despite four following items. Log and inspected frame:
+  `/tmp/mlearn-ci-independent.6EaZ3F/material-boundary-browser-red-stable.log`
+  and its frame under
+  `material-boundary-browser-red-stable-results/material-collection-native-1a6e1-er-through-paging-and-edits-chromium/test-failed-1.png`.
+  The subsequent dirty source retains one native window, opaque next/previous
+  bookmarks and the existing draft/owner/retry guards without changing the
+  underlying collection page. LSP found no source errors. All green attempts
+  were held before checks/export/rendering: no passing UI claim exists.
+  Also inspect the Add Material/Previous boundary before delivery: the dirty
+  condition can enable Previous with no saved current item; this is a
+  source-review concern, not an executed regression.
+- **One-shot admission failed:** disk was 8530988 KiB available, but
+  `node tools/resource-guard.mjs 82251 once "$PWD/.mlearn/m03-m07/m07-messenger/macos-resource-sample" 2560`
+  exited70 with `projected_headroom` on all three samples. Final footprint
+  7547270584 bytes, RSS6421676032, available6874071040, pressure1,
+  swap5362155520; projected4189716480 is below the original4294967296-byte
+  reserve. Do not lower the budget/reserve to admit this process.
+  Exact log: `/tmp/mlearn-stop-resume.zPO4U2/admission.log`.
+- **Processes/outputs:** only this interactive session is addressable; no
+  scheduled prompts exist. The reviewer above is completed. Process ancestry
+  shows OmO82251 plus its Python kernel11325 and LSP daemon60258, not a running
+  device/browser/server/model workload. All33 owned terminal/observer sessions
+  were stopped with `kill_bash(all:true)`; that stops local observers, not CI.
+  No replacement observer, child, build or verification workload was launched.
+- **Next in a fresh process:** preserve the dirty diff; take fresh admission,
+  then directly run typecheck/lint, normal single-worker web export and the
+  focused native-backed Material scenario. The real Rust QA executable was
+  already rebuilt against native source208c6226 (19.81s, exit0). Do not rebuild
+  native owners or rerun CI unchanged. Inspect actual1080/390 modal captures
+  before further UI edits, repair demonstrated failures and exercise dirty
+  Cancel/Save, reverse boundaries, retry/stale-focus and exact origin
+  restoration. Full frozen-selection navigation remains open. No M11 work.
+
+The bounded continuation notepad is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261031-132257.XXXXXX.md.06C8Nn8liQ`.
+Its resource root/admission log and prior11GiB evidence root are retained, not
+deleted as caches. No cleanup approval was assumed. The goal tool still holds
+an obsolete unfinished visual-parity objective and rejected replacement; do
+not mark that old goal complete to hide this unfinished work.
+
+## Active continuation — M10 then M11, 2026-10-27
+
+The maintainer authorizes M10–M11 while comprehensive M03–M07 review is
+unavailable. M03–M07 remain provisional and unaccepted. Their source/evidence,
+visual discrepancies, iOS gaps, unexplained Windows input loss and unidentified
+historical cleanup roots below are preserved, not converted into passing gates.
+PR44 remains OPEN/draft at `2a1f13a53b6cc4852e6b4fea24881d05d31f8af9`,
+unmerged and unreleased; its tested product source remains `3ffc28fb`.
+
+The new branch is `agent/m10-m11`, created from that exact committed foundation.
+Its separate stacked draft is PR45, based on `agent/m01`; authorization source
+is `f9378744`. M10 is in progress, not implemented or verified as a milestone.
+M11 must wait for M10 engineering
+and independent-review gates. The scope is PLAN M10/M11 and feature IDs
+SRC-10, KNW-04/06/07, INS-05, MAT-05/06/07, NAV-02 and
+LRN-12/13/14/15/18, reusing existing native/package/session owners.
+
+Initial resource readback: OmO PID82251 footprint3753899088 bytes,
+available6249381888, pressure1, swapUsed3135242240, swapOut45443366912;
+disk available27981336 KiB. No surviving app, QEMU, Simulator.app or Electron
+was listed. No model/device/reference/server was restarted. Substantial local
+work stays serial and requires fresh disk/physical-footprint/pressure/swap
+admission. The four original untracked reports/Watch fixtures remain untouched.
+
+Current task: finish Material presentation and NAV-02 workspace/source departure
+and cancellation ownership.
+Latest Material checkpoint: `65c068ef` is pushed but remains REQUESTS_CHANGES under
+the independent review. Its saved-bookmark/refocus repair is committed and
+pushed as `17103953aae6c3a5bddf2a0d29d1fd7c04aa12ac`, with matching local/upstream
+readback, on export `c2c41cca07b4994c8b955cddcbd48efe`. The complete later-page
+Save/Knowledge/Material/Close case now passes in 4.7 s
+(`material-modal-refocus-scoped.log`), retaining the ready projection, note,
+page, focus, unsubmitted query, frozen selection and exact positive scroll.
+Twenty other Material scenarios passed the same product export. The first
+two scroll probes failed because retained tab panes shared the selector;
+the final probe identifies Material's AppShell by its existing search control.
+Root inspected the healthy editor and restored list frames.
+Hosted `65c068ef` foundation has 166 web passes and 3 failures in old inline
+interactions: accepted Messenger-proposal readonly search and two Watch
+departures trying to edit search behind the modal. Tests now inspect retained
+background state readonly, and enter Watch drafts through the real collection
+before opening the modal. Home/Reselect and 1080/390 coverage, exact source and
+conversation/draft assertions remain. All five cases pass in 10.1 s on the same
+`c2c41cca` export (`material-modal-hosted-regressions.log`). Root inspected
+the accepted-proposal narrow modal and Watch desktop/narrow return captures:
+controls and fields remain contained, with the retained modal and source action
+available. No hidden input is staged. Admission and runtime samples preserve
+the original 4 GiB reserve; footprint remained about 3.51 GB, pressure 1 and
+swap usage 4326817792 bytes throughout the run.
+Foundation Rust/OCR/macOS and real desktop integration pass on `65c068ef`.
+Windows job 124345537922 fails before theme interaction on the owned-window
+predicate, not an established paste/input or Material defect. Artifact 13018880734
+is preserved in `windows-65c068ef-startup/`: 249765-byte archive SHA-256
+baad37cb4db58d0f617e574963fc721834b2d9b650772e78a99958c600874b02 matches
+GitHub metadata. Its source binds `65c068ef`; process 5196 remains alive with
+HWND 852352, exposed as an unnamed UIA Pane, while the captured foreground is
+the hosted runner terminal. Cause remains unknown; no assertion was weakened
+or workflow rerun. Mobile run 41137381329 completed FAILURE on exact `65c068ef`.
+Both compiled-app retention steps succeeded, but iOS job 124343069186 and
+Android job 124343069516 failed actual UI/persistence verification. The exact
+failed logs are preserved as `material-65c068ef-{ios,android}-failed.log`.
+iOS reports "Element not found: Text matching regex: Open local video, Enabled";
+the Android job log reports a failed Watch flow. Its retained JUnit identifies
+`DeviceServerDiedException` during `viewHierarchy`, with gRPC UNAVAILABLE/end of
+stream. Command 259 found the Japanese Resume control after app restart;
+command 260 was still RUNNING while tapping it when the transport died. The
+archive source receipt matches `65c068ef` and tree `c4d1cd3a`. Artifact
+13018084333 (59952139 bytes) is preserved with matching SHA-256
+7c698e11c6dbc456e5ac05a81a7a9f193fb78df63320ad7001fbcaecf7b10a7f.
+Root selectively extracted source/JUnit/commands/screenshots and inspected the
+completed Japanese live dictionary/Inspector captures; these do not prove the
+unfinished resume or Material-modal native flow. The transport's root cause
+is not established. These are not passing native gates or established
+Material-modal defects.
+Root is preserving the remaining diagnostic artifacts without downloading compiled apps,
+restarting devices or rerunning the deferred hosted-iOS campaign.
+iOS artifact 13017803862 (89300497 bytes) is preserved with matching SHA-256
+e6e1a497d7eda6e2f047ad66895d4785d58b28333ee7fb9d6b19cd816d37c789.
+Its source receipt also matches `65c068ef`/`c4d1cd3a`. Root selectively extracted
+the failure hierarchy/commands/frames, leaving the 234 MB simulator log
+compressed. The initial English import, source controls and restart stages
+completed before the failure at the second, Japanese Watch entry. The failed
+frame remains on retained Home: Watch is clipped beneath its fixed header,
+while XCTest exposes its enabled control at [41,87][352,156]. The tap is marked
+complete, but the next Open local video action fails. A minimal test-source
+correction adds the same bounded scroll-to-Watch step already present in the
+Android entry helper. All picker/source/Japanese assertions remain intact.
+Both YAML documents parse with Bun's existing YAML builtin; the added action
+matches Android's parsed action, and the original enabled Watch/import actions
+remain in order. `git diff --check` passes. YAML LSP is unavailable because
+`yaml-language-server` is not installed; no dependency was added.
+This new clipped-target evidence is separate from the deferred FileProvider
+campaign; no picker variant, workflow rerun or device was launched. Native
+verification of the correction remains pending, not a confirmed green result.
+The same
+independent reviewer APPROVES the bounded P2 repair on the clean, locked
+dedicated checkout at `17103953`, with no remaining delta blocker and no
+reviewer workloads or source writes. Its source/artifact review preserves all
+earlier failures and scope limits; see the repair section in
+`.omo/evidence/material-modal-65c068ef-gate-review.md`. Push-triggered
+repair runs are desktop 41141663093, mobile 41141663087 and foundation
+41141663145; fixed-ID observers validate their source SHA. Desktop completed
+SUCCESS on `17103953`, native job 124357150133. Foundation 41141663145 also
+completed SUCCESS on exact `17103953`: web 124357150213, OCR 124357150539,
+Rust 124357150549, Windows 124359239810 and macOS 124359239829 all pass.
+This verifies that source, not the later bookmark extension or historical
+platform/visual acceptance gaps. Mobile 41141663087 completed FAILURE on exact
+`17103953`: Android job 124357150052 passes compilation, source-bound app
+retention, actual UI/Rust persistence and tracked-source integrity. iOS job
+124357149762 fails actual UI/Rust persistence. The exact local log
+`material-17103953-ios-failed.log` reports the existing picker-dismissal
+assertion: `id: m01-watch, mp4 is not visible` is false after 1m31s. This is not
+the later clipped-Home entry failure. The deferred FileProvider gate remains
+unresolved; no diagnostic variant, assertion weakening or rerun is launched.
+No root cause or iOS pass is assumed. Hosted artifacts remain available:
+iOS evidence 13020419876 (67395175 bytes, SHA-256
+7b05245b353360bfe8ea54acf3d30ccdd1c463de2a3c05a680f6ab9fa71ba7ae) and Android
+evidence 13020477223 (59957467 bytes, SHA-256
+e77b9414a7660a97742f292457281e1f9945c2e3843dcb644dccf5c131951fba).
+Their metadata was read, not their archives; compiled-app artifacts likewise
+remain hosted rather than consuming the constrained local disk.
+This source precedes the clipped-Home entry correction and native bookmark
+extension. Android's existing Watch workflow does not certify the unimplemented
+cross-page modal navigation or full M10 native scope.
+No workflow was manually launched. Next: continue the remaining Material
+selection/navigation scope.
+M10/M11/native/frozen-selection-window acceptance remains open.
+The retained-entry test checkpoint `d5d9cf2b` is pushed with matching upstream.
+Its automatic mobile 41142645801 and foundation 41142645874 runs both ended
+CANCELLED with no jobs in the source-validated metadata. This is neither a test
+failure nor a native pass; root did not cancel or rerun either workflow.
+Their summaries are preserved as `retained-entry-d5d9cf2b-*-summary.log`.
+The later `9a85a881` source includes the same iOS entry correction.
+The next connected increment keeps cross-page modal navigation in
+the existing native collection owner: an opaque preceding-window bookmark,
+not renderer parsing or accumulated page caches. Its uncommitted test-first
+contract extends the existing tied-sort and Material-refresh regressions.
+`collection-reverse-red.log` genuinely fails the missing preceding bookmark
+assertion at `collection.rs:1473`, after a successful compile. Native execution
+now reverses the existing keyset comparison and SQL order, then returns items
+in the caller's original order. It retains query/package/Knowledge/Material
+epoch checks and both item-count/wire budgets; both bookmarks roll back when a
+candidate exceeds the wire budget. The client boundary validates the new
+opaque `previous` field. Existing sort regressions also cover backwards numeric
+and missing-due windows, and Material refresh still rejects ordinary stale
+continuation. Changed Rust diagnostics, formatting and diff checks pass.
+`collection-reverse-green.log` completes exit 0: all 23 storage collection
+tests and eight client/character tests pass; authoritative type generation,
+normal typecheck, ownership lint and contract consistency pass. The existing
+ts-rs `serde(transparent)` warnings also occur in the preceding Material log;
+they are not suppressed. The original 4 GiB memory reserve held throughout
+this run, with root footprint about 3.55 GB and pressure 1.
+No modal boundary integration or native-platform pass is claimed yet.
+The native bookmark checkpoint is committed and pushed as
+`9a85a881c007253c24eeb6de62e13694a19fab6b`, with matching local/upstream readback.
+The same independent reviewer returns REQUESTS_CHANGES on this bounded
+increment, source/artifact-only and without workloads. Its sole P2 is missing
+consequential reverse wire-budget coverage, not a demonstrated ordering defect.
+Report: `.omo/evidence/collection-previous-9a85a881-gate-review.md`. Root added one
+storage-owner case using admitted escaped Material content. It requires actual
+byte truncation before 24 items, full-page size bounds, complete unique reverse
+membership, termination and accepted boundaries when switching direction.
+Its first run passes in `collection-reverse-budget-baseline.log` (0.21 s).
+A temporary wrong-end removal genuinely fails the next-boundary identity
+assertion (`collection-reverse-budget-wrong-end.log`), then was restored.
+A separate rejected-bookmark mutation also fails the accepted boundary
+assertion (`collection-reverse-budget-rejected-bookmark.log`, 0.22 s).
+Both mutations are restored and the production file has no diff against
+`9a85a881`. Diagnostics, formatting and diff checks pass. The restored complete
+owner suite passes all 24 tests in 0.73 s
+(`collection-reverse-budget-final.log`, exit 0), retaining the original 4 GiB
+memory reserve, pressure 1 and about 3.58 GB root footprint. Disk admission was
+2550028 KiB. The regression repair is committed and pushed as
+`208c62264d1976d1ed0f8fe8d7e1e16c0090382b`, with matching upstream. The same
+independent reviewer APPROVES this bounded repair: the sole P2 is resolved
+and no delta blocker remains. Its source/artifact-only verdict is recorded in
+the repair section of the existing review report. Neither temporary mutation
+shipped; broader modal/native/M10 gates remain open.
+Automatic
+CI runs are mobile 41143968640, foundation 41143968649 and desktop 41143968786;
+fixed-ID observers validate their source. Desktop completed SUCCESS on exact
+`9a85a881`, native job 124364583410, including real IPC/plugin download/restart
+and tracked-source integrity. Mobile 41143968640 ended CANCELLED with no jobs;
+that source has no mobile pass and root did not cancel/rerun it. Foundation
+41143968649 completed SUCCESS on exact `9a85a881`: Rust 124366182791, OCR
+124366183064, web 124366183240, macOS 124368102261 and Windows 124368102287
+all pass. This does not close mobile, modal-integration or historical acceptance
+gaps. Repair-source desktop 41145140717 completed SUCCESS on exact
+`208c6226`, native job 124368371881, including real IPC/plugin download/restart
+and tracked-source integrity. Foundation 41145140460 also completed SUCCESS
+on exact `208c6226`: web 124374183884, Rust 124374184269, OCR 124374184283,
+macOS 124375856873 and Windows 124375856877 all pass. Mobile 41145140565
+completed FAILURE on exact `208c6226`. Its first one-hour observer timed out,
+not the CI run; the resumed observer retained the original log and followed
+the same run to completion. Android job 124373208646 passes actual UI/Rust
+persistence, compiled-app retention and tracked-source integrity. iOS job
+124373209219 passes offline simulator compilation and source-bound app
+retention, then fails UI verification at the existing picker-dismissal assertion:
+`id: m01-watch, mp4 is not visible` is false after 1m55s.
+The exact local log is `collection-budget-208c6226-ios-failed.log`. This matches
+the earlier assertion, not proof of its underlying cause; it does not verify
+the later clipped-Home step. The deferred FileProvider gate remains open,
+without a new diagnostic campaign, assertion weakening, cancellation or rerun.
+These results do not certify modal integration or the full M10 native scope.
+
+The next disk read is 1463304 KiB available, below the unchanged 2097152 KiB
+admission threshold. Further builds/exports/rendering are paused. No device,
+server or model is running from these tests. Read-only size inventory finds
+1841152 KiB in `target/debug/incremental`, 44774040 KiB in `target/debug/deps`,
+1260312 KiB in `target/debug/examples` and 11114136 KiB in the owned current
+evidence root. Nothing was deleted. Root asked permission to remove only the
+rebuildable incremental cache, preserving binaries/dependencies/profiles and
+evidence; no answer is assumed. Source checkpoint/review may continue.
+A later admission read reports 2701940 KiB free, above the original threshold,
+without any agent deletion or assumed approval. The small focused storage test
+resumes under the same disk/memory guards; devices and rendering remain unlaunched.
+
+The modal boundary regression now extends the existing real-Rust collection
+scenario through last-item Next, dirty Cancel/Save, durable notes, reverse page
+crossing, desktop/narrow captures and exact origin restoration. Its source
+diagnostics and diff check pass; the new behavior is not yet run or implemented.
+The existing 64164576-byte QA executable predates the native bookmark contract.
+A one-shot, nonpersistent `material-boundary-red.log` run is queued to rebuild
+it serially, export through the normal single-worker command and execute that
+scenario before any UI implementation. Its 4194304 KiB disk entrance reserves
+the original 2 GiB floor plus 2 GiB for rebuild/export outputs; it also retains
+the original memory reserve/admission. The last read was 2552028 KiB free.
+Nothing was deleted and no cleanup approval is assumed. No simulator,
+emulator or persistent test server is restarted by this queued run.
+That combined one-hour disk gate expired with only `DISK_REQUIRED_KIB 4194304`
+in its log: no native build, export or browser started. A fresh read is now
+3621136 KiB free, without agent deletion or assumed cleanup approval. The work
+is split into stages rather than reserving both output estimates together.
+`material-boundary-native.log` admits only the native rebuild with one Cargo
+job at a 3145728 KiB entrance (the original 2 GiB floor plus 1 GiB rebuild
+headroom) and the unchanged memory guard. It verifies native source matches
+`208c6226`. That rebuild completes exit 0 in 19.81 s, with 3296268 KiB free
+afterward and the original 4 GiB memory reserve intact. It rebuilds the real
+core/storage/runtime QA owner; no app, device or persistent server is launched.
+The separate fresh export/browser run holds at disk admission (exit 75) with
+2248312 KiB available, before any export or browser starts
+(`material-boundary-browser-red.log`). Its 2621440 KiB entrance keeps the
+original 2 GiB floor plus 512 MiB for this stage. A disk-readiness-only monitor
+is active; it cannot launch a workload. The next run will recheck admission.
+Fresh bounded memory samples show pressure 1, root footprint about 7.47 GB,
+available 7.15-7.42 GB and swap 5.08-5.14 GB; the unexplained resource history
+remains open. No product red failure or rendered verification is claimed.
+The readiness monitor subsequently signalled headroom, but the immediate
+workload entrance read only 2232216 KiB and correctly held again (exit 75,
+`material-boundary-browser-red-ready.log`), before export or browser launch.
+The replacement readiness-only subscription requires three consecutive
+2621440 KiB readings before notifying; actual workload admission will still
+be rechecked. No files were deleted and cleanup permission remains unanswered.
+The next admitted run exported web bundle
+`69d7f7ffcc870f750252a41bfc57dd33` and reproduced the intended failure:
+Next Material remained disabled at entry-47 despite four following items
+(`material-boundary-browser-red-stable.log`, test line 112). The failure
+capture was inspected. Resource samples remained safe with the original
+4 GiB reserve, pressure 1 and footprint about 3.54 GB.
+MaterialScreen now retains one modal window's native query/bookmarks and
+replaces that bounded cohort when crossing a boundary, without changing the
+underlying collection bookmark. It reuses the draft departure and stale-result
+owners, including the exact failed-window retry. This is unverified source:
+the first green run held before any checks/export/browser at 2202816 KiB
+(`material-boundary-browser-green.log`). A single nonpersistent subscription
+now joins sustained disk readiness directly to admission and the planned
+typecheck/lint/fresh-export/real-Rust regression, removing the earlier
+notification-to-launch gap. No workload is running while that gate waits.
+That one-hour gate expired before admission: its workload log was never
+created, so no checks, export or browser started. The subsequent disk read is
+2201252 KiB, below the unchanged 2621440 KiB entrance. A fresh zero-workload
+sample reports footprint 7699527096 bytes, RSS 3518005248 bytes, available
+6755434496 bytes, pressure 1 and swap 5873205248 bytes. Footprint growth since
+the red run remains unexplained; substantial work must not resume on the basis
+of disk recovery alone. The modal source remains unverified, with LSP reporting
+no errors but no green execution or fresh render. No further launch is queued.
+Cleanup permission for target/debug/incremental remains unanswered; nothing
+has been deleted.
+
+Detailed chronological continuation receipts follow.
+October 30 Messenger Back candidate: the new real-Rust recovery case reproduced
+Back reaching Home without issuing save_draft, removing the unsent draft/retry
+owner (`messenger-back-red.log`, actual Home capture inspected). Removal now
+uses existing messenger.act/persistDraft and its exact-command recovery. Active
+conversation failures appear beside the composer, including narrow layout.
+Replay checks current conversation identity and route focus. Home uses this
+same guard; no draft, persistence or history authority was added.
+
+Export `824a878a1952b3ded4107770eb373977` passes typecheck, architecture lint
+and the focused case (`messenger-back-green.log`, 3.6s). It holds a real committed
+draft receipt, retains Messenger/URL/text while pending, loses that receipt,
+retains explicit Retry, retries the identical command, then returns Home,
+preserves the Material query and restores the unsent draft after native process
+crash/restart, with zero provider calls. Root inspected pending/failed/restored
+390px captures. Source LSP is clean; test LSP timed out.
+The same case now runs at390/1080. The corrected grouped launch passes all five
+targeted cases: both Back widths, Home status-poll cleanup without cancelling
+native generation, accepted-source proposal checkpointing/management retention
+and exact message-proposal Return (`messenger-back-adjacent.log`,12.8s).
+Root inspected final desktop pending/failure and narrow restored-draft captures.
+Source and final test have fresh clean LSP diagnostics. Product source is
+`2d305a50a553ca98bb770cd208039efb2e6cc705`; only width parameterization and this
+evidence follow it. Reviewer `st_01a18cce` REQUESTS_CHANGES on exact
+`c46b2c0bfd085ce2286192e279314b089e437885`: selected-chat Home at390px can
+route recovery to an unmounted composer after Chats and People exposes the rail.
+Report: `.omo/evidence/messenger-back-c46b2c0b-gate-review.md`.
+The first narrow Home launch correctly held at disk admission with exit75.
+After the maintainer's cleanup/resumption, the initial setup reached Home
+because opening the rail had already saved on blur; its missing held signal
+was a setup failure, not defect evidence. The corrected case intercepts before
+opening Chats and People, holds the committed blur-save receipt, then presses
+Home to join that same pending persistDraft. Losing the receipt genuinely
+reproduces the missing Retry on the mounted390px rail
+(`messenger-home-rail-red-joined-blur.log`, failed-state capture inspected).
+The existing rail ActionFeedback now presents composer-origin recovery only
+when the main pane is hidden, without another save/retry owner or callback
+origin race. Fresh source/test LSP diagnostics, normal typecheck and ownership
+lint pass. Fresh export `41c71e3593cefd62b8e2766aab962f9d` passes both complete
+Messenger recovery/source suites:38 scenarios in1.2m, single worker, real
+Rust/package/SQLite. Log: `messenger-visible-green.log`. Root inspected Home390
+pending/failure/restored captures and Back failure at390/1080: recovery is
+visible, with no duplicate, overlap or new owner. Failed-state Retry replays the
+identical prepared command; Home, retained Material query and post-native-crash
+draft restoration all pass with zero provider calls in these departure cases.
+Owned runtimes/preview port4173 are released, profiles/evidence preserved.
+The green log is8958 bytes. Final disk12521148KiB, OmO footprint7089206736,
+RSS5992677376, available6624133120, pressure1, swap4711251968 bytes; the original
+4GiB reserve held. Fresh reviewer `st_01a18deb` APPROVED exact
+`d70f6d8d5bc1a12a3006ad80b0bb4e3882385beb`, resolving the prior P2 with no
+blocker after inspecting red/green logs and failed/restored Home captures.
+Code-quality coverage and review limits are recorded in the existing report.
+The exact-source review checkout was verified clean (including ignored files),
+unlocked and removed after the terminal verdict; its absence was read back.
+Pushed through `03ab9e452869db726b7baebd7917d66aa2bc4100`; HEAD/upstream
+readback matched. Both PRs remain separate OPEN drafts. Broader
+regressions/native/milestone gates are not claimed from the earlier five cases.
+
+Watch pending-preference cancellation is the current increment.
+Hosted desktop41101759641/job124220064814 on03ab9e45 again fails on unavailable
+Cancel opening during the held preference receipt
+(`desktop-03ab9e45-failed.log:4265`). This is the actual job result; earlier
+desktop/mobile watcher exits were HTTP502 reader failures, not job conclusions.
+Foundation41101759648 passed. Mobile41101761469 has finished as recorded
+below; no workflow rerun was launched.
+
+The Watch source now distinguishes the cancellable update phase only after
+pauseAndSave succeeds. It reuses the shared header control and existing focus
+cleanup/source epoch, retaining actual-file Cancel opening and preserving
+admitted mutations on the runtime client's serial lane. New decoded-video
+coverage holds a real committed offset receipt and checks cancellation,
+late-receipt handoff, fresh checkpoint and restart. Native smoke retains its
+durable-offset/checkpoint assertions and now tests blocked Back restoration
+before explicit cancellation. At the initial source-only checkpoint these
+changes were unverified and the served bundle was still41c71e35; the subsequent
+fresh-export evidence follows below. Watch source LSP timed out; test LSP was clean.
+Bounded source-only checks now pass: normal typecheck, ownership lint and
+native-smoke syntax (`watch-source-checks.log`, exit0, compiler heap capped
+at768MiB with1024/512MiB guard estimates). That check launched no export/browser/
+native build.
+
+The first local Watch attempts did not run: build-sized2560MiB admission held
+for projected headroom. A test-only2048MiB preflight matched the existing
+startup guard, but its third startup sample lost headroom and exited70 BEFORE
+OWNED_WORKLOAD_STARTED. The4GiB reserve and runtime guard were unchanged;
+neither event is a test failure or cancellation proof. One GC pass reduced the
+eval heap63.7MB to36.8MB but did not resolve the process's roughly7GB physical
+footprint. No large child workload was found or blamed. Do not accumulate
+another UI edit before an admitted render of this one.
+
+After archive preservation, original2560MiB admission and the unchanged4GiB
+reserve admitted the single old-bundle regression. It genuinely failed at
+watch-search.spec.ts:149: Cancel source update was absent while the real
+committed preference receipt was held (`watch-update-red-original-bundle.log`,
+exit1). Root inspected its actual failed1100px capture. A guarded fresh export
+and the same regression ran (`watch-update-fresh-green.log`, exit1), exporting
+bundle5c9faba4392e87a2c92964d0eed2a926. Root inspected the pending control
+at1100/390px: visible and contained. Cancellation, late mutation receipt and
+canonical resume returned the committed375ms offset. The next assertion used
+the wrong accessible name: the real control is "Subtitle offset: 375 milliseconds",
+not "Subtitle offset". The failed capture/AX tree showed the correct0.38 value.
+Only the two new locators were corrected; fresh test LSP is clean. The same
+regression passes (`watch-update-green-corrected.log`, exit0,22.4s), including
+late-receipt handoff, a fresh11000ms checkpoint,375ms offset and1.5 rate after
+native-process crash/restart, with zero provider calls. Root inspected cancelled
+and restored390px captures; the controls remain contained and the restored
+playback position is0:11. Original4GiB reserve held throughout; final sample
+footprint3340940752, RSS6455361536, available8241971200, pressure1,
+swap4805165056 bytes. Both adjacent Home/Back cases pass
+(`watch-update-adjacent.log`, exit0,25.7s), preserving explicit checkpoint Retry,
+no cancellation escape during pending/failed saves, paused departure, Material
+draft retention and restart, plus existing video-replacement coverage. Root
+inspected both narrow checkpoint-failure captures: the recovery control remains
+visible without Cancel source update. Committed as
+`6d1de700e307cfa28f65c17a2d2c1baa0cebb3f8`. Independent reviewer
+`st_01a18e47` APPROVED the bounded increment with no blocker; its ownership,
+test-quality findings and limits are recorded in
+`.omo/evidence/watch-update-6d1de700-gate-review.md`. Root's corrected teardown
+probe found no owned QA runtime/preview process or listener4173; the first
+probe had an awk quoting error and supplied no proof. The reviewer resolved the
+brief's incorrect host path to `apps/client/src/host/createHost.web.ts`.
+Desktop-native execution remains open. No milestone or visual-parity acceptance
+is claimed from these scoped renders and three browser-core scenarios.
+Review receipt `8b74e7a69fe89a0b5f17742e6f13d67be5f1b975` is pushed;
+HEAD/upstream readback matched. The clean exact-source review checkout was
+unlocked/removed, with absence verified. Exact-source hosted runs are
+foundation41115838452, desktop41115838504 and mobile41115838618, all observed
+through read-only subscriptions without manual reruns.
+Desktop41115838504/native124269718631 has now PASSED on exact8b74e7a6.
+Readback verified successful real IPC/plugin-download/restart and tracked-source
+integrity steps. The pending-preference cancellation repair is verified for
+continuation, not whole M10/native-mobile/maintainer acceptance.
+Foundation41115838452 also PASSED on exact8b74e7a6. Readback confirms web
+124269718130, Rust124269718595, OCR detector124269718693, macOS124272863540
+and Windows124272863580 all passed. This is current passing platform evidence;
+it does not diagnose or erase the historical intermittent Windows input-loss
+failures, and it is not native evidence for the later fallback deltas.
+
+The remaining-exit audit reproduced direct unavailable Watch displaying a
+permanent Opening source indicator at1080/390px instead of the host's actual
+unavailability reason (`unavailable-watch-red.log`, two expected failures).
+Root inspected both before captures. WatchScreen now checks the existing host
+boundary before mounting WatchWorkspace and reuses the same AppShell/Row/
+Button/Text recovery composition as unavailable Review/Messenger. Empty source
+entry still uses SourceEntryScreen. No second host, cancellation, persistence
+or navigation owner was added. The Home action uses existing dismissTo behavior.
+Fresh export `d9c6f2db6b48e424187f0d8d1e6ce247` passes both new cases
+(`unavailable-watch-green.log`, exit0,1.5s). Root inspected1080/390px captures:
+the reason is visible, wraps within the shell and Home returns to real Home;
+there is no false opening or unsupported Retry source control. Source and test
+LSP are clean. Normal typecheck and ownership lint pass. The combined12-case
+foundation/Watch run was resource-stopped with exit70, without a final suite
+verdict (`unavailable-watch-adjacent.log`); it is incomplete, not a test assertion
+failure. OmO footprint jumped from3369858536 to7590032848 bytes; available fell
+to5101584384 and projected headroom4027842560 violated the unchanged4GiB
+reserve. The guard stopped its owned workload. Post-stop footprint7230404048,
+RSS3632300032, available6220038144, pressure1 and swap5585305600 bytes.
+No matching browser/runtime or preview listener4173 survived. Eval's small
+heap/external allocations do not explain the process footprint; no device/model
+was running or blamed. Bounded `omo-memory-summary-watch-stop.log` records6.7G
+physical footprint, with App-Specific Tag1 at5.6G resident/4.5G dirty/2.0G
+swapped; ordinary malloc and JS VM reservations are far smaller. This identifies
+a category, not the allocation's owner or cause. The first summary's terminal
+notification was truncated; the second was preserved as a bounded file rather
+than loading a heap dump. Do not accumulate substantial verification while
+unexplained growth continues. A read-only original2560MiB readiness observation
+may run; it must not automatically start or replay any app/device workload.
+That observation initially held, then footprint fell from7.13G to4.22G,
+3.41G and3.40G with three consecutive safe original-limit samples.
+Final available8526348288, pressure1, swap4085579776 bytes, projected
+headroom5841993728. Root inspected the falling/stable trend before resuming
+only the interrupted12-case batch (`unavailable-watch-resume.log`); passing
+typecheck/lint were not repeated. The cause remains unresolved and the same
+runtime guard/reserve remains active.
+The resumed batch passes all12 cases in32.9s, exit0. It covers the full
+foundation suite, both new unavailable Watch widths, direct activity Home
+recovery, retained Knowledge search after unavailable Review, accessibility/
+theme/focus checks and all three real-Rust Watch cancellation/departure/
+checkpoint/restart scenarios. No assertion was weakened or resource estimate
+lowered. Final in-run footprint3385669072, RSS6924468224,
+available7497007104, pressure1 and swap4159438848 bytes held the reserve.
+The earlier exit70 remains recorded as an incomplete resource-stopped run.
+Unavailable Watch delta is committed as
+`8445113ea4f9601d56a2befc545a9d48bed2693b`. Independent reviewer
+`st_01a18e59` APPROVED the bounded delta with no blocker after inspecting exact
+source, before/after captures and red/green/interrupted/resumed logs. Report:
+`.omo/evidence/unavailable-watch-8445113e-gate-review.md`. The reviewer wrote
+that report into the main checkout despite the read-only/no-edits brief; no
+product source or locked-review-checkout change occurred. Root inspected the
+report and verified the review checkout clean, including untracked/ignored
+files, at the expected SHA. Root's successful post-run teardown probe found
+no owned browser/runtime/preview process or listener4173. The report's explicit
+evidence limits remain: dark/native/mobile rendering and independent
+reproduction of executor exit codes/teardown are not claimed. Desktop success
+above belongs to8b74e7a6, not8445113e. Review receipt
+`b819c18dcac09f6c2863429f624ca640b7765796` is pushed; HEAD/upstream
+readback matched. The clean review checkout was unlocked/removed and absence
+verified. Its exact-source hosted runs are foundation41118372934,
+desktop41118373071 and mobile41118373139, observed without manual reruns.
+Desktop41118373071/native124278410272 PASSED on exactb819c18d; readback
+verified real IPC/plugin-download/restart smoke and tracked-source integrity.
+This is unavailable Watch's current desktop evidence, not the following Reader
+delta or native-mobile acceptance.
+Foundation41118372934 on exactb819c18d has completed with overall failure.
+Web124281630539, Rust124281631060, OCR124281631040 and macOS124284625258
+passed. Windows124284625336 reported a failed "Exercise actual Windows native
+theme materials" step while its job conclusion field was empty in that
+response. Exact failed-step log retrieval is pending
+(`foundation-b819c18d-windows-failed.log`); no cause or native fallback defect
+is inferred and no workflow rerun or assertion change was made.
+The first log reader was refused while that job was still in progress, despite
+the run's terminal summary. A fixed job/SHA observer then confirmed completion
+and preserved the actual log, exit0. Its failure is
+`foundation-b819c18d-windows-failed.log:15`: "Native UI did not publish the owned
+mLearn application window", raised from window-materials.ps1:352 before theme
+interaction. This is a startup/window-publication failure, not the earlier
+paste/input-loss assertion and not proof of an unavailable-Watch defect.
+Artifact metadata is being checked for bounded startup evidence only; no new
+Windows workload, diagnostic workflow or local device was launched.
+Preserved only251KB artifact13008982337 (`windows-native-materials`, expires
+2027-01-28) at `/tmp/mlearn-ci-independent.6EaZ3F/windows-b819-startup/`.
+Its source.txt confirmsb819c18d/tree6d8780a987a526fb6babeebe125594ff9e2165d0.
+Root inspected failure.txt, run.log, UIA dump and actual desktop capture.
+Process3256 was alive with HWND459240, exposed as an unnamed ControlType.Pane;
+the required visible named mLearn ControlType.Window was absent. The source
+predicate deliberately rejects an unnamed startup helper, so it was not
+relaxed. The desktop capture shows the hosted runner terminal foreground;
+that does not establish a causal focus defect. No native-stderr.log is present
+in the artifact. Startup cause and Windows acceptance remain open; no speculative
+product/test patch or diagnostic rerun was made.
+
+Next, the existing direct-activity test reproduced the missing Reader heading
+(`unavailable-reader-red.log`, exit1). Root inspected that failed capture and
+the preceding1080/390px Reader captures from the passing full foundation run:
+the old feature-local View had no Reader identity and did not use the shared
+recovery surface. Reader now uses AppShell/Row/Button/Text with the Reader
+heading, real host reason and existing dismissTo Home action. The unused local
+fallback style was removed; SourceEntryScreen and document/image workspaces
+are unchanged. Fresh export `a3a1566e44e31d1324a27dc040c71460` passes the
+existing eight-entry direct-activity scenario at both widths in2.2s
+(`unavailable-reader-green.log`, exit0). Root inspected both fresh Reader
+captures: readable reason, contained header and no clipping/overlap. Source
+and test LSP are clean. Normal typecheck and ownership lint pass, followed by
+all15 foundation/Reader scenarios in15.6s (`unavailable-reader-adjacent.log`,
+exit0). Real-Rust cases preserve failed checkpoint recovery, exact Retry,
+Home/Back departure, native-process restart, source Return and prior Material
+drafts. Final in-run footprint3404805608, RSS6478626816,
+available8079982592, pressure1 and swap4917755904 bytes held the original
+reserve. No new native build, device or model was launched.
+The Reader delta is committed as
+`e8bdcb7e2f3f995c05bd195c63bf12cd5faba722`. Independent reviewer
+`st_01a18e62` APPROVED it with no blocker after inspecting exact source, shared
+owners, red/green logs and1080/390px captures. Its report and explicit limits are
+`.omo/evidence/unavailable-reader-e8bdcb7e-gate-review.md`. Root inspected the
+report and verified the locked review checkout clean, including ignored files,
+at the expected SHA. Root's post-run readback found no owned QA runtime/preview
+process or listener4173. The reviewer did not rerun tests or independently
+verify LSP/teardown; those remain executor evidence. No retained-management
+recovery from unavailable Reader, dark/native/mobile rendering or whole-M10
+acceptance is claimed.
+Dark fallback remains unverified: browser-preview theme changes are unsaved
+module state and reset on a full route reload. No test-only theme override,
+new dev dependency or expanded visual acceptance claim was introduced.
+The older Reader fallback presentation gap is repaired by this bounded delta;
+retained-management route entry through unavailable Reader still has not been
+reproduced through a real action. Review receipt
+`35b9a3fb8f51c1423114bddddb345817a7651f5d` is pushed; HEAD/upstream
+readback matched. Exact-source API inspection found duplicate hosted push runs:
+foundation41119831315 pending and41119830982 cancelled; desktop41119830983
+active and41119831247 queued; mobile41119831009 cancelled and41119831073
+queued. The single-result workflow observers could select different runs for
+the same source, so they were replaced with fixed-ID, SHA-validating readers
+for every nonterminal Reader run. Their cancellation is not a product failure
+or evidence that all runs stopped. One observer cleanup returned EPERM on its
+state-file removal; session status still verified that its process was killed.
+No workflow was rerun or cancelled by root. Earlier-source enumeration confirms
+8b74e7a6 mobile41115838618 andb819c18d foundation41118372934 still active;
+b819 mobile41118373139 is cancelled with no jobs. These do not certify mobile.
+The earlier8b74e7a6 mobile41115838618 has completed: Android124269718657
+PASSED; iOS124269719282 FAILED its actual UI/persistence step. The preserved
+failed-step log is `mobile-8b74e7a6-ios-failed.log:198`: "Assertion is false:
+id: m01-watch, mp4 is not visible" in Watch Inspector Knowledge and native source
+resume. This is the same visible assertion family as the retained platform gap,
+not proof of its cause. No new diagnostic variant, native workload or workflow
+rerun was launched. Latest Reader mobile41119831073 remains independently
+observed and cannot inherit an older source's Android pass.
+Reader desktop41119830983 has now PASSED on exact35b9a3fb. Readback verified
+native124283434381, real IPC/plugin-download/restart smoke and tracked-source
+integrity. The separate same-source desktop41119831247 has also PASSED with
+its fixed-ID reader validating35b9a3fb. Both terminal results are preserved;
+neither erases cancelled runs, certifies mobile or closes M10.
+Latest Reader foundation41119831315 PASSED on exact35b9a3fb: web124292157023,
+Rust124292157007, OCR124292156681, Windows124295443471 and macOS124295443561.
+That passing Windows run does not diagnose or erase b819's startup failure.
+Reader mobile41119831073 completed with Android124287183396 PASS and
+iOS124287183168 FAIL. The exact iOS log
+`mobile-35b9a3fb-ios-failed.log:210` reports "Element not found: Text matching
+regex: Open local video, Enabled". This differs from8b's mp4-visibility assertion;
+no causal equivalence, current modal evidence or mobile acceptance is inferred.
+All fixed Reader CI observers are now terminal; no rerun was launched.
+
+The duplicate lifecycle ledger item is reconciled against existing evidence:
+Messenger's full38-case source/recovery run includes the deterministic
+Home status-poll cleanup test, which leaves native generation alive and stops
+it explicitly after returning. Current Watch regressions pause actual decoded
+playback before held departure, keep it paused offscreen and reject hidden
+Space-key playback. No extra workload was launched just to repeat these cases.
+
+The next Material presentation increment is source-only preparation. Root read
+the retained actual reference modal and current inline editor captures plus
+MaterialScreen/MaterialEditor/MaterialMedia/Dialog ownership. The inline form
+differs structurally from the reference; the existing real multiline/draft/
+restart regression now also requires Edit Material dialog semantics.
+`material-modal-red.log` initially held at original2560MiB admission, roughly
+7.19G OmO footprint and3.62-3.66G projected headroom, below the unchanged4GiB
+reserve. It subsequently admitted at3.38G footprint with safe samples and
+genuinely failed on the missing Edit Material dialog. Root inspected the actual
+failed inline-editor capture. No editor/dialog production code has changed.
+Retain the existing MaterialEditor draft, exact save retry and staged-import
+owner across route hiding. A naive modal wrapper would unmount them. Installed
+RN Primitives1.5.2 force-mounted native Content also installs a BackHandler while
+hidden, so forceMount is not a safe shortcut. Shared modal presentation must
+preserve real Home/Knowledge exits and focus/close behavior; no new store or
+feature-local modal implementation is authorized by this preparation.
+Existing Material editor tests also require opening another visible item while
+retaining the current draft on failed opening, plus Home/Knowledge navigation.
+A modal would block those external controls. Root surfaced the composition/
+placement conflict and asked asynchronously whether to add compact Home,
+Knowledge and a bounded Material switcher inside the modal (recommended), or
+keep the inline editor pending design review. The maintainer selected Modal with
+controls, following the approved v2 reference, and explicitly requires compact
+Previous/Next plus current-selection access, preserved Knowledge/Material
+filters/search/selection/scroll, Save / Discard / Cancel protection,
+recoverable pending/failed writes, exact originating-context return, existing
+identity/persistence/navigation owners and responsive keyboard access without
+a large redesign.
+
+The first coherent source iteration now uses the existing Dialog with a
+reference-measured wide bound, descriptive Close editor and heading focus.
+MaterialEditor remains mounted above dialog visibility and across item changes;
+its existing draft, retry, save and staged-import owner gates departure.
+MaterialScreen retains its existing native read/route/focus owner and records
+only bounded originating-page item identities/labels. Guarded native item
+replacement does not restart the dialog workflow. A real-Rust regression now
+holds and loses a committed save receipt, requires exact retry, and checks
+Cancel/Discard, current item, query/scroll and originating-trigger restoration.
+Dialog production defaults remain unchanged for other callers. Media content
+unmount clears its existing parent busy presentation and aborts owned work.
+`material-modal-first.log` never reached source checks or rendering:
+original2560MiB admission held around7.23G footprint, with projected headroom
+roughly3.43G. Root killed only that queued launch, then split normal typecheck/
+ownership lint into the already established1024/512MiB source-only guard and
+768MiB compiler cap (`material-modal-source.log`, pending). This does not lower
+the build/browser estimate or waive the4GiB reserve. No renderer/browser was
+started, and no passing or visual verdict is claimed yet.
+Those source-only checks now PASS, exit0: normal typecheck and ownership lint.
+Their samples remain safe at roughly7.21G root footprint with5.39G projected
+headroom under the smaller source-check budget. No export/browser ran in that
+command. A separate first export/two-scenario render is now queued behind the
+unchanged original2560MiB admission and2048/1024MiB runtime guard
+(`material-modal-render.log`). That run completed exit0: fresh export
+`ebdf15fe832a5b3659718e7bdfe05d52`, both focused real-Rust scenarios passing
+in5.1s. Root inspected the1080px empty and390px long-field captures, plus
+the390px failed-save guard: modal containment and bounded field scrolling are
+usable, and the explicit save/discard/cancel controls remain inside the modal.
+The pending/lost-receipt scenario preserves the current item/draft, retries the
+identical command, switches only after durable recovery, and restores the
+originating trigger, unsubmitted query and numeric scroll. These are focused
+results, not full presentation/native/selection-context acceptance.
+The first switcher window is the originating bounded collection page. Complete
+frozen-selection/page-boundary behavior, full originating-source coverage,
+media cancellation, nested proposals, keyboard/long-label and native gates
+still require verification; do not claim the new task set complete.
+The first adjacent run (`material-modal-adjacent.log`) finishes exit1:
+12 passed,7 failed. Three failures expose the missing accessible heading role
+on the new shared dialog title; the focus contract is retained and must be
+repaired, not removed from tests. Three old inline interactions attempt to use
+background list controls while the authorized modal is open; their scenarios
+are being moved through the real in-modal switcher or retained Knowledge
+navigation, preserving failed-open, draft, list-recovery and stale-publication
+assertions. Accepted-proposal reentry now correctly encounters the new dirty
+guard and needs an explicit Discard choice before replacing the old draft.
+No failing result is counted as passed, and direct-entry switching receives
+its own regression before the next production change.
+`material-entry-red.log` now reproduces that regression after normal admission:
+the native list has two items, but a direct-entry editor captures its cohort
+before the list arrives and leaves Next disabled. Root inspected the actual
+failure frame. The next source iteration fills only an empty originating-page
+cohort when that owned bounded page arrives, consumes accepted route-entry ids,
+refreshes displayed labels from accepted native Material and exposes existing
+list recovery inside the active modal. Shared Dialog titles now carry their
+required heading semantics. A fresh serial source/export/affected-suite run is
+in progress (`material-modal-repair.log`); this iteration is not yet rendered
+or verified, and no additional UI edit may precede inspecting its captures.
+That run completed on fresh export `10f04663cc8e08fe103ad22af2d0660d`:
+normal typecheck/ownership lint pass,19 affected scenarios pass,1 fails.
+Direct-entry switching, saved selector labels, heading/Close keyboard focus,
+failed opens, accepted-proposal explicit Discard and lost-save recovery now
+pass. Root inspected the new1080px empty and390px failed-save captures before
+any further UI change. The remaining recovery assertion counted all collection
+requests despite its new real Knowledge round trip; its observed4 requests
+are3 Material reads plus1 Knowledge read. The assertion now names both scopes
+explicitly instead of dropping the request-count protection. The next serial
+run includes that suite, actual Knowledge/source navigation, frozen-selection
+and shared-dialog regressions (`material-modal-context.log`, pending behind
+the unchanged resource admission). No full-context/native verdict is claimed.
+That run completed exit1 with16 passing scenarios and1 stale close-destination
+failure. The corrected scoped retry assertion, all Material editor owner cases,
+native frozen-selection persistence and shared-dialog regressions pass. The
+Knowledge case reached the real originating Knowledge screen on Close, then
+waited for the old Material-screen Knowledge button; root inspected its actual
+Knowledge capture. It now asserts that originating route/search before
+reopening the saved item, and treats the inaccessible background list as retained
+content rather than modal controls. Subsequent source-navigation assertions
+remain intact. A selected run of this corrected flow and a new bounded
+long-label/keyboard scenario is pending in `material-modal-origin.log`.
+The Knowledge case now bounds ordinary actions at15s while preserving the
+explicit240s package-preparation allowance, so a missing control cannot consume
+its whole300s suite budget.
+The exact-context regression now also exercises a nonzero-scroll later Material
+page, one retained frozen selection, an unsubmitted search and a durable note
+edit before closing. Existing code unconditionally resets `after` on Save;
+this added case is not yet run and no later-page preservation is claimed.
+The original exclusion/count/persistence assertions remain, with the requested
+origin-window expectation replacing the old first-page reset expectation.
+Native cursors remain query/package/Knowledge/Material-revision bound: preserving
+that context must use an explicit owning native refresh, not renderer cursor
+rewrites or a silent weakening of ordinary continuation validation.
+`material-modal-origin.log` completes with the corrected full real-Rust
+Knowledge/source workflow passing; its separate long-label scenario fails
+because the selected label grows to262px at390px width. Root inspected the
+actual desktop capture showing the switcher wrapping onto three rows.
+The next coherent visual iteration limits shared select/media-select button
+labels to one line while preserving the full accessible value, and gives the
+Material switcher container a zero flex basis. Its fresh source/export render
+and later-page context regression are pending in `material-modal-compact.log`.
+No option-list redesign or new navigation state was added.
+`material-modal-compact.log` now passes normal typecheck/lint and the full
+long-label/keyboard scenario on export `0599144a9b8e086168e48aee0c9c7d2f`.
+Root inspected its390px capture: Previous/current/Next fit one compact row,
+the full phrase remains editable and the accessible label is not truncated.
+The other scenario genuinely reproduces the later-page Save reset: after a
+durable note write, First Material page becomes disabled and entry-00 replaces
+the originating entry-40 page. Root inspected that failure frame.
+
+The repair adds explicit `refresh_material_collection` to the existing Rust
+collection authority. It reuses only the native keyset bookmark while reading
+fresh bounded membership/counts; query fingerprint, package and Knowledge
+revision checks remain strict, and ordinary Collection still checks Material
+revision too. Refresh rejects Knowledge, follows existing metadata admission
+and adds no source scope, slot, store or navigation owner. MaterialScreen marks
+only its current query for that refresh after a durable write/proposal change;
+it does not reset the cursor or synthesize a page. Failed refresh retains the
+projection and explicit retry intent. Storage/client regressions cover strict
+continuation, refreshed identities/current content/following page, foreign
+queries, package/Knowledge epoch changes, Material-only execution and bounded
+response validation. Native LSP reports no diagnostics. Generated contracts,
+serial owner tests, exact native QA binary rebuild and final affected-browser
+render are pending in `material-modal-refresh.log`; transient TS diagnostics
+for the not-yet-generated Request variant are not suppressed.
+`material-modal-refresh.log` completes exit0. Rust generated the Request contract;
+all23 collection storage tests pass, including the new strict/refresh epoch
+regression. The Material-only runtime metadata test passes, and the actual
+`runtime_browser_qa` binary was rebuilt from this source with one Cargo job.
+All8 client/focus owner tests, normal typecheck/ownership lint and generated
+contract consistency pass. Fresh export `a1cd96328f79c7b7da14b823fab07b4f`
+passes all21 affected Material editor/collection/proposal browser scenarios
+in23.8s. The later-page case now preserves positive scroll, entry-40 focus,
+the unsubmitted query and frozen selection through durable Save, then verifies
+fresh exclusion counts and persistence. Root inspected final1080px and390px
+captures. Fresh editor/screen/Dialog/client LSP diagnostics are clean.
+Some pre-existing Rust test expressions/imports were mechanically reformatted by
+the tool's automatic rustfmt; their assertions are unchanged. This is a verified
+local increment, not complete M10, current native-mobile UI evidence, exhaustive
+frozen-selection navigation or independent-review approval. Those gates remain
+open. The resource guard retained the4GiB reserve throughout; the last observed
+workload sample reports root footprint3490018768, available6964543488,
+pressure1, swap4638900224 bytes and safe projected headroom5890670749.
+The verified source increment is committed as
+`65c068efb697672386ffaead01ad06367546d2fb`; the preceding documentation-only
+receipt checkpoint is `6939b428`. Neither is pushed yet. The dedicated detached
+review checkout `/tmp/mlearn-material-modal-review-65c068ef` is locked at that
+exact source; no reviewer or workload has run there. A disposable, untracked
+`tests/web/material-modal-qa.spec.ts` capture probe adds no product change and
+will be removed after its evidence is inspected. Its paired persisted-palette
+captures and a final same-source Knowledge/selection/Dialog regression run are
+pending serially in `material-modal-final-adjacent.log`. The native UI/mobile,
+full selection-window navigation and M10 milestone gates remain open.
+The final same-source run completes exit0: the persisted light/dark palette
+probe passes, and all6 Knowledge/selection/Dialog scenarios pass in2.6m.
+Root inspected all8 normal/dirty-guard captures at1080/390 in batches of2;
+controls and fields are contained and readable with no blank/overlapping frame.
+The disposable probe was removed; its profile/captures remain preserved.
+Source65c068ef and documentation6939b428 are now pushed, with HEAD/upstream
+readback matching65c068ef. The existing push-triggered runs are pinned as
+foundation41137381403, desktop41137381334 and mobile41137381329. No workflow was
+manually launched or rerun. Their fixed-ID observers validate the source SHA
+in final metadata; watcher/reader exit codes are not CI conclusions. The first
+observer registrations were refused before launch because7200000ms exceeds
+the tool's3600000ms maximum; the corrected registrations are active.
+
+Independent reviewer `st_01a18ee4`, explicitly checked on the current
+chatgpt-subscription/gpt-6.1-sol route, returns REQUESTS_CHANGES on65c068ef.
+Report: `.omo/evidence/material-modal-65c068ef-gate-review.md`. Its P2 combines
+two previously separate passing cases: later-page Save clears refresh
+provenance without replacing `after`, so a later Knowledge round trip uses
+ordinary stale continuation and Retry loses the origin page. It found no
+additional concrete quality blocker, but did not execute the scenario.
+Root reopened the context task and extended the existing later-page regression
+with that exact round trip and an asserted native ready response. Its genuine
+red run is pending in `material-modal-refocus-red.log`; no repair or new pass is
+claimed yet. The RPC status watch timed out independently after the reviewer
+had already returned; that is not the review verdict or a product failure.
+The extended real-Rust case now genuinely fails on65c068ef: after a durable
+later-page Save and Knowledge/Material return, native replies with an error
+instead of a ready collection and the modal displays the conflict/retry.
+Root inspected the actual failure frame (`material-modal-refocus-red.log`).
+The minimal repair keeps refresh provenance for the retained native bookmark
+across focus reads; it removes the successful-read clear, without changing
+ordinary/native epoch validation. The regression now captures the healthy
+editor and originating list after that complete combination. Fresh source
+checks/export/all21 Material scenarios are pending in
+`material-modal-refocus-green.log`. Source LSP is clean; test LSP timed out.
+
+Desktop run41137381334 completed SUCCESS on exact65c068ef, native job124343069668.
+Root read back successful real IPC/plugin-download/restart and tracked-source
+integrity steps. This covers that source, not the subsequent provenance fix or
+native-mobile UI. Foundation/mobile observers remain active; no old iOS
+diagnostic variant or workflow rerun was launched.
+`material-modal-refocus-green.log` passes fresh typecheck/lint and exports
+`c2c41cca07b4994c8b955cddcbd48efe`. Twenty scenarios pass. The combined
+regression now receives the required native ready collection with no alert,
+retains the current note, and restores entry-40 focus, the later page, query
+and frozen selection. It then fails only because its unscoped
+app-shell-content locator matches both retained Knowledge and Material panes.
+Root inspected the actual healthy modal and restored entry-40 list frames
+before any further change. The test now measures the visible Material scroll
+owner explicitly, retaining its positive/exact-scroll assertions. No additional
+product change was made. Its focused complete rerun is pending in
+`material-modal-refocus-focused.log`; the failed unscoped run is preserved.
+
+The latest mobile41101761469 result on03ab9e45 is Android job124220069561
+success and iOS job124220069124 failure; this API response supplied no failed
+step details, so its iOS cause is not attributed. The newer compiled pair is
+selected for local preservation instead of duplicating the older0fa pair:
+Android13000422295 and iOS13002192618, both expiring November6,2026.
+Authenticated metadata/source/digests are recorded in
+`.mlearn/m10/native-03ab9e45/README.md`. Streaming transfer and exact-size/
+SHA-256 checks passed for both local archives under a512/256MiB I/O guard
+(`native-archive-stream.log`, exit0); both exact byte sizes were read back.
+Archives remain compressed and no app/device/model was launched.
+The initial binary-API route stopped at an OmO spike to12089341392 bytes,
+pressure2 and2967404544 available; the full Android partial was retained and
+verified without another download. A direct-file iOS transfer avoided repeating
+that route and completed without a guard stop. Final disk10982260KiB,
+footprint7116862928, RSS6525566976, available6305546240, pressure1,
+swap4714397696 bytes. The cause of the initial spike is not assigned.
+The original2560MiB read-only memory-readiness observer completed0, but the
+archive had not finished then; no heavyweight work was launched from that wake.
+
+The launch incorrectly continued despite1153644KiB disk because the environment
+prefix broke the intended shell AND chain. This is a root orchestration error,
+not a waived disk gate. Grouping the prefix and gate in one child shell was
+verified without a workload:1089548KiB emitted DISK_ADMISSION_HELD and exited75.
+Use that grouped form for future work; memory reserve stayed4GiB in the run.
+Owned QA processes are absent. Preserve this candidate/evidence while adjacent
+execution uses the corrected admission. Final grouped run started at2140040KiB;
+its last footprint3302143440, RSS6771261440, available7703674880,
+pressure1, swap3693019136 bytes held the original4GiB memory reserve.
+Disk now1926348KiB. Do not delete profiles or infer milestone approval.
+
+Hosted readback for pushed `0fa440d5`: foundation41052196706 passed; real desktop
+41052196585/job124050745288 failed in native IPC/download/restart smoke.
+The actual error is "Visible enabled control unavailable" for Cancel opening,
+at `tests/desktop/native-smoke.mjs:432`, not the earlier GTK portal warnings.
+That case holds a committed subtitle-offset preference receipt, closes options,
+then expects Cancel opening. Earlier change08751247 deliberately restricts that
+control to actual file opening; current `changeSource` does not set opening.
+The pending-preference cancellation contract and its original assertions still
+need repair/verification, not deletion or relabeling as passed. Exact log:
+`/tmp/mlearn-ci-independent.6EaZ3F/desktop-0fa440d5-failed.log`.
+Mobile41052196617 has completed on the same0fa440d5 source. Android job124066868640
+passed compilation, actual UI/Rust persistence and tracked-source integrity.
+iOS job124066868984 compiled/typechecked and retained the simulator app, but its
+UI flow failed: "Assertion is false: id: m01-watch, mp4 is not visible".
+Exact log: `/tmp/mlearn-ci-independent.6EaZ3F/mobile-0fa440d5-ios-failed.log:422`.
+This records the failure, not a new causal diagnosis or native acceptance.
+No workflow rerun, new iOS diagnostic campaign, device or local native build
+was launched. Remote compiled artifacts12982025409 (`ios-simulator-app`) and
+12979150051 (`android-compiled-app`) expire November6,2026; evidence artifacts
+12982616353/12978906897 expire January28,2027. They were not downloaded.
+
+Fresh resource observation after that event: disk853796KiB; OmO physical
+footprint6585464272, RSS5967380480, available7172177920, pressure1,
+swap4969398272 bytes. No new local test/native workload was launched.
+The eval VM is in the same OmO process82251, but reports only61807848 bytes
+of JS heap; this does not explain or attribute the larger physical footprint.
+Messenger's native reproduction remains held by the unchanged2GiB disk gate.
+The maintainer subsequently paused work for cleanup; the queued launch monitor
+was cancelled with a killed receipt. On explicit continuation, disk13583840KiB
+was available and no owned native/device workload survived. The fresh red run
+held the original4GiB memory reserve: OmO footprint3284661712 bytes,
+available8131035136, pressure1 and swap4248829952. No gate was relaxed.
+Git readback confirms4a86df32 is already an ancestor of currentHEAD; both PRs
+remain OPEN/draft at their recorded separate source identities.
+
+October 30 Watch Back checkpoint repair: extending the existing decoded-video/
+real-Rust transcript case to browser Back reproduced Home becoming visible
+without any save_position attempt (`watch-back-red.log`, actual Home capture).
+The original Home scenario and its timing/rate/offset/restart assertions remain.
+Back now enters Watch from retained Home via normal Material/Home/Continue UI
+and verifies that the unsubmitted Material query survives departure.
+
+Watch now guards removal through its existing pauseAndSave operation. It
+serializes departures, rejects overlapping busy work, checks focus/source
+ownership before replaying the blocked action and cancels the source session
+only after the checkpoint succeeds. Failed persistence retains the same player
+and explicit Retry instead of cancelling/reloading away its unsaved position.
+Home and Reselect share this guard. No player, native persistence or history
+authority changed. The first five-case pass exposed a duplicate generic source
+error in captures; checkpoint failures now remain solely with saveError, while
+post-checkpoint cancellation failures retain generic source recovery. The
+existing browser case asserts that checkpoint failure does not offer Retry source.
+
+Initial Watch checkpoint export `806381c0831c415fe0e32d3946a4bfa9` passes typecheck, architecture
+lint and all 114 affected browser scenarios in one serial run
+(`/tmp/mlearn-ci-independent.6EaZ3F/watch-back-final.log` and
+`watch-back-final-results/`). Root inspected final Back failed/held 390px
+captures and the 1100px restored transcript state. Original Home, failed receipt,
+exact Retry, actual decoded playback pausing while a checkpoint is held,
+post-departure Space suppression, native crash/restart position/rate/offset,
+saved-Material returns and proposal source return pass. This is shared browser
+media plus real Rust persistence, not native OS player/gesture certification.
+At that checkpoint source/test LSP requests timed out after the error-channel edit;
+earlier clean diagnostics are not reused as final evidence. Exact-source
+review `st_01a18c9c` REQUESTS_CHANGES on `c368f450`: the guard can discard a
+video-drop replacement while busy. Report:
+`.omo/evidence/watch-back-c368f450-gate-review.md`. A host-drop regression is
+added to verify the replacement route/player. Broader NAV-02/M10/native/maintainer
+gates stay open.
+
+The new real host-drop case passed against the original web checkpoint
+(`watch-drop-red.log`, despite its historical filename); the conditional busy
+race was not reproduced there. Handoff is now explicit after busy clears:
+a source/focus-owned pending replacement dispatches from an effect, and the
+redundant success reload is removed because the new route initializes its source.
+The guard is not bypassed. The test invokes the actual Tauri drop callback,
+opens a distinct authored source through Rust, serves its actual media bytes,
+checks route/title/media URI and waits for real decoding. It retains the original
+checkpoint, draft, playback/rate/offset and restart assertions.
+Export `ec0e539ea25562acc17e1d7ac4a1ceca` passes typecheck, architecture lint and
+all five affected Watch cases (`watch-drop-green.log`, 30.6s); source/test have
+fresh clean LSP diagnostics. Root inspected the replacement player and failed/
+held recovery PNGs in `watch-drop-green-results/`. The earlier 114-case run stays
+bound to the earlier source; it was not rerun for this local handoff delta.
+The same reviewer `st_01a18c9c` APPROVEs exact clean
+`b9f7392ec147461ae7d057bb2e34cceb1e9ffae0`, with no blocker. The reviewer
+confirmed post-busy, single-consumption, source/focus-owned replacement without
+guard bypass or old-source reload, and inspected the five-case log/replacement
+capture. No execution/writes; fresh LSP is supplied evidence, not independently
+inspected. The original conditional concern was not reproduced on web.
+Final resolution is appended to the original review report; native OS and
+broader NAV-02/M10/M11/maintainer gates remain open.
+Latest footprint3256989136, RSS6201737216, available7191298048,
+pressure1, swap4165074944 bytes; original 4 GiB reserve held.
+Final guard footprint3212391888, RSS6569213952, available7592034304,
+pressure1, swap4404805632 bytes; original 4 GiB reserve held.
+Owned QA processes are absent. Disk has1526572 KiB available after this run;
+admit no further substantial local work until capacity is restored.
+Disk later recovered to about2.5GiB. Measuring existing QA profiles found a
+30172KiB maximum; only the focused reproduction/five-case delta and web export
+were admitted above a 2GiB disk gate, without a native rebuild. Disk is now
+1641060KiB; broader local work remains held. Profiles/evidence are preserved.
+
+October 30 Reader Back checkpoint repair: the real-Rust browser harness reproduced
+Back reaching Home after a failed appearance checkpoint, losing the visible Retry
+owner. Reader now routes removal through its existing `persist()` operation,
+retains the workspace on failure, rejects duplicate departures while saving and
+replays the original action only for the current source after persistence succeeds.
+Home and Reselect use the same guard. No checkpoint/session/store authority changed.
+
+The guard alone still failed. Installed-router probes established that Back reset
+Expo's outer `__root` stack, whose direct routes did not change; replacing its
+nested state bypassed Reader's beforeRemove listener. The pinned Expo57.0.25 patch
+now reuses its existing `findMatchingState` helper to reset the changed navigator.
+The existing browser-cursor rollback remains. Exact prior managed output upgrades
+to the new output; original hashes, version/drift/partial-patch rejection remain.
+All temporary app/dependency probes were removed. Failed owner-only, focus and
+router probes remain in `reader-back-{red,green,probe,focus,context,activation,dispatch,target}.log`
+under `/tmp/mlearn-ci-independent.6EaZ3F`, not passing evidence.
+
+Export `f472384e4e607db2f35c7f7585711b70` passes typecheck, architecture lint,
+89 tooling tests and 202 client/owner tests (`reader-back-final.log`).
+That first wider browser run had 108 passes and one test timeout: changing
+viewport during retry triggered a normal layout checkpoint, detached Retry and
+intercepted its click. No assertion was relaxed; separate fixed-width flows and
+guaranteed backend cleanup repair the test. The complete affected browser run
+then passed all 110 cases once (`reader-back-fixed-width.log`,
+`reader-back-fixed-width-results/`). Both 390/1080 flows retain Reader and its URL after failed
+Back, retry the native checkpoint, return Home, preserve the unsubmitted Material
+query and verify the changed appearance after native process crash/restart.
+Root inspected all four failure/restored-draft PNGs. Reader source and new test
+have fresh clean LSP diagnostics; scratch/earlier timeout reports are not passes.
+This is browser UI plus real Rust persistence, not native OS gesture verification.
+Checkpoint `c78ef60b4a0620356f920c29f401070f9e0df75d` received APPROVE from
+sole exact-source reviewer `st_01a18c8a` (subscription GPT6.1Sol), with no scoped
+blocker. The reviewer inspected all five changed files, relevant owners, logs
+and two captures; no workloads or writes. Report:
+`.omo/evidence/reader-back-c78ef60b-gate-review.md`. Separate code-review skill
+coverage was not supplied. NAV-02/M10 and native/maintainer gates are not closed.
+
+The final run's footprint was 3201283536 bytes, RSS6235045888,
+available7776780288, pressure1, swap4178051072; original 4 GiB reserve held.
+Earlier OmO footprint growth to about7.2GB was investigated with bounded vmmap
+(6.0GiB current, 14.4GiB historical peak), without assigning a cause; later
+admission samples returned near3.2GB and were stable. No devices, native rebuild,
+model run or heap dump. Owned QA browser/runtime/4173 processes are absent.
+Disk now has 4272220 KiB available; reserve capacity before substantial new work.
+
+October 30 Review Back departure repair: browser Back removed ready audio before
+its interruption could save, unlike the existing Home path. The complete Home
+fixture reproduces this (`review-back-fixture.log`, missing Saving Review and
+Home already visible). The first red run also had missing drag-unlisten and
+recent-document fixture handlers; those were supplied before isolating the same
+product failure. Review now uses the installed router's usePreventRemove hook
+and reuses its existing departure/save/retry owner for route removal, including
+Home. It replays the original blocked action only after interruption is durable.
+No session/evidence authority or saved navigation store was added.
+
+The first owner repair retained Review but exposed an actual web history split:
+URL Home while Review/retry remained visible. Expo57.0.25's web linking fork
+does not restore a rejected reset. Its memory-history listener also leaves the
+internal cursor stale on external Back, making the restoring go(1) a no-op;
+a direct deterministic owner test reproduced '/' instead of '/review' before
+the one-line cursor update. The managed postinstall patch is version/hash-pinned
+to `build/fork/useLinking.js` and `build/fork/createMemoryHistory.js`. It tracks
+the committed index, flushes the external browser reset before distinguishing
+accepted from blocked navigation, and restores the existing history cursor on
+rejection. No renderer history handler, duplicate stack or new dependency.
+Fresh upstream strings produce exactly the installed patched artifacts; repeat
+application and altered-version/source rejection pass. Remove the patch only
+after upstream owns the repair and the held/failed Back workflow still passes.
+
+Failed attempts remain under task-root `review-back-{red,fixture,green,history,
+history-final,fork,probe,cursor,memory}.log` and results. The wrong bundled React
+Navigation target was restored before targeting Expo's actual fork. The first
+pin check stopped before build because root's edit added an EOF newline; the
+original hash remains enforced, with only the exact managed output accepted.
+Temporary route/index probes were removed. No URL, retry or prior Home assertion
+was weakened; the final regression covers both ready and genuinely playing audio.
+It holds then fails interruption, keeps Review and its URL, retries the identical
+command, and permits Back with the same encounter/completed count and no Submit.
+Existing playback tests now subscribe to the exact fixture commit signal before
+Play instead of polling.
+
+Final export `aa9fa4f39f97878d98e5bf467e682039` passes normal typecheck and
+architecture lint,89 tooling and202 package/client tests, then63 affected
+Foundation/Review/Material/Messenger/Reader/Watch browser cases in1.5m
+(`review-back-integrated.log`/results). Pending/failure captures for ready/light
+and playing/dark at1080/390 were inspected: stopped player, disabled departure
+while saving and a contained actionable Review retry. This is actual browser UI
+with mocked Review IPC, not native audio/OS gesture or new Rust persistence proof.
+Native gesture, whole NAV-02/M10, visual and independent-review gates stay open.
+Fresh test/scratch JS LSP requests timed out; package JSON LSP lacks Biome.
+No tool was installed: actual execution, owner tests and normal typecheck pass.
+Post-run preview4173 and QA owners were absent. Final guard sample:
+footprint3134174672, available7245856768, pressure1, swap4599644160 bytes,
+unchanged4GiB reserve. No device, reference app or CI campaign was restarted.
+Sole exact-source reviewer `st_01a18c62` APPROVEs checkpoint `b15784d7` with no
+scoped blocker; report `.omo/evidence/review-back-b15784d7-gate-review.md`.
+The review inspected source/historical logs and two captures, ran no workloads,
+and does not independently certify native gestures, persistence or M10.
+Its nonblocking test-deadline note is repaired with an explicit5000ms Node test
+timeout; both focused router tests pass afterward. Product source/export is
+unchanged by that test-only follow-up.
+
+October 30 shared collection disclosure: the full-width quiet action bar is
+replaced by an intrinsic, right-aligned shared Button with existing navigation
+material and chevron glyphs. CollectionFilters still owns expansion and the
+native-backed draft editor; neither screen duplicates the control. Existing
+expanded accessibility semantics, full-width nested editor, Apply/Clear and
+compact header scroll ownership remain intact. No shared Button palette or
+global shell geometry changed. Product diagnostics, normal typecheck,
+architecture lint, draft guard and single-worker export
+`72bfc36ad49db07c69a00055d36d8545` pass.
+
+Root inspected actual Material and unprepared Knowledge in both themes at
+1080/390px, collapsed/expanded, with separate narrow captures scrolled to Apply.
+Final evidence: `.mlearn/m10/collection-disclosure-settled.json` and its20
+PNG states; task-root `collection-disclosure-final.log`/results. The trigger
+measures95.25x34px in Chromium, stays contained and exposes expanded true/false;
+Apply is reachable in each narrow caller/theme. The first capture's immediate
+post-resize geometry was stale in two cases; the settled driver waits for paint
+before measurement and preserves the original manifest. No product timing
+workaround was added. Metadata records0 provider requests, no active catalog,
+and0 prepare_collection commands: Knowledge capture intentionally stops before
+catalog preparation and does not prove populated Knowledge or native layouts.
+All18 existing Material editor/collection/proposal scenarios then pass in19.0s,
+including real compound counts, paging, exclusion, restart and keyboard removal.
+Preview4173, capture browser/native host and test owners are absent after exit.
+The process-search command returns1 for no matches, not a test failure.
+Last guard sample: OmO footprint3109352912, available7944290304, pressure1,
+swap4819976192 bytes, unchanged4GiB reserve. Material header density, sidebar,
+compositor material and applicable native parity remain open below.
+
+October 30 Material populated-grid baseline and focused status-region repair:
+the real GUI authored Japanese 猫/犬/鳥 through existing native Material commands.
+The grid already used 280px minimum tracks,16px gaps and24px grid/card insets;
+no replacement grid, store or shared-shell styling was introduced. The empty
+status wrapper nevertheless reserved an extra20px section gap after readiness.
+Material now mounts that region only for actual pending/error/preparing/
+unavailable feedback. Existing recovery content and actions are unchanged.
+Typecheck, architecture lint, draft guard and fresh single-worker export
+`bb54349b854791ca8de44fb2ae3c434b` pass. All18 existing Material editor,
+collection and proposal browser scenarios pass in19.2s, including native
+filter/count/paging/edit and crash-restart flows (`material-status-tests.log`
+and `material-status-results` in the current task root). No cosmetic-value
+test or acceptance assertion was added or weakened.
+
+Root finite native-backed captures reused the genuine GUI-authored profile
+`/tmp/mlearn-ci-independent.6EaZ3F/material-grid-baseline-native.E81938`.
+Before/scoped/after manifests and PNGs are `.mlearn/m10/material-grid-baseline`,
+`material-grid-scoped` and `material-grid-status` respectively. Both themes
+were captured at390/1080/1440/1920px and narrow end-of-list. Inspected after
+captures show first-card y250->230 desktop and518->498 narrow; card widths
+remain408px at1080,342px at390,286px at1440 and321.59px at1920.
+The scoped Material body is the sole results scroll owner and its last card,
+paging and Refresh remain reachable. The initial baseline's global shell
+selector targeted a retained hidden route; its supposed end capture is invalid
+scroll proof, preserved rather than overwritten. The corrected driver scopes
+to the actual Material card's ancestor and asserts last-card visibility.
+The first export invocation failed because root forwarded a worker flag through
+two npm script layers; direct workspace forwarding then exported successfully.
+Both failed-driver interpretation and failed invocation remain explicit.
+
+This repairs only the demonstrated empty status spacing. Material parity and
+applicable native layouts remain open: the reference has a220px sidebar,
+different header/filter/selection density and darker collection materials;
+current shared-shell width is200px. Narrow Chromium with touch emulation/DPR1
+is not native-device or compositor evidence. No Lighthouse, native-device,
+IME or new independent M10 gate verdict is claimed. Root capture/QA processes
+and preview4173 were absent after completion; genuine profiles are preserved.
+The unchanged4GiB resource reserve held. Last focused-test sample: OmO
+footprint3109729744, available8563212288, pressure1, swap4655022080 bytes.
+
+October 30 integrated JS/TypeScript owner checks pass at product625ef496 and
+test checkpointc9e13103:87 tooling checks plus202 package/client tests, with
+zero failures, skips or cancellations. Both stages ran serially using
+`node --test --test-concurrency=1 tools/checks/*.test.mjs` and
+`tsx --test --test-concurrency=1 packages/*/tests/*.test.ts tests/client/*.test.ts`.
+Evidence: task-root `m10-owner-suite-toolchain.log`, exit0. The original
+`m10-owner-suite.log` remains a failed run: root's login-shell wrapper selected
+Xcode Python3.9.6, causing seven offline character-converter syntax failures;
+its TypeScript stage never started. A non-login shell with explicit existing
+`/opt/homebrew/bin` PATH selects verified Python3.14.7. No product/test assertion
+or interpreter compatibility code changed. Node rejected test-concurrency in
+NODE_OPTIONS; the supported CLI flag was used instead.
+Rust source continuity was checked againstf3e7366a: `git diff --stat f3e7366a
+HEAD -- crates Cargo.toml Cargo.lock` is empty. Reuse the recorded warning-free
+22 language-host and70 runtime passes and exact139b78f8 hosted Rust evidence
+below, rather than rebuilding unchanged owners. This does not promote the
+separate native/platform/M10 gates to passing. The owner-suite guard stayed
+safe with the unchanged4GiB reserve; last sample footprint3445405136,
+available8293810176, pressure1, swap3987603456 bytes. Disk readback is8111908KiB
+available; owned verification roots were measured, not deleted or attributed
+to unexplained memory growth. Preserve genuine profiles and compiled artifacts.
+
+October 30 accepted source-proposal departure: Open saved Material bypassed
+Inspector's checkpoint-aware owner and left its source Inspector portaled over
+the editor. The new real-conversation regression reproduced expected0/received1
+Inspector before repair (`accepted-proposal-departure-red.log`/results).
+SourceActions now delegates that action to its parent Inspector when present,
+reusing the same draft/checkpoint acknowledgement, close and management-entry
+owner as ordinary captured Material. Standalone callers keep their existing
+route behavior; no duplicate departure implementation or new state owner.
+Normal typecheck, ownership lint and fresh export
+`9531139e3df9cdb27877868aa62d9e5a` pass. All41 affected proposal/Reader/Watch/
+Messenger cases pass in1.1m (`accepted-proposal-departure-green.log`/results).
+The actual conversation's unsent draft and retained unsubmitted Material search
+both survive opening the accepted editor and returning to the captured message.
+Desktop/narrow editor captures were inspected with no stranded Inspector.
+Product/test diagnostics and diff check are clean. Native QA processes and
+preview4173 were absent after completion. Resource reserve stayed4GiB; last
+sample footprint3354998224, available7352434688, pressure1,
+swap3634298880 bytes. Prior independent approval remains bound to19e35a9a,
+not this later two-owner callback increment; full M10 review is still required.
+
+The follow-up pending-proposal draft-loss hypothesis did not reproduce.
+Against unchanged625ef496 product/export, the actual message proposal Return
+keeps the unsent composer text after closing the captured-original dialog.
+The strengthened existing test passes in3.0s (`pending-proposal-draft-red.log`,
+despite that preselected filename); its final diagnostics/diff check pass.
+No speculative checkpoint/focus/lifetime repair was added, and dependent
+save-recovery work for that hypothetical repair was dropped. This is observed
+browser navigation continuity, not evidence of an extra native draft save.
+The4GiB reserve stayed unchanged; last launch footprint3357947344,
+available7988281344, pressure1, swap3674800128 bytes. The finite QA owners closed.
+
+October 30 proposal Return repair: the real Reader regression returned the
+right document but lost the captured selection (`Children` stayed transparent).
+Proposal navigation now carries only its stable proposal ID; existing Reader,
+Watch and captured-message owners resolve the authoritative anchor through
+`returnMaterialProposalSource`. No anchor store, protocol or Rust authority was
+added. Reader selection survives reload; Watch restores the original subtitle
+selection; Messenger opens its captured-original dialog rather than only a chat.
+The first integrated captures exposed the originating Inspector still portaled
+behind the destination. Successful Return now invokes that existing Inspector's
+close callback before navigation, and tests reject duplicate/stranded Inspectors.
+Failures retain the initiating proposal dialog.
+
+Typecheck, ownership lint and final export
+`a8e5f48bc2d012a3bd23050edd89a00f` passed. All40 affected proposal/Reader/Watch/
+Messenger scenarios then passed in1.1m (`proposal-selection-settled.log`/results).
+Desktop/narrow Reader, Watch and captured-message captures were inspected.
+The source-only Watch proposal fixture intentionally does not decode; the
+separate genuine-media departure case also passed in this run. Image proposal
+Return shares Reader's existing image-anchor path but was not independently
+exercised here. No native-device/platform certification or complete M10 claim.
+Original red evidence is `proposal-selection-red.log`/results. The earlier
+40-pass intermediate (`proposal-selection-integrated`) predates the portal fix.
+`proposal-selection-final` retains39 passes plus a polling-driver timing failure:
+virtual time advanced before an outstanding native poll scheduled its next timer.
+The repaired test awaits the exact held polling request before pausing time;
+it does not sleep, extend a timeout, weaken cleanup assertions or retry to green.
+Fresh diagnostics for all three affected test files were clean before that final
+small synchronization edit; normal product typecheck is clean. The final run
+kept the4GiB reserve: last sample footprint3335583184, available7760494592,
+pressure1, swap5011406848 bytes. QA native processes and preview4173 were absent
+afterward. Existing Inspector action-rail clipping/lexical-alternative differences
+remain outside this navigation repair. M10 review/native/visual gates and M11's
+dependency gate stay open.
+
+Root's separate finite omowright replay passed on exact product checkpoint
+`19e35a9a`, not a later renderer build. Actual GUI creation of an unaccepted
+proposal, Return, native SIGKILL/restart and route reload preserve the exact
+Children highlight at1080/390px, zero stranded Inspectors and no horizontal
+overflow. Home/Material/Review proposals reopens the same pending revision1
+with unchanged authored meaning/notes and zero provider requests. The manifest
+is `.mlearn/m10/proposal-return-root-qa.json`; linked pending/restart/management
+captures were inspected. `proposal-return-root.log` exits0. Its native profile
+`proposal-return-root-native.vkMSua` is preserved under the task root; owned
+browser/native/server were closed and exact profile processes/port4173 absent.
+The4GiB reserve remained unchanged; last sample footprint3340760528,
+available7888781312, pressure1, swap3773366272 bytes. The single read-only
+independent reviewer approved exact source `19e35a9a` with no blocker and
+moderate-high confidence for this bounded increment. It inspected source,
+native owners, tests, logs and captures without running workloads or writing
+files. Report: `.omo/evidence/proposal-return-19e35a9a-gate-review.md`.
+The clean locked review checkout was verified at that source and removed.
+Closed-dialog/route-change races remain statically audited only; image/native/
+visual limits remain open. This verdict is not milestone or maintainer acceptance.
+
+October 30 unavailable-Review recovery increment: the browser-preview Home
+action replaced Home and discarded the retained Knowledge workspace, even
+though an ordinary management roundtrip preserved its unsubmitted search.
+The real browser regression reproduced that reset before repair. The fallback
+now uses the same `dismissTo('/')` navigation as available Review; no session,
+audio or persistence owner changes. Typecheck, ownership lint and fresh export
+`334c468c247a93ef7e6f01fb82605df6` passed, followed by all20 affected foundation/
+Review tests in11.7s. Both1080/390px paths preserve the exact authored query.
+Root's separate finite omowright replay passed at both widths; all four captures
+were inspected for usable, contained unsupported/recovered states.
+Evidence: task-root `review-unavailable-red-admitted.log`,
+`review-unavailable-green.log`, `review-unavailable-root-qa.log`, and
+`.mlearn/m10/review-unavailable-root-qa.json` with linked PNGs. The earlier
+`review-unavailable-red.log` held before workload launch, not a test failure.
+The root replay loaded that exact fresh bundle without a native shim or state
+mock and closed its owned browser/server; port4173 and its profile process
+were absent afterward. Guard samples stayed safe with the unchanged4GiB
+reserve: final footprint3599087056, available7993245696, pressure1,
+swap4901371904 bytes. This proves browser-preview navigation, not Rust session
+persistence, native TextInput/IME or complete NAV-02/M10 acceptance. The wider
+M10 independent review remains required; M11 stays gated.
+
+The follow-up real English-package/SQLite regression passed in4.3s against
+product checkpoint `fd7db9c5`, with no further product edit. A real Inspector
+capture starts a finite scheduled Review; Home then visits Knowledge/Material
+with distinct unsubmitted searches at1080/390px. Reopening the existing session
+preserves its entire revealed encounter and exactly one session; both management
+drafts survive the Review roundtrip. Pause, native SIGKILL/restart, browser reload
+and Resume retain the same encounter with zero completed reviews and zero provider
+requests. Both restored captures were inspected: cue, answer, rating controls and
+Return remain contained. This is browser/Rust integration, not consuming-platform
+media or native TextInput proof. `review-management.log` and its result directory
+under the task root preserve execution/captures; test diagnostics and diff check
+passed. Admission held until three safe samples, without lowering the4GiB reserve;
+last launch sample footprint3310302672, available8739602432, pressure1,
+swap4282777600 bytes. Owned native QA processes and preview4173 were absent after
+the finite test closed. Full navigation/M10 gates remain open.
+
+Messenger Home polling-lifetime regression passes in2.6s with the real native
+generation held streaming. After send/draft cleanup settles, the test holds one
+actual polling receipt, departs through Home, releases that receipt and advances
+four600ms polling periods with Playwright's virtual clock. No further status
+read is issued by the unmounted conversation. The native generation remains
+streaming with one provider request; reopening Coach permits explicit Stop,
+closes that same provider request and publishes cancelled. No product edit was
+needed. The first driver held the initial poll before send cleanup could finish,
+blocking the serialized request lane and leaving Home disabled; its AbortError
+and trace remain in `messenger-home-poll.log`/results. The corrected event-bound
+run is `messenger-home-poll-v2.log`/results; this is not a product-failure repair.
+Diff check passes. Fresh LSP diagnostics timed out after the change; the earlier
+initial diagnostics were clean, but that does not certify the final test source.
+The final test executed successfully. Guard samples stayed safe with unchanged
+4GiB reserve; last launch footprint3333420496, available8197242880, pressure1,
+swap4115005440 bytes. Native QA processes and preview4173 were absent afterward.
+This verifies Home unmount/stale-receipt cleanup, not a retained-but-hidden route
+or consuming-platform Watch playback lifetime.
+
+Watch's existing genuine-media search/departure case now starts decoded
+H.264 playback before its held Home save. The player stops while that receipt
+is still pending, stays paused after Home and after a Home-body Space key,
+and its exact measured stopped position survives native SIGKILL/restart.
+The unchanged failed-save recovery, transcript/cue seeks, subtitle offset
+and playback-rate assertions also pass. No product edit was needed.
+The changed case passed in3.0s (`watch-playing-home.log`/results), reusing
+`.mlearn/m03-m07/m07-messenger/fixture-decode-local-e6986c8a/watch-fixture.mp4`
+through the existing byte-range adapter, without regenerating media or starting
+a device. Pending/error390px captures were inspected; feedback and recovery stay
+visible beside Home, and the genuine frame/captions/controls remain contained.
+This is decoded Chromium media plus real Rust persistence, not Tauri asset-server
+or native-device playback certification. Final Watch test diagnostics and diff
+check pass; the unrelated Messenger test LSP freshness timeout remains recorded.
+The unchanged4GiB reserve stayed safe: last launch footprint3330553296,
+available8788393984, pressure1, swap4098228224 bytes. Native QA processes and
+preview4173 were absent after completion.
+
+October 30 independent engineering checkpoint `6eda570a`: Watch Home previously popped back
+to Material instead of Home; Reselect from Home replaced the retained management
+workspace and erased its unsubmitted search. Both failures were reproduced against
+the real Rust source/analysis/storage fixture before repair. The existing departure
+owner now dismisses to Home after cancellation/checkpoint acknowledgement; both
+actions share that owner. Typecheck, ownership lint and a fresh web export passed;
+all 11 affected departure/layout/foundation scenarios passed in 13.5s. Eight captures
+at 1080/390px were inspected. Evidence is under
+`/tmp/mlearn-ci-independent.6EaZ3F/`: `watch-home-red2*`,
+`watch-reselect-red*` and `watch-home-green*`. The fixture does not decode
+media and proves neither native playback nor failed/held playback-save recovery.
+
+Root's first additional omowright manual run was interrupted before browser attachment.
+Its guard recorded OmO footprint jumping from 3344430520 to 12286080440 bytes,
+pressure 1 to 2 and available memory 2910306304 bytes; it automatically stopped the
+owned workload. A subsequent sample was footprint 7099332024, pressure 1,
+available 7291895808 and swapUsed 5577179136 bytes. This is unexplained OmO growth,
+not attributed to Chromium/native owners. Substantial work was held for fresh
+resource investigation and trend evidence. Exact native/browser/web PIDs 50958/50960/
+50959 and listeners 4173/59140/59141 were absent on readback. The harness did not
+deliver its graceful-close receipts; supervisor termination plus process/port
+absence are the available cleanup evidence. That run remains incomplete.
+Raw samples are in `manual-watch-supervision.log` under the same task root.
+Bounded vmmap summary subsequently reported 6.6G current/14.4G historical peak.
+The eval heap was only 28944705 bytes with 6419377 external bytes, while process
+mimalloc counters reported 10401349632 current huge-allocation bytes. These
+counters locate the discrepancy outside the small eval heap but do not establish
+its owner or cause. No heap dump or large session history was loaded.
+
+CI polling is stopped; API 403 observations are not CI failures. Existing endpoint/
+request-ID/body evidence is in that root's `ci-observation.md`; original rate-limit
+response headers were not captured. No diagnostic CI variant or unchanged rerun
+was launched. Four source-only lanes returned: Windows theme failure investigation
+(no causal fix established), 25 explicitly UNRUN M11 package/session scenarios,
+Messenger lifecycle assessment (candidate restored because no real retained-exit
+consumer was established), and Material reference-owner audit (no visual change).
+M11 integration remains gated on M10. The latest inherited Windows input and iOS
+Watch failures below remain unresolved.
+
+### Watch checkpoint and pending-action increment, October 30
+
+After the recovery question timed out, the idle resource trend and three fresh
+samples showed normal pressure, flat swap and approximately 6.0 GB projected
+headroom after a 1 GiB allowance. This justified one deliberately selected,
+automatically supervised run; it did not explain or repair the earlier OmO spike.
+The four-GiB reserve and serial-work requirement were unchanged. No stopped
+device, old manual harness or CI polling loop was automatically restarted.
+
+The existing decoded-video/source-search test now fails `save_position` transport,
+uses explicit Retry, holds the next Home save, and verifies no departure before
+acknowledgement plus persisted position/rate/offset after another native restart.
+The first run passed, but its inspected pending capture exposed an unrelated
+native-open cancellation control during Home saving. The strengthened assertion
+failed before repair (expected zero `Cancel opening` controls, received one).
+Watch now exposes that existing control only during the actual `openSource` await;
+generic busy admission and the native cancellation authority remain unchanged.
+
+Both changed files have clean LSP error diagnostics. Normal typecheck, ownership
+lint, fresh export `432136dd68020a28fd34d62458b00b2a` and all 12 affected
+foundation/Watch layout/departure/source-search scenarios passed in 15.0s.
+Guard samples remained safe; no assertions were skipped or weakened. The browser
+decodes the authored 30-second video, while byte delivery and shell event
+registration are adapted. This is real Rust source/checkpoint/restart evidence,
+not native operating-system media or drag/drop cancellation certification.
+Raw red/green logs and captures are in `/tmp/mlearn-ci-independent.6EaZ3F/`.
+
+Root then drove the real page with omowright from eval against a fresh isolated
+Rust profile and authenticated English package. The actual subtitle `Children`
+was captured into Material. At 1080px, Watch Home reached Home and retained
+`Manual retained Watch draft 1080`; at 390px, Reselect from Home reached Home
+and retained `Manual retained Watch draft 390`. The manual adapter explicitly
+lacks native media services; its visible media failure is the recovery scenario,
+not a decoding result. The decoded-video proof above is separate.
+
+| Increment scenario | Observed result | Artifact |
+| --- | --- | --- |
+| Failed save, explicit recovery, held Home, native restart | PASS | `watch-checkpoint-green.log` and `watch-checkpoint-green-results/` in the task root |
+| Wrong cancellation action while saving | Reproduced red, repaired green | `watch-checkpoint-red.log`; green pending capture |
+| Desktop Home retains Material draft | PASS, root omowright | `.mlearn/m10/manual-watch-{home,material-retained}-1080.png` |
+| Narrow Reselect retains Material draft | PASS, root omowright | `.mlearn/m10/manual-watch-{home,material-retained}-390.png` |
+| Adjacent navigation/layout/accessibility | 12 affected scenarios passed | `watch-checkpoint-green.log` |
+| Owned manual browser/web/native teardown | Graceful close receipts and process/port absence | `manual-watch-final.log` in the task root; root readback |
+
+Manual teardown reported Chrome exit 0, preview SIGTERM, no active provider/catalog
+and successful native close. PIDs 58247/58248/58249 and ports 4173/59375/59376
+were absent afterward. The outer manual command nevertheless exited 255: it used
+Zsh `pipestatus` in Bash, leaving its reported status empty. Preserve that wrapper
+failure, not a false command pass. A separate bounded Bash probe verified the
+correct `PIPESTATUS[0]` expression preserves both success 0 and failure 1; the
+manual application workflow was not needlessly replayed. Final footprint was
+6735279544 bytes, pressure 1, available 6607536128 and swapUsed 3806068736.
+Independent review approved exact `0875124772a6621a98c18a7c7b124e081189d053`
+with no demonstrated blocker. The sole reviewer used the current subscription
+GPT6.1Sol route, read the complete changed source/test and inspected red/green
+logs and captures in a clean locked checkout; it ran no workloads. Its report is
+`.omo/evidence/watch-checkpoint-08751247-gate-review.md`. It records unexecuted
+native drag/drop cancellation and broad blur/unmount interleavings, the long
+existing connected test, and evidence-association limits rather than inventing
+another report or OS verification. This approves only the bounded increment.
+The genuine closed native profile is preserved at
+`.mlearn/m10/watch-checkpoint-08751247-native`; unused Chrome profile and manual
+harness are removed. M10 remains incomplete and M11 integration remains gated.
+
+Material reference inspection and the bounded multiline-field increment now have
+finite real-surface evidence; this is not whole-Material visual acceptance.
+A deliberately admitted retained
+Electron/Vite session reached readiness, but the resource supervisor stopped it
+before root could attach. OmO footprint changed 3304060344 -> 4442142136 ->
+11340527032 bytes, pressure rose to 2, and available memory fell to 2977906688.
+The reference connection was then refused. This is another OmO-process spike,
+not proof of a model/reference allocation or a failed product assertion. No
+reference editor measurement or Material styling change was made by that run. PIDs 60724/
+60749 and ports 3000/7752/7753/9229 were absent afterward; post-stop footprint
+6866531768, pressure 1 and swapUsed 4525064192 were recorded. The run exited 70.
+Raw evidence is `material-reference-manual.log` in the current task root.
+Do not repeat the live-ready/model-callback orchestration unchanged. A finite
+reference probe that closes its owned workload before returning observations was
+then exercised under the same admission/reserve/shutdown policy. It completed
+with exit 0, safe guard samples and no reference listeners afterward. Root
+inspected actual Browse captures at 1080/390px; the reference's narrow clipping/
+sidebar overlay is a legacy defect, not a target to copy.
+The first editor probe captured real short states at both widths, then failed
+omowright's strict contenteditable fill check for multiline input. The changed
+wrapped-paragraph case was not executed: its third admission sample held at
+4175167488 bytes projected headroom, below the unchanged 4294967296-byte reserve.
+No reference app was launched in that attempt. No competing compiler or QA
+owner was found; OmO dominated the process inventory. Preserve both failed/held
+receipts. The subsequently admitted wrapped-paragraph probe completed with exit 0,
+closed its reference owner before notifying, and cancelled rather than saved.
+Reference source is clean `1ab95600bee97017635afe538af4e890e0cded3a`.
+`material-reference-editor-wrapped-admitted.log` records actual short Meaning
+52.3984375px, empty example fields60px and long Meaning capped at200px, with
+internal overflow at1080/390. Reference captures use
+`.mlearn/m10/reference-material-editor-{short,long}-{1080,390}-dark-wrapped.png`;
+the long captures are partly scrolled past Meaning, so their measured geometry
+does not establish a fully framed long-field comparison.
+
+`TextField` adds one shared compact multiline role, reused by `MaterialFields`
+for Meaning, Context and Notes across saved/proposed/capture forms. It reuses
+the existing composer measurement owner: empty60px, grow/shrink through200px,
+then internal scrolling. Ordinary multiline remains180px; composer44–120px
+is unchanged. No observer framework, store or feature-local input styling was
+added. The new real-Rust/SQLite test failed against the old export because the
+overflowing Notes field did not grow. Normal typecheck, ownership lint, export
+`86bca5ba1062bf53a3000d7a8000d8c3`, and24 affected foundation/Material/proposal/
+Messenger tests passed (`material-fields-first-green.log`,24.5s). The augmented
+case then passed separately in3.1s (`material-fields-hidden.log`), covering
+retained navigation/hidden resize, exact Unicode input, shrink, save and native
+crash/restart. No product change followed the first green source.
+
+Root-authored finite omowright workflows drove actual GUI package installation,
+Material creation/save and both-theme1080/390 captures. Three driver failures
+(unsupported handle API, value-bearing accessible name, custom versus HTML
+select) are preserved under `material-root-{evaluate-handle-error,select-label-error,html-select-driver-error}.log`;
+they are not product failures or passing commands. The final continuation reused
+the closed, genuinely saved native profile rather than reinstalling/recreating.
+`.mlearn/m10/material-field-root-qa.json` is PASS and links the completed light
+evidence; `material-root-qa.log` exits0. It verifies exact saved text from a
+fresh browser and again after native crash/reload, the Rust-snapshot theme ID
+`mlearn.dark-quartz` before/after restart, and the adjacent default JSON field180px.
+No generation request occurred. Browser, native owner and preview close before
+notification. Guard samples stayed safe with the unchanged4GiB reserve; final
+footprint3559241168, available8362442752, pressure1, swap3935305728.
+Root inspected light/dark short and long captures under
+`.mlearn/m10/material-field-root-appearance-*`. Empty60/overflow200 remain
+contained and legible; narrow outer scrolling reaches the remaining form.
+These captures are browser/Rust proof, not native TextInput/IME certification.
+Caret position survives resize, but automatic caret reveal is not established.
+Meaning60px versus reference52.4px, body16/24 versus17.6/26.4, inline-editor versus
+modal composition, and the large persistent narrow management header remain
+explicit visual differences. Independent review approved exact source
+`94ff049b33abf61abcf6c7cec3cbaa01b9ece652` for this bounded web checkpoint only,
+with no blocker. The single reviewer used the current subscription GPT6.1Sol
+route, inspected source/callers/logs/receipts/images, and ran no workloads.
+Its report is `.omo/evidence/material-fields-94ff049b-gate-review.md`.
+The hidden-resize case proves no collapse at the cap, not intermediate-height
+remeasurement; no product failure was demonstrated. The clean locked review
+checkout is removed. Reference driver source is preserved byte-for-byte as
+`.mlearn/m10/material-reference-driver.mjs.txt`, with no runnable scratch copy;
+the retained reference and genuine native profiles are preserved. Inspected
+current images were opened in Preview. Broader Material/native/M10 gates remain
+open; M11 is still gated.
+
+Departure checkpoint `5a540c88` preserves Messenger's retained management
+workspace and waits for the existing Reader/image, Watch and Messenger source
+save owner before Inspector opens saved Material. Failed saves retain the source,
+Inspector and explicit recovery; Close invalidates a pending navigation intent.
+Shared capture/source controls expose the pending disabled state.
+Two real-Rust-backend departure regressions failed before repair and passed after
+repair, including desktop/narrow draft restoration, native conversation/history/
+analysis continuity, failed document checkpoint retention and explicit recovery.
+Final client typecheck, ownership lint and diff checks passed. Four desktop/narrow
+captures were inspected; the Inspector footer intentionally scrolls horizontally.
+Evidence and both raw fixture profiles are preserved at
+`.mlearn/m10/nav02-departure-5a540c88/`. The local rendered diff precedes one final
+disabled-prop forwarding line in an unexercised non-actions row; exact-final-source
+hosted web checks passed at `519df6e1`. Four matching exact-source captures
+were retrieved and inspected: Reader failure/recovery at390px and Messenger
+retained Material search at1212/390px. They confirm visible recovery and
+workspace continuity, not whole-app visual acceptance. The selected captures
+and failure state are retained under the evidence directory's `hosted519/`.
+
+Exact-source `519df6e1` workflows are terminal. Foundation40936296995 failed
+only its Windows native-theme UI job123670721181: foreground/editor focus and
+clipboard were correct, but dispatched paste left the earlier theme value.
+Its web, Rust, OCR detector and macOS desktop jobs passed. Real desktop
+integration40936296952 passed. Mobile40936296936 passed Android123667605947,
+but iOS123667606042 failed the original Watch flow after46s because `Browse`
+was not found. Preserve the logs and original assertions; no unchanged rerun
+or deferred FileProvider diagnostic variant was launched. These are still
+unresolved platform gates, not milestone acceptance.
+
+Substantial local work remains serial under fresh physical-footprint/pressure/
+swap/headroom admission. A separate guard watcher tripped during that passing
+UI run without automatically stopping it; this orchestration defect is explicit,
+not a passing resource gate. No QA processes/listener remained afterward.
+The owned `guarded-workload.mjs` now starts a workload immediately after three
+healthy samples and automatically terminates its owned process groups on unsafe
+measurement. Its real-process probes verified a detached child was stopped,
+an unrelated sibling survived, and failed admission launched no workload.
+Final typecheck/lint ran through that supervisor with no guard stop. Original
+resource evaluation and the four-GiB reserve were unchanged; no device was restarted.
+
+The preceding `c92fb10` foundation and macOS/Windows desktop jobs passed.
+Its mobile jobs did not pass: Android's Watch flow lost Maestro's device server
+during hierarchy collection; iOS could not find `m01-watch, mp4`. Existing logs/
+artifacts are retained; no diagnostic variant or unchanged workflow was rerun.
+Do not substitute these failures for product assertions or silently close them.
+The management-only tab boundary passed its fresh hosted restoration assertions
+and eight desktop/narrow captures. The original retained-editor regression is
+repaired in `486c507`, with exact-source hosted checks and after captures below.
+Fresh receipts confirm restored Material entry and changed package selection.
+Rapid Home return's renderer request-admission defect is repaired and verified
+against exact-source hosted checks and fresh captures below. Active-workspace
+Reader return and the focused source-entry failure/recovery path are verified;
+the remaining active-task/hidden-work lifecycle and native scenarios remain open.
+CI is asynchronous relative to independent engineering: the current ready-work
+queue and disjoint review/prerequisite lanes are recorded below. NAV-02 is incomplete.
+The pinned publisher metadata defect is repaired. The mixed character
+catalog, shared probe owner and related-detail producer have the owner evidence
+below. The generic metadata-only catalog repair and graph source disclosure have
+passing targeted evidence. Graph details, package-driven character views/learning
+entry and Inspector deeper navigation are now verified_for_continuation against
+exact `4f0c788` hosted tests and all 25 fresh captures. This is implementation
+closure, not native-platform parity, independent milestone review or maintainer
+acceptance. The live task ledger tracks the remaining integration, platform,
+review and ownership-proven cleanup work rather than retiring inherited M07 gaps.
+The latest parallel
+authorization permits up to twelve useful workers, constrained by measured
+headroom; all eight initial source-only/read-only lanes have returned. Root owns integration
+and serial substantial workloads. Provisional cancellation checkpoint `eb077ac9`
+extends `519df6e1`; its engineering and independent-review gates remain open.
+Its earlier isolated
+client owner run passed50 tests after root repaired uncertain-receipt slot reuse,
+terminal cleanup, typed native Busy handling and the source-cancellation barrier.
+The integrated runtime and language-host
+library suites passed70+4 tests, warning-free, and the integrated selected client/
+view/control suites passed44/44 with no skipped or cancelled tests. The earlier
+private runtime owner suite passed70/70 after restoring only
+hash-verified existing PDF guest and English package fixtures. The real Rust
+browser QA host compiled. Structured native control-error tests passed1/1.
+The full three-artifact FFI build was held before launch by unchanged resource
+admission. A smaller no-link FFI check and a single metadata-only cdylib build
+passed under supervision; no static/mobile library was built. Both exposed the
+unchanged build generator's unused-mut warning for its empty desktop plugin vector. Scoped
+private-source UI/host/test typechecking passed after fixing the new test's
+unsupported `.ts` import suffix. Swift and Kotlin bindings were generated from
+that actual Rust metadata, and generated Swift typechecked for arm64 and x86_64
+simulator targets. The existing flat-config generator warning remains explicit;
+generated names match the host calls. After buffered readiness, the isolated
+desktop Rust host check passed without warnings. Full integrated application
+typechecking and ownership lint passed. Automatic edit diagnostics ignored the
+temporary native-server disable configuration and started a new3GiB Rust analyzer;
+validation admission held, its exact parent/birth/workspace ownership was verified,
+and only that analyzer, its workers and the paired Swift server were released.
+Explicit tests/checks, not incomplete editor diagnostics, provide the evidence.
+Mobile host builds remain unverified. Graph/evidence/search UI now pass operation-scoped abort
+signals on Stop and dismissal. Three graph and four evidence/search cases
+failed at the missing-abort assertion before repair and passed afterward;
+these use real React/runtime-client with substituted native presentation, not
+actual native-shell rendering. A real Rust QA-host/JS-adapter/client smoke
+also passed bounded admission, cancellation receipt and error-classification
+checks. The fresh main-tree QA binary and web export completed. At browser startup
+the automatic guard stopped the owned run before any scenario completed; the
+original reserve was not lowered. The remaining session-owned TypeScript
+diagnostics were released after parent/birth/workspace verification. A buffered
+read-only admission watch allowed the focused consuming-UI run, reusing those
+completed artifacts rather than rebuilding. Six scenarios passed, including
+actual Reader search stop/restart, evidence paging/restart and saved image-search
+navigation. The new graph scenario failed on an incorrect new root-source label
+assertion and a held-route cleanup race; both test defects were corrected without
+changing product code. The corrected rerun was automatically stopped during
+browser startup before any scenario completed. A subsequent one-hour read-only
+4096MiB admission watch timed out; that local run remained held, without lowering the
+four-GiB reserve or restarting workloads. The19
+successful-scenario captures were inspected at desktop/narrow widths, including
+both evidence themes and expanded provenance. Existing Inspector footer scrolling
+and retained visual/platform gaps are not waived; native-shell functionality is
+not claimed. Exact `eb077ac9` hosted web123763515779 and real desktop40963943223
+passed. Foundation40963943227 failed Rust123763515784 at the unchanged persistent
+guest cancellation assertion in `language-host/tests/resources.rs:140`; dependent
+desktop jobs were skipped, not passed. Unconditional early cancellation had
+preserved the cancelled owner's cache. Repair `f3e7366a` restores source-only
+eviction while preserving nonwaiting operation-scoped cancellation. All22
+language-host tests and70 runtime caller tests pass after repair, warning-free
+with no ignored tests. Mobile40963943258 is terminal: Android123763515735
+passed; iOS123763515335 built but failed the original Watch flow because
+`m01-watch, mp4` was not visible after1m32s.
+New exact-source hosted verification and independent review remain required.
+No deferred iOS diagnostic variant or milestone acceptance is introduced.
+
+Review Home departure is now verified_for_continuation in the shared web app.
+The new regression failed with delivery still `pending` after Home removed Review,
+while the existing Pause control passed. Home now awaits the actual audio owner's
+terminal write through the existing departure/command owner before returning to
+retained Home. Held or failed writes keep Review and the identical Retry command;
+session, encounter, exposure and grading meaning are preserved. Normal typecheck,
+ownership lint,11 audio-owner tests and all13 Review web scenarios passed on fresh
+export `219225d61d656a13e338de4b0f00de01`. All18 PNGs were decoded, dimension-checked
+and inspected, including1080/390 pending/error states in light/dark. Evidence is in
+the retained orchestration root's `review-home-*` logs/results. Native audio/OS
+lifecycle parity, the other Home exits and M10 milestone gates remain open.
+
+Exact `139b78f8` hosted web123788934861, Rust123788935328, OCR123788935234
+and real desktop40971451775 passed. Foundation40971451738 failed both
+macOS123791352052 and Windows123791352101 at the all-feature compiler gate:
+the opt-in OCR probe still initialized the removed `NativeState.cancellation`.
+The minimal repair initializes the existing two-slot `read_controls` owner,
+matching normal startup, and removes the obsolete local handle. No OCR probe,
+model installation or inference was run. The full local desktop test attempt
+was automatically resource-stopped during dependency compilation before tests
+ran; its compiled artifacts remain. The smaller
+`cargo check --locked -p mlearn-desktop --lib --tests --all-features` passed
+warning-free in6.21s under serial1536/1024MiB supervision with the unchanged
+four-GiB reserve. Logs are `desktop-probe-*` in the orchestration root.
+OmO physical footprint was6.60GB, available6.00GB, pressure1 and swap3.26GB;
+the metadata check's maximum RSS399425536 is diagnostic, not physical headroom.
+Full desktop tests on repaired source remain for hosted verification.
+Windows also reported an untouched-file `ocr.rs` unused `PathBuf` import;
+it is not silently suppressed or claimed warning-free.
+Mobile40971451757 passed Android123788935658; iOS123788935607 built, then
+failed the original Watch flow after5m16s because enabled `Open local video`
+was not found. Its raw failed-step log is `139b78f8-ios-failure.log`.
+No unchanged rerun or deferred diagnostic variant was launched. Independent
+M10 review, native parity and maintainer acceptance remain open.
+
+Empty Reader/Watch entry now returns through `dismissTo('/')`, preserving the
+existing management navigator instead of replacing it. The real-Rust regression
+first reproduced the cleared document-entry Knowledge draft. The repaired flow
+preserves all four document/video drafts at1080/390px. The complete existing
+Knowledge/Material scenario then passed in2.3minutes, including its claim,
+evidence cancellation/recovery, source-return and restart assertions. Production
+export `e227967c20884ff325cd87b433ec883b`, normal typecheck, architecture lint,
+source diagnostics and diff checks passed. All eight new1080/390x900 PNGs were
+decoded, dimension-checked and inspected. Source-entry controls and retained
+Knowledge remain visible and contained; the harness explicitly reports its
+unsupported native window/media/clipboard services rather than fabricating them.
+Evidence is `nav02-empty-{red,ready}*` in the retained orchestration root.
+An intermediate fixture navigated again while metadata was pending, exhausted
+the unchanged bounded request queue and failed the later paging assertion.
+The final test observes actual ready controls before leaving each screen;
+it adds no sleeps, retries or relaxed assertions. This verifies normal ready
+entry/return, not sustained rapid-navigation admission or hidden-work closure.
+An earlier export attempt also failed only because root forwarded npm flags
+incorrectly; the corrected workspace export passed. Resource supervision never
+stopped either assertion run. Post-QA footprint6581253560, available7040630784,
+pressure1 and swap3904176128 were recorded; the preview listener was released.
+Other Home fallbacks, Watch checkpoint departure and hidden-work ownership
+remain open. Exact `764b9ac8` real desktop40977525036 and
+foundation40977525010 passed, including Windows123811368520 and
+macOS123811368530. This closes that source's all-feature constructor gate,
+not the intermittent native input gate. No platform gate is waived.
+
+Unavailable Messenger now uses the same shared AppShell/Row/Button/Text recovery
+composition as Review, with a Conversation heading and Home action. Its prior
+alert-only screen had no recovery control; the new regression reproduced that
+missing button before repair. Home uses the existing `dismissTo('/')` behavior,
+including the no-history fallback. No native client or parallel recovery owner
+was added, and the obsolete local unavailable style was removed.
+All six foundation web tests passed in4.4s on fresh production export
+`fc3ea35690831ff70207dbe4f67c0a2f`, including direct Messenger, Reader, Review
+and Watch Home recovery at1080/390px. Normal typecheck, architecture lint,
+Messenger diagnostics and diff checks passed. Eight recovery PNGs were decoded,
+dimension-checked and inspected; Messenger matches Review's shared shell and
+its explanation wraps within390px. Logs/captures are `nav02-unavailable-*`
+in the retained orchestration root. The first test attempt incorrectly expected
+an unavailable alert from Watch; actual Watch still shows `Opening source…`
+without a runtime. The corrected test preserves the original Watch Home
+assertion rather than asserting a fabricated error state. That misleading
+pending state and Reader's older unthemed fallback remain explicit presentation
+gaps, not repaired or certified by Messenger's change. This browser-only
+fallback verification does not certify native conversation or media lifetimes,
+dark fallback rendering, retained unavailable Reader/Review return, or M10.
+
+Exact `fa2bbfe9` real desktop40979941349 passed. Foundation40979941378 passed
+web123817940225, Rust123817940168, OCR123817939886 and macOS123819919478;
+Windows123819919456 failed its original native-theme input assertion.
+Dark Quartz and Slate edits, repeated cycles and restored Dark Quartz native
+material passed before the final post-restart Quartz edit. Foreground/editor
+focus and the expected clipboard were confirmed, but paste left the previous
+Dark Quartz JSON; `window-materials.ps1:352` reported incomplete native input.
+The raw failed-step log is `fa2bbfe9-windows-failure.log` in the orchestration
+root. This is the retained input-loss failure family, not proof of its cause
+or a reason to change product code without reproduction. No assertion was
+weakened, diagnostic variant launched or unchanged workflow rerun.
+The earlier a25ef895 foundation40979349126 was cancelled before jobs ran,
+not a failing product check; its real desktop40979349106 passed.
+Mobile observation recovered after the October30 01:59:06UTC reset boundary.
+Earlier mobile40979349137 passed Android123815202481; iOS123815201952
+built but failed the original Watch flow after2m41s because `m01-watch, mp4`
+was not visible. Its original failed-step log is `a25ef895-ios-failure.log`.
+Latest mobile40979941319 passed Android123832772718; iOS123832772428 failed
+the original Watch flow after 1m35s because `m01-watch, mp4` was not visible.
+Its raw failed-step log is `fa2bbfe9-ios-failure.log` in the independent task root.
+All observers, including the reduced-frequency observer, are terminal; no polling
+process remains and no workflow was rerun.
+The earlier observers exited on GitHub HTTP403 API rate exhaustion and left
+empty receipt files; those exits were observation failures, not CI results.
+Root's concurrent default-frequency watches produced excessive API traffic.
+The rate endpoint briefly reported available quota while actual run requests
+still returned403; a single time-bound subscription then recovered both receipts.
+Do not restore the rapid watches or repeatedly query exhausted endpoints.
+Independent M10 work and all unresolved platform gates remain open.
+
+M11's scratch finite reference matched all 40 original and 14 adversarial cases,
+but executed zero package/native session scenarios and granted no learner evidence.
+M11 product integration remains gated on M10.
+The execution record is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-mlearn-20261028.XXXXXX.md.sfqTwzdUNN`;
+new scratch root `/tmp/mlearn-parallel-ulw.M8JsP2`.
+The goal API rejected replacing obsolete unfinished visual-parity metadata;
+that metadata neither changes current scope nor establishes completed work.
+KNW-04's connected evidence implementation is
+verified_for_continuation, not native-platform or maintainer acceptance.
+SRC-10's connected implementation is verified for
+continuation, not platform or maintainer acceptance. Its Watch/cross-source
+closure is committed/pushed as
+`c61df5af66cbf2a1a9b01ce7668333236ed94099`, following Reader2505a044.
+KNW-04 is committed/pushed as
+`bb9fce3974254aa5c8876046396428945d3d48b4`. Its exact-source automatic
+desktop40756004919 and foundation40756007680 passed. Mobile40756004929 is
+terminal: Android123059177109 passed; iOS123059177501 failed its original
+actual-UI step because enabled `Open local video` was not found. The authored
+H.264/AAC fixture exported successfully; this is not the earlier export failure.
+Its exact failed-step log is retained as `knowledge-ios-ci-failed.log` in the
+existing execution root. No diagnostic workflow variant was launched.
+Selective extraction retained only its JUnit, Maestro log and failing frame.
+The English picker entry completed. The later Japanese entry reports
+`home-open-watch` bounds[41,87][352,156] and tap[196,121], but its failure frame
+still shows Home with the Watch action above the scrolled body/behind the
+header. This narrows the failure to that Home entry; product versus test-input
+cause remains unverified. Preserve the assertions and reproduce on retained
+native artifacts before changing code or helpers.
+This does not establish the unfinished graph work.
+
+Graph trace: core currently has no linguistic relationship query/store; the
+existing immutable package SQLite key/value index is the resource owner.
+English target identities are WordNet lexical senses; Japanese targets remain
+the existing explicit JMdict targets. Related forms/readings and other entries
+must not inherit their Knowledge. The v2 GraphNeighborhood and graph addressing
+sources distinguish identity, property and support; their fixed linguistic
+ontology/compact graph machinery is not a v3 architecture requirement.
+The in-progress generic contract adds package-owned entity kinds, properties,
+predicates, provenance and qualifiers, plus identity/property/alternative/support
+roles. It preserves unknown structured values and parallel relation IDs.
+Native admission bounds16 edges/128KiB, validates exact endpoints, declared
+target capabilities and consistent entity metadata, and fences continuations by
+package/target/revision. Completion queries the existing Knowledge owner only
+for explicit target bindings; no edge copies or predicts learner state.
+English source now retains the original WordNet synset word list and exposes
+separate lexical alternatives/synset support. Japanese source exposes attested
+form/reading properties, written-form alternatives and shared-reading support
+under separate target bindings. Its per-call32-candidate/16-edge quantum and
+local decoded-index cache bound work without dropping continuation; hashed
+semantic relation IDs do not depend on array positions. Both package manifests
+declare the new capability and versions; source pins/licenses remain unchanged.
+These are source edits, not delivered graph behavior. The first guarded owner
+check initially waited on the unchanged2GiB/4GiB policy: footprint4585911424/
+available6030770176 projected less than the reserve. No workload was admitted
+during that hold; no reserve was lowered or waiting run duplicated.
+The bounded process inventory then found Rust analyzer39186 at3505440KiB RSS,
+parent47976 (an OmO child of82251), cwd this repository, started during this
+session's diagnostics at2026-10-28T20:44:17. Its requested diagnostics had
+completed. That exact owned analyzer received SIGTERM; it and its two owned
+helpers39269/39270 were confirmed absent afterward. No other process was
+stopped. Available memory rose to8114208768; OmO footprint remained4582290560,
+RSS3954819072, pressure1, swapUsed3966238720, swapOut78071758848. This explains
+one current capacity consumer, not the earlier OmO incident or OmO footprint.
+The registered check then passed both native graph admission tests and core
+contract generation (`graph-owner-first.log`). Its final footprint4581848192,
+available7545552896, pressure1, swapUsed3966238720, swapOut78071758848 was safe.
+`graph-packages-first.log` passed both English and both Japanese graph tests,
+including real package producers with synthetic bounded dictionary fixtures.
+The subsequent typecheck correctly failed because the explicit export list
+omitted serde_json's recursive `JsonValue` declaration. The exporter now emits
+that actual dependency instead of hand-editing generated types. Vendor Sudachi
+warnings are retained, not suppressed. The typed graph client now validates
+bounded inert metadata/relationships and exact explicit Knowledge-key coverage,
+snapshots scope/revision, and uses the existing bounded source-read lane with
+source-epoch rejection. `graph-client-first.log` passed its3 new boundary/
+snapshot/concurrency tests, the50 affected existing client tests, typecheck
+and lint. Offline authenticated package preparation then succeeded in
+`graph-integration-first.log`; the guard stopped runtime compilation at
+available6434275328/projected4286791680, below the unchanged4294967296 reserve.
+The old negative-group cleanup again returned EPERM; no owned compiler survived.
+The temporary runner now signals only positive PIDs in its live child's
+observed descendant tree, leaves first. The package-reusing retry stopped at
+available6165790720/projected4018307072; that cleanup completed without EPERM,
+and the bounded process inventory found no owned compiler/guard survivor or
+large analyzer. OmO footprint4603278464, available6654623744, pressure1,
+swapUsed3941072896 and swapOut78071758848 remain observations, not a diagnosis
+of the earlier OmO incident. Neither stop ran the graph assertions.
+The actual compiled-package runtime graph suite now passes all3 tests in
+`graph-integration-limited-debug.log`. It covers live Knowledge between graph
+pages, cross-target/stale-revision
+cursors, restart, real JMdict homophones versus unlearnable form properties,
+and an undeclared capability's explicit unavailable result. The QA host also
+built; SHA256e1d6b67cd7c99ff15eba2650cf9cae5b138f86ec1dd810999de9316cf98bfcf9.
+The verbose compiler commands confirm runtime, graph test and QA host debug1.
+The invocation explicitly retains debug assertions/overflow checks and does not
+change optimized interpreter profiles, one Cargo job or the2GiB/4GiB policy.
+This is functional evidence, not normal-debug performance acceptance.
+Final guard sample: footprint5053609088, available6857424896, pressure1,
+swapUsed4837867520, swapOut79362883584; all policy checks safe. A later bounded
+vmmap identifies the dominant allocation category as App-Specific Tag1
+(4.5GiB resident/1.8GiB swapped), not WebKit Malloc(67.9MiB resident). The eval
+kernel shares PID82251; one full GC reduced its reported JS heap about15MiB
+but did not materially reduce physical footprint(5047399552 afterward).
+That is allocation-category evidence, not a causal diagnosis. Footprint is
+currently stable near5.05GB; admit no concurrent substantial workload.
+Next: reuse the already inspected retained isolated reference launcher/profile
+for the actual graph composition, then capture the current Inspector baseline
+before presentation changes. Do not repeat completed native/package checks.
+The deliberate graph-reference attempt reused the retained compiled Electron
+host and real159416064-byte Japanese graph under the supported isolated
+`MLEARN_USER_DATA` profile. Its unchanged2GiB/4GiB guard stopped at
+available6224478208/projected4076994560 before a capture; no visual result is
+claimed. `graph-reference-first.log` retains the stop and CDP-disconnect result.
+Its owner tree/ports3000,7752,7753,9229 were confirmed absent afterward.
+The earlier pending diagnostic/run wording is superseded by the source results
+and capacity readbacks below. Do not automatically restore workloads; retain
+the execution root
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/mlearn-m10-m11.VLSN0zAbpw`.
+The bounded character trace found its actual reference at
+`../mlearn-ts/src/renderer/windows/characterGrid/`. New source preparation
+reuses the package's existing `resource_entries` table/codec, with separate
+`character/<ucs>` keys. It does not derive character knowledge from words.
+The original catalog enumerates only `entry/`, so these facts are not yet
+advertised as supported character targets.
+
+Character inputs are the genuine KANJIDIC2 edition2026-301/date2026-10-28 and
+KRADFILE, pinned by compressed and expanded size/SHA256. Publisher licensing
+was retrieved directly; attribution, supplementary-source credits, source
+update procedure and pre-2010 JLPT/lookup-element limitations are recorded in
+the existing Japanese license document. The explicit offline freezer generated
+immutable archives in the existing package assets directory; normal builds
+do not depend on a moving daily download. The converter preserves reading/
+meaning groups, unknown reading attributes, supplementary UCS identities,
+name readings and absent-versus-present component data. Representative KRAD
+lookup elements are not learner target bindings.
+`character-source-full-first.log` passed all5 baseline conversion/integrity/
+rollback tests and real-source conversion:13108 characters,6355 component-
+covered records,5787648-byte test resource, and actual bridge readings/components.
+Reported maximum RSS was53641216 bytes for the fixture target and38043648
+for real conversion. These bounded, model-free offline targets use a512MiB
+estimate and capped128MiB Node heap; the4GiB reserve and native/browser2GiB
+reservations are unchanged. The earlier2GiB admission expired without tests;
+its runner/guard were confirmed absent before the source-only target started.
+The connected-owner/publication suite and full unified offline rebuild passed
+in `character-index-full-first.log`:7 tests,0 failures;218923 unchanged JMdict
+entries/forms465834,13108 characters,6355 component-covered records.
+The unified SQLite is137007104 bytes,
+SHA256`48e95432e6bf36d0ccd5cde86ff289a36b33fbcc53c281b315de10da6e3b331d`;
+the representative word-identity comparison covered12 entries.
+The real index process reported145801216-byte maximum RSS; fixture tests
+reported54706176. The existing Sudachi input remains122948155 bytes.
+Recipe identity now includes the character converter, and metadata separates
+word counts from character/source-component counts. No runtime character
+inspection, learning entry or UI/native acceptance is claimed.
+JSON/Python LSP servers are unavailable; source-test diagnostics timed out.
+The exact owned TypeScript tree52036/52037/52038/52039 was inspected; all had
+already exited before the attempted SIGTERM, so that command stopped nothing.
+After that completed run, OmO footprint4938527848/available6563872768,
+pressure1, swapUsed4653318144, swapOut79362883584 were recorded.
+
+The source-only character backend investigation returned a concrete blocker,
+not an implementation: `collection_catalog.rs` rejects an empty capability set.
+The preserved supplementary-character fixture is valid source-format input but
+has no supported meaning/reading task. Catalog admission must not manufacture a
+capability merely to include it. Existing collection reads already project only
+declared per-target capabilities and capability filters join that membership.
+`characters-native-proposal.patch` is explicitly a blocker report, not a diff.
+The root regression is now applied. `catalog-metadata-before-fix.log` proves
+its expected failure: Cargo101, `Invalid("Catalog target exceeds bounds")`,
+0 passed/1 failed/19 filtered. The subsequent production repair removes only
+the nonempty-target-capability restriction; namespace, declared-capability,
+continuity and byte bounds remain intact. The test covers resume/restart,
+browsable source metadata, empty Knowledge projections and capability-filter
+exclusion. The two original root patch artifacts remain as preparation evidence.
+The package's Inspector now dispatches canonical `kanjidic:<ucs>` identities
+to the existing source resource. Only Japanese on/kun/name readings and
+default/English meanings supply supported entry capabilities; foreign facts,
+missing associations, audio and stroke-order capabilities are not fabricated.
+Supplementary scalar identity is checked against both literal and source UCS.
+This is an in-progress connected native entry path, not a delivered grid/list,
+related-character graph or completed learning workflow.
+
+The storage regression and repaired validator had no diagnostics. Later package
+queries explicitly reported `unlinked-file`: the analyzer rooted at the application repository,
+despite the separate package Cargo workspace; that topology did not establish
+a smaller diagnostic footprint. Completed owned analyzer61585 and its helpers
+were signalled before baseline compilation; analyzer62241 and its helpers were
+signalled after the repaired-validator diagnostic, before serial verification.
+The first verification exited before tests: checking `plugin.rs` recursively
+found existing formatting differences in `review.rs`. Git confirms that file is
+unchanged from HEAD. That failed check is retained, not reported green.
+`catalog-character-native-second.log` then passed all20 storage collection tests
+and all3 new character package tests, terminal exit0, one Cargo job and unchanged
+2GiB/4GiB guards. Final sample: OmO footprint4611650664, available7616577536,
+pressure1, swapUsed3893755904, swapOut86668214272; safe. The generic admission
+repair is verified for continuation, not completed character-feature acceptance.
+`character-catalog-package-first.log` subsequently passed all 34 affected plugin
+tests. The opaque words/characters cursor preserves prefix-local resource keys
+and the original 12-row word quantum, crosses the prefix boundary without empty
+intermediate pages, retains metadata-only targets and truthful totals, and
+rejects foreign-prefix cursors. Character rows have separate kinds/scopes and
+no invented JLPT N-level membership. Activation now requires character schema 1;
+manifest source is `0.1.11-...-graph1-characters1-ocr2`. It has NOT yet been
+restaged into the authenticated development catalog.
+
+The shared existing review owner now handles canonical character material and
+narrows tasks/keys to its actual inspected capabilities. Missing meaning/reading
+and character audio are not supplied by the word path; mismatching glyph content
+is rejected. Metadata-only input returns no eligible probes. Authored content
+still follows the existing self-report mechanism, not an external correctness
+or stroke-order validator.
+`character-learning-package-first.log` passed all 38 affected plugin tests,
+including four new character probe boundary cases, terminal exit 0. The related
+review-file edit was formatted; the previously failing recursive package format
+check now passes. No assertions or diagnostics were disabled.
+The completed analyzer's actual footprint was 2453245816 bytes versus 4120870912
+RSS. Native run sample: OmO footprint 4759843944, available 8139849728, pressure 1,
+swapUsed 3759538176, swapOut 86668214272; safe under unchanged reservations.
+Next: real related-detail/UI consumers, authenticated compiled-package workflow,
+persistence/restart/cancellation/recovery, visual/native QA and independent review.
+No character UI or milestone acceptance is claimed.
+`character-graph-package-first.log` then passed all 41 affected plugin tests and
+recursive package format checking, terminal exit 0. Character code/radical/
+variant, grouped reading/meaning, name and KRAD lookup facts use attributed
+unlearnable property entities. Semantic fact/group identities survive source
+array reordering; bounded continuations cover a group larger than one property
+budget without dropping associations. KRAD representative glyphs never bind a
+different character's learner keys; absent component coverage remains explicit.
+Run sample: OmO footprint 4737102952, available 8175616000, pressure 1,
+swapUsed 3700817920, swapOut 86668214272; safe. Existing Sudachi vendor warnings
+remain unsuppressed.
+
+The read-only source-boundary query found `entry/9999999`, followed by
+`entry/5748098`. Decoding those exact immutable resource rows showed the former
+is `ＪＭｄｉｃｔ`, whose source gloss reports creation date 2026-10-17, not an
+ordinary lexical learning item; the latter is the published Aton/Aten entry.
+No hardcoded injection of either ID was found in the bounded preparation/package
+source search. The creation record currently receives ordinary word capabilities
+in the package, a real provenance/learning defect to repair before dependent QA.
+Keep it browsable and preserve stored history; do not manufacture lexical
+eligibility or remove the source record to conceal the count.
+The first before-fix launch failed closed because the old analyzer identity had
+changed; no test ran. After fresh ownership inspection, the unchanged regression
+proved the defect: `publisher-metadata-before-fix.log`, Cargo 101, 41 passed and
+one new Inspector assertion failed. The production fix keeps the same source
+identity and record, with an explicit source-metadata kind, no lexical
+capabilities/POS/levels, no linguistic graph edges and no review probes.
+One shared dictionary-capability policy feeds inspection and graph projection.
+Existing stored claims/history are not deleted. Native claims already validate
+against the actual inspected target capabilities in `guest.rs`; this is not a
+renderer-only restriction.
+`publisher-metadata-after-fix.log` passed all 45 affected package tests and
+recursive formatting, terminal exit 0, including catalog, graph and probe
+boundary regressions. No original assertion was weakened.
+
+`mon_C8TY1YZQG8P0QZ4R`/`bash_1717` ran the serial authenticated package
+stage, real native graph compatibility tests, rebuilt QA host and
+`character-runtime-qa.mjs` into `character-native-runtime-first.log`.
+It retains one Cargo job and runtime-only debug1 with assertions/overflow checks.
+The new QA driver is NOT yet verified or run: it consumes the real final source page
+then all 13108 compiled character targets, checks bounded real graphs and
+unsupported claims, and uses the existing Material/Review owner with pause,
+crash/restart, resume and exact submit replay. It explicitly does not certify
+whole-catalog persisted preparation, cancellation or UI/platform acceptance.
+The isolated profile is `character-runtime-qa-profile` under the retained
+execution root; do not erase it or launch a duplicate if resuming.
+Latest disk readback: 13610084 KiB available, 97% capacity. No paid provider,
+model, device or reference application was launched by this stage.
+The stage stopped at the native graph suite: English and undeclared-capability
+cases passed, Japanese failed before analysis with `Language package unavailable;
+install its compatible version and retry`; Cargo 101, terminal exit 1.
+The guard stayed safe (available 6555910144, projected 4408426496), so this is
+not a resource-guard stop. The QA host rebuild and new native driver were not
+reached. Preserve the failing log and original assertions.
+
+Activation investigation: `Runtime::open` stores bundled rejection messages in
+`package_issues` and omits rejected packages from the installed map. The generated
+Japanese version is 61 bytes (within 128), code is 2590438 bytes (within 4MiB),
+but its lexicon is 137007104 bytes, above the unchanged 128MiB/134217728 per-asset
+declaration bound. Manifest validation precedes compilation. Competing identity/
+ABI and code-artifact hypotheses do not explain that first failing predicate;
+do not change a compatibility/fuel/size limit to make the test green.
+The physical index is already WITHOUT ROWID, its candidate scratch table is
+dropped and VACUUM runs. Read-only dbstat: payload 130490298, unused 3166340,
+resource table 137003008 bytes/33448 pages; schema page 4096. The resource host
+uses bounded key/value queries and a BINARY primary key, not physical row IDs.
+Next measure a lossless 64KiB-page candidate before changing preparation.
+Journaled measurement artifacts: `japanese-index-layout-check.py`,
+`japanese-index-pages65536.sqlite` and its execution log under the retained root.
+They must compare all ordered key/BLOB bytes and preserve source/input/profiles.
+The existing content-addressed 48e95432 resource remains the reference artifact.
+`mon_BM8AEHQTQAQ8EAV8`/`bash_1718` now runs that one read-only-source measurement
+into `japanese-index-layout-first.log`. It uses the existing 512MiB offline
+SQLite estimate, not a reduced native/model budget; the 4GiB reserve is unchanged.
+The measurement completed successfully: all 822328 ordered key/BLOB records
+retain logical SHA256
+`f72db7f82667d6173b8a43ebf26e97050d1f57703d9b952b1e92b17ed382665e`.
+The 64KiB-page candidate is 133824512 bytes, below 134217728 by 393216 bytes;
+counts remain 218923 dictionary-source entries, 13108 characters and 465834
+form indices. Integrity checks passed for both files. No data, codec or limit
+was removed or relaxed.
+Only after that evidence, normal preparation was changed to select 64KiB pages
+before creating its existing table. The host's cache remains bounded in KiB.
+`mon_4YCJHNVVX28FGE3X`/`bash_1719` now runs seven source tests, the real normal
+offline producer and full logical-equivalence/budget verification into
+`character-index-layout-produced-first.log`. Do not treat the experimental copy
+as the shipped resource or mark the budget repair complete before this run and
+native package admission pass. The original content-addressed file is preserved.
+Python IDE diagnostics remain unavailable; no missing server was installed.
+The temporary runner's
+TypeScript LSP could not find TypeScript in its isolated directory; Node executes
+that runner directly. No project diagnostic was suppressed or dependency added.
+
+The normal-producer run completed: seven source tests passed, integrity checks
+passed, all822328 ordered key/BLOB rows retained the logical digest above, and
+the shipped-source index is133824512 bytes with physical SHA256
+`fc6bceb86d715cf2a8805cd51a474f3d75d3f9e11258bff0145d54808b3dffe5`.
+Maximum RSS was195952640 bytes for the real producer and54296576 for fixtures.
+The signed-bundle/native retest is now registered as
+`mon_2GQMT3BTEZ2BWYX0`/`bash_1722`, log
+`character-native-runtime-compacted.log`. Its unchanged2GiB/4GiB admission
+reported three healthy samples before starting. It restages the normal output,
+runs the original graph suite, rebuilds the QA host and then runs the prepared
+character driver. No pending result is counted as a pass. The driver's two
+unsupported-claim predicates now match the actual `operation_failed` error code.
+
+The compacted signed package passed all3 original native graph cases and the
+QA host rebuilt. The first connected driver was guard-stopped after startup.
+The preceding admission log also captured OmO footprint14100116584 bytes,
+available1758052352 and pressure4 before workload admission; subsequent readings
+returned near5.22GB. `vmmap -summary` later reported4.8GiB footprint,14.4GiB peak,
+with App-Specific Tag1 dominant. That is allocation-category evidence, not a
+causal explanation. The stopped host77437 was confirmed absent.
+Eight completed workers and their diagnostics were no longer needed. The
+positively identified idle host76226/supervisor76223 and TypeScript tree77302/
+77303/77304/77305 were released; an exit race stopped the first cleanup command,
+and a subsequent inventory confirmed that whole diagnostic tree absent.
+All listed idle-host PIDs were also confirmed absent. Available memory rose
+to7263436800, pressure1; OmO footprint5213795432 and swapUsed3995402240 remained
+observations, not resolution of the earlier transient spike.
+
+The character workflow then completed all assertions, but Bun's Node HTTP
+teardown returned `ERR_SERVER_NOT_RUNNING`. No product assertion was removed.
+The isolated driver now uses Node's built-in SQLite and the existing QA harness's
+Node runtime; `character-runtime-node-teardown.log` exits0 with clean teardown.
+It enumerated all13108 real characters in1093 bounded pages, including475
+metadata-only characters, with total232031 dictionary/character entries.
+Actual graphs had21 bridge facts over2 pages and72 生 facts over5 pages.
+Unsupported publisher/character claims rejected; explicit word and character
+Knowledge stayed separate. A linked Material completed both Practice directions,
+with exact paused encounter retained across crash/restart and exact submit replay.
+No external provider was called. Persisted whole-catalog preparation, cancellation,
+UI fidelity and consuming-native acceptance remain unverified by that driver.
+All guard samples for the final run stayed safe and the main footprint remained
+near5.21GB rather than continuing the earlier growth.
+
+Independent admission audit6c found no defect in the lossless layout repair;
+its old-bundle observation preceded the successful restaging above.
+Graph audit73 found conflicting repeated entity definitions accepted by the
+typed client despite native rejection. The original transport regression now
+fails before the repair and passes after it,3/3 cases; structurally equal JSON
+with different object member order and identical parallel entities remain valid.
+Source diagnostics passed; test-file diagnostics timed out, not a typecheck pass.
+Collection audit6d identified stale catalog metadata on all-language Material
+queries after package replacement; that concrete repair remains open.
+Both M11 briefs returned actual owner/dependency maps: current responses contain
+self-report grades, not executed typed/choice validation, and exact target/
+capability scope, calibration purpose and accountable expert definitions need
+shared native contracts. No M11 product integration has begun.
+
+Workers70/71/72 returned the first GraphDetails, deeper Inspector navigation and
+package-kind/grid/list Knowledge increments plus focused tests. Root typecheck,
+architecture lint and all14 focused cases passed in `graph-ui-first.log`.
+The subsequent ordinary web export was guard-stopped at Metro startup
+(available6099828736/projected3952345088); no successful render is claimed.
+The installed CLI supports `--max-workers`; the export-only retry
+`mon_E1JGB0GFA7DFN5DG`/`bash_1738` limits Metro to one worker and Node heaps512MiB,
+retaining the original2GiB reservation and4GiB reserve. Its log is
+`/tmp/mlearn-parallel-ulw.M8JsP2/graph-ui-single-export.log`. Do not repeat the
+already-passing focused checks merely because export was interrupted.
+The one-worker/512MiB-heap export completed successfully (`GRAPH_UI_SINGLE_EXPORT_EXIT0`).
+The actual UI host's first admission observer was cancelled while still held;
+it had not started catalog preparation or an application. Root took the concrete
+native collection defect first rather than overlapping substantial workloads.
+
+The native graph/character checkpoint is committed/pushed as
+`0cc16256d186676fc67124e98d535d52fe5f3238`; the first UI increment remains
+uncommitted and visually unverified. Exact-source desktop40806767438 passed;
+foundation40806767205 and mobile40806767161 remain in progress, observed by
+`mon_ACFED8FP4TVRGC19`/`bash_1744`. No workflow variant was launched.
+All-language Material revision checking now uses the same installed-package
+authority as scoped browsing, evicting only mismatched rebuildable catalogs.
+The real compiled-package regression in `collection-revision-before.log` failed
+on `target.is_none()` before the repair. `collection-revision-after.log` passes
+all4 collection owner cases, including the replacement/reopen flow, preserved
+authored Material, independent claim, bulk unavailable-package recovery and
+committed-cursor cancellation/resume. Cargo debug1 retains assertions/overflow
+checks and one job. Source diagnostics passed; each completed owned analyzer
+and its verified helpers were released before compilation, not run alongside it.
+The follow-up native host rebuild and full persisted character catalog/UI host
+are subscribed as `mon_KEG7M0ZN5JE9SWM7`/`bash_1753`, log
+`/tmp/mlearn-parallel-ulw.M8JsP2/graph-repaired-ui-host.log`.
+Two further read-only lanes are active: independent first-increment UI semantics
+audit83 and concrete package grammar content/validator preparation84. M11 product
+integration remains gated; no rendered UI or full-catalog pass is implied.
+The repaired native checkpoint is committed/pushed as
+`ef2f7e2baa5358fb56f2e7b31b47689d7aa9145c`. Full persisted Japanese preparation
+subsequently passed232031 total entries and13108 characters in the retained QA
+profile. Real Omowright interaction selected the package's Character kind,
+switched Grid/List and searched橋 to one actual result. First desktop Knowledge,
+character-grid and graph captures plus a390CSS/DPR3 graph capture were inspected
+under `/tmp/mlearn-parallel-ulw.M8JsP2`. Narrow document width stayed390, with
+header and Inspector body scroll owners. This is first-render evidence, not
+reference parity: raw graph IDs and repeated attribution crowd the detail;
+both themes, scrolling/focus and failure states remain open.
+Capture browser lifetimes are now bounded to one eval call with finally-close;
+cross-cell preparation tabs disappeared and must not be retried unchanged.
+The UI host received explicit stop and exited0; native81667 is confirmed absent.
+
+Audit83 found two concrete UI defects: kind controls disappear during a changed
+collection query and stay unavailable after collection failure; graph Knowledge
+does not refresh after an Inspector claim. The first is now repaired: package-keyed
+description loads independently of collection rows and survives query failure.
+The initial regression was guard-cancelled; the next attempt deadlocked because
+setup page.evaluate returned the pending event Promise. Its confirmed orphaned
+test descendants were released. Corrected before-fix regression exited1 with
+the kind selector absent; the same case passed after the repair. Typecheck,
+ownership lint and one-worker export exited0 in `character-filter-after.log`.
+Inspected real native-backed desktop and phone grid captures are
+`kind-recovery-desktop-1440.png` and `kind-recovery-phone-grid.png`; the latter is
+1170x2532 at390CSS pixels, with no horizontal overflow. Navigation reset an
+earlier emulation attempt to1440; `kind-recovery-iphone-14.png` is not phone
+evidence. Apply emulation after navigation and verify actual viewport.
+
+The second finding is reproduced in the real native-backed Inspector: Reading
+claim changed to unknown in the adjustment while the graph still displayed
+claimed known, with unchanged graph text. Capture:
+`graph-claim-stale-native-before.png`. A real GraphDetails scenario was added to
+the existing Inspector harness. Both automated before-fix attempts were
+resource-interrupted after four navigation cases passed; neither is an assertion
+failure receipt. The real native workflow is the before-fix evidence. Inspector
+now includes native capability/projection revisions in the graph lifetime key.
+The resulting five scenarios/six tests, typecheck, lint and one-worker export
+all passed in `graph-claim-after.log`; source diagnostics were clean.
+The first post-fix native UI run was guard-stopped during character filtering,
+before verifying the claim. Native91500 is confirmed absent and the browser
+closed in finally. Post-fix native verification is still incomplete.
+`mon_PDV1RHRHKTX14T15`/`bash_1781` passed its stricter2560MiB admission,
+but the native host92331 was immediately stopped by the original running guard:
+OmO footprint12678804608, pressure2, available2976251904, swap5412159488 and
+swapOut98674147328. The host had reported ready; no browser was launched and
+no post-fix native claim pass is established. Native92331 is confirmed absent.
+The original2048MiB guard and4294967296-byte host reserve remain unchanged.
+No replacement workload is registered after this recurrent unexplained spike.
+About32 seconds later, footprint recovered to5284426880, available8095367168,
+pressure1, swap5592252416 and swapOut99030401024. Bounded vmmap showed4.9GiB
+current/14.4GiB peak with App-Specific Tag1 dominating. This is not a diagnosis
+or a memory fix; native application/model attribution is unsupported.
+The recovery question timed out; the maintainer directed continuation on best
+judgment without asking it again. Local builds/native hosts/browsers remain
+paused. The existing foundation workflow already builds the real Rust QA host
+and runs all `tests/web`, so the connected regression is being moved to that
+ordinary hosted path without changing workflows or weakening assertions.
+`inspector-graph-native-core.spec.ts` uses an isolated profile and genuine
+WordNet graph: claim refresh, separate sibling Knowledge, source-preserving
+navigation/Return, restart persistence, and bounded desktop/narrow captures.
+Its fixture is authored text `run`. Foundation40816503734/web123258705616
+passed all140 connected web tests, including this actual native scenario.
+Artifact12872912729's source manifest matches8b025be0/tree4061e8bd. All four
+light/dark1080/390 captures were decoded and inspected under
+`/tmp/mlearn-parallel-ulw.M8JsP2/hosted-graph-8b.4rmPRR`. Required files extracted
+successfully, but the extraction command exited1 because optional
+`test-results/.last-run.json` was absent; no archive retry is needed.
+The hosted verification and claim-refresh repair tasks are closed. Graph UI
+presentation remains open: raw IDs and repeated attribution dominate the detail.
+The shared footer is intentionally horizontally scrollable with focus reveal;
+the screenshots alone do not establish inaccessible clipped controls.
+The initial local diagnostics request timed out, not passed. A fresh bounded
+resource sample later measured footprint2833642600, available7144652800,
+pressure1 and stable historical swap-out99922853888; RSS is diagnostic only.
+One targeted macOS Rust-host/browser graph test passed in3.7s after three fresh
+stricter admission samples, `mon_RN7BXDF3ZAGTK46Y`/`bash_1797`, retaining the
+original running guard. Native binary SHA256:
+`95e6b117bac5e33fcd6c7118b25ad59838c46fed00c73c3da4ff6747c7867005`.
+Log: `graph-native-macos.log`; captures: `graph-native-macos/`. Desktop light
+and narrow dark captures were inspected; all four hosted counterparts were
+already inspected. Cleanup inventory found no surviving native/browser/compiler
+or analyzer. Post-run footprint2863232104, available7114358784, pressure1,
+swap4008837120, swapOut99922853888; a later available7309262848 sample remained
+stable. This is a real macOS Rust-host/browser flow, not a Tauri WebKit or mobile
+device certification. No broad local suite, rebuild, model or device launch.
+The next bounded graph presentation increment adds one source-metadata
+disclosure through the existing shared control; its before captures and design
+contract are recorded. Its regression is added before production changes.
+The initial graph/character UI and these regressions are committed/pushed as
+`8b025be0789b9f6f155490288646bcdce1a52616`, with CI explicitly pending,
+not milestone acceptance. Scoped staged inspection and diff hygiene passed.
+PR45 remains open/draft, headagent/m10-m11 and baseagent/m01.
+Exact-source foundation40816503734 and desktop40816503580 passed.
+Mobile40816503665 is terminal: Android123259318406 passed; iOS123259319042
+failed its original actual-UI step at2026-10-29T05:01:02Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+The exact failed log is `mobile-ios-8b025be-failed.log` in the current scratch
+root. Observer1791 completed; no workflow variant or rerun was launched.
+At the earlier8b push stop, OmO footprint4816925824 and available6422822912 produced projected
+headroom4275339264 below that reserve. A bounded eval heap reading was26.6MB,
+not process-wide accounting or a diagnosis of the4.8GB physical footprint.
+Native UI host89485 was explicitly stopped and exited0;
+capture browsers closed in finally. Audit84 returned five proposed package-owned grammar
+targets/fifteen real task definitions with original examples and bounded
+accepted/rejected/unassessed validators, not shipped content or M11 integration.
+
+Graph source disclosure now preserves all native fields behind the existing
+shared disclosure Button. Before-fix regression is `graph-sources-before.log`;
+`graph-sources-after.log` passes all8 graph presentation cases, typecheck,
+ownership lint, one-worker export and the genuine Rust-host/browser scenario
+(1 test,3.9s). Final capture framing also passes that full native scenario
+(1 test,3.7s), `graph-sources-framed-render.log`. All12 resulting English
+light/dark1080/390 top/source/end images were decoded and inspected in
+`graph-sources-framed-native-macos/` under the scratch root. No native window,
+WebKit or mobile certification is implied.
+
+The prepared Japanese profile was reused without rebuilding its232031-entry/
+13108-character catalog. Manual native-backed character grid, graph disclosure,
+16->5 pagination, refresh, no invented fact targets and close-focus passed in
+Quartz1440, Quartz390/DPR3 and darkQuartz1440. Actual restored focus was the
+implicit HTML BUTTON labeled `橋: assessed known`; an earlier probe incorrectly
+required an explicit role attribute. The correction changes QA, not product
+focus behavior. Capture names are
+`character-<theme>-<device>-{grid,graph,sources}.png` in the scratch root.
+DarkQuartz390 reached its grid capture but not the subsequent search/graph:
+the resource guard stopped the native host, so that case is incomplete.
+The isolated character QA profile retains darkQuartz because the failure
+prevented end-of-run theme restoration; no live learner profile was changed.
+Character detail still exposes technical reading/meaning-group property values
+and structured source records in ordinary property content. This is a remaining
+presentation issue, not permission to discard those values or infer language
+semantics from their labels. Character Capture -> Material -> Review must still
+be exercised through reachable UI; selected Word Practice remains M11 scope.
+
+Both owned character browsers closed in finally; native2966 and4899 were
+confirmed absent after guards1809/1811 terminated. The second stop measured OmO
+footprint5239993472, available6438256640, pressure1, swap5361172480 and
+swapOut101593956352; the original2GiB work reservation/4GiB reserve was not
+lowered. Post-close footprint5219726464/available6647955456 remained well above
+the earlier3.27GB footprint. Bounded `omo-vmmap-after-character-stop.txt` shows
+App-Specific Tag1 dominating,4.9GiB current/14.4GiB historical peak. This is
+not a diagnosis or an application attribution. The eval kernel shares PID82251
+but reports only25.6MB live heap/9.6MB external memory, not process-wide
+allocation ownership. Do not resume substantial local verification on that
+heap reading or automatically restart the stopped hosts.
+
+The disclosure checkpoint is committed/pushed as
+`9a9a10e3ebc1e65e10a346a35c30030a0135f975`. Its ordinary foundation40826963970
+and real desktop40826963986 workflows passed. Mobile40826963947 is terminal:
+Android123292104240 passed; iOS123292104025 failed at2026-10-29T06:52:37Z,
+`Assertion is false: id: m01-watch, mp4 is not visible`. Its exact30101-byte
+failed log is `mobile-ios-9a9a10e-failed.log`. Observer1824 completed.
+No other workflow was dispatched. Owned preview2637 was verified as
+`node tools/serve-web.mjs` in this checkout, then stopped; observer1818
+confirmed its exit and no4173 listener. Exports, native artifacts and profiles
+remain intact.
+
+The character scenario was committed/pushed as
+`f1c7b2eff42b0a5097852180c7e5094b29590304` in the existing native Inspector
+web spec, not part of9a or a passing workflow. It uses a fresh genuine
+Japanese package/profile, cold catalog preparation, character grid/detail
+captures in both themes/widths, Capture -> Material -> scheduled Review,
+explicit character target/Material bindings, and pause/crash/restart/resume.
+It adds no mocked Knowledge, graph, grading or catalog. Final file diagnostics
+were clean. Foundation40833812757 ran it and failed before reaching character
+views: the full cold import did not finish before the new test's120-second
+deadline. The other140 web cases, Rust, detector and macOS passed.
+Windows123315797625 independently failed its final Slate paste with
+`Incomplete native theme input`; the editor retained Dark Quartz despite
+reported focus and correct clipboard. Preserve `f1-windows-failed.log`;
+the retained input discrepancy is not repaired or attributed to this test.
+No further visual change has been
+made; retain a complete character before set before altering record/qualifier
+presentation. Both graph and character tasks remain open.
+
+Releasing the closed browser handles and one kernel garbage collection reduced
+the small eval heap, not the unexplained process allocation: final footprint
+5214237824, available6403538944, pressure1, swap5092671488 and
+swapOut101593956352. This is not a memory repair or admission for another
+local workload. Current work continues through source inspection and hosted CI.
+
+The exact f1 trace exposes the primary count timeout at line152; forced native
+shutdown15 seconds later masked it. Artifact12880378417 is retained as
+`f1-web-inspection.zip`; only the failed context/frame/trace and its SQLite/WAL
+were extracted. Read-only inspection found232031 total and51912 committed
+targets, cursor `entry/1552970`. Installation took2.8s. This is a progressing
+import, not proof of a deadlock or an incorrect total. The existing native
+baseline below already records278227ms for218923 Japanese targets: imposing
+120 seconds on the complete cold setup was an invalid new test assumption,
+not an established product latency requirement.
+
+The repair subscribes to the actual preparation HTTP receipt before clicking,
+with a bounded720-second cold-setup deadline and900-second test deadline.
+The original exact232031/13108 counts and120-second UI-publication assertion
+remain unchanged after that native receipt. The existing foundation web job
+allows40 minutes for this new full-corpus setup plus the unchanged suite;
+no steps, source/model pins, fuel/memory/data limits or assertions are removed.
+Failure cleanup queries the existing native preparation owner, cancels active
+work, closes the host and preserves the primary error alongside cleanup errors.
+TypeScript diagnostics and native Bun YAML parsing pass; YAML LSP is absent,
+and no dependency was installed. The repair is committed/pushed as
+`44bc9bd57d213f14d7cae978706ad659c9cd1bb5`. Its ordinary foundation 40841186176
+passed all five jobs, including Windows native theme input on this run; the
+earlier unexplained Windows failure is not thereby diagnosed or repaired.
+The web job 123337684111 passed all 141 cases in 11.3 minutes, including the
+genuine character Capture -> Material -> scheduled Review and restart scenario.
+The graph/character spec took 6.1 minutes with the full cold preparation.
+Exact log `44bc9bd-web.log` and artifact 12883946489 are retained in the existing
+scratch root. Only 13 character PNGs were extracted into
+`44bc9bd-character-evidence/`; every grid/graph/source capture for both
+themes at 1080/390 and the scheduled Review capture was directly decoded/inspected.
+Character grid, actual character probe and footer containment are visible.
+These are Linux Rust-host/browser results, not mobile or native-window parity.
+
+That complete before set confirms the remaining graph presentation issue:
+structured source records and opaque reading/meaning-group qualifiers crowd
+the ordinary character facts. The next shared-owner change places structured
+entity properties and relation qualifiers under the existing Graph sources
+disclosure, retaining scalar entity facts in the ordinary list. It does not
+interpret package IDs/labels, remove native data, fabricate a bound target or
+add a new protocol/display flag. The existing graph presentation test now covers
+scalar facts remaining readable and structured values/qualifiers surviving
+expand/collapse unchanged. Both touched TypeScript files have no LSP diagnostics
+and diff whitespace checks pass. Local execution remains paused for unexplained
+OmO allocation growth; this source change still needs fresh hosted tests/captures.
+Character and graph tasks remain open.
+
+The structured-detail increment is committed/pushed as
+`4f0c78815c3f005197690686a2b80349c0215265`. Foundation 40844656408 and real
+desktop integration 40844656413 passed. Exact web job 123349084514 passed the
+extended graph presentation regression, typecheck, ownership lint, export and
+all 141 web cases in 14.8 minutes. The graph/character spec took 8.1 minutes.
+Its exact log is `4f0c788-web.log`; artifact 12884819393 is retained as
+`4f0c788-web-inspection.zip`. All 25 extracted English/character PNGs were
+directly decoded and inspected under `4f0c788-graph-evidence/`.
+Both themes at 1080/390 show the scalar English definitions preserved, technical
+character records absent from the ordinary facts, source disclosure available,
+bounded Inspector header/footer, related-target actions and native page controls.
+The character Review frame still presents the actual character probe.
+The full native-backed tests also verify separate sibling claims, source-bound
+Material, deeper navigation/Return focus, character Capture -> Material -> Review,
+and native crash/restart/resume. These close the three implementation tasks as
+verified_for_continuation. M10 real-platform QA and independent review remain
+open. Mobile 40844656393 is terminal: Android job 123349084519 passed; iOS job
+123349084310 failed its original Watch flow at 2026-10-29T09:22:31Z:
+`Element not found: Text matching regex: Open local video, Enabled`.
+The authored H.264/AAC fixture exported successfully before this failure.
+Exact failed-step log `mobile-4f0c788-failed.log` is retained in the existing
+scratch root. This matches a previously retained failure surface, not a diagnosis
+of its cause or a passing iOS gate. Observer 1869 completed; no rerun, variant or
+cancellation was requested.
+
+NAV-02 trace: the root is currently a Stack. Home pushes new Knowledge/Material
+screens; Knowledge and Material push one another, while their Home actions
+replace the current route. Collection query/filter/layout/paging lives in each
+screen instance. This leaves route restoration unverified and can recreate
+collection presentation rather than revisit it. Inspect the pinned router's
+route identity and existing activity focus/persistence owners before changing
+the shell; do not introduce another domain store. A bounded read-only lifetime
+audit returned: Reader already releases source/OCR/viewports on blur, whereas
+Watch media, Review audio and Messenger polling do not all have equivalent
+focus-scoped lifetimes. Keep those activity workspaces outside any preserved
+management-tab boundary. This is caller-source evidence, not observed background
+playback or a new activity-lifecycle implementation.
+No navigation implementation has changed yet. The existing genuine Knowledge
+scenario now records unsubmitted search drafts before and after
+Knowledge/Material/Home switching, with four baseline captures and a bounded
+`navigation-baseline.json` receipt. It preserves all existing assertions and
+does not assert or claim that restoration works. Retrieve that ordinary hosted
+baseline before repairing the route boundary and adding restoration assertions.
+The diagnostic file has no LSP diagnostics and diff whitespace checks pass.
+No local execution was launched. A bounded post-inspection native sample reported
+OmO PID 82251 RSS 8743344 KiB, rounded physical footprint 3.7G (historical peak
+14.4G), pressure 1 and swap used 4041.19 MiB. This lower current footprint does
+not establish a diagnosis or admission for substantial workloads.
+
+Exact `32f9b18641ba3520caa60f55ec8f0b834252dd84` foundation 40849011822 is
+terminal: web 123363527117, Rust, detector and macOS passed; Windows
+123366120536 failed its original native-theme input check. At
+2026-10-29T09:37:41Z it reported `Incomplete native theme input` while restoring
+Quartz: the editor retained Dark Quartz despite reported keyboard focus and
+correct clipboard. The exact `32f9b18-failed.log` is retained. This is another
+observed input failure, not a diagnosed cause, a product repair or a passing
+Windows gate.
+
+Web artifact 12888190121 is retained as `32f9b18-web-inspection.zip`. All four
+navigation PNGs were selectively extracted and directly inspected under
+`32f9b18-navigation-evidence/`: the original unsubmitted Material/Knowledge
+searches are visible before navigation and blank after revisiting. The after
+frames also show collection loading; they prove the lost local input, not a
+completed refreshed result. Successful traces and in-memory JSON attachments
+were not present in the uploaded artifact. Do not invent that missing receipt.
+
+The repair moves only Home/Knowledge/Material into a lazy management Tabs
+group with no added visible tab bar, retaining the root Stack and existing
+RuntimeProvider. Their existing controls now navigate to those stable routes.
+Reader/Watch/Review/Messenger/Settings remain outside that preserved subtree.
+No domain cache, settings persistence or new resource owner was added.
+The real Knowledge scenario now asserts search draft restoration after switching
+and Home, plus unchanged sort/grid/cursor and bounded target membership at
+1080/390. It writes its bounded JSON receipt into the uploaded test-results
+directory, alongside eight fresh captures. Explicit package/source parameter
+changes and repeated Material entry still require verification before NAV-02
+closure; neither is inferred from draft preservation.
+Local route declarations initially lacked Knowledge and were stale. They were
+regenerated through Expo CLI's own `setupTypedRoutes` owner, without Metro,
+a server, dependency installation or hand edits to generated types. The
+generator exited 0, and all eight touched TypeScript files have no LSP
+diagnostics. No fresh application render or hosted execution is claimed yet.
+
+Exact `191726ce6e5020b0724501bcab0e5cabad136bf6` foundation 40853931224 is
+terminal with web job 123380049070 failing one original regression:
+`material-proposal-native-core.spec.ts:322` expected the accepted replacement
+meaning but read the old editor's empty meaning. The other 140 web cases passed
+in 11.7 minutes, including the new real navigation restoration assertions and
+the graph/character scenarios. Rust, detector and both foundation desktop jobs
+passed; real desktop integration 40853931257 also passed. Mobile 40853931366
+is terminal: Android 123380049624 passed; iOS 123380049746 failed its original
+Watch flow at 2026-10-29T10:31:28Z:
+`Element not found: Text matching regex: Open local video, Enabled`.
+The authored H.264/AAC fixture exported first. Exact failed-step log
+`mobile-191726c-failed.log` is retained. Observer 1891 completed; this result
+does not certify or diagnose the separately pending `486c507` repair.
+
+Retained `191726c-failed.log`, artifact 12888724571 as
+`191726c-web-inspection.zip`, and selectively extracted the eight navigation
+PNGs/JSON receipt plus the original failed Material frame/context/trace under
+`191726c-navigation-evidence/`. All nine PNGs were directly inspected.
+The navigation receipt confirms both drafts at both widths, with the original
+assertions also checking sort/grid/cursor and the same bounded 24 target IDs.
+The failed frame has the accepted meaning on the saved card while the editor
+still holds its earlier content. Bounded trace metadata and selected JSON blobs
+under `191726c-material-trace/` show the initial Material read returning revision
+1, the native proposal receipt committing revision 2, and no new native read
+after the explicit Open saved Material click.
+
+The preserved screen's opened-ID guard no longer implies that a same-ID
+navigation is a request to reload its committed content. The repair makes
+MaterialProposalReview delegate explicit saved/existing entry opening to its
+actual caller: MaterialScreen uses its existing native `open` owner directly;
+SourceActions uses its router boundary. No copy of loading/retry/editor state,
+new native store, route nonce or automatic replacement of unsaved drafts was
+added. The original failing assertions remain unchanged. That same regression
+now additionally checks an unsaved editor draft surviving ordinary tab switching
+and captures explicit revision reload at 1080/390.
+Three touched files have clean LSP diagnostics; MaterialProposalReview's fresh
+diagnostics timed out twice and are not counted as passing. Full diff/whitespace
+checks pass. Fresh hosted typecheck, the original regression and after captures
+are still required; NAV-02 remains in progress.
+
+Exact repair `486c50766d65fd90a2f7cc47e2c9ce47b916df9c` foundation
+40857907374 passed all five jobs, including typecheck/lint and all 141 web
+cases in 17.9 minutes (web 123393458599). This includes the unchanged original
+accepted-replacement assertions, the added unsaved-editor tab switch and native
+revision 2 check. Real desktop integration 40857907413 passed. Mobile
+40857907407 is terminal: Android 123394753785 passed; iOS 123394753531 failed
+its original Watch flow at 2026-10-29T11:24:45Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+The authored H.264/AAC fixture exported first. This is a different assertion
+from the earlier enabled-button lookup, not proof of its cause or repair.
+Retained exact `mobile-486c507-failed.log`; observers 1902/1915 completed.
+No diagnostic rerun or new variant was launched; iOS acceptance remains open.
+Retained `486c507-web.log` and artifact 12891592225 as
+`486c507-web-inspection.zip`. Selectively extracted and directly inspected all
+11 relevant PNGs: eight draft/navigation before/after frames, explicit saved
+revision editors at 1080/390, and the existing source-return recovery frame.
+Both explicit editors contain the accepted meaning, the drafts/order/grid/page
+remain intact, and recovery feedback remains beside its action. These captures
+are Linux Rust-host/browser evidence, not native-window or mobile parity.
+The durable JSON receipt retains exact draft values at both widths. Hosted
+typecheck also supplies the missing compilation check after the earlier local
+LSP freshness timeout.
+
+The next source-preserving baseline extends only the two existing real Knowledge
+scenarios: reopen the same saved target through Inspector's existing-Material
+action after closing its editor; and enter an already-mounted Knowledge route
+with a different real package selected on Home. It subscribes to collection
+receipts before navigation, waits for owning pending state, and writes PNG/JSON
+observations without claiming these new paths work or weakening any original
+assertion. The source-scope probe installs the existing pinned Japanese package
+but does not prepare another Japanese catalog. No product source changes until
+these observations have been read. The edited test has clean LSP diagnostics
+and whitespace checks. Its ordinary push affects foundation only; desktop/mobile
+workflow paths exclude this web-test-only change.
+
+Small capture batches recorded OmO footprint 3.8G before / 4.0G after, pressure
+level 1 throughout, RSS 9179312 / 7993712 KiB and swap 4678.25 / 4518.25 MiB.
+Peak footprint remains 14.4G. This does not diagnose the allocation or admit
+local app/browser/device/build workloads; none were restarted.
+
+Baseline `b6e42a18d18271404ae4deb15be157e6c288fab3` foundation 40863487839
+is terminal: Rust, detector and both desktop jobs passed; web 123412296832
+reported 140 passed in 18.2 minutes and one failed scope probe. Its new selector
+waited for literal `Japanese` at line 305, but the actual installed option is
+`Japanese · 日本語`. This is a test error, not evidence of a package-navigation
+failure; no scope JSON was produced. Retained `b6e42a1-failed.log`, artifact
+12893717769 as `b6e42a1-web-inspection.zip`, and the selectively extracted
+context, failed frame and completed closed-editor PNG/JSON under
+`b6e42a1-navigation-evidence/`. Both PNGs were directly inspected.
+
+The completed same-ID receipt has `editorVisible: false` on a Material URL
+containing the exact saved ID, after its collection receipt and enabled Edit
+control. The frame shows its saved card but no editor. Closing had left both
+the opened-ID guard and selected route ID behind. The repair clears those two
+pieces of presentation state when the user closes the editor; it does not
+reload on every focus, change saved content or discard an open draft on ordinary
+navigation. The former diagnostic is now a real regression asserting the
+reopened editor and exact phrase at 1080/390, with fresh captures/receipts.
+The scope probe now selects Home options by the existing authoritative package
+test IDs instead of guessing their labels. Its diagnostic status is unchanged;
+no Knowledge/package-scope product repair is claimed.
+
+Both touched TypeScript files have clean LSP diagnostics and the full code diff
+and whitespace check pass. Fresh hosted execution and after captures remain
+required before another presentation-source change. No timeout, original
+assertion, resource limit or model pin was relaxed.
+
+Exact `8d3ccd3e56e3634eada7c630865456de071a2242` foundation 40867693534
+failed web 123426520043 with 140 passed in 12.9 minutes. The unchanged
+closed-editor regression reached `Edit able` still busy after its 5-second
+assertion budget. Rust, detector, both foundation desktop jobs and real desktop
+40867693509 passed. Mobile 40867693648 is terminal: Android 123426521430
+passed; iOS 123426521162 failed its original Watch flow at
+2026-10-29T12:40:40Z:
+`Element not found: Id matching regex: DOC.sidebar.item.On My iPhone`.
+The authored H.264/AAC fixture exported first. Retained exact
+`mobile-8d3ccd3-failed.log`; observers 1923/1947 completed. This is distinct
+from the preceding file-row and enabled-button assertions; no cause or repair
+is inferred, and no diagnostic rerun or variant was launched.
+Retained `8d3ccd3-failed.log`, artifact 12895437499 as
+`8d3ccd3-web-inspection.zip`, and selectively extracted three PNGs, scope JSON,
+failure context and failing trace under `8d3ccd3-navigation-evidence/`.
+All three frames were directly inspected.
+
+The scope receipt now proves a real mismatch: requested/URL package
+`org.mlearn.japanese`, but the completed native Knowledge query and selector
+remain English. Returning with explicit English remains English. The Material
+trace's final native read returned the correct saved revision in 2.29ms,
+before collection (3.761ms) and snapshot (2.907ms), yet Opening Material remains
+after the assertion. Read bounded final network records and six selected blobs
+under `8d3ccd3-reentry-trace/`; this is not evidence of slow native loading.
+Installed useFocusEffect can run a changed callback immediately for an already
+focused route, independently of existing focus listeners. The owner-ref value
+was not instrumented; do not claim that scalar was directly observed.
+
+The candidate combines Material focus-scope admission and explicit route
+opening in the same existing callback, retaining cleanup and stale-publication
+guards. Knowledge applies a changed explicit package only once, clears its
+package-bound filter/cursor, and reflects a local language choice in route
+parameters so later explicit Home entry cannot retain the wrong selection.
+Unchanged scope does not reset drafts, order, layout or cursor. No second native
+owner, route nonce, navigation store or new dependency was introduced.
+The scope regression now awaits the exact requested native package, checks its
+authoritative installed label at both widths, and returns from a local picker
+change through Home. The earlier closed-editor assertions are unchanged.
+
+Both product files have clean LSP diagnostics. The test was clean before the
+literal-dot URL-regex correction; fresh diagnostics then timed out twice and
+are not claimed as passing. Full diff/whitespace checks pass. Fresh hosted
+typecheck, original regressions and captures remain required; no native/read
+timeout, model pin or original assertion was relaxed.
+
+`d15558aa952a66512049a5eddd831f66e6ac936b` real desktop integration
+40872207601 / native 123441851191 failed with a raw
+`DOMException [TimeoutError]: The operation was aborted due to timeout`.
+Retained `d15558a-desktop-failed.log` and artifact 12896731842 as
+`d15558a-native-desktop.zip`. Its archived source receipt matches that commit
+and tree `bb1fe95303bbef7eca5a5d7da964f47a71fd757d`. Selectively recovered the
+failure frame, media/geometry receipts and two exact driver files. The frame
+was directly inspected: raw Japanese caption with an explicit incompatible
+English-analysis message. Video is readyState 4, paused at 20/30 seconds, with
+no media error. Portal/audio warnings do not establish the failure's cause.
+The lost awaited operation remains unresolved; foundation 40872207253 and
+mobile 40872207514 remain independently watched by 1933.
+
+The driver's existing transport wrapper awaited the response body outside its
+catch, allowing a body-read timeout to lose the request identity. Added one
+actual-Response/errored-stream case to its existing script owner suite. Before
+the fix, the single mocked test failed on
+`assert.ok(error instanceof WebDriverTransportError)` (140.7ms process).
+After moving the body read into the same catch, the full six-test owner suite
+passed once in 129.9ms, preserving method/endpoint/cause and no replay; native
+protocol errors remain distinct. The 30-second RPC deadline and original
+native scenarios are unchanged. This repairs diagnostics, not desktop acceptance.
+Only this small mocked Node test process ran locally; no app, browser, device,
+build or inference workload was started. Both edited JavaScript files' fresh
+LSP diagnostics timed out and are not counted as passing. Full diff/whitespace
+checks pass; hosted lint and the real failing workflow remain required.
+No product UI source changed after d15558aa.
+
+The d15558aa web failure is now narrowed: Material re-entry passes at 1080/390,
+both changed-package entries match the actual requested native package and
+installed label, and the eight draft/sort/grid/page frames remain intact. The
+final local-picker/Home return shows `Native request queue is full; retry the
+action.` before its English collection dispatch. The guard is the unchanged
+eight-slot admission in `packages/runtime-client/src/client.ts:79`.
+Bounded final trace reads show a 702.941ms Japanese describe followed by queued
+Japanese collection, Home snapshot/recent-source/recent-document reads executing
+after Home blur, then Knowledge snapshot/selection reads. Admitted requests
+drain, but the rejected foreground collection has no receipt to await. The
+test's 30-second timeout is not evidence of a slow collection or installation.
+
+Directly inspected 14 current relevant frames in batches of one/two: two
+reopened editors, two correct package scopes, eight retention comparisons,
+the native Home preimage and the queue-failure frame. Durable re-entry and
+navigation JSON receipts were read. The first two scope receipts were previously
+lost because their write followed the final failing step.
+OmO footprint stayed 4.8G before/after this batch (peak 14.4G), pressure 1;
+RSS 5510032/5723344 KiB, swap 3860.75/3812.75 MiB. No substantial local
+verification was admitted; the allocation remains undiagnosed.
+
+The Home candidate retains its existing focus lease but admits its three reads
+sequentially, checking that lease between reads. The shared client already
+serializes them; pre-admitting off-screen follow-ups was filling its bounded
+queue. No admission limit, retry, new store or UI delay was added.
+The original scope-return assertions remain, now with a held real Home snapshot
+receipt to make blur/admission ordering deliberate rather than dependent on
+package execution speed. Request events must show no off-screen recent-source
+or recent-document follow-up; the foreground scope must still complete. Gates
+are subscribed before input and released in cleanup, with no sleeps. First-two
+scope receipts are persisted before the last step and its successful receipt
+is appended only after assertions. Home LSP diagnostics are clean; the test's
+fresh diagnostics timed out and are not counted as passing. Full code diff and
+whitespace checks pass; hosted execution and fresh captures remain required.
+
+The diagnostic-only a571cb87 real desktop run 40874832765 passed; it does not
+explain or erase the earlier d15558aa timeout on identical UI/deadlines. Its
+foundation 40874832751 failed web 123453596679 in the same final scope-return
+response wait at line 344 (140 passed, 17.8 minutes); the other four jobs passed.
+Retained `a571cb8-foundation-failed.log`; observer 1957 completed. Its UI and
+scope-test source match d15558aa, so no duplicate 258MB capture download was
+needed for the same observed failure.
+No iOS variant or unchanged native rerun was launched. After this repair's
+evidence, active-workspace return and explicit source-parameter preservation
+still need verification before closing NAV-02.
+
+Home repair `84a02fa38e7cb238f1625d227f10d51025068b49` passed foundation
+40880351787: web123469888829 reports 141 passed in18.5minutes, including the
+held real Home snapshot regression with zero off-screen recent-read requests.
+Unit tests, typecheck, lint, web build, Rust/contracts, detector and both
+desktop build/OCR jobs passed. Real desktop integration40880351909 also passed.
+Mobile40880351754 is terminal: Android123478764447 passed; iOS123478763651
+failed at14:05:30Z with `Element not found: Text matching regex: Open local
+video, Enabled`. Authored H.264/AAC fixture export succeeded at14:00:11Z.
+Retained `mobile-84a02fa-failed.log` in the scratch root. This is the original
+actual-UI gate, not a fixture-export failure or proof of a navigation cause.
+No diagnostic variant, unchanged native rerun or platform-parity claim is made.
+Artifact12901586854 is retained as `84a02fa-web-inspection.zip` under the
+existing scratch root; the passing web log is `84a02fa-web.log`.
+
+Directly inspected all15 relevant fresh PNGs, one/two per batch: eight
+Knowledge/Material draft and page-restoration comparisons, two reopened saved
+editors, two accepted-replacement editors, two explicit-package entries and the
+formerly failing narrow Home-after-local-choice return. No blank or overlapping
+navigation output appeared. Existing long English grid-word wrapping remains,
+not a new visual-conformity claim. Read all three structured receipts:
+both reopened editors are visible, both widths retain the unsubmitted drafts,
+and all three requested packages match the native collection query and selector.
+The last receipt is English after a local Japanese choice and explicit Home
+return; the former queue error is absent. Extracted evidence is
+`84a02fa-navigation-evidence/test-results/` in the same scratch root.
+OmO PID82251 footprint3965/3528MB before/after the image batch, historical
+peak14GB, pressure1, RSS9174752/8646048KiB and swap3825.56/3785.50MiB.
+The lower current footprint does not explain prior growth. No local app,
+browser, device, server, model or substantial verification workload was launched.
+This closes the demonstrated Home admission regression, not NAV-02 or M10.
+
+The next source-only probe extends the existing genuine Knowledge workflow,
+without changing presentation or routing: open the real continuity document
+through Home, save its Reader checkpoint, return through Reader's Home action,
+then assert the retained Knowledge draft/order/grid/exact24-item page and Material
+draft at1080/390. Actual checkpoint and return-state receipts are written before
+the restoration assertions, with fresh Reader/return captures. This baseline is
+unrun; it must establish the activity boundary before any return-control repair.
+No local browser/build/device run is admitted for it. Hosted typecheck and the
+connected scenario remain required; prior test-file LSP timeouts are not passes.
+The source-only baseline is committed/pushed as
+`9486370f695d4ba570d33a90f96cb60cee3f1609`; ordinary foundation40885194660
+failed web123486904256: 140 passed in11.7minutes, with the new original
+activity-return assertion receiving an empty Knowledge draft atline264.
+Rust/detector/both desktop build/OCR jobs passed. Its full-SHA observer1978
+replaced the short-SHA observer1976;
+only the subscription changed, with no workload restart.
+
+Read the actual return JSON and directly inspected both available fresh frames
+from artifact12903048105 (`9486370-web-inspection.zip`, selectively extracted
+to `9486370-activity-evidence/`). Reader showed the real continuity document;
+its saved/resumed parser/resource/block/offset checkpoint matched exactly.
+Knowledge after Reader return showed an empty search, Package order and List,
+not the prior draft, descending order, Grid or non-first page. The source
+checkpoint survived; management presentation was replaced. This is a reproduced
+navigation defect, not a timing hypothesis.
+
+The installed router's REPLACE action creates/replaces the current route;
+POP_TO instead keeps the matching earlier route key and removes routes above
+it, falling back to replacement only when that destination is absent.
+Reader's existing checkpointing Home action now uses `router.dismissTo('/')`,
+which delegates to that existing POP_TO owner. Its persistence/error behavior,
+workspace cleanup and direct-entry fallback remain unchanged. No new navigation
+store, cache or activity-retention owner was added. Other audited return controls
+remain unmodified until their connected evidence is obtained.
+The same unchanged activity-return assertions and fresh1080/390 captures must
+verify this candidate before another presentation-source edit. No passing
+runtime result or native workflow is claimed for it yet.
+Reader's fresh LSP diagnostics and diff/whitespace checks are clean.
+Current OmO footprint3682MB, historical peak14GB, RSS8274352KiB, pressure1,
+swap4996.19MiB; no substantial local workload was admitted. Swap growth remains
+unexplained and is not attributed to an app/device/model.
+
+Reader repair `38b303c26be642cce4f99b27564a12dc6bad7546` passed
+foundation40889446715: web123501935901 reports141 passed in11.4minutes;
+the other four foundation jobs and real desktop40889446716 passed.
+Mobile40889446765 is terminal: Android123501935053 passed; iOS123501935467
+failed at14:46:06Z with `Element not found: Text matching regex: Open local
+video, Enabled`, after authored fixture export succeeded at14:40:38Z.
+Retained `mobile-38b303c-failed.log`; no diagnostic variant or unchanged rerun
+was launched. This preserves the unresolved platform gate, not a Reader cause.
+Exact web log `38b303c-web.log` and
+artifact12905646121 (`38b303c-web-inspection.zip`) are retained. Selectively
+extracted all four new Reader/return PNGs and `navigation-activity-return.json`
+to `38b303c-activity-evidence/`. Directly inspected both widths: the source
+remains readable and the returned Knowledge draft/descending order/Grid/page
+remain intact without blank or overlapping controls. The unchanged test also
+asserts the same24 target identities and Material draft. Both native
+saved/resumed document checkpoints match exactly. This is the regression's
+red/green connected evidence, not completion of other activity/source routes.
+Pre-image-batch OmO footprint3041MB, peak14GB, RSS9155280KiB,
+pressure1, swap4764.19MiB; no substantial local workload was started.
+
+The next source-only baseline extends that same real workflow through Reader
+Inspector's existing Capture/Open saved action. It checks the actual document
+source ID, saved Material anchor and native source-filter query, then returns
+to Knowledge/Material and asserts their retained unsubmitted drafts at1080/390.
+Native receipts and source-editor/return captures are recorded before the draft
+assertions. No route producer or Material scope owner is changed by this probe.
+Its runtime result remains unverified; fresh hosted evidence must precede repair.
+Fresh test-file LSP diagnostics and diff/whitespace checks are clean.
+Post-batch OmO footprint3461MB, peak14GB, RSS7474976KiB, pressure1,
+swap4756.19MiB. No local application or substantial verification was started.
+The source-only probe is committed/pushed as
+`f43440cbea5e907e06293d6050e6c8885bf7e851`; foundation40893592752 is
+terminal: web123516588708 failed atline315, expected the retained Knowledge
+draft and received empty;140 cases passed in12.3minutes. The other four jobs
+passed. Its source-entry receipt proves the saved Children Material anchor
+and first native source filter are correct; subsequent Knowledge presentation
+was replaced. Directly inspected both actual1080 frames from artifact12906698513
+under `/tmp/mlearn-orchestration.JNbU5h/f43440c-source-evidence/`, with the
+exact failed log and original artifact retained in that owned root.
+
+Inspector's saved-Material entry now uses existing `dismissTo('/materials')`
+with its exact id/sourceId rather than pushing another management subtree.
+Material's source-only preference defaults on even if the retained screen
+first mounted without a source; no filter is added without an actual sourceId,
+and explicit user toggling remains retained. The existing source-only query
+guard is unchanged. No new store, route nonce, limit or deadline was introduced.
+Both edited files have clean fresh LSP diagnostics. The unchanged real regression
+and fresh1080/390 frames must verify this candidate before another UI edit;
+no runtime pass is claimed yet.
+
+### Asynchronous engineering ready queue — 2026-10-29
+
+The maintainer explicitly corrected CI-induced global stalls. Root continues
+independent engineering whenever only a dependent verification is pending.
+Current HEAVY execution notepad:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-orchestration-20261029.XXXXXX.md.DBKdm39MMr`.
+Four independent source-only/report lanes were launched beside root navigation
+work: graph/Knowledge audit1882e, persistence audit1882f, M11 contract/fixture
+prerequisites18830 and activity-lifetime audit18831. None watches CI or launches
+local compilers/devices. M11 product integration remains gated on M10.
+Persistence audit returned two concrete client/native bounds mismatches, not
+executed failures: byte-bounded native extension maps versus client32-key cap,
+and frozen-selection64-row output versus its131072-byte consumer limit.
+Root will verify/reproduce each in its existing owner suite before repair.
+Reports and exact lane receipts are under `/tmp/mlearn-orchestration.JNbU5h/reports/`.
+
+An isolated Messenger regression lane is preparing one disjoint existing test.
+Automatic isolation failed on an invalid ignored legacy cache `.git` file;
+no cache was edited. A detached source-only worktree at
+`/tmp/mlearn-orchestration.JNbU5h/messenger-worktree` was created at exactf43440cb
+instead, with explicit ownership and no shared branch edits. Root retains all
+product/navigation/STATE commits and serial workload admission. PR45 readback is
+OPEN/DRAFT, headagent/m10-m11, baseagent/m01; PR44 remains preserved/unmerged.
+
+While exact913b5b86 hosted verification is pending, the first independent owner
+repair is reproduced and locally verified. Native catalog admission bounds the
+whole target to16384 encoded bytes and validates namespaced keys; it has no32-key
+limit. The typed client incorrectly imposed that extra limit, making an admitted
+33-field target unreadable. Extended the existing collection-page owner test with
+33 small namespaced fields and retained malformed/oversized rejection.
+Before: `./node_modules/.bin/tsx --test --test-name-pattern='collection pages retain native counts' packages/runtime-client/tests/collection.test.ts`
+failed1/1 with `RuntimeError: Malformed bounded collection` atline218, codeprotocol,
+277.55ms process. Removed only the client key-count restriction; encoded byte and
+namespace checks remain. After:
+`./node_modules/.bin/tsx --test packages/runtime-client/tests/collection.test.ts`
+passed6/6, zero skipped/cancelled,197.79ms. Both touched files have clean fresh
+LSP diagnostics and full diff/whitespace review. No app/browser/server/build/
+model/device workload ran. Logs are `catalog-extensions-before.log` and
+`catalog-extensions-after.log` under the orchestration root. Native33-field
+reopen coverage and frozen-selection byte paging are being prepared in the
+separate selection-worktree; no native runtime result is claimed for that lane.
+
+Graph review returned an operation-lifetime finding: Stop rejects display
+receipts but leaves graph/evidence work in the shared two-read admission pool.
+Activity review also requires awaiting Reader/Watch persistence before dismissing
+their local checkpoint recovery owners, and identifies Review audio-departure,
+remaining Home/unavailable recovery and hidden polling/playback scenarios.
+These are registered ready tasks, not passing runtime findings or acceptance.
+Root will reproduce them in their actual existing suites. M11 preparation remains
+independent and product integration remains gated. Current expanded ledger adds20
+ready-work/cleanup units to the original125:75 completed,1 dropped,69 open of145.
+
+The frozen-selection omission is now reproduced and repaired, independently of
+pending913b5b86 CI. Applied the isolated worker's tests before its owner change.
+`CARGO_BUILD_JOBS=1 cargo test --locked -p mlearn-storage --test collection frozen_selection_pages_budget_escaped_revision_bytes_without_skipping_entries -- --exact`
+failed the actual serialized-page131072-byte assertion atline370 after real
+65-Material freeze/reopen (1.60s build,0.10s test). The owner now admits an encoded
+prefix within the unchanged byte/64-row limits, including cursor overhead,
+retaining the preceding accepted identity when deferring the next row.
+No frozen data, selection identity, revision or transaction behavior changed.
+The full existing collection suite then passed22/22, zero ignored/filtered,
+0.50s after3.83s build. This includes the new native33-field catalog/reopen case
+and all prior membership/replay/filter/migration cases.
+Both Rust files' diagnostics and full diff/whitespace checks are clean.
+Automatic tool formatting also normalized existing assertion/import layout;
+no original assertion was removed or weakened. Logs:
+`selection-owner-before.log`, `selection-owner-after.log` in the orchestration root.
+
+One local Cargo job was deliberately admitted only after the original three
+fresh2560MiB samples passed with4GiB reserve, then guarded at2048MiB.
+The completed owned Rust diagnostics trees70032/70077/70078 and
+70949/70993/70994 were identified by parent/cwd and released before each build;
+no unrelated process was touched. Both running guards were stopped when their
+test exited. Post-run process readback showed no Cargo/rustc/analyzer.
+OmO physical5267486160, available8348598272, pressure1, swap6265241600;
+growth remains undiagnosed, not attributed to app/device/model. Original limits
+and resource policy were not relaxed.
+
+All initial independent audits and M11 prerequisites have returned. Root read
+and parsed both scratch JSON files with explicit full ranges:5 topics,15 tasks,
+40 response cases,26 unique native scenarios, disjoint finite accepted/rejected
+sets. Files are `reports/m11-prerequisites.md`, `m11-grammar-vectors.json` and
+`m11-session-vectors.json` under the orchestration root. These are concrete
+future package/native fixtures, not registered targets, executed validators,
+approved content distribution or an accepted calibration policy. M11 integration
+remains gated. Messenger regression source is integrated with clean diagnostics
+but runtime UNRUN. Review audio source/test patches returned in their separate
+checkout and await root reproduction/integration; operation-scoped bounded-read
+cancellation design is actively being narrowed against actual native admission.
+READY work continues; pending CI blocks only its dependent render/evidence step.
+
+The independent audio owner regression is also reproduced and repaired:
+`./node_modules/.bin/tsx --test --test-name-pattern='repeated cancellation awaits' tests/client/review-media.test.ts`
+failed1/1 with `true !== false` atline122 after447.65ms: a second cancellation
+returned before the already-admitted interruption write acknowledged.
+The finish owner now awaits its existing writes promise when already terminal;
+it neither queues another write nor admits another player/event.
+The event-gated test releases/joins both promises in finally.
+Both files have clean diagnostics. The intended narrow green filter
+`--test-name-pattern='^(?!ReviewAudio )'` unexpectedly selected all11 existing/
+new cases, including the authored-audio browser integration; actual output is
+11passed,0failed,0skipped in1908.14ms, not10 browser-free cases. The browser
+closed in the existing finally, and process readback found no browser/compiler
+remnants. Post samplephysical5258229200, available6962823168, pressure1,
+swap6223298560. Logs: `review-audio-owner-before.log` and
+`review-audio-owner-after.log`. This proves only the acknowledgement sub-contract;
+actual Review Home/encounter persistence UI changes remain unintegrated/unrun.
+
+Source913b5b86 foundation40898847160 failed web123535286965 with139 passed
+in18.1minutes. Its new dismiss action broke both original source-free Knowledge
+and character Inspector -> Material entries: Edit Material was missing at
+knowledge-native-core:157 and inspector-graph-native-core:233. Directly inspected
+both actual failed frames plus context from artifact12909662882; both remain on
+Knowledge after Inspector closes. Existing assertions and timeouts are retained.
+Other foundation jobs and real desktop40898847553 passed; mobile40898847133
+remains pending. This regression is root's route change, not an invalid test.
+Exact log/artifact/selected frames are retained under the orchestration root.
+
+Verified owner incrementse5ff77b8/bf23f7cc are pushed. Their ordinary runs are
+foundation40903381345, desktop40903381336 (passed), mobile40903381341 (pending).
+They preserve the same still-failing UI input while checking genuinely changed
+client/storage owners; no unchanged workflow was manually rerun or dispatched.
+The next navigation checkpoint must repair the current-Tab versus root-Stack
+action boundary and obtain fresh captures. Root is not waiting on native jobs.
+
+The next minimal Inspector correction preserves the two actual route owners:
+source-free Knowledge/character inspection navigates to the sibling management
+tab, while a source-bearing activity returns to the prior management Stack
+destination with its exact source/id. POP_TO is not sent to the current Tab
+navigator. This keeps the original source-free paths and the deliberate
+source-entry reuse; no route nonce/store or dependency was added.
+Fresh Inspector diagnostics are clean; the original failing assertions remain.
+Hosted execution/captures are required, not claimed. Separate checkpoint-save
+failure gating remains a registered open task and is not covered by this change.
+
+Read-only return-control audit found Reader and Messenger Home actions replacing
+the root route, while Watch has a distinct back/fallback path. Their persisted
+management state and explicit source parameters still need real workflow
+verification; no change to those callers or claim of equivalence was made.
+
+A single source-only audit returned concrete redundant JSON conversion and
+statement-preparation opportunities, but no measured speedup. No speculative
+Rust optimization or fuel/batch change was applied. The newly added throughput
+task was dropped after recovering the earlier timing evidence, not marked as a
+product repair. Native resource and cancellation assertions remain requirements.
+
+Exact0cc foundation40806767205 passed. Latest ef2 desktop40807702149 failed
+at `tests/desktop/native-smoke.mjs:614`: Shift-assisted pointer-entry
+`entry.trusted` expectedtrue but receivedundefined with `{"timedOut":true}`.
+The exact log is `desktop-ef2-failed.log`; the key event had passed and the
+pointer entry did not arrive. Cause remains unestablished. Preserve its assertions
+and native-input discrepancy rather than calling it a catalog regression or
+changing unrelated tests. Latest ef2 foundation40807702124 is in progress and
+mobile40807702147 pending, watched by `mon_8S7QTFZFRTFVFDM2`/`bash_1757`.
+Exact0cc mobile40806767161 is now terminal: Android123227475709 passed;
+iOS123227475469 failed its actual UI flow at2026-10-29T03:24:38Z,
+`Element not found: Text matching regex: Open local video, Enabled`.
+The exact failed log is `mobile-ios-0cc-failed.log`; this remains an unresolved
+native Watch workflow failure, not an M10 character pass or a proven catalog
+regression. The0cc observer completed. Exact ef2 foundation40807702124 passed.
+Its mobile40807702147 is now terminal: Android123244268145 passed;
+iOS123244267916 failed at2026-10-29T04:14:44Z,
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+Exact log: `mobile-ios-ef2-failed.log`. Preserve this unresolved native Watch
+workflow failure; it is not a passing platform gate or an established graph
+defect. Replacement observer1784 completed; no workflow was rerun.
+
+Temporary project LSP settings did not reliably prevent the automatic analyzer
+and were removed, along with the temporary Rust probe. No persisted tooling
+override remains. Actual analyzer54584 footprint was2474004320 bytes versus
+3510943744 RSS; OmO footprint5064717416/available5989711872, pressure1,
+swapUsed4644929536/swapOut79362883584 at that readback. Do not use RSS alone
+as admission or treat empty diagnostic output as compiler verification.
+
+An extra startup-cushion observer was cancelled while still waiting, before
+launching an app. The subsequent real graph-reference attempt retained the
+original2GiB workload/4GiB reserve policy and stopped again before capture:
+available6190825472/projected4043341824, OmO footprint4979995752,
+RSS4911415296, pressure1, swapUsed4001955840/swapOut80978919424.
+`graph-reference-reclaimed-capacity.log` retains its stop/CDP disconnect;
+`GRAPH_REFERENCE_RECLAIMED_EXIT1` is not visual evidence. Do not repeat that
+unchanged capture attempt; first establish materially sufficient capacity.
+The completed source-only task's verified owned idle host57165/supervisor57162
+were released; subsequent process checks confirmed both absent. Unrelated
+Virtualization, Colima, OpenCode and user services were untouched.
+Latest sampled OmO footprint4976751720/available6487556096, pressure1,
+swapUsed3993567232/swapOut80978919424. Automatic Rust diagnostics can themselves
+be substantial; require fresh capacity before the next Rust edit and keep them
+serial with native checks. Native/browser guards remain unchanged.
+The capacity-only observer `mon_RJPCV60FDZ5QXFBK`/`bash_1690` completed ready,
+but the wake's fresh readback had only6810320896 available, not sustained3GiB
+diagnostic headroom. The subsequent work reused completed diagnostic state and
+released the owned analyzers before compiler runs; no app/device was restored.
+Verification `mon_XXFNGMP7TN6FNN34`/`bash_1699` stopped at that unrelated format
+finding. Its successor `mon_CXEJ3AGXQEQ1S9GQ`/`bash_1702` completed successfully.
+Inspect surviving jobs if the session resumes; never duplicate a live workload.
+Native package paths have owner-test evidence, not compiled-host or native-platform
+acceptance. No graph UI or real-surface acceptance is claimed.
+
+Knowledge evidence trace: the shared projection gives explicit claims
+precedence over the latest active qualifying Review self-report; worked-out,
+assisted and untested responses are not externally validated performance.
+Prediction is currently absent, not an implemented predictor. Review already
+retains frozen admission, grade, attempt conditions, original attempt time and
+Undo activity. Correction replaces the same physical attempt's observations.
+Current claims retain a revision, not timestamps or a lifetime claim history.
+The in-progress bounded read reuses that projection/assessment SQL and exposes
+only16 observations/128KiB per page, exact package/capability snapshot cursors,
+claim revision and the actual assessment-owning attempt. No schema, prediction
+engine or parallel renderer aggregate is added. Owner tests now cover original
+correction provenance and bounded pagination/restart/foreign-cursor/stale-claim
+and long-source contexts. `knowledge-evidence-owner-first.log` passed all133
+storage tests, including the two new paging/payload tests and strengthened
+correction provenance assertions. Its newly unused shared-fixture submit/
+schedule warnings were addressed by exercising those existing practice helpers
+and asserting that evidence inspection creates no scheduler state; existing
+unused-practice warnings in other suites remain unchanged.
+Runtime/client transport is now in source, with strict unknown-page validation,
+shared Review grade/condition guards, immutable query snapshots and source-
+epoch stale-result rejection. Generated contracts now match the Rust source.
+An existing real package/source/practice test now checks shared projection,
+frozen source, claim separation and restart without the executable package.
+The first guarded transport run stopped during core contract compilation
+before generation/tests: available6393085952 minus the2GiB workload budget
+left4245602304 bytes, below the4294967296 reserve. No generated evidence
+contracts appeared. The temporary runner then reported `kill EPERM` on its
+owned process-group cleanup. A subsequent process listing found no surviving
+owned Cargo/rustc/export/guard process; no process was killed by name.
+Fresh footprint4234900608, available7029932032, pressure1,
+swapUsed4689100800, swapOut76471255040. Footprint was stable versus the
+resource-stop sample, not attributed to a model/device workload.
+The transport run is being readmitted only after fresh policy samples; no
+reserve or workload budget is lowered. It must also capture the existing
+Knowledge popover at desktop/narrow widths before presentation edits.
+The readmitted run generated contracts and passed both evidence and both
+correction storage tests, then the live guard stopped during runtime
+compilation at available6141591552/projected3993682600 bytes. Cleanup again
+reported `kill EPERM`; the subsequent bounded process list found no owned
+compiler/guard survivor or large language-server process. OmO footprint rose
+to4899878016, available7926644736, pressure1, swapUsed4360568832,
+swapOut78071758848. This unexplained harness growth is retained, not
+attributed to product/model workloads.
+Verification is split: the small core contract/client checks run separately
+from runtime compilation; runtime/GUI checks remain pending, not waived.
+The Rust integer observation timestamp now explicitly generates a JSON numeric
+TypeScript field, matching transport rather than ts-rs's default BigInt type.
+The client still requires a safe integer; generated source is not hand-edited.
+The separated `knowledge-evidence-client-first.log` passed Rust contract
+generation, typecheck, architecture lint and49 affected client tests, including
+the three new evidence boundary/snapshot/cancellation cases. Final
+footprint1768895616, available7150190592, pressure1, swapUsed4301848576,
+swapOut78071758848; the guard reported safe. The earlier high footprint receded.
+The separated `knowledge-evidence-runtime-first.log` passed all12 real runtime
+Review tests, including evidence restart without the executable package, and
+rebuilt the actual QA host (SHA256517dc8849353b59e54065daf871d191cae8803f165b0a132af5dd0fd3786dd23).
+Pre-edit Knowledge/Inspector captures at1100/390 were inspected before editing.
+The new evidence body reuses Inspector's single bounded scroller and shared
+controls, preserving its source/entry/header/footer. It presents the native
+claim/assessment/model limits, newest-first bounded observations and expandable
+original-condition/material/probe/package/source provenance. Back restores the
+selected capability controls. `knowledge-evidence-ui-first.log` passed typecheck,
+architecture lint, web export and native-backed empty-evidence captures at both
+widths; those captures were inspected. Its final guard sample was safe:
+footprint3740071040, available6838681600, pressure1, swapUsed4226285568,
+swapOut78071758848.
+The deterministic held-receipt regression first failed because evidence shared
+the mutation queue. Evidence now reuses the existing bounded source-read lane:
+two total pending search/evidence reads, source-epoch fencing, no mutation-tail
+occupancy. `knowledge-evidence-held-after.log` passed50 affected client tests;
+typecheck and architecture lint passed. The original failing log is preserved.
+The first captured-Material browser run reached correction/paging/restart, then
+failed an incorrect test expectation: one capability's unknown claim plus other
+assessed capabilities correctly gives the source's native `mixed` rollup, not
+`claimed_unknown`. The test now asserts that actual shared rollup separately
+from the selected capability. The second run completed its light/dark,
+desktop/narrow top/end captures and advanced to source-free browsing, then the
+live guard stopped at available6292570112/projected4144137141 bytes, below the
+unchanged4GiB reserve. No owned runtime/browser/runner/guard survivor was found
+afterward. Subsequent footprint4228920448, available6031998976, pressure1,
+swapUsed4209508352, swapOut78071758848. This is not a complete passing run.
+Final `knowledge-evidence-final.log` passed typecheck, architecture lint, web
+export, both evidence and both correction storage tests, and all3 actual
+native-backed browser workflows. The exact-source QA host SHA256 is
+`f624847d23c6260e27f167d24f2ec01db216418e8239bdc3490ce0e94f36d3ee`.
+Those workflows cover17 real package-admitted physical attempts, correction,
+16+1 paging/refresh, claim/self-report separation, source-backed and source-free
+entry, native restart, failed read/retry and stopped-receipt replacement with
+stale publication rejection, selected-capability Back focus, original-source
+Escape focus and unavailable-package recovery. The12 fresh summary/provenance/
+end captures across Quartz/Dark Quartz and1080/390 widths, plus both error/stop
+captures, were inspected directly. Identifier wrapping and body paging remain
+inside the existing Inspector; header/footer/source identity are retained.
+Final guard sample: footprint1752806528, available6894977024, pressure1,
+swapUsed4134010880, swapOut78071758848; safe with the same2GiB workload and4GiB
+reserve. Earlier transient harness footprint receded without process cleanup.
+The bounded read-only review `st_01a18400` returned APPROVE with no blocking
+findings after inspecting the owners, all14 final captures, both baselines and
+both empty-state captures and referenced test logs. It used the parent's
+explicit `chatgpt-subscription/gpt-6.1-sol` route without escalation, builds,
+devices or edits. `knowledge-evidence-contract-check.log` also passed the exact
+generated-contract consistency check. This checkpoint ships with the connected
+evidence increment based on `fa59ec48`; the tested QA binary identity is above.
+Residual evidence limits: actual native compositor/mobile behavior and
+pending-read Back/unmount GUI interactions are not established by these
+captures; ownership/stale-result guards remain in source and source-free Stop/
+replacement was exercised. The full M10 review remains an open gate.
+No milestone or maintainer acceptance is claimed.
+Source Return mobile40746113030: Android123025217962 passed; iOS123025218387
+failed. Exact `ci-40746113030-ios-failed.log` reports the Watch picker assertion
+at2026-10-28T19:45:06Z: `id: m01-watch, mp4 is not visible`. Its source-bound
+simulator build completed before UI testing. No downstream iOS flow is claimed,
+and no rerun/hosted FileProvider diagnostic variant was launched.
+Reader search's verified increment is committed/pushed as
+`2505a044a08574cd2a41283673e025f351a38a8e`; it does not close the remaining
+Watch playback Return work or M10's native/compositor and review gates.
+Exact-source automatic CI observers: desktop40738484644,
+foundation40738484650, mobile40738484551. Desktop40738484644 passed.
+Foundation40738484650 passed Rust, macOS, Windows and detector jobs, but its
+web job122993370968 failed:136/137 tests passed, including Reader search.
+The unchanged Knowledge browsing scenario failed during `backend.close()`:
+`Native QA owner did not shut down cleanly` at runtime-browser-qa.mjs:80.
+The test's functional assertions completed; this log does not establish why
+the native process failed or whether shutdown was forced. Retained failure:
+`ci-40738484650-web-failed.log`. No check was weakened or workflow rerun;
+the teardown failure remains an integration concern to diagnose, not a passed
+gate. Reader mobile40738484551 completed: Android122993371299 passed;
+iOS122993370757 failed at2026-10-28T18:41:24.363399Z with the same deferred
+Watch picker assertion, `id: m01-watch, mp4 is not visible`. Retained log:
+`ci-40738484551-ios-failed.log`. That does not verify downstream iOS flows
+or diagnose the picker. No workflow was manually rerun.
+Source Return checkpointc61df5af desktop40746113011 passed.
+Foundation40746113052 failed only web123020234888:137/138 tests passed;
+the new Watch playback test could not generate its Linux fixture because
+`ffmpeg` was not installed (`FileNotFoundError`). This is an omitted CI
+prerequisite introduced with that test, not a product success or an
+infrastructure waiver. `ci-40746113052-web-failed.log` is retained.
+The bounded Ubuntu prerequisite step now installs ffmpeg alongside existing
+CJK fonts, keeps download/install deadlines and no-download installation, and
+records its actual package version. Ruby/Psych parsed the workflow and
+`git diff --check` passed. Automatic foundation40749937097 completed successfully:
+Rust, web, detector, macOS and Windows jobs passed, including Linux media fixture
+tooling and the complete web suite. `ci-40749937097.log` preserves the exact run.
+The workflow-only repair is committed/pushed separately as
+`fa59ec48c8bf716b3a1bb015993028ddfb168c07`, excluding unfinished Knowledge
+evidence. No assertion, model input or data identity was changed.
+The next guarded baseline captures Watch transcript search at desktop/narrow
+widths using the retained authored video/subtitles and actual native source/
+cue owners. Its browser transport serves those same local video bytes for
+real decoding; this is not Tauri/native playback certification.
+That baseline passed in `watch-search-baseline.log`; desktop/narrow images
+were inspected before product edits. Its drag/drop shell subscription remains
+explicitly unsupported in the baseline adapter; actual video decoding and
+native cue search succeeded. A portable regression now serves authored video
+bytes through that same browser media boundary and adapts only shell event
+registration, while exercising real source/package/cue timing and persistence.
+The first red-run observer expired before starting: no log was created.
+Fresh footprint2361308288, available6957006848, pressure1,
+swapUsed4185522176, swapOut75548114944. The additional fixed7.5GB prefilter
+was more conservative than the repository policy and repeatedly prevented
+admission. Subsequent runs use `resource-guard.mjs admission` directly:
+unchanged2GiB workload budget,4GiB reserve, three healthy samples, physical
+growth/sustained swap checks and live guard. No workload budget or repository
+safeguard is reduced.
+The first Watch red run reached real video decoding but its HTTP adapter did
+not support byte ranges, leaving the initial seek at0. Correcting that test
+boundary and asserting native position readback produced the intended failure
+in `watch-search-red-range.log`: the player resumed3s, native cue2 under a
+2000ms subtitle offset sought13s, and the query survived native restart, but
+Return was absent. No product assertion was weakened.
+Transcript now retains the actual player-reported pre-jump position in its
+existing source-keyed view and offers Return when reopened. Watch's existing
+controller pauses/reads/seeks; unavailable playback refuses the jump, with
+feedback beside cue/Return actions. Rust remains the saved-position owner.
+The first typecheck/lint/export/actual-playback Return run passed in
+`watch-search-first.log`: actual3s -> offset cue13s -> Return3s persisted across
+native restart with the2000ms offset and1.5x rate retained. Desktop/narrow
+captures were inspected before further changes. They expose the deliberately
+killed owner's pending analysis as explicit Retry feedback, not clean final
+surface evidence. The test now waits for the exact connected source token to
+render before the controlled restart, avoiding a race with its guest read.
+Messenger's existing source search is also being verified through its explicit
+Latest return, with the unsubmitted draft preserved; ordinary clear-search
+and edit/delete assertions remain. The final serial run uses the tracked
+offline video generator rather than relying on the retained untracked video,
+and includes existing Watch layout and affected Messenger history checks.
+Final `source-search-final.log` passed all five selected scenarios: generated
+offline video, native cue offset and rate, actual browser3s/13s/3s playback,
+native restart/persistence,1200/500/320 Watch layouts, and Messenger search/
+Latest with an unsubmitted draft preserved. Desktop/narrow Watch Return and
+Messenger captures under `watch-search-final` were inspected; source errors
+from the deliberately interrupted first attempt are absent after waiting for
+the connected token render. Dictionary preparation remains explicit pending
+feedback, not a fabricated result. Final footprint1718367360,
+available7088128000, pressure1, swapUsed4764598272, swapOut76471255040;
+the live guard reported safe with no observed sustained growth.
+Reader search and source Return are checkpoint2505a044 above. The Watch
+Return addition and cross-source verification are locally verified and being
+checkpointed next. This finishes SRC-10's implementation/connected browser
+work, not M10 acceptance: native/compositor interaction, the unchanged
+Knowledge teardown failure and independent M10 review remain separate gates.
+Latest verified increment: shared proposal review is committed/pushed as
+`5a9c938cc6325d1791a069ffbd801c2146406512`, based on native generation
+`87c73fe27784f640c6eb445f036c9bb5e709e1cb`. That earlier ledger was50/109.
+Local integration passed17 affected client tests, six real Rust-backed GUI
+scenarios, all20 existing desktop/narrow Material editor regressions, typecheck,
+architecture/draft lint and web export. Final log:
+owned root `proposal-retry-lane-final.log`; captures are under
+`proposal-ui-retry-lane-final`. Desktop/narrow light and dark proposal, source
+Return, partial-output and cancellation surfaces were inspected across the
+recorded runs. This is verified for continuation, not M10 acceptance.
+Native/compositor interaction on the new controls and the independent M10
+review remain integration gates. Existing platform discrepancies below remain
+unresolved; the new GUI evidence is not a claim about native window materials.
+Exact-source proposal CI: desktop40722951356 passed. Foundation40722951324
+failed only its web job122938476762:131 tests passed, while the two Inspector
+footer layout cases still expected six actions after Propose Material made
+seven. The retained failed log is `ci-40722951324-web-failed.log`; this is an
+omitted stale test update caused by the proposal increment, not infrastructure.
+The test now expects all seven and extends its keyboard/scroll reachability
+assertions to Propose Material, retaining all original geometry/material checks.
+That focused repair is committed/pushed as
+`e17bccd34fe91a85ffbd8ce55c5a03823027ee6c`; unfinished Reader search source was
+not included. Its foundation CI40728696872 completed: web, Rust, macOS desktop
+and detector passed. Windows job122962714012 passed builds, both real OCR
+workflows and initial theme transitions, then failed in repeated-edit cycle4 at
+2026-10-28T17:01:31Z: `Incomplete native theme input`, expected Slate but
+received unchanged Dark Quartz. Clipboard matched expected input and editor
+reported focused; the native focus HWND changed from66140 to131684 before
+that failed paste. This repeats the unresolved input-loss symptom, without
+establishing its root cause. Exact failed log:
+`ci-40728696872-windows-failed.log`. No assertion was weakened and no workflow
+was rerun. Footer web coverage is green; the overall workflow is not.
+Windows job122941995691 passed its actual theme/OCR steps; that does not explain
+the earlier intermittent input-loss evidence. Mobile40722951303 completed on
+exact proposal source5a9c938c: Android job122938475335 passed; iOS
+job122938474874 failed `Exercise actual iOS UI and Rust persistence` at
+2026-10-28T17:08:44Z. The observer reached its deadline; a subsequent one-shot
+status read confirmed the workflow's actual terminal result. Retained log
+`ci-40722951303-ios-failed.log` shows the same deferred Watch picker
+assertion at2026-10-28T17:07:56.558748Z:
+`id: (mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4) is visible`
+was false. Fixture export succeeded; this does not diagnose the picker failure
+or verify downstream iOS workflows. No workflow was rerun or assertion changed.
+
+Source-search owner trace: Watch already searches literal subtitle text through
+`transcript_page` and navigates real cue indexes; Messenger already searches
+retained history through `ReadMessages`. Reader has no text/content-search
+owner. The new work extends document storage and the existing shared
+`return_source_anchor`, rather than adding a parallel universal search store.
+Native Reader-search contracts/storage passed run1544
+(`document-search-owner-first.log`): all16 document and16 OCR owner tests,
+including the five new cases. Its new unused macro doc-comment warning was
+fixed as an ordinary comment, not suppressed. The implementation provides:
+explicit canonical-text versus saved-recognition scope,16 bounded source hits,
+64-row/1MiB scan quanta, UTF-8 source coordinates, immutable source/package/query
+cursor binding, OCR-revision invalidation and explicit missing-page coverage.
+Search does not invoke recognition or a provider, and no index/schema or
+whole-source renderer copy was added. Five new owner regressions reuse the
+existing document/OCR fixtures for pagination/restart, late matches, stale
+coordinates/packages and missing/corrected recognition. Reader GUI and
+cross-surface Return verification are still unimplemented.
+Runtime/client dispatch is now in source with strict search-page validation and
+one generic ReturnSourceAnchor action reusing the existing native source owner.
+Native and client tests cover actual imported Unicode spans, forged quotations,
+false scan progress, immutable query admission and replaced-source receipt
+rejection. Rust contract generation must run before TypeScript checks; current
+missing-type diagnostics reflect that pending generated output, not hand-edited
+contracts. The next guarded serial run also verifies the corrected Inspector
+footer tests against the retained proposal export. Guarded run1546 passed
+in `document-search-transport-first.log`: Rust-generated contracts, all131
+storage tests,12 actual runtime document tests,58 affected typed-client tests,
+typecheck, architecture lint and both Inspector footer layouts. The footer
+captures were inspected; all original one-row/material/keyboard assertions
+remain, including keyboard access to the new seventh action. Existing ts-rs
+serde-attribute diagnostics and unused `practice` test-fixture warnings remain;
+the new macro doc-comment warning is gone. Reader search is still not connected
+to the GUI, and native/compositor/M10 acceptance remains open.
+Before Reader presentation edits, guarded run1549
+(`reader-search-before-ui.log`) rebuilt the actual QA host/export and captured
+normal desktop/narrow Reader on the retained isolated corpus profile. Both
+baseline images were inspected. Reader now has a shared-control source-search
+Dialog, bounded result pages, stop/retry, explicit unavailable-recognition
+coverage, exact source-anchor navigation and Return to the original position.
+Navigation reuses useReader's existing save/cancel/source-session owner and
+retains native returned highlights; image navigation propagates failed
+admission rather than retaining prepared pages. Guarded
+`reader-search-first-ui.log` passed typecheck, architecture lint, web export,
+and actual native-backed search/navigation/Return capture. Desktop1100/narrow390
+results and retained Return captures were inspected: no blank, overlap or
+overflow; compact source title truncates while accessible actions remain.
+The final sample was footprint1654191232, available7206174720, pressure1,
+swapUsed3663527936, swapOut73977217024; the guard reported safe. No device,
+reference application or persistent server was launched.
+Three new native-backed GUI regressions now cover source-span/position
+persistence across native restart, bounded Unicode paging and stop/late-result/
+failed-search retry. Their first run, together with existing Reader/image and
+Messenger-history regressions, passed48/50 (`reader-search-native-first.log`).
+All47 existing tests and the new Unicode paging test passed. Two new tests
+failed: a stopped search's held receipt blocked the replacement behind the
+typed client's serialized mutation lane; the position test incorrectly
+expected saving the first visible line to retain the matched word's byte10,
+although DocumentCanvas explicitly reports the first visible scalar (byte0
+on this short line). Search now admits at most two independent bounded reads
+with source-epoch fencing, allowing one replacement without blocking source/
+control commands. A client regression asserts replacement, admission bound,
+navigation and stale receipt rejection. The GUI test still asserts the exact
+native anchor/returned position, and separately asserts the actual byte0
+reading checkpoint; source restoration assertions remain exact.
+The first repair observer expired before resource admission; no repair log was
+created and no test was started. A fresh sample after its deadline showed
+footprint4807357568, available8327069696, pressure1, swapUsed4705681408,
+swapOut75548114944. Footprint was stable versus the preceding run's
+4824708224, not explained away as workload memory. No surviving browser/build/
+model/device workload appeared among the largest processes; no unrelated
+process was stopped. The readmitted repair passed in
+`reader-search-native-repair.log`:14 typed client tests, all three native-backed
+Reader GUI scenarios, typecheck, architecture lint and web export. Its light
+desktop/narrow result captures were inspected alongside earlier dark captures.
+Final footprint1718498432, available9273917440, pressure1,
+swapUsed4613341184, swapOut75548114944; the guard reported safe. The earlier
+high footprint receded without killing a process.
+Review of the image consumer found search navigation also needs to cancel its
+running recognition, as existing keyboard/rail/contents navigation already do.
+The shared search callback now uses that existing cancellation before native
+anchor Return. The existing image-navigation test loop gains one search case
+covering saved recognition, held-inference cancellation, exact page, no extra
+recognition, and Return to the original page; the toolbar layout checks now
+include Search. Final `reader-search-final.log` passed14 client tests, three
+native-backed GUI scenarios and four image/toolbar cases after typecheck,
+architecture lint and export. The saved-recognition desktop/narrow captures
+were inspected; source text, scope, actual page and controls remain contained.
+Its final resource sample: footprint1709831296, available6836633600, pressure1,
+swapUsed4512677888, swapOut75548114944; guard safe, no observed growth.
+Recognition
+quality/persistence remains separately covered by real native owners, not this
+explicit browser-boundary fixture.
+Watch's existing cue search seeks
+real cue positions, but an explicit pre-search playback Return still needs
+verification/repair; this source-search task is not complete.
+The consumer-boundary increment adds immutable row amendments,
+bounded visible membership, readable result labels and Schema17 retirement;
+guarded run1460 passed its owner/runtime/client checks. Shared native selection
+controls on Knowledge and Material passed export/capture and recovery checks.
+The committed bulk-action composition connects those handles to
+confirmation, live control, retained jobs and bounded result pages. Final
+five-scenario native GUI and 20 desktop/narrow Material regressions pass,
+including Retry/Clear, alongside authentic Japanese addition outcomes.
+This bulk increment is verified for continuation; M10 native/compositor,
+independent-review and remaining feature gates are still open.
+The committed proposal owner adds source/existing-Material-grounded text
+drafts, immutable identity, editable fields, explicit accept/reject and atomic
+Material/receipt publication. Its six new persistence tests and all123 storage
+tests pass. Native dispatch, Rust-generated contracts and a typed client passed
+integration checks, including the repaired cross-language replacement regression.
+Shared native generation integration is committed and verified at its
+native/storage/client boundaries. The actual review UI now connects source and
+saved-Material suggestions, grounded generation, editable drafts, explicit
+accept/reject, bounded recovery/history and partial failure. Native proposal
+identity/source validation and atomic acceptance remain the sole authority;
+unsubmitted fields and view lifetimes remain in React. M10 is not complete.
+Shared `MaterialFields` extraction passed typecheck, architecture lint, draft
+guard, web export and all20 existing desktop/narrow editor regressions.
+The native-backed after captures at1100/390 were inspected: the same field
+hierarchy and usable single-column narrow editor remain intact. Log:
+owned root `material-fields-ui-verify.log`; after images use
+`material-fields-after-proposal-before-editor-final-*`.
+The first real proposal dialog now connects bounded pending/history pages,
+existing-Material suggestions, shared editable fields, CAS review, accept/reject,
+duplicate/distinct outcomes, exact-command recovery and native source Return.
+Its first serial guarded verification/capture passed in run1526,
+`proposal-review-first.log`: typecheck, architecture/draft lint, export and all20
+editor regressions pass; real native suggestion publication and pending-list
+recovery rendered at1100/390. The suggestion/list/pending captures were inspected;
+the shared Dialog owns scrolling and narrow controls wrap without overlap.
+Generation controls and a shared SourceActions entry are now connected in source.
+They reuse shared provider settings, native admission/retry/cancellation and
+retained generation pages; only the visible active job samples native progress,
+and closing the view stops sampling without pretending to cancel the job.
+The first generation-control run1527 passed typecheck but architecture lint
+rejected SourceActions' private cross-feature import before any export/capture.
+The repair exports the shared review composition through the existing Material
+public boundary; no rule was relaxed. Guarded run1528 now verifies that repair
+and partial-output rendering in `generation-controls-public.log`; these new
+paths are not yet verified by that first failed run. Run1528 subsequently
+passed typecheck, architecture/draft lint, export and all20 Material editor
+regressions. Native generation used the shared provider fixture, retained one
+grounded replacement, reported the second invalid candidate and published no
+Material automatically. Its `generation-controls-public-generation-partial`
+desktop/narrow images were inspected: progress, partial error and review entry
+remain contained and readable. This proves that path, not all MAT-07 recovery.
+New native GUI regression run1529 (`proposal-focus-red.log`) now checks the
+actual editor opener versus the global Review proposals trigger, retaining the
+separate unsaved Material editor fields. This suspected focus defect is being
+reproduced before repair; run1529 failed exactly because the editor's
+Propose changes opener was inactive after dismissal. MaterialScreen had always
+restored the global Review proposals button. The fix passes the actual shared
+Button ref from MaterialEditor and retains it at the dialog owner. Fresh LSP
+diagnostics are clean; guarded run1531 in `proposal-focus-fixed.log` verifies
+the existing regression plus desktop/narrow before/after captures. Run1531
+passed typecheck, architecture lint, export and that actual native GUI
+regression; its desktop/narrow focus-return images were inspected. Unsaved
+Material fields and the saved revision remained separate; dismissal wrote no
+proposal or Material.
+Run1532 (`proposal-recovery-first.log`) now exercises the four-scenario native
+GUI suite: exact editor focus, actual Reader source suggestion/edit/accept with
+lost receipt and process restart, held generation admission cancellation followed
+by retained retry/partial collection/explicit replacement acceptance, and
+provider-free rejection/history persistence. Assertions observe native state,
+real source anchors and exact wire-command identity. Provider waits subscribe
+before the action; no test sleeps or timing-based passes were added. These new
+recovery scenarios all passed in run1532 (four tests,6.6s). The source and
+partial-generation captures at desktop/narrow widths were inspected; actual
+source selection, authored edits, replay identity, rejection history and native
+restart behavior held.
+Capture inspection exposed a stale empty proposal list after native generation
+collection. A strengthened generation test also now drops the held original
+admission response after successful Cancel, rather than delivering it normally,
+to verify the late failure cannot publish a stale recovery action. Targeted
+run1534 (`proposal-late-failure-red.log`) reproduces that edge before repair.
+Run1534 failed exactly because the lost original admission receipt published
+`Recover generation action` after a successful cancellation receipt. The repair
+gives each presentation action a scoped owner; successful Cancel invalidates the
+held action and releases its UI lock, so its late success/failure cannot publish
+or unlock a newer action. Native generation identity and cancellation are
+unchanged. Collection now invalidates the parent proposal page, and choosing a
+generated proposal collapses job controls to reveal its authored fields.
+LSP diagnostics are clean. Guarded run1535 (`proposal-recovery-fixed.log`)
+passed all four native scenarios with the stronger dropped-receipt assertion,
+fresh desktop/narrow source and generated-review captures, and all20 existing
+editor regressions. Typecheck, architecture/draft lint and export also passed.
+Generated-review and source-Return images were inspected; job controls collapse
+to the reviewed fields and the real Reader resumes on the native anchor.
+Before committing, owner inspection identified two additional bounded edges:
+Open saved Material can target the same already-open item, and a retry has its
+own admission receipt/control identity. New targeted regressions run1536
+(`proposal-review-edges-red.log`) test obsolete editor draft reopening and a
+held retry receipt before repairing either. Same-item Open saved Material
+passed without a product change: actual router navigation reloads the saved
+revision. The retry scenario failed because Cancel was absent while its own
+admission receipt was held. The repair retains one exact admission function for
+both initial and retried jobs; Cancel replays that same command independently
+of its held wire receipt. Retry preparation is shared only until its command
+identity exists, without a second provider/queue owner.
+Guarded run1537 (`proposal-integrated-final.log`) now verifies all six native
+GUI scenarios, all20 existing editor regressions, typecheck, architecture/draft
+lint and export. Fresh LSP requests timed out, not a diagnostic pass; the full
+typecheck in this run remains the pending authority. No unrelated feature was
+expanded. Run1537 passed typecheck, architecture/draft lint, export and five
+native scenarios. The held-retry test then timed out waiting for provider
+cancellation. Its inspected surface had the Cancel action, exposing the deeper
+shared-client issue: `retry_generation` still used the serialized request lane,
+so resolving the exact retry queued behind the held receipt itself.
+The owning conversation client now routes retry admission through the same
+direct control lane as explanation/cancellation. No new worker or private
+generation transport was introduced. Client LSP diagnostics are clean.
+Guarded run1538 (`proposal-retry-lane-final.log`) passed the affected
+conversation/generation/proposal client suites, all six native proposal
+scenarios and all20 existing editor tests with a fresh export. The17 client
+tests, typecheck and architecture/draft lint passed. Successful held-retry
+cancellation captures were inspected at desktop and narrow widths. The prior
+cancellation timeout remains recorded and is explained by the verified lane
+repair, not waived.
+Resource note: run1534 sampled OmO footprint4773246056 bytes, available7010107392,
+pressure1, swapUsed4059889664, swapOut72139259904. Fresh pre-admission readback
+decreased to4491097192 bytes with available7988019200, pressure1; swapUsed
+5024645120 and swapOut73229844480 had increased. This remains unexplained OmO
+growth, not attributed to the native fixture. The three-sample7.5GB admission,
+2GiB reservation and4GiB reserve remain unchanged; no concurrent local workload
+was added, and model work pauses while serial verification holds the reservation.
+Final run1538 readback: OmO footprint1682191488 bytes, available7727300608,
+pressure1, swapUsed3780968448 and unchanged swapOut73977217024. The transient
+OmO growth receded; no emulator, simulator or persistent server was started.
+The generation-review implementation task is locally verified for continuation;
+the named native/compositor and M10 review gates remain open. No second
+provider/session owner was added.
+Exact-source generation checkpoint foundation CI40707752973 has terminated
+successfully; its preserved log is `ci-40707752973.log`. The mobile observer
+40707752976 first observer timed out, not the hosted run. Its continuation1530
+is now terminal: Android job122886719522 passed at15:18:29Z; iOS122886720125
+failed the actual UI/persistence step after1h5m36s. The job's exact failed log
+was retained by observer1533 as `ci-40707752976-ios-failed.log`. At15:46:28.843Z
+it reports `Watch Inspector Knowledge and native source resume` failed after
+1m42s with `Assertion is false: id: m01-watch, mp4 is not visible`.
+This repeats the earlier observable assertion, without establishing a common
+root cause. No workflow was rerun or cancelled. Earlier iOS/Windows failed
+evidence remains open; Android success is not an iOS verdict.
+The Material grid has passing local functional/layout evidence; consuming-native
+GUI/reference-material fidelity remains open at the M10 gate, not self-accepted.
+The Knowledge GUI increment is committed/pushed at
+`8eec14d991542ece155812fc87b1b0cf8db49c05` on draft PR45 and locally verified;
+Material collection presentation and the M10 milestone remain incomplete.
+New execution note:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261027-194056.XXXXXX.md.bjGW2XKx9h`.
+The historical M03–M07 record follows; its older ceiling is not a stop on the
+newly authorized M10–M11 work.
+
+2026-10-28 selection increment (bulk actions incomplete): the
+existing core frozen-selection contract is reused, with native SQLite snapshots
+of identities and Material/package edit revisions, bounded identity pages,
+explicit release, eight live handles and one million retained identities total.
+Normal collection reads and snapshot creation share one SQL predicate compiler.
+Schema14 preserves selection receipts across restart and retains released-command
+digests so a retry cannot silently select new membership. Four new storage
+regressions cover filter/edit/restart stability, exact explicit membership,
+release/capacity/retry and incomplete-catalog/cursor rejection. The initial
+fixture incorrectly restarted a partially populated catalog; it now completes
+the actual saved package cursor instead. Guarded run1414 passed all105 storage
+tests, including all17 collection tests. Existing unused `practice` fixture
+warnings remain. Log: owned root `selection-storage-verify.log`.
+
+Selection request/response dispatch, Rust-generated contract exports and typed
+client methods/guards are now verified together, not yet connected to the
+management UI. Bounded listing exposes retained handles after restart so a
+lost renderer cannot exhaust the eight-handle allowance permanently. Run1420
+passed all105 storage tests, both native-runtime collection tests, all five
+client collection tests, typecheck and ownership lint. The native transport test
+exercises create/replay/reopen/list/page/release and rejects an uninstalled
+Knowledge package. Log: owned root `selection-recovery-idle-verify.log`.
+Generated contracts were produced from Rust, not hand-edited. Mobile/native
+application verification remains pending; these are native-owner/transport
+receipts, not GUI acceptance.
+
+Run1415 generated contracts and then ended during storage
+compilation with runner cleanup `kill EPERM`; no Cargo/rustc/resource-guard or
+owned native QA process survived the subsequent process inventory. The runner
+now avoids signalling an already exited child and preserves guard-stop samples.
+Run1419 exposed another group-signal EPERM after a guard stop: projected headroom
+4229021696 bytes was below the unchanged 4294967296-byte reserve. No owned
+verification process survived inspection. The successful idle run1420 ended at
+footprint1770173544, available7294713856, pressure1, swapUsed4414767104 and
+swapOut67667247104, with the unchanged 2GiB workload budget. No
+device/model/server was launched. Bulk mutation/progress/retry UI remains the
+active work; this selection increment does not retire MAT-06.
+
+Selection increment committed/pushed as
+`4ca6474f1512071f56ce5a0070bace7d01f6552b` on `agent/m10-m11`.
+Exact hosted gates are foundation40660669537, desktop40660669326 and
+mobile40660669332, with final-only observers1426–1428; no extra workflow was
+dispatched. The current uncommitted removal increment adds revision-checked,
+idempotent native Material deletion and tombstones so historical create/edit
+receipts cannot recreate deleted authored data. It deliberately retains
+Knowledge and admitted Review state. Shared media cleanup now considers
+retained Review admissions as well as Material references. Schema15 and three
+new owner regressions cover CAS/replay/claims/frozen identity, shared asset
+release and active audio/source continuity after restart. These removal changes
+passed all108 storage tests under guarded run1429, including shared-media and
+admitted-audio restart retention. Log: owned root
+`material-removal-storage-verify.log`. Removal is now exposed through the same
+native metadata and typed Material client boundaries, with an added real-runtime
+CAS/reopen/replay test and client receipt-validation regression; those integration
+changes are not yet verified or connected to the UI. MAT-06 remains open.
+Exact-source 4ca6474 desktop40660669326 passed; the other hosted gates remain
+under their existing observers.
+
+Removal transport run1430 passed all108 storage tests and all five native
+Material integration tests. Its typecheck caught an omitted `material_removed`
+member in the client's response-narrowing union; the union is now corrected.
+Resume1431 passed typecheck, ownership lint and all17 Material client tests;
+the already passing Rust checks were not repeated for this TypeScript-only fix.
+Logs: owned root `material-removal-transport-verify.log` and
+`material-removal-client-recheck.log`. Native/client removal is verified for
+continuation, not connected management UI or milestone acceptance.
+The next bulk-owner step must commit each item mutation and its bulk result in
+the same native transaction; calling a mutation and separately recording success
+would leave a crash window that can invalidate frozen edit preconditions on retry.
+
+Removal committed/pushed as `d1d80ffdd4e69cb006951b0fcc3ef701bd01921c`.
+Its exact foundation40663084168, desktop40663084158 and mobile40663084185
+have observers1438–1440; desktop passed. Selection4ca6474 foundation40660669537
+also passed; its mobile observer1428 remains active. No hosted iOS variant was
+dispatched and no platform gap is converted into acceptance.
+
+The current uncommitted native bulk-storage increment extracts transaction-scoped
+create/edit/remove functions in the existing Material owners, reused by individual
+actions and the bulk ledger. Schema16 adds bounded retained jobs, indexed pending
+identities and per-item receipts; progress and a successful item mutation commit
+together. Jobs pin their immutable native selection until results are released.
+Cancellation fences later commits; restart interruption and explicit retry
+preserve successes and reset only failed/pending work. The indexed pending table
+avoids rescanning the completed prefix for each next item. Four new storage
+regressions cover an injected SQLite progress-write rollback, cancellation and
+restart retry, paging/capacity/release, and package identity/duplicate-versus-
+distinct addition. This storage increment is not yet executed or connected to a
+runtime bulk worker or management UI at that checkpoint. MAT-06 and M10 remain incomplete.
+
+Bulk-storage recheck1445 passed all112 storage tests, including all four new
+transaction/recovery/capacity/addition regressions. Log: owned root
+`material-bulk-storage-recheck.log`. Initial1441 compiled successfully and passed
+the collection suite before a resource-guard interruption; it did not report a
+product assertion failure. Guard sample: footprint4235195520, available6380929024,
+growth extrapolation707834630, projected headroom3525610746 below the unchanged
+4294967296 reserve. Its group-signal cleanup again reported EPERM; no owned
+verification process survived inspection. A small owned `/bin/cat` process-group
+probe signalled and closed normally, so the Cargo cleanup EPERM is not diagnosed
+or reported fixed. Successful1445 ended at footprint1791833216,
+available8810414080, pressure1, swapUsed4288937984 and unchanged
+swapOut67667247104.
+
+The uncommitted bulk runtime now uses the existing blocking executor and shared
+guest admission, with durable per-item transactions, live status/cancel,
+explicit failed/pending retry, bounded result recovery and explicit release.
+Dictionary addition uses the selected package's actual entry/default sense,
+checks its revision before lookup and commit, and invents no source provenance.
+Runtime reopen marks abandoned jobs Interrupted without automatically resuming.
+New event-driven native tests cover cancellation publication fencing and
+restart recovery; a bounded authentic English target fixture exercises package
+unavailability/reopen retry and real dictionary output, not full-corpus or GUI
+acceptance. These runtime tests and generated bulk contracts are not yet run.
+Typed bulk client methods and the management UI remain unimplemented.
+
+Exact selection4ca6474 mobile40660669332: Android122722613375 passed;
+iOS122722612935 failed at 2026-10-28T09:26:02Z with
+`Element not found: Text matching regex: Open local video, Enabled`.
+Exact removald1d80ff foundation40663084168: Rust/web/OCR detector/macOS passed,
+Windows122733429663 failed at 2026-10-28T09:36:42Z during actual native theme
+input: expected Quartz JSON, received unchanged Dark Quartz JSON despite the
+reported focused editor and expected clipboard. This is an observed input-loss
+gate, not a diagnosed cause or a passing platform. Logs are owned-root
+`ios-4ca6474-failure.log` and `windows-d1d80ff-failure.log`.
+No workflow was rerun and no hosted iOS diagnostic variant was launched.
+
+Native bulk run1448 passed both event-driven worker tests, all three collection
+runtime tests (including authentic package-unavailable/reopen bulk addition),
+all five native Material tests, Rust contract generation, typecheck and ownership
+lint. Log: owned root `material-bulk-native-verify.log`. Final sample:
+footprint1788589184, available6939967488, pressure1, swapUsed4280549376,
+swapOut67667247104. These are native owner/transport tests, not management GUI
+or full-corpus readiness.
+
+Typed bulk client methods and nested packet guards are now implemented but
+unverified. They bypass their own long admission for live control, retain exact
+prepared intent across source navigation/lost receipts, compare action semantics
+without depending on object key order, and validate frozen identity/revision,
+counts, recovery capacity and bounded result pages. Three client regressions
+cover those contracts. Inspection found that eight maximal edit drafts plus
+status messages could exceed the existing transport limit; native admission now
+caps retained job documents at262144 bytes, reserving wire headroom for future
+bounded errors. A fifth bulk storage regression verifies release restores that
+capacity without hiding retained handles. This new bound and the typed client
+checks are pending. Native management selection controls/UI remain unimplemented;
+MAT-06, M10 and M11 are not complete.
+
+Integrated bulk run1449 passed all113 storage tests, both native bulk worker
+tests, all three native collection tests, all five native Material tests,
+Rust-generated contracts, typecheck, ownership lint and all25 targeted client
+tests. Log: owned root `material-bulk-client-verify.log`. Final sample:
+footprint1806234752, available6978830336, pressure1, swapUsed4171497472,
+swapOut67667247104. The native engine and typed transport are verified for
+continuation; no management GUI workflow is claimed.
+
+Next real consumers are Knowledge/Material selection controls and per-item
+results. Their required native projection work remains explicit: bounded visible
+membership queries and immutable selection amendment for row toggles without
+loading an entire selected corpus into React; human-readable result labels must
+come from the native content/receipt owner, including after removal. These are
+not implemented by the current identity-only packet. Build those boundaries
+before composing the shared controls, then inspect real desktop/narrow rendering
+and exercise the four bulk actions with cancellation/restart/retry.
+
+Engine570ae39 exact foundation40670697356 and desktop40670697311 passed;
+mobile40670697251 failed. Android122756404068 built/installed successfully but
+failed the initial `Watch Inspector Knowledge and native source resume` flow
+after14s at2026-10-28T10:40:12Z. Retained `android-build-evidence`
+artifact12809368322, under owned-root `android-ci-570ae39`, records
+`DeviceServerDiedException` during `viewHierarchy`, caused by
+`Command failed (host:transport:emulator-5554): device offline`.
+The initial enabled `source-language-select` assertion was still running;
+this is not a completed negative product assertion. The retained native log
+has no `Fatal signal`, `FATAL EXCEPTION`, `OutOfMemory`, `am_crash` or `ANR in`
+match. This identifies a lost device/driver connection, not its underlying
+cause. Artifact source.txt matches570ae394 and treea8cd3262.
+iOS122756404720 failed before a functional flow started:
+`LocalXCTestInstaller$IOSDriverTimeoutException: iOS driver not ready in time`
+at2026-10-28T11:15:34Z. This is a harness startup failure, not a product
+assertion pass or proof of a product regression. Exact logs are owned-root
+`android-570ae39-failure.log` and `ios-570ae39-failure.log`. No workflow rerun,
+timeout change or local device launch was made.
+Removald1d80ff mobile40663084185
+finished with Android122737199189 passing and iOS122737198915 failing at
+2026-10-28T10:12:22Z: `Assertion is false: id: m01-watch, mp4 is not visible`.
+This differs from selection4ca6474's missing Open-local-video control; no common
+cause is claimed. The exact log is owned-root `ios-d1d80ff-failure.log`.
+
+The uncommitted selection amendments retain original edit/package preconditions,
+validate newly added keys through the existing native filter compiler, and
+permit removal of frozen keys without an available catalog. Visible membership
+reads at most64 requested keys and distinguishes package aliases. Storage/client
+and authentic-package runtime regressions cover those boundaries.
+
+Result labels now come from native content/package/media metadata and are stored
+with each mutation receipt before removal. Missing historical content falls back
+to its genuine identifier, not invented text. Consumer tracing also exposed that
+clearing results retained full edit drafts indefinitely. Schema17 now migrates
+released documents in bounded windows to typed compact progress summaries,
+discarding edit inputs/labels while preserving the digest. An exact Start replay
+reconstructs its summary only from the digest-matched incoming command and never
+reapplies work. Direct released-result reads fail explicitly; release acknowledges
+only the command ID and is idempotent. New retirement/migration regressions cover
+these lifetimes. No affected UI has been edited yet.
+
+Consumer-boundary run1460 passed all117 storage tests, both native bulk-worker
+tests, all three native collection tests, all five native Material tests,
+Rust contract generation, typecheck, ownership lint and all26 targeted client
+tests. Log: owned root `management-boundaries-verify.log`. Existing unused
+`practice` fixture and ts-rs serde-attribute warnings remain. Final sample:
+footprint1806054528, available8569831424, pressure1, swapUsed4070834176,
+swapOut67667247104, with the unchanged 2GiB workload budget and 4GiB reserve.
+These native boundaries are verified for continuation, not GUI or milestone
+acceptance. Management selection/bulk controls and real four-action workflows
+remain incomplete; M11 has not begun.
+
+Consumer boundaries committed/pushed as
+`f074bc701cb6093bfe768c5a28ee5773ae4ccad3`. Existing automatically triggered
+foundation40678063354 and desktop40678063477 passed;
+mobile40678063651 remains under its final-only observer.
+No additional workflow was dispatched. A deliberate,
+guarded current-native Material baseline run is active before the first visible
+selection change: owned-root `management-ui-baseline.log`. No device/model or
+reference application was started. The surviving static server PID2637
+(`node tools/serve-web.mjs`, started October24) was inspected and reused, not
+restarted or stopped.
+
+That baseline run stopped at the resource guard after the current native QA
+binary compiled successfully and the single Material test started. It produced
+no accepted baseline or product assertion verdict. Sample: footprint3925767296,
+available6229327872, pressure1, swapUsed4037279744, swapOut67667247104;
+projected headroom4081844224 was below the unchanged4294967296 reserve.
+The immediate process inventory found no owned QA/browser/Cargo/guard process
+remaining. Follow-up footprint3924833408 and available6487851008, with unchanged
+swap, leave little margin for the browser. Keep visible UI edits behind fresh
+baseline evidence; wait for three samples with at least7.5GiB available before
+another deliberate full test run, retaining the original guard and workload budget.
+That one-shot headroom watch timed out without restarting any workload.
+
+Native `vmmap -summary 82251` then reported footprint2.1GiB, peak14.4GiB
+(a historical peak, not a current allocation), and App-Specific Tag1 resident7.7GiB,
+dirty3.9GiB. The allocation owner behind that tag is unidentified. The eval
+runtime reported about75MB JavaScript heap and42MB external storage; retained
+inspection results totaled only200KB. Normal `Bun.gc(true)` reduced reported
+footprint by about6.5MB, not the tagged allocation. Do not call this resolved
+or attribute it to a device/model. Follow-up native sample:
+footprint2187179136, available6896467968, pressure1,
+swapUsed4028891136, swapOut67667247104.
+
+A materially smaller baseline path is now running: reuse the retained isolated
+native corpus profile and current compiled binary, one headless browser context,
+no Playwright test worker,52-entry seed run or trace recorder. It captures both
+Material and Knowledge before selection edits at1100/390 widths. Its original
+2GiB workload guard and4GiB reserve remain unchanged, with fresh admission and
+per-capture samples. Log: owned-root `management-ui-lean-baseline.log`.
+The temporary helper's LSP cannot initialize TypeScript outside the workspace;
+no dependency installation was attempted. No visible product source has changed.
+
+The lean baseline's first attempt exposed a helper-only mistake: baseline mode
+inherited the filter editor's390px Apply-filters scroll. The condition is now
+restricted to actual filter/source modes. Corrected capture passed with four
+inspected frames: `selection-before-material-final-{1100,390}-dark.png` and
+`selection-before-knowledge-final-{1100,390}-dark.png` in the owned root.
+Real Japanese Knowledge count was218923; Material had five real retained entries.
+No blank/overlapping frames were observed. After cleanup: footprint2412770432,
+available7101726720, pressure1, swapUsed4012113920, swapOut67667247104.
+These are browser-layout/native-owner baselines, not native compositor acceptance.
+
+Shared selection UI is now uncommitted in `features/collection`, with both
+screens reusing their exact native browse query for selection. Ordinary browsing
+keeps controls collapsed. Explicit activation supports individual row toggles,
+select-all-matching, retained-handle recovery, clear and lost-receipt retry.
+Replaced unpinned snapshots release; bulk-pinned snapshots stay retained.
+Only visible bounded membership enters React; filters/pages do not rewrite
+the frozen native handle. All four touched UI files had clean LSP diagnostics.
+Serial typecheck/lint/export and actual native-backed desktop/narrow captures
+passed: owned-root `management-selection-ui-verify.log`. All eight collapsed/
+active Material/Knowledge frames at1100/390 widths were inspected. Individual
+selection and clear returned real native receipts; controls stayed contained
+with the actual218923-entry Japanese catalog. This is not a full-corpus bulk
+run or native-compositor parity gate. Final guard sample:
+footprint2536076416, available6618021888, pressure1, swapUsed3986948096,
+swapOut67667247104, projected headroom4419393458.
+
+The new real-native web regression covers nonadjacent-page selection,
+filter refresh, original edit revisions, native restart recovery, loss of a
+committed amendment receipt followed by identical-command retry, select-all
+beyond the visible page, and explicit release. It retains the real SQLite and
+package owners; only the response delivery is interrupted. That test and the
+existing Material collection flow both passed serially in5.9s under the guard:
+owned-root `management-selection-recovery-tests.log`. The actual lost response
+was delivered only after the native amendment committed; retry submitted the
+identical command and retained one live snapshot, not a duplicate. Select-all
+retained all25 identities beyond the24-row visible page. Native restart kept the
+original selected revision1 despite a subsequent authored revision2. Explicit
+clear released the handle without changing authored content. The light-theme
+desktop/narrow25-item frames were inspected as well as the eight dark-theme
+Material/Knowledge frames. Final sample: footprint2569254016,
+available6600294400, pressure1, swapUsed3986948096, swapOut67667247104,
+projected headroom4452810752. Fresh LSP diagnostics for
+the new test timed out; this is not reported as a clean diagnostic. All product
+UI diagnostics remain clean. MAT-06 and the milestone remain incomplete.
+
+Shared selection UI committed/pushed as
+`910aac71216c70178f477a1c3c4249336e471db2`. Its desktop40685089659 and
+foundation40685089644 passed; mobile40685089625 remains under its final-only observer.
+The f074bc70 mobile observer timed out without a workflow verdict. Its actual
+readback showed Android122783458222 passed and iOS122783457953 still running;
+a final-only observer was renewed, not the workflow. No native device was
+launched and no iOS diagnostic variant was dispatched.
+
+Uncommitted `CollectionBulkActions` now uses the existing typed native worker
+for add/edit/exclude/include/remove, confirmation with frozen scope, recovery,
+status/cancel/retry, bounded per-item results and result release. The first
+typecheck/lint/export passed and all four affected product UI diagnostics were
+clean. Render log: owned-root `management-bulk-ui-first-render.log`.
+The same-session Knowledge capture hit projected headroom4258463744 below the
+unchanged4294967296 reserve. The next split-session attempt released each
+browser/native owner before the next consumer; Material captured, but Knowledge
+still hit4276436992 at footprint2884220032, available6423920640, pressure1,
+swapUsed3986948096 and unchanged swapOut67667247104. Log:
+`management-bulk-ui-split-render.log`. No complete bulk UI render gate passed.
+Material screenshots exposed capture focus/scroll framing, not evidence of
+missing controls; the helper now focuses/reveals the leading selection control.
+Capture tags preserve the earlier verified selection evidence.
+
+The new bulk native-UI regression is written but not run. It holds delivery of
+an already committed start receipt, exercises the independent cancel/status
+channel, then checks stale revision refusal, reselection, exclusion/inclusion,
+destructive confirmation focus, removal labels and restart retention.
+Cancellation publication and exact-opener focus remain explicit review concerns
+to reproduce/fix before any bulk checkpoint; no passing workflow is claimed.
+
+Knowledge-only capture succeeded after three samples with at least7GB available
+(extra launch margin, not a reduced guard). Active desktop/narrow frames were
+inspected: `bulk-controls-framed-selection-active-knowledge-final-{1100,390}-dark.png`.
+The real218923-entry catalog, frozen selection and add/distinct/recovery controls
+remained contained. Log: `management-bulk-knowledge-render.log`. After cleanup:
+footprint1631777920, available7262912512, pressure1, swapUsed3936616448,
+swapOut67667247104. Material's final framing and functional dialogs still need
+fresh evidence; earlier clipped capture positions are not a visual pass.
+
+The first bulk GUI regression run is active with serial typecheck/lint/export:
+owned-root `management-bulk-regression-baseline.log`. It must establish the
+held-receipt cancellation and destructive-focus behavior before repairs.
+The new test's fresh LSP diagnostic timed out; no clean test diagnostic is claimed.
+That first run stopped before any check/test command launched: the new guard's
+initial sample had projected headroom4292673536, just below the unchanged
+4294967296 reserve, with OmO footprint4158944384. No owned verification process
+survived inspection. There is no test assertion verdict. The continuation adds
+the same measured7GB/three-sample launch cushion that admitted the successful
+Knowledge capture, then retains the original2GiB workload/4GiB guard throughout.
+Do not do concurrent local work during that run or call this memory incident
+resolved. Next log: `management-bulk-regression-admitted.log`.
+That admitted run passed typecheck, ownership lint and web export, then stopped
+at the resource guard after the single regression started. It has no assertion
+verdict. The intermediate `Architecture boundaries passed` match woke the model
+during verification; that unwanted wake is now removed by using only the final
+MATERIAL_COLLECTION sentinel. No memory root cause is inferred from timing.
+Stopped sample: footprint4021302400, available6370885632, pressure1,
+projected headroom3560547105 including growth662854879, unchanged swap.
+No owned verification process survived inspection. The test-only continuation
+reuses the passing, unchanged export/checks and waits for the same7GB launch
+cushion. Next log: `management-bulk-regression-final-only.log`.
+The final-only test continuation reached a real assertion failure with healthy
+resources: native control reported `completed · 3 of 3 processed`, but
+`Cancel bulk operation` still had count1 instead of0 while the original start
+response remained held. This is a reproduced UI publication bug, not a resource
+failure. Log: `management-bulk-regression-final-only.log`; first trace/results
+remain in owned-root `bulk-ui-tests/results`. Its automatic failure screenshot
+was taken after teardown had closed the backend, so its fetch/write errors are
+not accepted as additional product findings.
+
+The minimal repair retires a matching local submission only after native terminal
+cancellation acknowledgement, and makes late start/retry responses verify their
+operation token before publishing. It also clears the invalidated read's loading
+flag before control. Product diagnostics are clean; the repaired test has not
+yet run. The next export/test uses separate `bulk-ui-tests/cancellation-fix`
+artifacts and `management-bulk-cancellation-fix.log`. Remaining review concerns:
+exact opener focus on destructive confirmation, truthful Knowledge actions
+before any selection exists, and cursor reset if a retained job disappears.
+Cancellation-fix run passed typecheck/lint/export and the prior terminal-status/
+Cancel-absence assertions. It then failed in the test harness:
+`route.fulfill: Route is already handled!`, while the next exclusion was
+submitting. The test removed interception before the held handler finished.
+It now uses `unrouteAll({ behavior: 'wait' })` before advancing, and guarantees
+native cleanup in a nested finally. Product assertions were not weakened.
+Trace/log remain in `bulk-ui-tests/cancellation-fix` and
+`management-bulk-cancellation-fix.log`. The test-only continuation will use
+`bulk-ui-tests/route-drain` and `management-bulk-route-drain.log`.
+The f074bc70 mobile observer has now finished with failure; Android was already
+verified passing, so retain the iOS verdict and retrieve its exact failed-step
+evidence after the serial local regression, without rerunning the workflow.
+Route-drain run passed held-receipt/terminal acknowledgement, stale revision
+refusal, fresh reselection, exclusion and inclusion. It then reproduced
+destructive-dialog focus loss: `Remove selected` was inactive after Cancel change.
+The shared confirmation target was always the Edit/Add ref. The repair retains
+the actual Add/Edit/Exclude/Include/Remove opener before opening each proposal.
+The pre-fix removal dialog capture was inspected; it shows the real frozen
+three-item scope and retention/no-undo consequences, not a staged modal.
+Log/artifacts remain `management-bulk-route-drain.log` and
+`bulk-ui-tests/route-drain`. The next run rebuilds the changed product source
+and preserves separate `bulk-ui-tests/focus-fix` evidence. Its fresh product
+LSP check timed out, so typecheck still needs to confirm the edit.
+Focus-fix run passed typecheck, ownership lint, export and the complete native
+Material GUI regression in3.0s. It verified held-response control, exact focus
+return, stale-revision refusal, edit/exclude/include/remove receipts, retained
+removal labels and native restart. All three removal/confirmation desktop/
+narrow captures were inspected under `bulk-ui-tests/focus-fix`. Log:
+`management-bulk-focus-fix.log`. Final sample: footprint1682797696,
+available6842941440, pressure1, swapUsed3928227840, unchanged swapOut67667247104.
+Bulk add through Knowledge, result retry/release UI and remaining recovery
+boundaries are not yet a completed four-action gate.
+
+Two focused regressions now protect the remaining concrete recovery concerns:
+the existing unavailable-Knowledge test checks truthful add-only actions before
+any selection, and a new real25-item/two-job case clears the selected job from
+another consumer before Next results. Its surviving job must reset to page1.
+These tests are about to run against the current unmodified product logic;
+no assertion was weakened and no full-catalog preparation is required.
+Both boundary regressions failed specifically as predicted: the replacement
+job's First-result-page action stayed enabled (foreign cursor retained), and
+empty Knowledge had no disabled Add-selected action because it incorrectly
+rendered Material-edit actions. Baseline log/artifacts:
+`management-bulk-boundary-baseline.log`, `bulk-ui-tests/boundary-baseline`.
+The small fixes now choose actions from the explicit collection surface and
+reset the cursor when the retained job identity changes. The next guarded run
+rebuilds these changes, repeats the complete Material workflow and both boundary
+cases, and captures empty Knowledge/recovery and narrow removal confirmation.
+No test expectations were relaxed. Next log:
+`management-bulk-boundary-fix.log`; artifacts `bulk-ui-tests/boundary-fix`.
+Boundary-fix run passed typecheck, ownership lint, export and all three native
+GUI scenarios in5.6s. Empty Knowledge, narrow destructive confirmation and
+replacement-job recovery frames were inspected. Final sample:
+footprint1681896576, available6845399040, pressure1, swapUsed3928227840,
+unchanged swapOut67667247104. The cursor scenario is now extended to exercise
+the real Retry-unfinished and Clear-results controls, explicit selection release
+and released-command replay without changing authored revisions; that extension
+is not yet run.
+
+The retained-corpus helper now has a package-grounded bulk-add probe using the
+actual Japanese search/results, not synthetic target records. It will drive
+default addition, a duplicate attempt and explicit distinct addition, inspect
+their native receipts/content/source absence, clear each job through the UI,
+compare learner-state projections, restart the native owner and replay cleared
+commands without rebuilding results. It preserves the isolated corpus/profile
+and any new authored records; no model/device or Python inference is involved.
+Helper syntax passed; actual execution is pending. Next log:
+`management-bulk-japanese-add.log`, with separate `bulk-add-*` capture tags.
+
+Exact f074bc70 mobile40678063651: Android122783458222 passed;
+iOS122783457953 failed the Watch assertion at2026-10-28T12:33:13Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+Log: `ios-f074bc70-failure.log`. The earlier observer timeout was not a verdict.
+No diagnostic variant, rerun, platform waiver or local device launch was made.
+The first real Japanese add created `愛猫`, target`jmdict:1151020`,
+Material`material-c25bba474af3b03b7839f5806f587f7c3dd93abe50a13f610fe6f577b82167e9`,
+revision1, from command`8be3735f-bc2e-4f18-82a1-e015bfcd09d4`. Its native
+receipt had `reused:false`, a real default sense and no source association.
+The next add returned that same ID/revision with `reused:true`, not a duplicate.
+The helper's expectation was wrong. Read-only SQLite receipts and the existing
+Material identity/policy tests confirm exact-origin reuse is intentional and
+preserves authored edits. No backend identity, duplicate policy or assertion
+was changed to fit the probe. The failed job remains retained as evidence.
+Native binary SHA256:8a11d5e95899a3a9a4d117bdfd6c1a8d403e35ca82e56ea227fc9889444f6136.
+
+The bulk UI now labels native reused outcomes as Reused rather than Saved, and
+its confirmation explains exact reuse separately from other matching entries.
+The corrected probe checks default/reuse/duplicate/distinct as four separate
+outcomes. For a genuine different-origin duplicate, it will bind only the
+explicitly identified QA-created Material above to an authored one-word
+`bulk-add-source.txt` functional fixture containing its actual headword.
+The real document parser supplies source ID/revisions/block/UTF-8 coordinates;
+the existing native edit owner accepts that association. This is an authored
+functional input, not fabricated reference-corpus data or a staged UI.
+Other profile content and prior failed receipts remain untouched.
+The subsequent source-free add must report a duplicate, and explicit distinct
+must create a new item. Restart checks include the deliberate fixture edit.
+Learner comparison covers key/claim/assessment/prediction/status, not incidental
+projection revision. Next log: `management-bulk-japanese-outcomes.log`.
+
+That corrected Japanese run passed typecheck, ownership lint, web export and
+real native default/reuse/different-origin duplicate/distinct workflows. Its
+default attempt reused the item retained from the earlier successful creation;
+it is not a second new-create verdict. Reuse preserved the same ID/revision1;
+different-origin addition reported one duplicate; distinct created
+`material-bdf54ef722daada20ce23a44355c6bbcf1bc7759bb3749469a9357a49295fbd0`.
+Native restart retained authored content, Knowledge claim/assessment/prediction/
+status stayed unchanged, and cleared-command replay did not rebuild results.
+Provider requests remained zero. Desktop/narrow reuse/result and confirmation
+captures under `bulk-outcomes-*` were inspected; browser/native owners closed.
+Cleanup sample: footprint1723888744, available7590445056, pressure1,
+swapUsed3928227840, unchanged swapOut67667247104.
+
+Final serial regression run1499 stopped during the second of five native GUI
+scenarios at the unchanged resource guard, not a test assertion. The Material
+editor suite did not start; the newly extended Retry/Clear case has no verdict.
+Log: `management-bulk-final-regressions.log`; artifacts `bulk-ui-tests/final`.
+Stop sample: footprint3709564008, available6264913920, pressure1,
+projected headroom4117430272 below reserve4294967296. No owned browser/native
+QA/guard process survived inspection. Post-stop footprint4938691688,
+available8313896960, swapUsed4973658112 and swapOut69005623296 demonstrate
+unexplained OmO growth and swap increase, not a resolved resource incident.
+Bounded vmmap showed footprint4.4GiB, historical peak14.4GiB, App-Specific
+Tag1 resident4.1GiB/dirty2.4GiB; eval heap was about51MB, external26MB.
+The tag owner remains unidentified. Pause substantial verification while
+investigating; do not relax the 2GiB workload reservation or 4GiB reserve,
+restart devices/models, or attribute this allocation to them.
+
+Idle-only monitor1500 observed 12 samples over55s: footprint fell from
+4669273192 to1609659520, available rose from7691075584 to9582444544,
+pressure stayed1 and swapOut stayed69005623296. It relaunched nothing.
+The tagged allocation owner remains unidentified; stabilization is not a fix.
+With fresh headroom and unchanged safeguards, run1501 passed all five targeted
+native GUI scenarios in11.4s and all20 existing desktop/narrow Material editor
+checks in8.4s. This includes the extended Retry/Clear controls, native selection
+release, released-command replay and unchanged authored revisions/exclusion.
+Log: `management-bulk-final-stable.log`; artifacts `bulk-ui-tests/final-stable`
+and `bulk-ui-tests/final-stable-editor`. Final recovery-phone and destructive
+confirmation-desktop frames were inspected against the earlier final-source
+dark desktop/narrow addition and light Material captures. These are real native
+owner/browser flows, not native compositor or platform acceptance.
+Final guard sample: footprint1612854400, available7515422720, pressure1,
+swapUsed4872994816, unchanged swapOut69005623296, projected headroom5367939072.
+No Rust/protocol source changed after the117-storage/26-client passing boundary
+checkpoint; those checks are reused, not falsely reported rerun.
+
+Bulk UI checkpoint134fac93 is committed/pushed on the existing stacked draft.
+Automatically triggered exact-source gates: foundation40697502070,
+desktop40697502407 (passed), mobile40697502478; final-only observers1504–1506.
+No workflow was manually dispatched and neither draft PR was merged.
+Selection910aac71 mobile40685089625 ended with Android122818463123 passing
+and iOS122818462698 failing during `Exercise actual iOS UI and Rust persistence`.
+Its exact failed assertion still needs retrieval; this is not a platform pass.
+
+The proposal-storage candidate introduces Schema18 with bounded12-item/
+192KiB pages and at most128 pending drafts. Proposals preserve source/package/
+dictionary identity; replacements retain their original Material revision and
+media owner. Acceptance reuses the existing transaction-scoped Material
+create/edit functions and commits its result receipt in that same transaction.
+Digest-checked receipt replay cannot resurrect rejected drafts or deleted
+Material. Normal duplicate detection leaves the proposal pending for an explicit
+distinct decision. Five new real-SQLite tests cover edit/reject/restart/evidence
+separation, injected acceptance-receipt rollback and replay, duplicates,
+concurrent authored revisions and bounded paging/capacity. Existing migration
+assertions move the current version17 to18 and future-version rejection18 to19;
+no historical-data assertion is removed. A shared authored-text patch operation
+now serves the existing bulk owner and proposal editing. New native modules have
+clean LSP diagnostics. The whole storage suite must pass before this native
+candidate is verified, and the generation/provider/UI work remains open.
+
+Proposal storage run1507 passed all122 storage tests, including the five new
+draft/receipt/CAS/paging cases and all existing migration/data/evidence checks.
+Log: `material-proposal-storage-verify.log`. Existing unused `practice` fixture
+warnings remain. Final sample: footprint1613395072, available7148306432,
+pressure1, swapUsed4780720128, unchanged swapOut69005623296.
+Native proposal metadata now routes suggest/read/list/edit/accept/reject/Return
+through the existing runtime/store. Fresh source drafts cannot claim invented
+dictionary IDs; replacement proposals retain the existing Material's trusted
+identity and are usable without an optional provider. Two new runtime tests
+cover actual JSON dispatch, explicit acceptance, restart/receipt recovery and
+forged identity refusal. A typed client adds bounded nested validation, command/
+revision correlation, immutable-basis checks, stable lost-receipt retry and the
+existing source-cancellation lane. New client tests cover adversarial packets
+and exact retry. Integration verification and Rust-generated types are pending;
+stale-generated-type LSP errors are not suppressed or claimed passing.
+Exact bulk134fac93 foundation40697502070 and desktop40697502407 passed;
+mobile40697502478 remains under its existing observer.
+
+Proposal transport run1508 passed Rust contract generation, all122 storage
+tests, both new runtime proposal tests, all five existing native Material tests,
+typecheck, ownership lint and all28 targeted client tests. Log:
+`material-proposal-transport-verify.log`. Existing ts-rs attribute and unused
+`practice` fixture warnings remain. Final sample: footprint1636971648,
+available6794870784, pressure1, swapUsed4755554304, unchanged swapOut69005623296.
+Fresh proposal-client diagnostics were clean after generated types landed.
+Review then found an invalid extra restriction: replacement proposals must
+preserve an existing Material whose target language differs from its original
+source language. The focused new storage regression reproduced
+`Invalid("Proposal source belongs to another language package")` against the
+original predicate, with healthy resources, in run1509. Baseline log:
+`material-proposal-language-baseline.log`. The repair limits that same-package
+check to fresh source-text proposals; replacements still preserve exact existing
+source/dictionary identity. A corresponding typed-client test protects that
+separation. The repaired six-proposal/29-client candidate needs final recheck
+before commit; provider generation and review UI remain incomplete.
+
+Final proposal run1511 passed Rust contract generation, all123 storage tests,
+both native proposal tests, all five existing native Material tests, typecheck,
+ownership lint and all29 targeted client tests. The cross-language regression
+now passes without changing existing identity/provenance assertions. Log:
+`material-proposal-language-fixed.log`. Final guard sample:
+footprint1638626432, available9004613632, pressure1, swapUsed6674579456,
+swapOut71275069440. Swap increased during this interval despite the final low
+OmO footprint; do not call the host allocation incident resolved or blame an
+unobserved device/model workload. This is a verified native proposal/transport
+increment, not generated-provider behavior, GUI completion or MAT-07 acceptance.
+Next integration must reuse the existing native generation worker, provider
+settings/session credential, trace and cancellation owners, not add another
+queue or a renderer-owned parser/admission path.
+
+Native proposal checkpoint42d13e66 is committed/pushed on the existing stacked
+draft. Exact desktop40703061791 passed; mobile40703061767 remains under its
+existing observer. Foundation40703061724 passed Rust/web/OCR/macOS but failed
+Windows122871010373 at2026-10-28T14:27:12Z during actual native theme input:
+expected Dark Quartz JSON, received unchanged Slate JSON. The runner reported
+the expected clipboard/focused editor. This is an observed input-loss failure,
+not a diagnosed cause or an overall foundation pass. Its failed job log was
+retrieved; no diagnostic variant, workflow rerun or local device was launched.
+
+The uncommitted generation integration reuses ConversationOwner's single
+provider worker, session credential, settings, bounded SSE transport, trace,
+explicit retry and cancellation. New source/Material generation admission and
+its marker commit in the existing conversation receipt transaction. Schema19
+adds only bounded generation-review metadata; actual submitted input/output
+stay in the existing conversation content owner. Ordinary conversation text or
+an edited purpose cannot authorize proposal admission.
+Native collection is explicit and atomic after complete/failed/interrupted
+output, preserves good JSON lines with per-candidate failures, rejects invented
+dictionary/source fields, and derives UTF-8 quote occurrences from the original
+selection. Cancelled/invalidated work cannot be collected. Existing Material
+revisions fence generation publication and replacement collection; retry keeps
+the original inputs and uses the same worker. No automatic learner evidence or
+Material acceptance is introduced.
+Three new SQLite scenarios cover partial UTF-8 grounding/restart/retry,
+collection rollback/replay and stale/cancelled admission. Three event-driven
+native HTTP/SSE tests exercise actual common-provider generation/collection/
+acceptance, shared worker admission/cancellation and missing-provider retention.
+Two typed-client tests cover held/lost admission receipts, independent control
+and bounded/correlated recovery reports. None is run yet. Native diagnostics are
+clean; generated TypeScript is stale until the next guarded integration run.
+The review UI and real app/provider-fixture workflows remain open.
+
+Shared generation run1517 passed Rust contract generation, all126 storage tests,
+all six native conversation/provider tests (including the three new generation
+cases), both native proposal tests, all five native Material tests, typecheck,
+ownership lint and all43 targeted client tests. Log:
+`material-generation-native-verify.log`. These tests use the actual shared
+native HTTP/SSE worker and event subscriptions, not a renderer parser or mocked
+state transitions. Source quotes/UTF-8 occurrence ranges, partial failures,
+explicit collection/acceptance, exact replay, provider absence, shared worker
+admission and cancellation are verified. No application UI is yet connected.
+Final sample: footprint1634792576, available7031128064, pressure1,
+swapUsed4001038336, swapOut71340490752; the guard retains its 2GiB workload and
+4GiB reserve. Historical OmO allocation/swap growth remains unresolved.
+The next visible increment must reuse the existing shared Material editor/control
+owners, expose saved proposals and retained generation recovery without an
+optional provider, and verify real desktop/narrow source-grounded workflows.
+
+Shared generation checkpoint87c73fe2 is committed/pushed on the same stacked
+draft. Automatically triggered gates: foundation40707752973,
+desktop40707752998 and mobile40707752976, under final-only observers1521–1523.
+Proposal42d13e66 mobile40703061767 ended cancelled with no jobs reported;
+it supplies no platform verification verdict. Bulk134fac93 Android122851408995
+passed; iOS122851408394 was still running on readback and has observer1519.
+No workflow was manually rerun or cancelled.
+Before the first proposal-review presentation edit, a serial native-example
+rebuild/web export will capture the unchanged Material grid and existing shared
+editor at1100/390 widths in the retained isolated corpus profile. The current
+normal preview PID2637, started October24, was inspected and reused, not
+restarted. Temporary capture scripts pass node syntax checks; their out-of-tree
+TypeScript LSP initialization remains unavailable. Capture tag:
+`generation-ui-before`; next log: `material-generation-ui-baseline.log`.
+No application UI source has changed in this increment yet.
+
+Pre-edit run1524 passed native-example build, web export and all four fresh
+Material grid/editor captures at1100/390 widths; all four frames were inspected.
+The actual retained corpus still has seven authored entries. Native QA binary
+SHA256:de537b9b71f328e478080ca5ef5b362597933c44d8e87dad9f1a3f822434326b.
+It includes87c73fe2 and migrations18/19, not the earlier bulk-only binary.
+Log: `material-generation-ui-baseline.log`; frames `generation-ui-before-*`.
+Cleanup sample: footprint1612051584, available7910965248, pressure1,
+swapUsed3959095296, unchanged swapOut71340490752.
+
+The first presentation change extracts existing authored fields/examples and
+read-only source/sense references into controlled `MaterialFields`, reusing the
+same semantic controls, labels, limits and spacing in the ordinary editor.
+Phrase edits still revoke explicit audio target bindings; staged media and
+native save ownership remain in MaterialEditor. This is the field owner for the
+upcoming proposal editor, not a second authoring authority. Both touched UI files
+have clean LSP diagnostics. Typecheck/lint, draft guard, all20 existing editor
+interactions and fresh desktop/narrow renders must pass before the next visible
+change. Log: `material-fields-ui-verify.log`; capture tag `material-fields-after`.
+The proposal-review controls and source entry points are still unimplemented.
+
+Exact bulk134fac93 iOS122851408394 failed at2026-10-28T14:40:50Z:
+`Assertion is false: id: m01-watch, mp4 is not visible`. Its native failed-step
+log was retrieved; Android passed. This is not a platform acceptance pass or a
+diagnosed common cause. Generation87c73fe2 desktop40707752998 passed; its other
+hosted gates remain under their existing final-only observers.
+
+Exact selection910aac71 iOS122818462698 failed at
+2026-10-28T13:38:50Z: `Assertion is false: id: m01-watch, mp4 is not visible`.
+This was retrieved from the failed job log, not inferred from its step name.
+Bulk134fac93 mobile40697502478 observer timed out; actual readback has both
+iOS122851408394 and Android122851408995 still running. Final-only observer1510
+was renewed without rerunning the workflow or launching a device.
+
+910aac71 mobile40685089625 observer timed out; actual readback has
+Android122818463123 passing and iOS122818462698 still running. Renew only its
+final-verdict observer, not the workflow.
+
+Exact 8eec14d hosted gates: real desktop 40629230952 passed. Foundation
+40629230889 also passed; mobile 40629230832 is pending under observer 1330;
+no extra workflow was dispatched. The working tree retains only the four
+original untracked files plus this continuation record and the new Material
+collection test and current Material integration edits. Guarded baseline 1331
+seeded 52 actual authored entries without a prepared catalog and failed at the
+absent count. Its actual pre-edit desktop frame was inspected. Material now uses
+the same native collection API for count, sort, text/source/exclusion predicates
+and opaque paging, without changing its authoring/source-return owner. Saving
+resets the cursor and a removed opener restores focus to the real heading.
+Targeted run 1332 passed: typecheck/lint/export, the real-native paging/edit/
+exclusion/restart flow and all 20 existing desktop/narrow Material interaction
+tests (8.2 seconds). The fixture transport now returns the typed collection
+response; its original assertions and request budgets are preserved.
+The fresh 1080x900 and 390x844 native-backed captures were inspected: real
+24-of-52/51 counts, fitting sort controls and rows, working edit/exclusion,
+first-page/focus reset and durable membership. All owned processes were absent
+in 1333; the guard remained healthy at 4.66 GB projected headroom, pressure 1,
+declining swap. MaterialScreen LSP was clean; the new test's freshness timeout
+was not labeled a clean diagnostic.
+Material's final card-grid reference conformity remains open, not inferred from
+the current functional list or the other surface's My learning reference.
+Before a new deliberate Material reference capture, revision
+`1ab95600bee97017635afe538af4e890e0cded3a` and its clean tracked source were
+rechecked, ports 3000/7752/7753/9229 were free, and only selected settings from
+the retained isolated profile were inspected: selected UI, Dark Quartz,
+Japanese, OCR/voice/LLM disabled. Nothing was automatically restarted.
+The functional Material increment is committed/pushed at
+`34da32d4f1d7896efaab04702f0ed77cda7f44f2`. Its foundation 40632466774 and
+desktop 40632466768 gates passed; mobile 40632466908 remains pending.
+Older 8eec14d mobile 40629230832 failed. Android job 122621426915 passed.
+iOS job 122621426713 failed `Exercise actual iOS UI and Rust persistence`;
+its retrieved log confirms the unchanged Watch assertion at 04:48:54 UTC on
+October 28: `id: m01-watch, mp4 is not visible`. Fixture-copy commands appear
+in that same failed-step log. No diagnostic variant or rerun was launched.
+Read-only final-verdict observer 1343 remains active for 34da32d.
+
+Deliberate reference job 1339 reached the real Material view, then its explicit
+pre-capture resource check rejected projected headroom 3613737876 below the
+unchanged 4294967296 reserve (OmO footprint 3562108008, pressure 1).
+It closed the owned app/process group, browser, servers and guard; 1341 confirmed
+no matching processes. No image or visual pass is claimed. Intermediate CI
+notifications have been silenced in replacement observers, and the next attempt
+will be launched last, after setup is complete, with a stronger 2560 MiB startup
+forecast and unchanged 1536 MiB running policy/4 GiB reserve. The normal isolated
+reference launch, real bridge window action, event subscriptions, measurements
+and cleanup are owned by `material-reference-capture.mjs` in the execution root.
+No product UI changed after its inspected passing render.
+Reference retry 1346 passed with stable physical footprint about 1.46 GB,
+pressure 1, flat/declining swap and 4.93/5.10 GB projected headroom. It closed
+all owned processes before notification; 1347 confirmed absence. Both actual
+empty-state images were inspected. At 1100x760 logical pixels the sidebar is
+220 px and toolbar is 880x89 with 24 px padding; at 390x844 the closed navigation
+uses a 49 px header and the toolbar is 177 px tall. No card geometry is claimed
+from an empty library.
+
+The next deliberate capture uses the same helper's `filled` mode: add only
+three fixtures through the reference's real modal and persisted authoring path,
+then measure/capture the actual cards at both widths. Existing empty images and
+profile data are preserved. The legacy Input's unattached visual label was
+confirmed in source; automation targets the actual placeholder-bearing control,
+not a DOM/state patch. Do not reproduce that accessibility defect in v3.
+Launch remains the last action under the stronger startup forecast and unchanged
+running policy; inspect results only after its owned cleanup.
+Filled attempt 1348 stayed healthy but failed before any authoring because its
+snapshot-metadata matcher did not identify Add Card. Its owned processes closed
+and 1349 confirmed absence. The driver now uses supported CSS locators rooted
+in the source-verified sidebar, actual form and actual modal footer. The fields,
+save action, persisted-card witness and all resource checks are unchanged.
+Filled job 1350 successfully authored and persisted the three fixtures through
+the real form. Its inspected desktop capture confirms two 408 px card columns,
+16 px gaps, 24 px grid/card padding, 12 px card radius, 24/36 lexical text,
+12/12 ruby and 14/19.6 translation text. The narrow image caught the responsive
+drawer mid-transition and is not valid final layout evidence. The driver now
+awaits the actual Web Animations completion after resize, bounded by a failure
+deadline, before measurement; it does not disable animation or stage the DOM.
+Job 1350 closed owned processes and kept pressure 1 with declining swap and
+4.76–4.80 GB phase headroom. The underlying OmO allocation remains unexplained.
+Settled capture 1351 passed and its narrow image was inspected: sidebar fully
+closed at x=-280, one 334 px card column. The legacy narrow bulk toolbar clips;
+that defect is not a responsive target. Cleanup receipt 1352 confirmed no owned
+reference processes/listeners. Material's first layout change now uses spacious
+shared Panels in a measured-width wrapping grid, shared entryTitle/caption Text
+roles, visible authored reading and compact real actions. Search/order/count
+and filters moved into the existing bounded header. No second visual edit
+may precede rendering/inspection at desktop and narrow widths. LSP reports no
+MaterialScreen errors; guarded typecheck/lint/export/native regression plus the
+existing Material interaction suite are next. Final sidebar/compositor fidelity
+and consuming-native verification remain open.
+Verification 1353 stopped before commands began: its first resource sample
+projected 3863592960 bytes headroom, below the unchanged 4 GiB reserve.
+No test/build result or rendered layout is claimed. The retry first waits for
+the existing admission policy's three safe samples, then runs the same guarded
+serial checks. Workload forecast and reserve are unchanged.
+Run 1354 passed typecheck, lint/architecture, web export and the actual native
+collection workflow (2.5 seconds). Both resulting images were inspected before
+the next visual edit: cards reflowed without overflow, but navigation/creation
+still occupied the main toolbar instead of the reference sidebar. The next
+change moves those existing controls into AppShell's existing navigation slot;
+it does not create alternate controls or state owners. At the intermediate
+test notification OmO footprint rose to 3239195776 bytes and the guard stopped
+before the editor suite (headroom 3373616918, pressure 1, unchanged swap).
+The suite is not claimed passing for this source. Retry notifications are
+final-only to avoid waking the active model during serial verification.
+AppShell's shared 200 px navigation differs from the reference's 220 px rail;
+native window/compositor and matched Japanese dark-state evidence stay open.
+Run 1355 completed with exit 0: typecheck, lint/architecture, export, native
+collection workflow (2.1 seconds), and all 20 existing Material interaction
+tests (8.1 seconds). Its desktop and narrow images were inspected: two card
+columns beside navigation on desktop, one column below wrapped navigation and
+controls at 390 px, with no clipping. Cleanup 1356 found no owned test/guard
+processes; `git diff --check` passed. This is native-core browser evidence,
+not consuming-native GUI certification. The final guard sample was pressure 1,
+footprint 1550005376, headroom 7021690880. Swap increased to 4594073600 and
+swapOut to 60105834496 during this interval; cause is not attributed or resolved.
+The fresh post-cleanup sample was footprint 3095262336, available 7175651328,
+pressure 1 and swapUsed 4577296384. Further substantial work requires fresh
+stable admission; no devices/models have been started.
+Committed 34da32d mobile run 40632466908 finished failed: Android job
+122638181427 passed; iOS job 122638181218 failed the actual UI/persistence
+step. Foundation/desktop passed. Exact iOS assertion retrieval is in 1358;
+no rerun or diagnostic variant has been dispatched.
+The retrieved assertion differs from the older missing-row failure:
+at 05:38:43 UTC on October 28, `Watch Inspector Knowledge and native source
+resume` failed after 6m32s with `Element not found: Text matching regex:
+Open local video, Enabled`. This remains an unresolved consuming-iOS failure.
+Next capture reuses the retained Japanese native profile, authors only three
+real Material fixtures through the normal editor, and captures the normal
+persisted dark theme at desktop/narrow widths. Its helper closes browser,
+native QA host and guard before final-only notification; the existing user
+preview on 4173 is read-only and remains untouched.
+Capture 1359 closed its owned workloads but failed before authoring because
+the reference driver assumed a Japanese option `aria-label` the actual web
+primitive does not retain. The primitive's installed source confirms an
+Item/textValue boundary. The retry reads actual rendered option text and ID,
+requires a unique Japanese option and clicks that existing node. This is a
+driver repair, not a product failure or a staged state; no dark image is yet
+claimed. Its resource samples stayed safe with flat swapOut and declining swap.
+Capture 1360 established the actual menu labels `English` and
+`Japanese · 日本語`; neither option has an ID. It again closed without
+authoring. Stop extending CSS assumptions: the separate Material capture now
+uses the installed Playwright accessibility locators from the passing native
+suite, selecting the real `/Japanese/` option and exercising the same editor.
+No dependencies, renderer DOM or native data are patched for capture.
+Capture 1361 completed with exit 0 through the existing Playwright accessibility
+harness. Both native-persisted Dark Quartz images were inspected after owned
+cleanup: two 418 px columns at 1100 and one 342 px column at 390, authored
+readings/meanings visible, long existing `able` definition wrapping correctly.
+The retained earlier `able` Material is preserved: the real count is four,
+not an artificially matched three. Three Japanese fixtures were authored through
+the normal editor. No metadata/content was fabricated for the screenshots.
+Phase headroom was 5.41 GB, pressure 1, flat swapOut 60256894976 and declining
+swap at cleanup; OmO footprint 3657561216 remains unexplained. Diff/cleanup
+1362 and 1363 inspected the actual product change; no owned capture processes
+remained. Functional tests are from 1355; no product edit followed those tests.
+This connected increment is `verified_for_continuation`, not full visual or
+native acceptance. Sidebar width (200 versus 220), native materials and broader
+M10 controls remain explicit follow-up gates; no M11 transition is authorized
+until M10 passes its gates. Continue compound filter membership next.
+Material layout checkpoint is committed/pushed as
+`77c58abb7a21b9d225355120124f271921dee8e0`; only the four original untracked
+files remained afterward. Exact hosted runs are foundation 40640068424,
+desktop 40640068557 and mobile 40640068421, under read-only final observer
+1369. No workflow was manually dispatched.
+
+Compound-filter readiness: auditing the SQL owner found potentially nullable
+equality in source and target-kind predicates. Negation may drop source-free
+or unlinked Material rather than include it. A new owner-suite regression
+creates real linked/unlinked Material and checks both counts and membership;
+LSP is clean. Run it against unchanged product SQL before repair. This is
+still a hypothesis, not a confirmed defect. The serial helper's `filter`
+target runs only the storage collection suite with one Cargo build job,
+2048 MiB forecast, unchanged 4 GiB reserve and final-only notification.
+Baseline 1370 reproduced the native defect without product changes:
+`negated_source_and_kind_filters_include_unlinked_material` failed at
+collection.rs:688 with actual counts `[1, 0]`, expected `[2, 1]`.
+The repair changes only the nullable `source_id` and joined `entity_kind`
+comparisons to SQLite `IS`, making absence false before Boolean negation.
+LSP reports no errors. The entire collection owner suite is next; the
+regression remains unchanged and no acceptance assertion is weakened.
+Verification 1371 passed all 13 real-storage collection tests in 0.25 seconds,
+including the new red/green case and existing compound counts, paging,
+revision-conflict, unavailable-scope, migration and persistence coverage.
+Diff/cleanup 1372 confirmed the two SQL changes, unchanged original assertions
+(the edit hook reformatted four existing assertions only), clean whitespace,
+and no owned test/guard process. Post-cleanup footprint 3604460672, available
+6744621056, pressure 1, swapUsed 4524736512, swapOut 60321775616.
+This repairs native membership; the compound-filter controls are still pending.
+The native repair is committed/pushed at
+`92ad607aa053afcde49fbd303c6b849f0ab50701`. Exact hosted gates are foundation
+40640874535, desktop 40640874478 and mobile 40640874659, under final-only
+observer 1377. Earlier 77c58abb observation 1369 is retained, not canceled.
+
+Compound-filter implementation now has one shared CollectionFilters editor
+consumed by both Knowledge and Material, using existing shared controls.
+Draft all/any/not composition is presentation state; native SQL still owns
+membership. Package metadata supplies scope/level/kind/capability choices;
+bounded recent sources/documents supply source labels. Material adds a distinct
+collection language, retaining all-language browsing and its creation language.
+Apply/clear/language changes reset opaque paging and reject stale results.
+The UI retains native expression bounds with room for existing screen scope;
+no language-code dispatch or whole-profile evaluation was added.
+Knowledge/Material LSP found no errors; the new editor's freshness timeout is
+not a clean diagnostic. The existing real Material regression now exercises
+nested OR/AND/NOT: 19 exact entries, excludes entry-19, clears to 52, and captures
+expanded desktop/narrow controls before continuing original persistence checks.
+Render and inspect this connected change before any further visual edit.
+Run 1378 passed typecheck, then ownership lint stopped before export/render:
+Material imported the editor through Knowledge's private implementation path.
+The editor now has one `features/collection` owner and public index, consumed
+by both screens through that entry point. No ownership rule was changed.
+Rerun the same guarded checks/captures; no rendered-filter pass is yet claimed.
+Run 1379 passed typecheck, ownership lint, export, the real compound-filter/
+paging/edit/restart test (3.2 seconds) and all 20 Material interaction tests
+(8.4 seconds). Both expanded desktop/narrow images were inspected: the
+19-entry nested OR/AND/NOT query has exact membership, clear returns 52, and
+Apply/Clear remain reachable within the compact header's scrolling region.
+No further product UI edit followed those captures.
+The next serial QA reuses the retained prepared Japanese native profile, not
+a new corpus export. It selects collection language separately, applies a
+real package level and its negation on source-free Material, then level/scope/
+Knowledge predicates on Knowledge. Expected counts come from independent
+bounded native queries using the actual package metadata, not renderer
+evaluation. It captures both consumers at desktop/narrow widths in the
+persisted dark theme, then closes owned browser/native host/guard.
+Saved-source choice UI is still awaiting a real source-backed flow; existing
+Rust coverage is not being substituted for that remaining surface check.
+QA 1380 passed using actual package metadata: JLPT N1 Material count 0,
+negated level count 3; Knowledge JLPT N1 + JMdict + untracked Written
+recognition count 3093, matching independent bounded native queries.
+All four dark desktop/narrow captures were inspected. Compact controls use
+the existing independently scrolling header; the next captures explicitly
+scroll Apply into view rather than implying the truncated header is expanded
+evidence. Headroom stayed about 5.0 GB, pressure 1, flat swapOut and declining
+swap; owned cleanup completed before notification.
+The remaining source check will reuse the retained actual m01 MP4/SRT, obtain
+its real native cue and save that exact excerpt through the existing native
+Material command in the isolated QA profile. Source IDs, media/subtitle
+revisions and byte selection derive from that receipt, not fabricated anchors.
+It will exercise positive/negated saved-source UI membership and source-free
+retention. It also adds count-changing scope-negation/claimed-known cases to
+the Japanese UI check, so unchanged positive counts alone cannot certify the
+scope/state controls. No new media/model conversion or corpus export is needed.
+Source QA 1381 saved the exact real cue and rendered its positive count 1,
+but negation returned 0 and omitted source-free Material. Receipt 1382 found
+the cause: the reused `target/debug/examples/runtime_browser_qa` was built
+at 01:30:14+0100, before the SQL source edit at 06:52:46+0100. Its old SHA256
+was `7241b87ebf9b514d69e0b7dc98118a8bbf17033ae1eaeabe10c96ba74b17658c`.
+The storage test binary was current; this consuming QA executable was not.
+Do not count 1380/1381 as integration proof of the native SQL repair.
+Both positive source images were inspected after owned cleanup, but the full
+source workflow remains failed until rebuilt/retested. The guarded runner now
+explicitly builds `cargo build -p mlearn-runtime --example runtime_browser_qa`
+with one Cargo job before browser QA; source mode records the resulting hash
+and repeats the affected source and discriminating Knowledge flows. No product
+assertions or profile data were changed to hide this failure.
+Fresh-source QA 1383 passed after a 5.52-second serial runtime rebuild.
+Executable SHA256:
+`86f12be63649ce00e071ed37b8a7b4368e43a57b7878f1aa8fa6360b59ca1305`.
+Real saved-source filter count 1 and negated count 4 now agree with native
+membership and retain source-free Japanese Material. Source receipt:
+`material-5ea00ceee177058ca2c600c9931e60c534c44dd0e4bc77d0aa3d0193b7cc0e72`,
+cue 0, subtitle revision
+`f4f15b8c43016470724075b3e2b5ba9f0c32ffbb94fcf5a00d2bef2e8d6b710d`.
+Japanese scope negation and claimed-known selection each changed the count
+from 3093 to 0; restoring untracked returned 3093. New negative-source and
+Knowledge captures were inspected at both widths with compact Apply visible.
+Headroom stayed 4.86–5.11 GB, pressure 1, flat swap/swapOut; cleanup completed.
+The final targeted test addition exercises Excluded/Not Excluded via the actual
+shared selector after restart, then removes the focused condition with Enter
+and requires focus on the surviving group action. Run against unchanged UI
+first; no focus repair or passing claim is made yet. Only this changed native
+regression runs, reusing the already verified export and fresh QA executable.
+Run 1384 confirmed Excluded count 1 and negated count 51 after restart,
+then failed at line 113: removing the focused condition with Enter left the
+surviving group Add condition action inactive. The failure screenshot was
+inspected. The shared editor now retains live group-action refs, drops them
+on unmount and restores focus/accessibility focus to the surviving parent
+after removal. It does not apply an unsubmitted draft as a side effect.
+Both editor and test LSP diagnostics are clean. Re-export and rerun the
+unchanged regression plus the affected Material interaction suite next;
+package/source counts remain reusable because no predicate translation changed.
+Final filter run 1385 passed typecheck, ownership lint, export, current-source
+native QA build, the expanded native workflow (4.6 seconds), and all 20 existing
+Material interactions (8.5 seconds). The unchanged keyboard assertion now
+passes; removal keeps the applied 51-entry result until Apply explicitly
+returns all 52. The final narrow keyboard capture was inspected.
+Cleanup/diff receipt 1386 found no owned verification/browser/native/guard
+process and clean whitespace; the four original untracked files are preserved.
+Final guard: footprint 1552249984, pressure 1, headroom 5073305600, declining
+swapUsed 4222681088 and unchanged swapOut 60321775616. OmO allocation remains
+unexplained, not resolved by these bounded passing runs.
+Collection-filter behavior is `verified_for_continuation` (47/108 tracked items
+done), not M10/native GUI/visual acceptance. Next: bulk stable selection,
+supported add/edit/exclude/remove receipts, then grounded proposal review.
+
+### Native modifier gate follow-up — M10 still in progress
+
+Filters are committed/pushed at `a0e6c10acdd626b123c0365f2dcc417c29acddaf`.
+Its exact gates are foundation 40644740351, desktop 40644740447 and mobile
+40644740359 under observer 1391. Prior 92ad607 foundation passed; desktop
+40640874478 failed, and its mobile run was cancelled, not passed. Failed native
+job 122658452144 retained the original Shift-assisted pointer/Inspector
+assertion at 06:04:24 UTC on October 28. Its failure image and geometry were
+inspected: Children is visible and hit-testable, with no Inspector, but there
+is no native modifier-event trace from that run. No product cause is established.
+Artifact 12795363672 (54,718,970 bytes) is preserved under the owned execution
+root's `native-ci-92ad607`; no model/device was launched to inspect it.
+
+Earlier 77c58abb foundation/desktop passed. Mobile 40640068421 finished failed:
+Android job 122655898465 passed; iOS 122655898116 failed its UI/persistence
+step. Observer 1369's deadline was not a job verdict; continuation 1399 obtained
+the terminal parent result. No hosted run was manually restarted or cancelled.
+
+The original Inspector/no-new-claim assertions remain unchanged. The desktop
+test now subscribes to actual native key/pointer events before input, requires
+trusted Shift and mouse-entry delivery, moves through a real blank media point
+instead of window chrome, releases Shift immediately after entry, and retains
+up to 16 events in modifier-input.json. Listeners/timer are released in finally.
+Node syntax, both embedded browser programs, ownership lint and whitespace
+checks passed (1398/1401). Actual WebKitGTK execution is pending; this is not
+a claim that the native failure is repaired. No renderer behavior or policy
+was changed. A new tracked gate brings the ledger to 47/109.
+
+Bulk audit: current Material create/edit/capture receipts are the mutation owner;
+there is no core bulk/removal command yet. Collection filtering must remain the
+selection authority, with stable native membership rather than a renderer-wide
+library copy. Review admissions and authored-media references need retention
+proof before removal; current media unreferenced checks inspect material_assets.
+Do not delete learner claims/evidence or create a parallel learning owner.
+
+The goal tool still holds the blocked historical visual goal. Registering the
+new M10/M11 objective was rejected as an unfinished-goal conflict; it was not
+falsely marked complete. Continue the current authorization/checkpoint, not the
+obsolete goal's branch, milestone ceiling or resume workloads.
+
+### Knowledge presentation — verified local increment, M10 still open
+
+The new `/knowledge` route reads 24 bounded native targets, exact counts,
+package-selected annotation capability, native ordering and opaque continuation.
+Home and Material link to it. Shared AppShell gains an opt-in edge-to-edge
+content inset; existing callers retain their defaults. LinguisticWord owns
+lexical rendering and activation. Inspector now accepts an absent SourceAnchor:
+source-only actions are absent and ordinary capture preserves `source: null`.
+Messenger's contextual invalidation guard was updated for that explicit type.
+
+Actual isolated reference `1ab95600bee97017635afe538af4e890e0cded3a` was
+captured from My learning at 1100x760 logical pixels. The correct owners are
+`windows/wordDbEditor/App.tsx` and `WordDbEditorLayout.css`, not the unrelated
+conversation-memory browser. Reference and candidate captures are under
+`mlearn-m10-m11.VLSN0zAbpw` in the execution note. Candidate Knowledge was
+inspected at 1100 and 390 widths in light and native-persisted Dark Quartz;
+shared lexical typography and badge stretching were repaired through existing
+owners. Actual Japanese switching, search (`猫`: 147 entries) and descending
+native ordering worked. A duplicated fallback reading beneath shared ruby was
+removed; final desktop and narrow renders retain ruby without the repeated line.
+
+With the complete authenticated corpus profile, source-free `able` lookup,
+Written recognition claim and capture opened the original Material editor.
+Native receipt `material-a0153fb2e38e304e5c8c26e82c3f8b49717a3543f808642d848187f331e8f60e`
+has revision 1, target `wn30:a:00001740:able`, and `source: null`.
+The list deliberately displays the package-selected Meaning projection, not an
+invented aggregate of all capabilities.
+The first real-native `knowledge-native-core.spec.ts` run failed before any
+preparation request: a newly installed package returned `unavailable` with
+`This package has no prepared collection catalog`, while the UI offered Prepare
+only for an already-started `preparing` state. The completed manual-QA profile
+did not expose this defect. The UI now offers preparation in either state when
+the package actually declares a catalog. The unchanged native paging, claim,
+capture and restart regression then passed in 2.0 minutes, including fresh-install
+desktop/narrow captures and an explicit action-presence assertion.
+Later-page claim invalidation was found to dismiss Inspector prematurely.
+The verified repair defers collection refresh until Inspector closes, then
+resets the invalid cursor and restores focus to the real Knowledge heading.
+The real-native regression also verified that path and ordinary trigger focus
+after reopening. Typecheck, ownership lint and export passed on that source.
+The four existing Material source-return tests passed in desktop/narrow projects
+in 2.7 seconds. Those source-bound assertions were not changed.
+
+Final-source typecheck, ownership lint and export passed in run 1299. The only
+product change after the passing native workflow was suppressing the duplicate
+fallback reading when package ruby is present; English's unchanged path reuses
+that workflow evidence. Japanese's affected rendering was inspected at both
+widths: `knowledge-reading-final-1100-dark.png` (2200x1520, DPR 2) and
+`knowledge-reading-final-390-dark.png` (390x844, DPR 1). These are real native
+catalog results, not staged data or consuming-native window/material evidence.
+
+Resource incidents remain findings, not erased by the pass. Guards 1260, 1283,
+1288, 1298 and 1305 stopped for projected headroom; one export mistakenly started
+alongside a returned stop was killed and not counted. All owned processes were
+closed. A 3072 MiB speculative startup forecast held for 30 minutes without
+launching work. The final smaller capture used the original 2048 MiB admission
+and running guard, unchanged 4 GiB reserve, and explicit phase measurements in
+one background job. Its first text probe failed and was corrected to observe
+the actual count element; product code was unchanged.
+
+Final capture 1318 passed and closed browser/native/guard before notification.
+Pre-capture: OmO footprint 1567765608 bytes, available 6650707968, pressure 1,
+flat swap 3710582784, projected headroom 4503224320 above reserve 4294967296.
+Native main-process RSS was 169280 KiB; headless-shell main-process RSS was
+94768 KiB (not whole-tree totals). Post-cleanup available memory was 6958661632
+bytes with unchanged footprint/pressure/swap. PIDs 82822/82824 were absent.
+The original preview PID2637 remains untouched. Full measurements, failed
+attempts and captures are retained in the execution note/root. Unexplained OmO
+physical-footprint growth is not repaired or attributed to product inference.
+
+Material collection presentation, compound filters, remaining M10 flows,
+preparation-control UI recovery/cancellation and consuming-native GUI verification
+remain open. No M10 review/continuation or platform acceptance is claimed.
+
+Final scope audit found that the snapshot callback replaces an explicit missing
+package with the first installed language. A separate short native regression
+now exercises unavailable-scope retention and explicit replacement at desktop
+and narrow widths. Baseline 1320 reproduced the defect: the missing-package URL
+rendered English with no error. The one-line repair retains a nonempty requested
+package ID; only an initially unspecified scope chooses the first language.
+Run 1322 passed typecheck and lint, then export failed because the temporary
+runner supplied an empty `CI` environment value. After unsetting that value,
+1323 passed export and the native error/recovery test in 1.7 seconds. Its
+desktop/narrow captures were inspected: the unavailable scope remains visible,
+controls fit, and explicitly choosing English restores real preparation.
+Owned test processes and guard are closed (1324); memory checks stayed safe.
+The current exported bundle is `index-e75e1b012bad48abcd15c06848270333.js`.
+
+Exact42ff2f4 hosted receipts: foundation40615392019 and desktop40615391965
+passed. Native40615391983: Android122576576230 passed;
+iOS122576576574 failed its original Watch flow at
+`id: m01-watch, mp4 is not visible`. No diagnostic variant or rerun was launched.
+All three observer processes are terminal. This preserves the deferred iOS gap;
+it does not certify the uncommitted collection GUI on either mobile platform.
+
+### Native collection owner checkpoint — `3a5570d`
+
+Product/test source `3a5570d699f887f806835a30c691dc48b5fd66e5` adds the
+rebuildable package catalog and schema12 migration, shared native Boolean
+scope/level/capability/Material predicates, exact counts, bounded24-row/256KiB
+pages, deterministic text/due cursors and explicit revision conflicts.
+Saved Material remains readable across languages and without catalog metadata;
+catalog eviction preserves authored content and learner state. Point projection
+and collection status share the existing Knowledge authority, including claim
+precedence and active latest observations. Native selection types are contracts
+only; selection execution is not implemented by this checkpoint.
+
+The first new owner test reproduced a Unicode search mismatch (Material count6
+versus expected5). Material's existing text-index/input owner now uses Rust
+Unicode lowercase; migration repairs old cache rows in32-row windows without
+rewriting authored content, identity or revision.
+
+At this source, `cargo test --locked -p mlearn-storage -- --test-threads=1`
+passed all96 tests, including8 collection cases; `cargo check --locked -p
+mlearn-core --features typescript` passed. LSP and staged-diff checks were clean.
+These are real temporary-SQLite owner tests, not real-package corpus, runtime,
+desktop/mobile GUI or milestone evidence. Package producers, runtime/client
+integration, frozen selections/bulk actions, proposals, source search and
+evidence/graph/character surfaces remain open. No M10 continuation verdict or
+maintainer acceptance is claimed.
+
+Automatic CI at `d9753b6`: foundation run40577193503 passed. Real desktop
+run40577193516 failed on Ubuntu job122446665437 at the unchanged native smoke
+test's second `attach_subtitles` assertion (`native-smoke.mjs:812`): response type
+`error`, expected `source`. Its response payload was not printed, so the cause
+is unclassified, not assumed to be infrastructure or a pre-existing M07 defect.
+The assertion now retains that payload without changing its success condition.
+LSP and `node --check` pass; no diagnostic workflow variant or rerun was launched.
+Native-mobile run40577193378 completed: Android job122446665582 passed;
+iOS job122446665731 failed the original UI/persistence step with
+`Assertion is false: id: m01-watch, mp4 is not visible`. This matches the
+explicitly deferred picker failure retained below, not a passed iOS gate.
+All CI observation sessions are terminal. No iOS diagnostic variant was launched.
+Independent M10 implementation continues while the desktop failure stays open.
+
+### Indexed resource producer boundary — `f97e461`
+
+A generic `resource_keys` import provides literal prefix/keyset windows over
+authenticated SQLite resources: at most 64 keys, 256 UTF-8 bytes each, and
+128 KiB of encoded JSON. Binary primary-key ordering is
+required for this operation; existing point reads retain their behavior.
+Immutable snapshots, namespace boundaries, ranges, shared 1024-query/8 MiB
+budgets and charged capacity negotiation are covered by four passing real
+SQLite/Wasmi tests. All five SDK tests, including two new pointer/length adapter
+tests, pass under
+Miri default, strict-provenance/symbolic-alignment and explicit Tree Borrows
+configurations. Its Rust host-span model is not actual Wasm SDK execution.
+ASan passed all five SDK tests and all four SQLite/Wasmi cases, with Rust and bundled
+SQLite C instrumentation. The first C-link attempt failed on Apple's
+`___asan_version_mismatch_check_apple_clang_2100`; using the retained upstream
+NDK clang 18.0.2 for macOS 11 produced the compatible v8 guard and passed without
+disabling instrumentation, assertions or budgets. No emulator was started.
+Actual package catalog producers, opaque package-cursor persistence, runtime
+jobs and typed-client/UI integration remain
+unimplemented; this is not a collection feature or M10 continuation verdict.
+
+The serial SDK guards are stopped. Post-run OmO footprint 4031394944 bytes,
+available 5958828032, pressure 1, swapUsed 3857448960, swapOut 48338993152;
+disk available 23917652 KiB. The owned nightly toolchain remains under the
+registered runtime root until cleanup. Compiled `target/miri-sdk`,
+`target/asan-language-host` and the shared Miri compiler sysroot at
+`/Users/adrian/Library/Caches/org.rust-lang.miri` are retained as artifacts,
+not guessed-deleted as worker caches.
+
+### Catalog cursor and membership checkpoint — local `3c1a29c`
+
+The real producers require opaque package cursors, not numeric dictionary
+offsets. Japanese inline presentation also intentionally selects only the
+hardest JLPT level; that is not full source membership. The native contract
+now persists the package cursor atomically with processed ordinals and target
+rows, rejects stale or stalled progress, and indexes explicit level memberships
+separately from inline display.
+
+Schema 13 rebuilds only the old derived catalog cache. Tests retain Material,
+claims, receipts and preferences through the schema 12 upgrade and retained-table
+replays. The full storage suite passes all 99 tests, including 11 collection
+cases; the Core TypeScript-feature check and seven file diagnostics pass.
+Post-run OmO footprint 4037194880 bytes, available 6200639488, pressure 1,
+swapUsed 3832283136, swapOut 48338993152; disk available 23798092 KiB.
+The serial guard is stopped. This checkpoint is committed locally, not pushed;
+real package production, runtime jobs and client functionality remain open.
+
+At published `8a4f350`, foundation run 40592717257 and real desktop run
+40592717283 pass. Native-mobile run40592717267 completed: Android job
+122500776388 passed; original iOS job122500775895 failed at the unchanged
+Watch import assertion, `id: m01-watch, mp4 is not visible`. That is the
+retained deferred picker gap, not a passing iOS gate. All three original
+observers are terminal; no diagnostic workflow variant was launched. The
+desktop pass does not explain or close the earlier `d9753b6` subtitle error.
+
+All substantial local runs were serial and passed fresh three-sample1GiB
+admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
+available6143328256, pressure1, swapUsed3932946432 and swapOut48338993152;
+disk available25637364 KiB. Both temporary verification guards are stopped.
+The earlier transient OmO allocation spike remains unexplained; no product
+inference/device workload is blamed, and no such workload was launched.
+
+### Real package catalog producers — `98ba7fb`
+
+English0.1.4 and Japanese0.1.8 declare `collection.targets.v1`, with bounded
+package-owned keyset pages and stable existing target IDs. Optional catalog
+metadata is generated from Core; one validator serves native publication and
+cache admission. Inspection, dictionary batches and catalog rows reuse the same
+summary projection. Japanese retains all source level memberships separately
+from its unchanged hardest-level inline presentation. Source/model pins,
+licenses, resource codecs and executable-host policies are unchanged.
+
+Serial checks pass: English12 owner tests, Japanese26 plugin tests, all99
+storage tests, two existing real Japanese runtime workflows, and one new
+production-runtime test executing actual compiled SDK imports for both packages.
+The latter verifies replay, next-page identities and inspection equality for
+six targets per package; it is not full-corpus preparation evidence. WordNet's
+stored array lengths independently sum to its declared206978 targets, and all
+four POS values match its declared scopes. Architecture ownership, codegen,
+typed consumers and contract freshness pass. The existing catalog test file also has mechanical Rustfmt
+changes. JSON LSP is unavailable because Biome is absent; the existing package
+builder and Rust loader parsed and executed both manifests.
+
+Compiled Wasm SHA256: English
+`50166a12251dbf51c43386a2413bfeb59977f924050552ad45ad52df4ae475e8`;
+Japanese `d7690ea7c4ecb4e5472e41a8b17e33755ec90815bfcdbf801daa551a40b1ea89`.
+Both verification guards are stopped. Afterward OmO footprint4213699688,
+RSS3608870912, available8565817344, pressure1, swapUsed4111663104,
+swapOut50273304576. Footprint and swap rose during the serial work; keep
+monitoring the unexplained allocation trend before admitting another workload.
+A later idle sample decreased to footprint4173100136 with swap counters
+unchanged, available8129806336 and pressure1; this does not explain the earlier
+growth.
+Runtime preparation/cancellation/restart, full-corpus cache completion and
+typed-client/UI flows remain open. M10 is not complete or independently gated.
+
+### Optional metadata boundary repairs — `b7eeac0`, `a194be8`
+
+Both observed failures were reproduced before repair. At98ba, foundation
+run40603221309 Rust job122536239804 failed the existing ABI1 offline test:
+a retained three-method manifest plus the current compatible module made
+ordinary source analysis fail on its optional catalog metadata. `b7eeac0`
+withholds that optional metadata unless the authenticated manifest grants its
+method. The unchanged offline/source/claim/restart assertions now pass, with
+additional checks that no catalog is published and direct invocation is denied.
+
+`a194be8` keeps package-scoped saved Material readable during partial catalog
+preparation. Its new real-SQLite regression failed before repair. Knowledge
+and catalog-dependent predicates still return Preparing instead of partial
+counts. The full storage suite passes100 tests; ABI1 passes, eleven of twelve
+package-catalog cases pass (including the real SDK producer case), and both
+Japanese runtime workflows pass.
+
+The unchanged HTTP recovery test fails independently on Darwin at
+`catalog.rs:908`: server `shutdown(Both)` returns OS57/NotConnected, then its
+notification receiver disconnects. Isolated reproduction also fails before any
+language/collection operation. Its production owner `runtime/src/catalog.rs`
+has identical blob51ea8ba6 at8a4f350 and98ba; no assertion or product HTTP code
+was changed to hide it. This remains an open platform/test finding, not a
+passing full runtime suite. Source98ba real desktop CI passed40603221290;
+native-mobile40603221308 completed: Android122536239924 passed; original
+iOS122536239666 failed the deferred `m01-watch, mp4 is not visible` assertion.
+Its observers are closed, with no diagnostic variant.
+
+Guard1222 is stopped. Post-run footprint4182144128, RSS3275128832,
+available6568738816, pressure1, swapUsed4078108672, swapOut50273304576.
+Native preparation/client flows remain the next implementation work.
+
+### Native collection API and full corpora — `f3eea3c`, `3b9d49a`
+
+`f3eea3c` connects bounded native queries, package preparation, replayable command
+identity, independent status/cancel and generated typed clients. One native
+controller reuses the host blocking call, existing three-call admission and
+per-page guest admission; no scheduler, worker pool or database is duplicated.
+Publication checks package revision and shares the cancellation boundary.
+Authored Material remains readable without complete optional metadata.
+
+Actual DesktopDownloaded/authenticated-fixture QA through that typed client
+prepared all206978 English targets in110846ms and all218923 Japanese targets
+in278227ms. Both returned48 distinct identities across two sorted24-row query
+pages, exact untracked counts, unchanged pages after process restart and an
+identical replayed preparation outcome. English scopes counted146347 nouns,
+25047 verbs,30004 adjectives and5580 adverbs. Japanese's JMdict scope counted
+218923; package-owned JLPT memberships counted N1:3093,N2:1708,N3:1646,
+N4:610,N5:648. Compound level/untracked/unsaved counts matched; authored Material
+was genuinely empty. This is native-owner/transport evidence, not rendered GUI,
+mobile binary or maintainer acceptance.
+
+The initial Japanese24-entry page failed at18744 entries, cursor
+`entry/1207490`, on the unchanged64M fuel allowance. Its profile is retained.
+An exact source-window probe failed at24 and passed at12 using35.8M fuel;
+all24 single-entry probes passed. `3b9d49a` caps the package-owned effective
+page at12, advances Japanese to0.1.9 and preserves the native fuel guard.
+No core language branch, retry shim, source/model pin or assertion was changed.
+The complete fresh-profile run above proves the repaired corpus, not only the
+original failing window. Japanese Wasm SHA256 is
+`3c4d10904acd2b814830d809f164a4d67bdf1befd2589c85609c3a33892b8cd4`;
+English remains50166a12 and both dictionary asset hashes remain unchanged.
+
+Passing serial checks: storage100, runtime library52, ABI1 offline1, real
+Japanese runtime2, Japanese plugin27 and typed-client69 tests. The native
+commit-event test proves cancellation at24, restart/resume at48 and isolation
+from an old cancel command. Project typecheck, architecture and contract
+freshness pass. Existing ts-rs attribute and vendored Sudachi lifetime warnings
+remain visible, not suppressed. The earlier isolated Darwin HTTP shutdown
+failure and Windows native input failure above remain unresolved.
+
+Published a1d6092 automatic evidence: real desktop40605543357 passed.
+Foundation40605543383 Rust, web, detector and macOS passed; Windows theme
+job122545898220 failed `Incomplete native theme input` despite focused-editor
+telemetry. Mobile40605543386 Android122559113179 passed; original
+iOS122559112784 failed the deferred `m01-watch, mp4 is not visible` assertion.
+All source-a1d6092 observers are terminal and closed. These receipts do not
+certify the newer native collection API on mobile or close retained M07 gaps.
+
+All local QA hosts/fixture servers and guards are stopped. Before the repaired
+run, an idle OmO allocation spiked to13.313GB footprint with pressure2 after the
+probe had exited; no product/device workload is blamed. Its cause is still
+unexplained. Fresh admission subsequently showed stable footprint/pressure/swap.
+Final footprint2768860288, RSS7733395456, available7625752576, pressure1,
+swapUsed5432737792, swapOut52846051328; disk18604348KiB available.
+Continue fresh admission and bounded reads, not an RSS/peak-only decision.
+Queued-admission cancellation and actual collection UI/platform workflows
+remain part of the open M10 verification scope.
+
 ## Active authorization — sequential M03–M07 implementation
 
 On October 22 the maintainer authorized autonomous sequential M03–M07, with

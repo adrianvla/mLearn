@@ -38,6 +38,68 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Material authoring moves into the existing shared dialog, using the
+reference editor's measured768px desktop bound and the shared narrow inset,
+header, close control and independently scrolling body. Compact Previous,
+current-selection and Next controls remain inside the modal, along with the
+existing Home/Knowledge exits. The underlying collection is not replaced or
+remounted. MaterialEditor retains the single draft, staged-media and exact-write
+recovery owner above dialog visibility; item changes and dismissal request
+Save / Discard / Cancel from that owner. Pending writes cannot discard it.
+Heading focus, Tab to Close and exact originating-context/focus restoration
+remain required. Do not force-mount hidden native dialog Content or introduce
+a new store, modal implementation or navigation architecture.
+Primary action: save the current Material. Reading order: current item and
+switching controls, authored fields, then save/recovery feedback. Required
+content and existing Material/source/proposal actions remain. This is a bounded
+composition migration, not a new theme or a wider UI redesign.
+Long selected labels remain single-line in the shared select button while the
+accessible value stays complete. The switcher container yields its width to the
+adjacent Previous/Next controls rather than wrapping a long title into a form
+section. The actual390px capture and keyboard-switch scenario pass; native
+rendering remains a separate gate.
+
+Layout: direct Watch entry without an available runtime uses the same AppShell
+header/body composition as unavailable Review and Messenger. Home is the only
+action; the header identifies Watch, and the body exposes the host's actual
+unavailability reason as an alert. Existing shell, Row, Button and Text roles own
+spacing, theme, typography, wrapping and scrolling. No media workspace, opening
+indicator or retry action is mounted when opening cannot begin. Before captures
+are `unavailable-watch-red-results/` in the current orchestration root, at
+1080/390 pixels, showing the false permanent "Opening source..." state.
+
+Layout: unavailable Reader uses that same recovery composition, with Reader as
+the header identity, Home as the sole action and the real host reason in the
+body. AppShell owns theme, safe-area clearance and scroll bounds instead of the
+old feature-local fallback View. Before captures are `unavailable-reader-*.png`
+in `unavailable-watch-resume-results/`, at1080/390 pixels; the subsequent
+`unavailable-reader-red-results/` reproduces the missing heading. Empty source
+entry and available document/image workspaces keep their existing owners.
+
+Layout: Home, Knowledge and Material retain their existing shared compositions
+inside one lazy management tab navigator with no additional visible tab bar.
+The existing navigation controls switch those routes instead of constructing
+replacement collection screens. The root Stack still owns Reader, Watch,
+Review, Messenger and Settings; preserving management views must not retain
+activity media or inference work under a new tab lifetime. Query drafts,
+collection controls, paging and editor input remain presentation state in their
+existing screens, not a new store or saved-setting authority. The primary action,
+content hierarchy, materials, typography and scroll owners stay with those
+screens. Before captures are the four navigation PNGs from exact `32f9b18`,
+foundation 40849011822, showing searches cleared after a route switch.
+
+Layout: Knowledge evidence stays inside Inspector's bounded body scroll owner.
+The source-anchored header and shared footer remain in place; evidence replaces
+the dictionary body, not a second modal, sidebar or independent scrolling list.
+Back to entry restores the selected capability's claim controls. Primary action:
+inspect an attempt's details. Reading priorities are the native projection,
+the basis and limits of that projection, then newest-first observations.
+Required content: explicit claim, assessed self-report, prediction availability,
+aggregation rule, claim-history limits, active/undone state, original conditions,
+grade, time, material/probe/package/source provenance, and bounded paging with
+stop/retry/refresh. No confidence score, external-validation claim or fabricated
+claim timeline is added.
+
 Layout: Watch source overlays use the existing bounded media overlay row,
 with live dictionary cards taking remaining width and synchronization at the
 trailing edge even when those cards are closed. At compact widths the same
@@ -125,11 +187,152 @@ Source playback/context inspection remains the primary activity; sidebar
 search, navigation, capture, exclusion and practice remain real secondary
 actions. Preserve selectors, pending/error recovery and close/focus return.
 
+Transcript source navigation retains the player's actual paused position before
+its first cue jump. Reopening the same source's pane exposes Return to playback
+position beside search/navigation, using the same shared compact secondary
+Button and wrapping Row. The pane body remains its scroll owner at desktop and
+narrow widths; no floating player control or second saved-position owner is
+added. Return preserves the query, subtitle offset and playback rate. Pending
+cue navigation disables Return; unavailable playback leaves explicit recovery
+beside the initiating action rather than recording a successful jump.
+
 Match viewport, scale, theme, data, media time and state. Compare full windows and individual UI regions using 1:1 side-by-side and overlay/difference inspection, then exercise the real interactions. A numerical match dominated by the video background is not evidence of matched chrome. Do not mask UI differences, rebaseline to v3 or substitute generated/staged UI.
 
 Unimplemented capabilities or missing trustworthy reference states stay explicitly incomplete; no fake actions/data. Preserve responsive and native touch/keyboard behavior and the repaired native performance. Do not confuse accessibility containment, code review or successful builds with visual conformity.
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
+
+## Material collection, 2026-10-28
+
+Collection filters use the same disclosure/editor on Knowledge and Material.
+Primary action within the editor: Apply filters. Native membership/counts are
+the result, not renderer evaluation. Preserve nested Match all/Match any groups,
+per-group/condition Not, removal and explicit Clear; search and current
+source/exclusion controls remain conjunctive outside the draft expression.
+Package metadata owns scope, level, entity-kind and capability choices.
+Recent native video/document records own source labels, with an explicit
+recent-source limit. Material collection language is separate from creation
+language; all-language saved content remains the default and remains readable
+without a catalog. Changing collection language clears incompatible conditions.
+Layout: compound filter editor - nested Boolean conditions in bounded shell
+controls -> wrapping rows with neutral group indentation; scroll owner:
+AppShell header (compact), results remain in app-shell-content. Do not port
+legacy token parsing/evaluation into React or use raw feature-local controls.
+The collapsed Filters action is an intrinsic-width, right-aligned disclosure
+with the shared chevron and expanded semantics, not a filled full-width action
+bar. Its expanded editor retains full available width in both collections.
+The pre-filter Material captures are the baseline; expanded desktop/narrow
+capture and actual native predicate/count checks are required before another
+visible change.
+
+Layout: Material - compare authored items without nested list panels ->
+AppShell scroll-body shell with an intrinsic wrapping card grid; scroll owner:
+app-shell-content. The isolated running reference is
+`windows/flashcards/App.tsx` at `1ab95600bee97017635afe538af4e890e0cded3a`.
+Its populated captures show 280 px minimum tracks, 16 px gaps and 24 px grid
+and card insets. At 1100 px its 220 px sidebar leaves two 408 px cards.
+At 390 px it has one 334 px card after padding and scrollbar. Preserve the
+single-column intent, not its clipped narrow bulk controls. Do not introduce
+nested vertical scrolling or stretch a lone final card across empty columns.
+Pending, failure and preparation feedback occupies a status region only while
+present; an empty status wrapper must not reserve another inter-section gap
+between selection controls and the grid. Keep the same body scroll owner.
+
+Primary action: Add Material. Priorities: phrase and reading, meaning/context,
+then edit and source-return actions. Required content: native exact count,
+search, order, excluded/source filters, creation language, page navigation,
+refresh, editor, pending/error/retry and source return. Shared controls retain
+accessible labels and native touch targets. Use Panel's spacious material,
+entryTitle/caption/body Text roles and semantic spacing; feature code owns only
+the grid and wrapping geometry. Do not copy unsupported legacy speech, Sync,
+Generate or Suggested actions, or infer Knowledge status from authored data.
+The existing functional native-backed desktop/narrow captures are the before
+set; the populated reference images are `reference-material-filled-*-dark.png`
+in the current M10 execution evidence root. Native compositor material parity
+is not established by the transparent reference CDP canvas.
+
+## Knowledge collection, 2026-10-28
+
+Shared collection selection controls retain the native frozen handle, not a
+renderer copy of selected membership. Primary action in selection mode: select
+the intended scope before applying a bulk change. Priorities: exact selected
+count and package, current row membership, then recovery/release controls.
+Required content: select current filtered set, individual toggles, explicit
+clear, lost-receipt retry, retained selections, and pending/error feedback.
+Keep selection controls collapsed during ordinary browsing; no automatic
+selection or mutation occurs on navigation. Filter/order/page changes must not
+replace a frozen selection. Native jobs pin their selection until results clear.
+Layout: Knowledge and Material selection - keep scope beside the current
+results without enlarging the compact fixed header -> existing wrapping Row
+within app-shell-content; scroll owner: app-shell-content. Shared Button owns
+toggle, checked/pressed, keyboard, hover and touch semantics; Select owns
+retained-handle recovery. Do not add feature-local checkbox or clickable DOM.
+The fresh selection-before-material/knowledge captures at1100/390 widths in
+the current execution root are the before set. Actual native membership,
+refresh, restart and lost-receipt behavior must be exercised after integration.
+
+Bulk changes reuse this same selected handle. Primary action in the confirmation
+dialog: apply the named change to its frozen count. Addition states the package
+default-sense/source-free behavior; distinct creation is explicit. Editing
+replaces one chosen authored field, with empty replacement deliberate. Exclusion
+does not change Knowledge; removal warns that authored content is deleted while
+learner evidence and admitted Review work remain. Cancel is a separate action,
+never an Enter default for removal. Retained jobs expose real progress, per-item
+labels/outcomes, bounded pages, cancellation, explicit retry and result release.
+No automatic restart/resume or fake progress. Results and errors remain beside
+their operation. Layout: bulk controls/results - bounded recovery beside the
+initiating selection -> shared wrapping Rows and Dialog, not a new full-height
+pane; scroll owner: app-shell-content, with Dialog owning its own modal body.
+
+## Material proposal review, 2026-10-28
+
+Primary action: accept the reviewed proposal; while authored fields are dirty,
+save those edits before acceptance. Priorities: phrase and source grounding,
+editable authored content, then explicit acceptance/rejection and native job
+status. Required content: phrase, reading, meaning, context, notes, examples,
+original source reference, replacement revision, generation progress/errors,
+partial results, cancellation, exact retry, retained job/proposal recovery,
+bounded paging, source Return and saved Material access. Pending proposals and
+generated text are not learner evidence or committed Material.
+
+Reuse the existing Material editor's fields/source/sense composition as one
+controlled MaterialFields owner. Keep unsubmitted input in the editor; Rust
+retains proposals, identities, generation and admission. Shared TextField,
+Button, Text, Badge, Row, Panel and Dialog own all control/material behavior.
+Do not add an alternate palette, promotional descriptions, generated metrics,
+automatic acceptance or a second inference/settings owner.
+Layout: Material text editing - preserve existing field order and source
+reference -> existing stack in the Material editor; scroll owner:
+app-shell-content. No new nested vertical scroller or screen-local control skin.
+Layout: proposal review - bounded recovery and one inspected proposal -> shared
+Dialog list/detail composition; scroll owner: Dialog's body, with the underlying
+AppShell body inactive while modal. Preserve source order, focus restoration and
+single-column wrapping at narrow widths rather than a parallel full-height pane.
+The four `generation-ui-before-*` native-backed grid/editor captures at1100/390
+widths are the pre-edit set. The normal editor and the new proposal consumer must
+both render and pass their interaction checks after sharing the field owner.
+
+## Knowledge collection layout
+
+Layout: Knowledge - compare bounded lexical results beneath stable search and
+navigation -> the existing AppShell scroll-body shell; scroll owner:
+app-shell-content. Keep the header out of the result scroll, avoid nested
+vertical lists, and stack row columns below700px rather than overflowing.
+
+The isolated reference at `1ab95600bee97017635afe538af4e890e0cded3a`,
+`windows/wordDbEditor/App.tsx` and `WordDbEditorLayout.css`, supplies the dense
+list anatomy: word, translation, level, Knowledge, with12px vertical and16px
+horizontal row insets. Use shared body/caption roles, controls and theme
+materials, not feature-local clickable elements. The captured reference is
+`reference-knowledge-default.png` in the M10 execution evidence root.
+
+Primary action: inspect an entry. Priorities: lexical identity, meaning, then
+the package's level memberships and authoritative capability projections.
+Search, package selection, native sort and bounded page navigation remain
+controls; empty, preparation, unavailable and retry states stay beside them.
+Do not add progress metrics, fabricated source locations or unsupported study
+controls. Source-free inspection reuses Inspector with no SourceAnchor, and
+capture preserves that absence instead of inventing a source.
 
 ## Messenger composition, 2026-10-24
 
@@ -249,6 +452,19 @@ not a new screen-specific platform check. Mobile and ordinary browser hosts
 report zero and retain their existing header inset.
 
 ## Reader source flow, 2026-10-22
+
+Source search uses one compact Search action beside Contents, with the same
+icon-only treatment at narrow widths. Its shared Dialog owns one scrolling
+body; the source canvas stays inactive while it is open. Shared TextField,
+Button, Row and Text own query, result actions and status, with no local control
+skin. Results preserve literal source context and native page/byte coordinates.
+Search scope explicitly distinguishes canonical text from already recognized
+pages; missing recognition is unavailable coverage, not an empty match.
+Search results remain bounded and resumable. Opening a hit preserves the
+original reading position for an explicit Return action when search reopens.
+The `reader-search-before` captures at1100/390 in the current M10 evidence root
+are the pre-edit set; toolbar containment and actual source navigation must be
+checked after integration.
 
 The approved Reader images establish a compact stationary control rail, a
 separately scrolling source navigator, the large source canvas and a compact
@@ -507,6 +723,24 @@ Layout: Inspector dictionary - sense metadata and selection form one wrapping
 heading row above definitions; the existing dictionary body remains the vertical
 scroll owner. This preserves pronunciation, sense heading and definition order
 from the approved image without removing required INS-10 selection.
+Layout: Inspector graph - keep the existing bounded body, header and horizontal
+footer owners. The graph is a categorized detail list, not another scroll region
+or a separate Knowledge owner. Its primary action is inspecting an explicitly
+bound related target. Priorities are relation direction/category, package labels
+and properties, then the native capability projection. Entity/relation IDs,
+package field IDs and attribution remain available through one shared compact
+disclosure, Graph sources, instead of repeating technical provenance by default.
+Structured property records and relation qualifiers use that same disclosure,
+without interpreting package field names or guessing whether an opaque string
+is a learner-facing value. Scalar entity properties stay in the ordinary detail
+list; every qualifier, nested value and attribution remains available unchanged
+when expanded. The before set is the complete light/dark 1080/390 character
+grid/graph/source captures from exact `44bc9bd`, foundation 40841186176.
+Keep every identity/property/alternative/support distinction, structured value,
+target action, loading/stop/error/retry control and native page boundary.
+Use the existing media Text roles and disclosure Button, with no new palette,
+font system, decorative badges or cards. Before captures are the exact8b025be0
+hosted and macOS Rust-host/browser graph captures recorded in STATE.
 The attached correction
 popover owns its own bounded scroll region above the footer.
 Web backdrop layers sit beside interactive content rather than wrapping it.

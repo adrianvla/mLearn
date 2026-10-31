@@ -66,6 +66,7 @@ function material(value: unknown) {
       && (item.segment === null || item.segment.startMs < item.segment.endMs
         || assets.some(asset => object(asset) && asset.id === item.mediaId && asset.kind === 'image')));
 }
+export { material as isMaterial };
 function target(value: unknown) { return object(value) && text(value.packageId) && text(value.targetId); }
 function eligibility(value: unknown) {
   if (!object(value) || !target(value.target) || !object(value.availability)) return false;
@@ -75,7 +76,7 @@ function eligibility(value: unknown) {
     default: return false;
   }
 }
-export type MaterialResponse = Extract<Response, { type: 'materials' | 'material' | 'material_written' | 'material_captured'
+export type MaterialResponse = Extract<Response, { type: 'materials' | 'material' | 'material_written' | 'material_removed' | 'material_captured'
   | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' | 'image_material_source'
   | 'conversation_material_source' }>;
 /** Admit nested Material data from unknown before exposing generated Rust types. */
@@ -99,6 +100,9 @@ export function isMaterialResponse(value: unknown): value is MaterialResponse {
         && original.every((byte, index) => byte === context[index]);
     }
     case 'material': return material(value.material);
+    case 'material_removed':
+      return object(value.outcome) && text(value.outcome.id)
+        && uint(value.outcome.committedRevision) && value.outcome.committedRevision > 0;
     case 'materials': return object(value.page) && list(value.page.items, 24, material) && nullable(value.page.next, text);
     case 'material_written': {
       const result = value.outcome;

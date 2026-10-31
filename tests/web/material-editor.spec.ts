@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Material, MaterialEdit, SourceAnchor, SourceWindow } from '@mlearn/contracts';
+import type { CollectionQuery, Material, MaterialEdit, SourceAnchor, SourceWindow } from '@mlearn/contracts';
 import { initialTheme } from '../../packages/theme/src/theme';
 
 // Exercise the exported app, real shared controls and RuntimeClient. Only the
@@ -28,7 +28,7 @@ const sourceWindow: SourceWindow = {
 declare global {
   interface Window {
     __materialTest: {
-      requests: { type: string; id?: string }[];
+      requests: { type: string; id?: string; query?: Pick<CollectionQuery, 'surface'> }[];
       failOpen: boolean;
       failReturn: boolean;
       failList: boolean;
@@ -106,9 +106,13 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
                 { id: 'package', version: '1', displayName: 'Fixture language', capabilities: ['text.analyze.v1'] },
               ], availablePlugins: [], codePolicy: 'desktop', catalogConfigured: true,
             } });
-            case 'materials':
+            case 'collection':
+            case 'refresh_material_collection':
               if (state.failList) { state.failList = false; return failure('List unavailable'); }
-              return JSON.stringify({ type: 'materials', page: { items: materials, next: null } });
+              return JSON.stringify({ type: 'collection', result: { state: 'ready', page: {
+                items: materials.map(material => ({ kind: 'material', material, target: null, knowledge: [] })),
+                count: materials.length, next: null, previous: null, packageRevision: null, knowledgeRevision: 0, materialRevision: 1,
+              } } });
             case 'material':
               if (state.holdOpen) await new Promise<void>(resolve => { state.releaseOpen = resolve; });
               if (state.failOpen) { state.failOpen = false; return failure('Open unavailable'); }
@@ -136,7 +140,7 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
     });
   }, { materials: items, theme: initialTheme, anchor, sourceWindow, failOpen, audio });
   await page.goto(`${origin}/materials${selected}`);
-  await expect(page.getByRole('button', { name: 'Edit First', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit First', exact: true, includeHidden: true })).toBeAttached();
 }
 
 test('failed preview retries in the same editor without losing authored fields', async ({ page }) => {
@@ -203,16 +207,18 @@ test('failed opening retries that record without discarding the existing draft o
   await page.getByRole('button', { name: 'Edit First', exact: true }).click();
   await page.getByTestId('material-notes').fill('Unsaved notes');
   await page.evaluate(() => { window.__materialTest.failOpen = true; });
-  await page.getByRole('button', { name: 'Edit Second', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Material', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Open unavailable');
   await expect(page.getByTestId('material-notes')).toHaveValue('Unsaved notes');
-  await expect(page.getByRole('button', { name: 'Edit First', exact: true })).toBeVisible();
+  await expect(page.getByTestId('material-card-material-0')).toBeAttached();
   await expect(page.getByRole('button', { name: 'Retry Material list', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Retry opening Material', exact: true }).click();
+  await page.getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page.getByTestId('material-phrase')).toHaveValue('Second');
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').map(item => item.id)))
     .toEqual(['material-0', 'material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });
 
 test('editor source retry is beside its action and preserves fields until real navigation', async ({ page }, testInfo) => {
@@ -242,14 +248,18 @@ test('list recovery preserves an open draft and repeats only the list request', 
   await start(page);
   await page.getByRole('button', { name: 'Edit First', exact: true }).click();
   await page.getByTestId('material-notes').fill('Draft survives list recovery');
+  await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
   await page.evaluate(() => { window.__materialTest.failList = true; });
-  await page.getByRole('button', { name: 'Refresh Material', exact: true }).click();
+  await page.getByRole('button', { name: 'Material', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('List unavailable');
-  await expect(page.getByRole('button', { name: 'Edit Second', exact: true })).toBeVisible();
+  await expect(page.getByTestId('material-card-material-1')).toBeAttached();
   await page.getByRole('button', { name: 'Retry Material list', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByTestId('material-notes')).toHaveValue('Draft survives list recovery');
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(3);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item =>
+    item.type === 'collection' && item.query?.surface === 'material').length)).toBe(3);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item =>
+    item.type === 'collection' && item.query?.surface === 'knowledge').length)).toBe(1);
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').length)).toBe(1);
 });
 
@@ -258,11 +268,11 @@ test('closing while another record opens rejects its late editor publication', a
   const first = page.getByRole('button', { name: 'Edit First', exact: true });
   await first.click();
   await page.evaluate(() => { window.__materialTest.holdOpen = true; });
-  await page.getByRole('button', { name: 'Edit Second', exact: true }).click();
+  await page.getByRole('button', { name: 'Next Material', exact: true }).click();
   await page.waitForFunction(() => !!window.__materialTest.releaseOpen);
   await expect(page.getByText('Opening Material…', { exact: true })).toBeVisible();
   await expect(page.getByText('Loading Material…', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Search Material', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Search Material', exact: true, includeHidden: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Close editor', exact: true }).click();
   await expect(first).toBeFocused();
   await page.evaluate(() => { window.__materialTest.holdOpen = false; window.__materialTest.releaseOpen?.(); });
@@ -270,6 +280,55 @@ test('closing while another record opens rejects its late editor publication', a
   await page.getByRole('button', { name: 'Refresh Material', exact: true }).click();
   await expect(page.getByText('Loading Material…', { exact: true })).toHaveCount(0);
   await expect(page.getByTestId('material-phrase')).toHaveCount(0);
+});
+
+test('direct-entry switching keeps the current item and saved label across Knowledge navigation', async ({ page }) => {
+  await start(page, '?id=material-0');
+  await expect(page.getByTestId('material-phrase')).toHaveValue('First');
+  await page.getByRole('button', { name: 'Next Material', exact: true }).click();
+  await expect(page.getByTestId('material-phrase')).toHaveValue('Second');
+  await page.getByTestId('material-phrase').fill('Second renamed');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: /^Current Material selection:/ })).toHaveText('Second renamed');
+  await page.getByTestId('material-notes').fill('Retained current-item draft');
+  await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+  await page.getByRole('button', { name: 'Material', exact: true }).click();
+  await expect(page.getByTestId('material-phrase')).toHaveValue('Second renamed');
+  await expect(page.getByTestId('material-notes')).toHaveValue('Retained current-item draft');
+  await expect(page.getByRole('button', { name: 'Discard', exact: true })).toHaveCount(0);
+});
+
+test('a long Material label keeps switching controls compact and keyboard accessible', async ({ page }, info) => {
+  await start(page);
+  await page.getByRole('button', { name: 'Edit First', exact: true }).click();
+  const phrase = 'A long Material title '.repeat(24).trim();
+  await page.getByTestId('material-phrase').fill(phrase);
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  const selected = page.getByRole('combobox', { name: /^Current Material selection:/ });
+  await expect(selected).toHaveText(phrase);
+  for (const width of [1080, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await selected.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`material-long-selection-${width}.png`) });
+    const bounds = await selected.boundingBox();
+    const dialog = await page.getByRole('dialog', { name: 'Edit Material', exact: true }).boundingBox();
+    if (!bounds || !dialog) throw new Error('Material switcher has no visible bounds');
+    expect(bounds.height, 'A selection label must not displace the editing workflow').toBeLessThan(900 / 4);
+    expect(bounds.x).toBeGreaterThanOrEqual(dialog.x);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(dialog.x + dialog.width);
+    for (const label of ['Previous Material', 'Next Material']) {
+      const button = await page.getByRole('button', { name: label, exact: true }).boundingBox();
+      if (!button) throw new Error(`${label} has no visible bounds`);
+      const overlapWidth = Math.min(bounds.x + bounds.width, button.x + button.width) - Math.max(bounds.x, button.x);
+      const overlapHeight = Math.min(bounds.y + bounds.height, button.y + button.height) - Math.max(bounds.y, button.y);
+      expect(overlapWidth <= 0 || overlapHeight <= 0, `${label} must not overlap the selection`).toBe(true);
+    }
+  }
+  await selected.focus();
+  await selected.press('Space');
+  await page.getByRole('option', { name: 'Second', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('material-phrase')).toHaveValue('Second');
 });
 
 test('direct-route open failure leaves the list available and retries the selected record', async ({ page }) => {
@@ -281,7 +340,7 @@ test('direct-route open failure leaves the list available and retries the select
   await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeFocused();
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'material').map(item => item.id)))
     .toEqual(['material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });
 
 test('list source retry repeats the initiating record rather than reloading the list', async ({ page }) => {
@@ -294,5 +353,5 @@ test('list source retry repeats the initiating record rather than reloading the 
   await navigated;
   expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'return_material_source').map(item => item.id)))
     .toEqual(['material-1', 'material-1']);
-  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'materials').length)).toBe(1);
+  expect(await page.evaluate(() => window.__materialTest.requests.filter(item => item.type === 'collection').length)).toBe(1);
 });

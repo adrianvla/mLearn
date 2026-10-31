@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
+    GraphNeighborhood {
+        query: crate::GraphQuery,
+    },
     Conversation {
         command: crate::ConversationCommand,
     },
@@ -113,6 +116,12 @@ pub enum Request {
         source_id: String,
         after: Option<u32>,
     },
+    SearchDocument {
+        query: crate::DocumentSearchQuery,
+    },
+    ReturnSourceAnchor {
+        anchor: crate::SourceAnchor,
+    },
     CheckpointDocument {
         checkpoint: crate::DocumentCheckpoint,
     },
@@ -162,11 +171,41 @@ pub enum Request {
     Material {
         id: MaterialId,
     },
+    MaterialProposals {
+        query: crate::MaterialProposalQuery,
+    },
+    MaterialGeneration {
+        id: crate::GenerationId,
+    },
+    MaterialGenerations {
+        after: Option<crate::GenerationId>,
+    },
+    CollectMaterialGeneration {
+        id: crate::GenerationId,
+    },
+    MaterialProposal {
+        id: crate::MaterialProposalId,
+    },
+    SuggestMaterial {
+        command: crate::MaterialSuggestion,
+    },
+    ReviewMaterialProposal {
+        command: crate::MaterialProposalReview,
+    },
+    ReturnMaterialProposalSource {
+        id: crate::MaterialProposalId,
+    },
     CreateMaterial {
         command: MaterialCreate,
     },
     UpdateMaterial {
         command: MaterialEdit,
+    },
+    RemoveMaterial {
+        command: crate::MaterialRemove,
+    },
+    MaterialBulk {
+        command: crate::MaterialBulkCommand,
     },
     CaptureMaterials {
         batch: MaterialCaptureBatch,
@@ -273,6 +312,46 @@ pub enum Request {
         #[serde(rename = "packageId")]
         package_id: String,
     },
+    Collection {
+        query: crate::CollectionQuery,
+    },
+    /// Explicitly refresh a Material view's existing native bookmark after edits.
+    /// Ordinary Collection continuation remains revision-bound.
+    RefreshMaterialCollection {
+        query: crate::CollectionQuery,
+    },
+    CreateCollectionSelection {
+        command: crate::CollectionSelectionCreate,
+    },
+    CollectionSelection {
+        id: crate::CollectionSelectionId,
+    },
+    CollectionSelections,
+    CollectionSelectionMembership {
+        id: crate::CollectionSelectionId,
+        #[serde(rename = "packageId")]
+        package_id: Option<String>,
+        surface: crate::CollectionSurface,
+        items: Vec<crate::CollectionItemId>,
+    },
+    CollectionSelectionPage {
+        id: crate::CollectionSelectionId,
+        after: Option<String>,
+    },
+    ReleaseCollectionSelection {
+        id: crate::CollectionSelectionId,
+    },
+    PrepareCollection {
+        command: crate::CollectionPreparationCommand,
+    },
+    CollectionPreparationStatus {
+        #[serde(rename = "commandId")]
+        command_id: Option<String>,
+    },
+    CancelCollectionPreparation {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
     InspectTarget {
         #[serde(rename = "packageId")]
         package_id: String,
@@ -293,6 +372,9 @@ pub enum Request {
     },
     Knowledge {
         keys: Vec<KnowledgeKey>,
+    },
+    KnowledgeEvidence {
+        query: crate::KnowledgeEvidenceQuery,
     },
     ChangeClaim {
         change: ClaimChange,

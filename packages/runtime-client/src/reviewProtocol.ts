@@ -1,4 +1,4 @@
-import type { PracticeItem, Response, ReviewCommand, ReviewEncounter, ReviewMode, ReviewSession } from '@mlearn/contracts';
+import type { PracticeItem, Response, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession } from '@mlearn/contracts';
 import { encodedBytes, isSourceAnchor } from './materialProtocol';
 
 const encoder = new TextEncoder();
@@ -24,6 +24,18 @@ const assistance = (value: unknown): value is string =>
   member(value, ['inspector', 'source', 'prior_disclosure', 'repeated_exposure']);
 const delivery = (value: unknown): value is string =>
   member(value, ['not_required', 'pending', 'started', 'completed', 'interrupted', 'failed']);
+export function isReviewConditions(value: unknown): value is ReviewConditions {
+  return record(value, ['revealed', 'exposureCount', 'assistance', 'delivery'])
+    && typeof value.revealed === 'boolean' && uint(value.exposureCount)
+    && list(value.assistance, 4, assistance) && new Set(value.assistance).size === value.assistance.length
+    && delivery(value.delivery);
+}
+export function isReviewGrade(value: unknown): value is ReviewGrade {
+  return record(value, ['targetId', 'quality', 'method', 'easy']) && text(value.targetId, 256)
+    && nullable(value.quality, item => member(item, ['missed', 'struggled', 'fluent']))
+    && member(value.method, ['remembered', 'worked_out']) && typeof value.easy === 'boolean'
+    && (!value.easy || value.quality === 'fluent');
+}
 function key(value: unknown): value is { packageId: string; targetId: string; capability: string } {
   return record(value, ['packageId', 'targetId', 'capability'])
     && text(value.packageId) && text(value.targetId) && text(value.capability);
@@ -61,11 +73,9 @@ function encounter(value: unknown): value is ReviewEncounter {
     || !list(value.targets, 32, target) || !value.targets.length || !list(value.supplied, 64, key)
     || !nullable(value.requiredMedia, text) || !nullable(value.source, isSourceAnchor)
     || typeof value.correction !== 'boolean'
-    || !record(value.conditions, ['revealed', 'exposureCount', 'assistance', 'delivery'])) return false;
+    || !isReviewConditions(value.conditions)) return false;
   const conditions = value.conditions;
-  if (typeof conditions.revealed !== 'boolean' || !uint(conditions.exposureCount)
-    || !list(conditions.assistance, 4, assistance) || new Set(conditions.assistance).size !== conditions.assistance.length
-    || !delivery(conditions.delivery) || conditions.revealed !== (value.answer !== null)
+  if (conditions.revealed !== (value.answer !== null)
     || value.correction && !conditions.revealed
     || new Set(value.targets.map(row => row.id)).size !== value.targets.length) return false;
   const tested = value.targets.flatMap(row => row.key === null ? [] : [keyId(row.key)]);
@@ -98,11 +108,7 @@ function mutation(value: unknown) {
 }
 function response(value: unknown) {
   return record(value, ['encounterId', 'grades']) && text(value.encounterId)
-    && list(value.grades, 32, (row): row is Record<string, unknown> =>
-      record(row, ['targetId', 'quality', 'method', 'easy']) && text(row.targetId, 256)
-      && nullable(row.quality, item => member(item, ['missed', 'struggled', 'fluent']))
-      && member(row.method, ['remembered', 'worked_out']) && typeof row.easy === 'boolean'
-      && (!row.easy || row.quality === 'fluent'))
+    && list(value.grades, 32, isReviewGrade)
     && value.grades.length > 0 && new Set(value.grades.map(row => row.targetId)).size === value.grades.length;
 }
 export function isReviewCommand(value: unknown): value is ReviewCommand {

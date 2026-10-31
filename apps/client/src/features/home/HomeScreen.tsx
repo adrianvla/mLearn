@@ -39,14 +39,20 @@ export function HomeScreen() {
     useFocusEffect(useCallback(() => {
         let active = true;
         if (host.available)
-            Promise.all([host.client.snapshot(), host.client.recentSources(), host.client.recentDocuments()]).then(([s, r, d]) => {
+            void (async () => {
+                // The client serializes reads; admit follow-ups only while focused.
+                const s = await host.client.snapshot();
+                if (!active) return;
+                const r = await host.client.recentSources();
+                if (!active) return;
+                const d = await host.client.recentDocuments();
                 if (active) {
                     setSnapshot(s);
                     setSources(r);
                     setDocuments(d);
                     setSelected(value => value || s.installedPlugins.find(p => p.capabilities.includes('text.analyze.v1'))?.id || '');
                 }
-            }).catch(e => {
+            })().catch(e => {
                 if (active)
                     setError(e.message);
             });
@@ -77,7 +83,9 @@ export function HomeScreen() {
       </View>
       <Row>
         <Button label="Settings" icon="settings" size="compact" variant="quiet" onPress={() => router.push('/settings')} />
-        <Button label="Material" size="compact" variant="quiet" onPress={() => router.push('../materials')} />
+        <Button label="Knowledge" size="compact" variant="quiet"
+          onPress={() => router.navigate({ pathname: '/knowledge', params: { packageId: selected } })} />
+        <Button label="Material" size="compact" variant="quiet" onPress={() => router.navigate('/materials')} />
         <Button label="Get language packages" icon="package" size="compact" variant="quiet"
           onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
       </Row>

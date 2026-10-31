@@ -5,8 +5,8 @@ use crate::{
     execution::{Cancellation, Failure},
 };
 use mlearn_core::{
-    AnalyzedToken, ClaimChange, DictionaryResult, LanguageDescription, LexicalEntry,
-    LexicalSummary, Response, SourceRecord,
+    AnalyzedToken, ClaimChange, DictionaryResult, LanguageDescription, LexicalEntry, Response,
+    SourceRecord,
 };
 use serde_json::Value;
 use std::{path::PathBuf, sync::Arc};
@@ -59,6 +59,7 @@ pub(super) enum LanguageAction {
     Inspect {
         target_id: String,
     },
+    Graph(mlearn_core::GraphQuery),
     Summaries {
         source: SourceRecord,
         targets: Vec<String>,
@@ -78,6 +79,7 @@ pub(super) enum GuestOutput {
     Document(Box<crate::document_import::PreparedDocument>),
     Description(LanguageDescription),
     Entry(LexicalEntry),
+    Graph(mlearn_core::GraphNeighborhood),
     Dictionary(Vec<DictionaryResult>),
     Analysis {
         tokens: Option<Vec<Vec<AnalyzedToken>>>,
@@ -153,33 +155,16 @@ impl GuestWork {
                     LanguageAction::Inspect { target_id } => {
                         GuestOutput::Entry(work.entry(target_id)?)
                     }
+                    LanguageAction::Graph(query) => GuestOutput::Graph(work.graph(query)?),
                     LanguageAction::Summaries { targets, .. } => {
                         let schema = work.description()?;
                         let mut items = Vec::new();
                         for target in targets {
                             work.cancellation.check()?;
                             items.push(match work.entry_with_schema(target, &schema) {
-                                Ok(entry) => {
-                                    let summary = entry
-                                        .summary
-                                        .as_deref()
-                                        .unwrap_or(&entry.definition)
-                                        .lines()
-                                        .next()
-                                        .unwrap_or("")
-                                        .chars()
-                                        .take(512)
-                                        .collect::<String>();
-                                    DictionaryResult::Available {
-                                        summary: LexicalSummary {
-                                            target_id: entry.target_id,
-                                            headword: entry.headword,
-                                            reading: entry.reading,
-                                            summary,
-                                            presentation: entry.presentation,
-                                        },
-                                    }
-                                }
+                                Ok(entry) => DictionaryResult::Available {
+                                    summary: entry.into(),
+                                },
                                 Err(Failure::Cancelled) => return Err(Failure::Cancelled),
                                 Err(error) => DictionaryResult::Unavailable {
                                     target_id: target.clone(),
@@ -263,6 +248,7 @@ impl GuestWork {
             Self::Review(_) => "learning.probes.v1",
             Self::Language(work) => match &work.action {
                 LanguageAction::Analyze(_) => "text.analyze.v1",
+                LanguageAction::Graph(_) => "graph.neighborhood.v1",
                 LanguageAction::Inspect { .. }
                 | LanguageAction::EditMaterial(_)
                 | LanguageAction::Capture { .. }

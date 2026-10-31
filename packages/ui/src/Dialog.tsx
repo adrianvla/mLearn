@@ -1,5 +1,5 @@
 import { createContext, useCallback, useEffect, useRef, useState, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
-import { AccessibilityInfo, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Platform, ScrollView, View, useWindowDimensions, type Text as NativeText } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
@@ -11,18 +11,25 @@ import { revealScrollFocus } from './scrollFocus';
 type Props = PropsWithChildren<{
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
   modal?: boolean;
+  size?: 'standard' | 'wide';
+  closeLabel?: string;
+  initialFocus?: 'control' | 'title';
   floatingControls?: (focusTarget: () => View | null) => ReactNode;
 } & ({ trigger: ReactElement; focusTarget?: () => View | null } | { trigger?: never; focusTarget: () => View | null })>;
 export const dialogSidebarWidth = 320;
 export const dialogSidebarBreakpoint = 720;
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
-export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls, presentation = 'dialog', modal = true }: Props) {
+export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls,
+  presentation = 'dialog', modal = true, size = 'standard', closeLabel = 'Close', initialFocus = 'control' }: Props) {
   const { height, width } = useWindowDimensions();
   const webSidebar = presentation === 'sidebar' && Platform.OS === 'web';
   const sidebar = webSidebar && width >= dialogSidebarBreakpoint;
   const { theme } = useUnistyles();
   const [portal, setPortal] = useState<HTMLElement | null>(null);
   const closeTarget = useRef<View>(null);
+  const titleTarget = useRef<NativeText>(null);
+  const focusedTitle = useRef(false);
+  useEffect(() => { if (!open) focusedTitle.current = false; }, [open]);
   const contentRef = useCallback((node: View | null) => {
     setPortal(Platform.OS === 'web' && typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null);
   }, []);
@@ -48,9 +55,11 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
           <KeyboardAvoidingView enabled={Platform.OS !== 'web'}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardFrame(sidebar)}>
-          <View style={[styles.bounds, sidebar && styles.sidebarBounds]}>
+          <View style={[styles.bounds(size === 'wide'), sidebar && styles.sidebarBounds]}>
             <Primitive.Content asChild
-              onOpenAutoFocus={sidebar && !modal ? event => event.preventDefault() : undefined}
+              onOpenAutoFocus={initialFocus === 'title' ? event => {
+                event.preventDefault(); titleTarget.current?.focus();
+              } : sidebar && !modal ? event => event.preventDefault() : undefined}
               onInteractOutside={sidebar && !modal ? event => event.preventDefault() : undefined}
               onCloseAutoFocus={focusTarget ? event => { event.preventDefault(); restoreFocus(); } : undefined}
               // Native Content claims the initial responder by default.
@@ -59,10 +68,17 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
               <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: sidebar ? theme.colors.background : theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={[styles.header, sidebar && styles.sidebarHeader]}>
                   <View style={styles.title}>
-                    <Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title>
+                    <Primitive.Title asChild><Text ref={titleTarget} accessibilityRole="header" accessible
+                      tabIndex={initialFocus === 'title' ? -1 : undefined}
+                      variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar} onLayout={() => {
+                        if (Platform.OS !== 'web' && open && initialFocus === 'title' && !focusedTitle.current) {
+                          const tag = findNodeHandle(titleTarget.current);
+                          if (tag) { focusedTitle.current = true; AccessibilityInfo.setAccessibilityFocus(tag); }
+                        }
+                      }}>{title}</Text></Primitive.Title>
                     {sidebar ? descriptionText : null}
                   </View>
-                  <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon={sidebar ? 'chevronDown' : 'close'} iconOnly variant="quiet" size="compact" /></Primitive.Close>
+                  <Primitive.Close asChild><Button ref={closeTarget} label={closeLabel} icon={sidebar ? 'chevronDown' : 'close'} iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
                 {!sidebar ? descriptionText : null}
                 <ScrollView onFocus={revealScrollFocus} style={styles.scroll} contentContainerStyle={styles.body(sidebar)} keyboardShouldPersistTaps="handled">
@@ -88,7 +104,7 @@ const styles = StyleSheet.create((theme) => ({
   // Style the native View itself: RN Primitives adds unstyled DOM wrappers on web.
   // A fixed web overlay must not move when focus scrolls the underlying page.
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.comfortable, backgroundColor: theme.scrim, _web: { position: 'fixed', zIndex: 1000 } },
-  bounds: { width: '100%', maxWidth: 640, maxHeight: '100%', flexShrink: 1 },
+  bounds: (wide: boolean) => ({ width: '100%', maxWidth: wide ? 768 : 640, maxHeight: '100%', flexShrink: 1 }),
   // RN Primitives' web overlay ref must remain a DOM-backed View, not the
   // KeyboardAvoidingView class instance. The keyboard owner stays inside it.
   keyboardFrame: (sidebar: boolean) => ({ flex: 1, width: sidebar ? dialogSidebarWidth : '100%',

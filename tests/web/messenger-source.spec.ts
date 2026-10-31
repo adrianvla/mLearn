@@ -1,7 +1,81 @@
 /// <reference types="node" />
-import { expect, type Route } from '@playwright/test';
+import { expect, type Response, type Route } from '@playwright/test';
 import { EventEmitter, once } from 'node:events';
 import { test, openNativeConversation } from './messenger-native-fixture';
+
+test('Home releases Messenger status polling without cancelling the native generation', async ({ page, nativeCore }) => {
+  test.setTimeout(60_000);
+  await page.clock.install({ time: new Date('2026-10-30T00:00:00Z') });
+  await openNativeConversation(page, nativeCore);
+  nativeCore.providerMode('hold');
+  const events = new EventEmitter();
+  let generationId = '';
+  let statusReads = 0;
+  let holdNext = false;
+  await page.route(`${nativeCore.url}/invoke`, async route => {
+    const payload = route.request().postDataJSON();
+    const command = typeof payload.args?.request === 'string' ? JSON.parse(payload.args.request).command : null;
+    if (command?.action !== 'read_generation') { await route.continue(); return; }
+    statusReads++;
+    if (!holdNext || generationId) { await route.continue(); return; }
+    const response = await route.fetch();
+    const value = JSON.parse((await response.json()).value);
+    expect(value).toMatchObject({ type: 'conversation', result: { kind: 'generation' } });
+    generationId = value.result.generation.id;
+    const released = once(events, 'released', { signal: AbortSignal.timeout(15000) });
+    events.emit('held');
+    await released;
+    await route.fulfill({ response });
+  });
+  const isStatusReceipt = (response: Response) => {
+    if (response.url() !== `${nativeCore.url}/invoke`) return false;
+    const payload = response.request().postDataJSON();
+    return typeof payload.args?.request === 'string'
+      && JSON.parse(payload.args.request).command?.action === 'read_generation';
+  };
+  const firstStatus = page.waitForResponse(isStatusReceipt);
+  const started = nativeCore.nextProviderStart();
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Keep generating while I visit Home.');
+  await composer.press('Enter');
+  await started;
+  await (await firstStatus).finished();
+  await expect(composer).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeEnabled();
+  const held = once(events, 'held', { signal: AbortSignal.timeout(15000) });
+  holdNext = true;
+  await held;
+  await page.clock.pauseAt(new Date('2026-10-30T01:00:00Z'));
+  const readsBeforeHome = statusReads;
+  const receipt = page.waitForResponse(isStatusReceipt);
+  try {
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+  } finally {
+    events.emit('released');
+  }
+  await (await receipt).finished();
+  // Timer cleanup is the behavior under test. Advance four polling periods,
+  // rather than waiting in wall time for an absence of network activity.
+  await page.clock.runFor(2400);
+  expect(statusReads).toBe(readsBeforeHome);
+  expect(nativeCore.metadata()).toMatchObject({ providerRequests: 1, activeProvider: true });
+  const saved = JSON.parse(await nativeCore.invoke('runtime_execute', {
+    request: JSON.stringify({ type: 'conversation', command: { action: 'read_generation', id: generationId } }),
+  }));
+  expect(saved).toMatchObject({ type: 'conversation', result: { kind: 'generation',
+    generation: { id: generationId, status: 'streaming' } } });
+
+  await page.clock.resume();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Coach', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeEnabled();
+  const closed = nativeCore.nextProviderClose();
+  await page.getByRole('button', { name: 'Stop', exact: true }).click();
+  await closed;
+  await expect(page.getByText(/· cancelled$/)).toBeVisible();
+  expect(nativeCore.metadata()).toMatchObject({ providerRequests: 1, activeProvider: false });
+});
 
 for (const loss of ['admission', 'owner validation', 'history validation'] as const) {
 for (const action of ['Stop', 'Close', 'Close pending', 'source replacement', 'reopen'] as const) {
@@ -190,6 +264,83 @@ test(`an edited question after ${terminal} is admitted with the new instruction`
   expect(nativeCore.metadata().providerRequests).toBe(3);
 });
 }
+
+test('opening accepted source proposals checkpoints the conversation and preserves management drafts', async ({ page, nativeCore }, info) => {
+  await openNativeConversation(page, nativeCore);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Material', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
+  const managementDraft = 'Unsubmitted search before accepting a source proposal';
+  await search.fill(managementDraft);
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+  await page.getByRole('button', { name: 'Coach', exact: true }).click();
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Give an example with children.');
+  await composer.press('Enter');
+  const analysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
+  await expect(analysis).toBeEnabled();
+  const unsent = 'Keep this unsent conversation draft after proposal acceptance.';
+  await composer.fill(unsent);
+  await analysis.click();
+  await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
+  await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Accepted source meaning.');
+  await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();
+  await proposals.getByRole('button', { name: 'Accept proposal', exact: true }).click();
+  await expect(proposals.getByTestId('material-proposal-result')).toContainText('Saved Material · committed revision 1');
+  await proposals.getByRole('button', { name: 'Open saved Material', exact: true }).click();
+  await expect(page.getByTestId('inspector-panel')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue('Accepted source meaning.');
+  await expect(page.getByRole('textbox', {
+    name: 'Search Material', exact: true, includeHidden: true,
+  })).toHaveValue(managementDraft);
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: info.outputPath(`accepted-proposal-material-${width}.png`) });
+  }
+  await page.getByRole('button', { name: 'Return to source', exact: true }).click();
+  const original = page.getByRole('dialog', { name: 'Captured message', exact: true });
+  await expect(original.getByText('Children walked home.', { exact: true })).toBeVisible();
+  await original.getByRole('button', { name: 'Close captured source', exact: true }).click();
+  await expect(composer).toHaveValue(unsent);
+  expect(nativeCore.metadata().providerRequests).toBe(1);
+});
+
+test('message proposal Return restores the captured original instead of only opening its chat', async ({ page, nativeCore }, info) => {
+  await openNativeConversation(page, nativeCore);
+  const composer = page.getByRole('textbox', { name: 'Message', exact: true });
+  await composer.fill('Give an example with children.');
+  await composer.press('Enter');
+  const analysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
+  await expect(analysis).toBeEnabled();
+  const unsent = 'Keep this unsent draft when returning to a pending proposal source.';
+  await composer.fill(unsent);
+  await analysis.click();
+  await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
+  await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Young people.');
+  await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();
+  await expect(proposals.getByTestId('material-proposal-result')).toHaveText('Proposal saved for review.');
+  await proposals.getByRole('button', { name: 'Return to proposal source', exact: true }).click();
+  await expect(proposals).toBeHidden();
+  const original = page.getByRole('dialog', { name: 'Captured message', exact: true });
+  await expect(original.getByText('Children walked home.', { exact: true })).toBeVisible();
+  await expect(original.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+  await expect(original.getByRole('button', { name: 'Explain', exact: true })).toBeDisabled();
+  await expect(page.getByTestId('inspector-panel')).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get('proposalId')).toBeTruthy();
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: info.outputPath(`message-proposal-return-${width}.png`) });
+  }
+  await original.getByRole('button', { name: 'Close captured source', exact: true }).click();
+  await expect(composer).toHaveValue(unsent);
+  expect(nativeCore.metadata().providerRequests).toBe(1);
+});
 
 test('message Capture returns the immutable original after an edit and native restart', async ({ page, nativeCore }, info) => {
   test.setTimeout(60_000);

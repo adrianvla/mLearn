@@ -6,6 +6,11 @@ use mlearn_core::{
 use rusqlite::{Connection, OptionalExtension, params};
 use std::borrow::Cow;
 
+// Private, retained Review admissions own their required media independently
+// of the authored Material, including after removal of the final card reference.
+const MEDIA_REFERENCED: &str = "EXISTS(SELECT 1 FROM material_assets r WHERE r.media_id=a.id)
+    OR EXISTS(SELECT 1 FROM review_work w WHERE json_extract(w.admission,'$.probe.requiredMedia')=a.id)";
+
 pub struct PreparedAuthoredMedia {
     pub media: AuthoredMedia,
     pub segment: Option<MediaSegment>,
@@ -123,8 +128,8 @@ impl ProfileStore {
                 "Authored media batch exceeds 128".into(),
             ));
         }
-        let mut statement = self.connection.prepare(
-            "SELECT document FROM authored_media a WHERE NOT EXISTS(SELECT 1 FROM material_assets r WHERE r.media_id=a.id) ORDER BY id LIMIT ?1")?;
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT document FROM authored_media a WHERE NOT ({MEDIA_REFERENCED}) ORDER BY id LIMIT ?1"))?;
         statement
             .query_map([limit], |r| r.get::<_, String>(0))?
             .map(|row| Ok(serde_json::from_str(&row?)?))
@@ -134,15 +139,15 @@ impl ProfileStore {
     pub fn forget_authored_media(&self, id: &AuthoredMediaId) -> Result<(), StorageError> {
         bounded(&id.0, 512)?;
         let count = self.connection.execute(
-            "DELETE FROM authored_media WHERE id=?1 AND NOT EXISTS(SELECT 1 FROM material_assets WHERE media_id=?1)",
+            &format!("DELETE FROM authored_media AS a WHERE id=?1 AND NOT ({MEDIA_REFERENCED})"),
             [&id.0],
         )?;
         if count == 0 {
             let referenced: bool = self.connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM material_assets WHERE media_id=?1)",
+                &format!("SELECT {MEDIA_REFERENCED} FROM authored_media AS a WHERE id=?1"),
                 [&id.0],
                 |r| r.get(0),
-            )?;
+            ).optional()?.unwrap_or(false);
             if referenced {
                 return Err(StorageError::Conflict);
             }

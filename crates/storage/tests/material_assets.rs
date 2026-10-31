@@ -94,6 +94,47 @@ fn change(item: &Material) -> MaterialEdit {
 }
 
 #[test]
+fn removing_material_releases_only_its_own_media_reference() {
+    // Given two authored items sharing the same media catalog entry.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    let asset = media("shared");
+    store.register_authored_media(&asset).unwrap();
+    let one = saved(store.create_material(&create("one", "shared")).unwrap());
+    let two = saved(store.create_material(&create("two", "shared")).unwrap());
+
+    // When only the first Material is removed.
+    store
+        .remove_material(&MaterialRemove {
+            command_id: "remove-one".into(),
+            id: one.id,
+            expected_revision: one.revision,
+        })
+        .unwrap();
+
+    // Then the second still protects the bytes; only its later removal releases them.
+    assert_eq!(store.material(&two.id).unwrap().media, vec![asset.clone()]);
+    assert!(store.unreferenced_authored_media(128).unwrap().is_empty());
+    assert!(matches!(
+        store.forget_authored_media(&asset.id),
+        Err(StorageError::Conflict)
+    ));
+    store
+        .remove_material(&MaterialRemove {
+            command_id: "remove-two".into(),
+            id: two.id,
+            expected_revision: two.revision,
+        })
+        .unwrap();
+    assert_eq!(
+        store.unreferenced_authored_media(128).unwrap(),
+        vec![asset.clone()]
+    );
+    store.forget_authored_media(&asset.id).unwrap();
+    assert!(store.find_authored_media(&asset.id).unwrap().is_none());
+}
+
+#[test]
 fn shared_asset_references_survive_replacement_and_restart() {
     // Given two uses of identical bytes with different segment origins.
     let dir = tempfile::tempdir().unwrap();

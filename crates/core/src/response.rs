@@ -14,6 +14,35 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
+    GraphNeighborhood {
+        page: crate::GraphPage,
+    },
+    Collection {
+        result: crate::CollectionResult,
+    },
+    DocumentSearch {
+        page: crate::DocumentSearchPage,
+    },
+    CollectionSelection {
+        selection: crate::CollectionSelection,
+    },
+    CollectionSelections {
+        selections: Vec<crate::CollectionSelection>,
+    },
+    CollectionSelectionMembership {
+        id: crate::CollectionSelectionId,
+        items: Vec<crate::CollectionSelectionMembership>,
+    },
+    CollectionSelectionPage {
+        id: crate::CollectionSelectionId,
+        page: crate::CollectionSelectionPage,
+    },
+    CollectionSelectionReleased {
+        id: crate::CollectionSelectionId,
+    },
+    CollectionPreparation {
+        status: Option<crate::CollectionPreparationStatus>,
+    },
     Conversation {
         result: crate::ConversationResult,
     },
@@ -100,8 +129,41 @@ pub enum Response {
     Material {
         material: Material,
     },
+    MaterialProposals {
+        page: crate::MaterialProposalPage,
+    },
+    MaterialGeneration {
+        report: crate::MaterialGenerationReport,
+    },
+    MaterialGenerations {
+        page: crate::MaterialGenerationPage,
+    },
+    MaterialProposal {
+        proposal: crate::MaterialProposal,
+    },
+    MaterialProposalReviewed {
+        receipt: crate::MaterialProposalReceipt,
+    },
     MaterialWritten {
         outcome: MaterialWriteResult,
+    },
+    MaterialRemoved {
+        outcome: crate::MaterialRemoval,
+    },
+    MaterialBulkStatus {
+        status: crate::MaterialBulkStatus,
+    },
+    MaterialBulkJobs {
+        jobs: Vec<crate::MaterialBulkStatus>,
+    },
+    MaterialBulkReleased {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
+    MaterialBulkPage {
+        #[serde(rename = "commandId")]
+        command_id: String,
+        page: crate::MaterialBulkPage,
     },
     MaterialCaptured {
         results: Vec<MaterialCaptureResult>,
@@ -154,6 +216,9 @@ pub enum Response {
     },
     Knowledge {
         projections: Vec<KnowledgeProjection>,
+    },
+    KnowledgeEvidence {
+        page: crate::KnowledgeEvidencePage,
     },
     ClaimChanged {
         projection: KnowledgeProjection,

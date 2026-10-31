@@ -2,7 +2,7 @@
 import { expect } from '@playwright/test';
 import { test, openNativeConversation } from './messenger-native-fixture';
 
-test('reply edit delete and literal history search use the original authored messages', async ({ page, nativeCore }) => {
+test('reply edit delete and literal history search use the original authored messages', async ({ page, nativeCore }, info) => {
   test.setTimeout(60_000);
   await openNativeConversation(page, nativeCore);
   const composer = page.getByRole('textbox', { name: 'Message', exact: true });
@@ -37,6 +37,16 @@ test('reply edit delete and literal history search use the original authored mes
   await expect(page.getByText('Revised first question', { exact: true })).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Search this history', exact: true }).fill('');
   await expect(page.getByText('Revised first question', { exact: true })).toBeVisible();
+  await composer.fill('Unsubmitted source-search draft');
+  await page.getByRole('textbox', { name: 'Search this history', exact: true }).fill('Following question');
+  await expect(page.getByText('Revised first question', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('message-search-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: info.outputPath('message-search-phone.png') });
+  await page.getByRole('button', { name: 'Latest', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Search this history', exact: true })).toHaveValue('');
+  await expect(page.getByText('Revised first question', { exact: true })).toBeVisible();
+  await expect(composer).toHaveValue('Unsubmitted source-search draft');
   await page.getByRole('button', { name: 'Message actions', exact: true }).first().click();
   await authored.getByRole('button', { name: 'Delete message', exact: true }).click();
   await expect(authored).toBeHidden();

@@ -1,6 +1,6 @@
 use base64::Engine;
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{Runtime, RuntimeExecutor, catalog::CatalogTrust};
+use mlearn_runtime::{BoundedReadError, Runtime, RuntimeExecutor, catalog::CatalogTrust};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -17,7 +17,7 @@ struct NativeState {
     media_base: String,
     runtime: Arc<RuntimeExecutor>,
     permits: Arc<tokio::sync::Semaphore>,
-    cancellation: Arc<std::sync::atomic::AtomicU64>,
+    read_controls: Arc<tokio::sync::Semaphore>,
     material: Arc<Mutex<window_material::WindowMaterial>>,
     documents: media::DocumentResolver,
     ocr: Arc<ocr::OcrJobs>,
@@ -140,9 +140,52 @@ fn window_material_active(state: tauri::State<'_, NativeState>) -> Result<bool, 
 
 #[tauri::command]
 fn cancel_source_open(state: tauri::State<'_, NativeState>) {
-    state
-        .cancellation
-        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    state.runtime.cancel_source_open();
+}
+
+fn bounded_read_failure(error: BoundedReadError) -> mlearn_core::Response {
+    mlearn_core::Response::Error { code: error.code().into(), message: error.to_string() }
+}
+
+#[tauri::command]
+fn begin_bounded_read(state: tauri::State<'_, NativeState>) -> Result<String, mlearn_core::Response> {
+    state.runtime.begin_bounded_read().map_err(bounded_read_failure)
+}
+
+#[tauri::command]
+async fn execute_bounded_read(
+    state: tauri::State<'_, NativeState>, id: String, request: String,
+) -> Result<String, mlearn_core::Response> {
+    if request.len() > 262_144 {
+        return Err(mlearn_core::Response::Error {
+            code: "invalid_request".into(), message: "Request exceeds 256 KiB".into(),
+        });
+    }
+    let permit = state.permits.clone().try_acquire_owned()
+        .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
+    let runtime = state.runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        runtime.execute_bounded_read(&id, &request)
+    }).await.map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(), message: "Native bounded read worker failed".into(),
+    })
+}
+
+#[tauri::command]
+async fn cancel_bounded_read(
+    state: tauri::State<'_, NativeState>, id: String,
+) -> Result<(), mlearn_core::Response> {
+    // Reserve before spawning; no guest/ordinary permit or unbounded worker queue.
+    let permit = state.read_controls.clone().try_acquire_owned()
+        .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
+    let runtime = state.runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        runtime.cancel_bounded_read(&id).map_err(bounded_read_failure)
+    }).await.map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(), message: "Native read cancellation worker failed".into(),
+    })?
 }
 
 #[tauri::command]
@@ -194,15 +237,14 @@ pub fn run() {
                 media_capture::authored_resolver(&runtime).map_err(std::io::Error::other)?;
             let documents = document_resolver(&runtime).map_err(std::io::Error::other)?;
             media_listener.documents = Some(documents.clone());
-            let cancellation = runtime.cancellation_handle();
             let material = Arc::new(Mutex::new(window_material::WindowMaterial::default()));
             let state = NativeState {
                 clipboard: Mutex::new(None),
                 captures: Arc::new(media_capture::Captures::new()),
                 media_base: media_listener.base_url(),
-                cancellation,
                 runtime: Arc::new(RuntimeExecutor::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
+                read_controls: Arc::new(tokio::sync::Semaphore::new(2)),
                 material: material.clone(),
                 documents,
                 ocr: Arc::new(ocr::OcrJobs::new()),
@@ -236,6 +278,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             copy_text,
             runtime_execute,
+            begin_bounded_read,
+            execute_bounded_read,
+            cancel_bounded_read,
             window_material_active,
             pick_local_file,
             media_capture::pick_document,
@@ -265,6 +310,7 @@ pub fn run() {
         .expect("mLearn desktop host failed to start")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
+                app.state::<NativeState>().runtime.cancel_source_open();
                 let owner = app.state::<NativeState>().captures.clone();
                 let ocr = app.state::<NativeState>().ocr.clone();
                 ocr.begin_shutdown();

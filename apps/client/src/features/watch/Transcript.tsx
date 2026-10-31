@@ -27,7 +27,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   source: SourceRecord;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSeek: (positionMs: number) => void;
+  onSeek: (positionMs: number) => number | null;
   analysis: AnalysisBatch | null;
   onAnalysis: (analysis: AnalysisBatch | null) => void;
   onInspect: (inspection: Inspection) => void;
@@ -64,6 +64,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     return () => cancelAnimationFrame(frame);
   }, [open, analysis]);
   const [navigating, setNavigating] = useState(false);
+  const [returnPosition, setReturnPosition] = useState<number | null>(null);
   const [navigationError, setNavigationError] = useState<{ cueIndex: number; message: string } | null>(null);
   const current = useRef('');
   const generation = useRef(0);
@@ -88,12 +89,24 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     try {
       const position = await client.cuePosition(source.id, source.subtitleRevision, cueIndex);
       if (current.current !== identity || generation.current !== owner) return;
-      onSeek(position);
+      const previous = onSeek(position);
+      if (previous === null) throw new Error('Playback is not ready. Close Transcript and retry after the video loads.');
+      setReturnPosition(value => value ?? previous);
     } catch (cause) {
       if (current.current === identity && generation.current === owner)
         setNavigationError({ cueIndex, message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
       if (generation.current === owner) setNavigating(false);
+    }
+  }
+  function returnToPlayback() {
+    if (returnPosition === null || navigating) return;
+    try {
+      if (onSeek(returnPosition) === null)
+        throw new Error('Playback is not ready. Close Transcript and retry after the video loads.');
+      setReturnPosition(null); setNavigationError(null);
+    } catch (cause) {
+      setNavigationError({ cueIndex: -1, message: cause instanceof Error ? cause.message : String(cause) });
     }
   }
   useEffect(() => {
@@ -237,6 +250,11 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <Button label="Next page" icon="chevronRight" iconOnly size="compact" variant="secondary" disabled={pending || page?.nextIndex == null}
         onPress={() => { setAfter(page?.nextIndex ?? null); setPage(null); }} />
     </Row></> : null}
+    {returnPosition !== null ? <Row>
+      <Button label="Return to playback position" variant="secondary" size="compact"
+        disabled={navigating} onPress={returnToPlayback} />
+      {navigationError?.cueIndex === -1 ? <Text accessibilityRole="alert">{navigationError.message}</Text> : null}
+    </Row> : null}
     {!vocabulary ? sourceFeedback : null}
     {!vocabulary ? page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
       <View style={styles.cueTime}><Button label={cueTime(cue.startMs - source.subtitleOffsetMs)}

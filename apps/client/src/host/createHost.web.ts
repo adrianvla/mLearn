@@ -10,6 +10,7 @@ import type { MaterialMediaKind } from '@mlearn/contracts';
 import { createImageOcrHost } from './imageOcr';
 import { RuntimeError } from '@mlearn/runtime-client';
 import { createOcrModelsHost } from './ocrModels';
+import { nativeControlFailure } from './nativeControlFailure';
 
 declare global {
   interface Window {
@@ -84,6 +85,12 @@ export function createHost(): Host {
       return stop;
     },
     media:{subscribeDrop:handler=>getCurrentWebview().onDragDropEvent(event=>{if(event.payload.type==='drop')handler(event.payload.paths);}),releasePicked:async()=>{},pick:(subtitles)=>invoke<string|null>('pick_local_file',{subtitles}),uri:(source)=>`${mediaBase}${encodeURIComponent(source.id)}`},
-    client: createRuntimeClient({ execute: (request) => invoke<string>('runtime_execute', { request }), cancelSourceOpen:()=>invoke<void>('cancel_source_open'),commandId: () => crypto.randomUUID() }),
+    client: createRuntimeClient({ execute: (request) => invoke<string>('runtime_execute', { request }),
+      boundedReads: {
+        begin:()=>invoke<string>('begin_bounded_read').catch(nativeControlFailure),
+        execute:(id,request)=>invoke<string>('execute_bounded_read',{id,request}).catch(nativeControlFailure),
+        cancel:id=>invoke<void>('cancel_bounded_read',{id}).catch(nativeControlFailure),
+      },
+      cancelSourceOpen:()=>invoke<void>('cancel_source_open'),commandId: () => crypto.randomUUID() }),
   };
 }

@@ -457,6 +457,149 @@ mod tests {
     }
 
     #[test]
+    fn due_queue_omits_v2_grammar_and_preserves_lexical_work() {
+        // Given ordinary saved vocabulary and a real package-owned grammar target.
+        let directory = tempfile::tempdir().unwrap();
+        let mut runtime = runtime_with_package(directory.path());
+        let mut content = material().content;
+        content.package_id = "org.mlearn.english".into();
+        content.target_id = Some("org.mlearn.english:grammar/past-simple-negative".into());
+        content.package_revision = Some(
+            runtime
+                .installed
+                .get("org.mlearn.english")
+                .unwrap()
+                .revision()
+                .unwrap(),
+        );
+        content.phrase = "Past simple negative".into();
+        let written: Response = serde_json::from_str(
+            &runtime.execute(
+                &json!({
+                    "type":"create_material","command":{
+                        "commandId":"grammar-material","content":content,"distinct":true
+                    }
+                })
+                .to_string(),
+            ),
+        )
+        .unwrap();
+        assert!(
+            matches!(written, Response::MaterialWritten { .. }),
+            "{written:?}"
+        );
+        let mut command = start_command();
+        let ReviewCommand::Start { start } = &mut command else {
+            unreachable!()
+        };
+        start.mode = ReviewMode::Finite { limit: 128 };
+        // When the real due owner scans the whole finite candidate set and commits it.
+        let Prepared::Work(GuestWork::Review(work)) = runtime.prepare_review(command).unwrap()
+        else {
+            unreachable!()
+        };
+        let admissions = work.run().unwrap();
+        let Response::Review { commit } = runtime.complete_review(&work, &admissions).unwrap()
+        else {
+            unreachable!()
+        };
+        // Then grammar neither aborts the queue nor becomes a fake lexical question.
+        assert_eq!(admissions.len(), 2);
+        assert!(
+            admissions
+                .iter()
+                .flat_map(|value| &value.probe.targets)
+                .all(|row| row.key.is_none())
+        );
+        assert_eq!(commit.session.total, Some(2));
+    }
+
+    #[test]
+    fn authenticated_grammar_tasks_execute_the_declared_finite_validator() {
+        // Given the real bundled package, authenticated resources and Wasmi owner.
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = runtime_with_package(directory.path());
+        let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
+        let revision = package.revision().unwrap();
+        let work = LanguageWork {
+            package,
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        };
+        let target = "org.mlearn.english:grammar/past-simple-negative";
+        let generated = work
+            .invoke(
+                "learning.probes.v2",
+                json!({
+                    "contractVersion":2,"packageId":"org.mlearn.english",
+                    "packageRevision":revision,"targetId":target,
+                    "eligibleKeys":[{"packageId":"org.mlearn.english","targetId":target,
+                        "capability":"org.mlearn.english:grammar-form"}]
+                }),
+            )
+            .unwrap();
+        assert_eq!(generated["contractVersion"], 2);
+        assert_eq!(generated["tasks"].as_array().unwrap().len(), 1);
+        let task = &generated["tasks"][0];
+        let task_id = format!("{target}/typed");
+        let validator_id = format!("{task_id}/validator-v1");
+        assert_eq!(task["probe"]["id"], task_id);
+        assert_eq!(task["task"]["validatorId"], validator_id);
+        // When actual package validation runs across all finite result classes.
+        let outcomes: Vec<_> = [" DID NOT FOLD ", "did not folded", "never folded"]
+            .into_iter()
+            .map(|response| {
+                work.invoke(
+                    "learning.validate.v1",
+                    json!({
+                        "contractVersion":1,"packageId":"org.mlearn.english",
+                        "packageRevision":revision,"taskId":task_id,"taskRevision":1,
+                        "validatorId":validator_id,
+                        "response":{"kind":"typed_text","text":response}
+                    }),
+                )
+                .unwrap()
+            })
+            .collect();
+        // Then real guest execution, not a declared validator, supplies the outcomes.
+        for (output, result) in outcomes.iter().zip(["accepted", "rejected", "unassessed"]) {
+            assert_eq!(output["contractVersion"], 1);
+            assert_eq!(output["taskId"], task_id);
+            assert_eq!(output["validatorId"], validator_id);
+            assert_eq!(output["outcomes"].as_array().unwrap().len(), 1);
+            assert_eq!(output["outcomes"][0]["targetId"], "answer");
+            assert_eq!(output["outcomes"][0]["result"], result);
+        }
+    }
+
+    #[test]
+    fn authenticated_grammar_generation_does_not_substitute_an_unsupported_target() {
+        // Given a valid envelope naming a genuinely unsupported grammar target.
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = runtime_with_package(directory.path());
+        let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
+        let revision = package.revision().unwrap();
+        let work = LanguageWork {
+            package,
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        };
+        let target = "org.mlearn.english:grammar/present-perfect";
+        // When generation executes in the authenticated package.
+        let result = work.invoke(
+            "learning.probes.v2",
+            json!({
+                "contractVersion":2,"packageId":"org.mlearn.english",
+                "packageRevision":revision,"targetId":target,
+                "eligibleKeys":[{"packageId":"org.mlearn.english","targetId":target,
+                    "capability":"org.mlearn.english:grammar-form"}]
+            }),
+        );
+        // Then neither due Review nor an unrelated recall task replaces this request.
+        assert!(matches!(result, Err(Failure::Operation(_))));
+    }
+
+    #[test]
     fn admitted_review_commit_is_independent_of_source_navigation_cancellation() {
         for practice in [false, true] {
             // Given genuine package output already admitted for durable Review work.

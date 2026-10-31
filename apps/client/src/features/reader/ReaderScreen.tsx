@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, View, useWindowDimensions } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Dialog } from '@mlearn/ui/dialog';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
@@ -22,30 +23,33 @@ import { imageAnchor, imageContext } from './imageFlow';
 import { ImageSourceWords } from './ImageSourceWords';
 import { ImageRecognition } from './ImageRecognition';
 import { SourceEntryScreen } from '../source-entry';
+import { ReaderSearch } from './ReaderSearch';
 
 export function ReaderScreen() {
     const host = useRuntime();
-    const params = useLocalSearchParams<{ id: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    const params = useLocalSearchParams<{ id: string; packageId?: string; materialId?: string; proposalId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
     const router = useRouter();
-    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+    if (!params.id && !params.materialId && !params.proposalId && !params.reviewSessionId && !params.reviewEncounterId)
         return <SourceEntryScreen kind="document" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
-    if (!host.available) return <View style={styles.unavailable}>
-        <Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
-        <Text accessibilityRole="alert">{host.reason}</Text>
-    </View>;
+    if (!host.available) return <AppShell header={<Row>
+        <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
+        <Text variant="heading" accessibilityRole="header">Reader</Text>
+    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
     return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
         materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
+        proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
         reviewSessionId={typeof params.reviewSessionId === 'string' ? params.reviewSessionId : undefined}
         reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined} />;
 }
 
-function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncounterId }: {
-    readonly client: RuntimeClient; readonly id: string; readonly materialId?: string;
+function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, reviewEncounterId }: {
+    readonly client: RuntimeClient; readonly id: string; readonly materialId?: string; readonly proposalId?: string;
     readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
 }) {
     const [imageView, setImageView] = useState<boolean | null>(null);
-    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView);
+    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView, proposalId);
     const router = useRouter();
+    const routeNavigation = useNavigation();
     const host = useRuntime();
     const viewport = useWindowDimensions();
     const { theme } = useUnistyles();
@@ -53,10 +57,12 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const insets = useSafeAreaInsets();
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [focused, setFocused] = useState(true);
+    const [departing, setDeparting] = useState(false);
+    const departure = useRef<object | null>(null);
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     useFocusEffect(useCallback(() => {
         setFocused(true);
-        return () => { setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
+        return () => { departure.current = null; setDeparting(false); setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
             setRecognitionOpen(false); setWordsOpen(false); setThumbnails({}); };
     }, []));
     const [optionsOpen, setOptionsOpen] = useState(false);
@@ -99,10 +105,22 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
         ? blockPosition(sourceWindow.source, previousBlock) : sourceWindow?.previous;
     const next = sourceWindow && nextBlock
         ? blockPosition(sourceWindow.source, nextBlock) : sourceWindow?.next;
-    async function home() {
-        try { await reader.persist(); router.replace('/'); }
-        catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+    async function depart(complete: () => void) {
+        if (departure.current) return;
+        const request = {}; departure.current = request;
+        const identity = current.current;
+        setDeparting(true); setNavigationError('');
+        try {
+            await reader.persist();
+            if (departure.current === request && current.current === identity) complete();
+        } catch (cause) {
+            if (departure.current === request && current.current === identity)
+                setNavigationError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (departure.current === request) { departure.current = null; setDeparting(false); }
+        }
     }
+    usePreventRemove(focused, ({ data }) => { void depart(() => routeNavigation.dispatch(data.action)); });
     function changeAppearance(change: Partial<DocumentAppearance>) {
         if (!source || reader.pending) return;
         setInspection(null);
@@ -149,7 +167,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
             >
             <View style={styles.toolbar}>
                 <Button label="Home" icon="arrowLeft" iconOnly={compact} size="compact" variant="secondary"
-                    disabled={reader.pending} onPress={() => void home()} />
+                    disabled={reader.pending || departing} onPress={() => router.dismissTo('/')} />
                 {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
                     icon="transcript" iconOnly size="compact" variant="quiet" accessibilityState={{ expanded: !!rail }}
                     onPress={() => setRailOpen(value => !value)} /> : null}
@@ -161,6 +179,13 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 {imageMode && imageReader.recognizing ? <Button label="Cancel recognition" icon="stop" iconOnly={compact}
                     variant="secondary" size="compact" onPress={imageReader.cancel} /> : null}
                 {imageMode && layoutInline ? <ImageLayoutControls reader={imageReader} onBeforeAction={() => setInspection(null)} /> : null}
+                {source && focused ? <ReaderSearch key={JSON.stringify([source.id, source.contentRevision,
+                    source.parserRevision, source.packageId, source.packageVersion, imageMode])}
+                    client={client} source={source} scope={imageMode ? 'recognized_pages' : 'text'}
+                    position={reader.position} compact={compact} disabled={reader.pending}
+                    onOpen={() => setInspection(null)}
+                    onLocate={hit => { if (imageMode) imageReader.cancel(); return reader.locate(hit.anchor); }}
+                    onReturn={point => imageMode ? imageReader.navigate(point) : reader.navigate(point)} /> : null}
                 <Dialog title="Contents" description="Navigate to the original document location."
                     open={contentsOpen} onOpenChange={open => {
                         setContentsOpen(open); setInspection(null);
@@ -246,7 +271,8 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
         {imageMode ? <ImageReaderFeedback reader={imageReader} cropMode={cropMode} magnifier={magnifier} /> : null}
             {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
                 <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
-                    <Button label="Reselect from Home" variant="quiet" size="compact" onPress={() => void home()} /></Row></View> : null}
+                    <Button label="Reselect from Home" variant="quiet" size="compact" disabled={departing}
+                        onPress={() => router.dismissTo('/')} /></Row></View> : null}
             {navigationError ? <Text accessibilityRole="alert">{navigationError}</Text> : null}
         <View style={styles.workspace}>
             {rail && sourceWindow ? <ScrollView style={styles.rail} contentContainerStyle={styles.railContent}>
@@ -341,6 +367,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 }} />
         </> : null}
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
+            onBeforeOpenMaterial={reader.persist}
             onChanged={async () => {
                 const identity = current.current;
                 if (imageMode) await imageReader.refreshKnowledge();
@@ -352,7 +379,6 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
 const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({ flex: 1, paddingTop: top, paddingBottom: bottom,
         backgroundColor: theme.colors.background }),
-    unavailable: { flex: 1, padding: theme.spacing.large, gap: theme.spacing.medium },
     header: { flexShrink: 0, paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border },
     toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small, minWidth: 0 },

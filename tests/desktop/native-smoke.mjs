@@ -428,14 +428,26 @@ try {
         script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
       }),true,'Preference must reach the actual native owner before cancellation');
       await click('Close');
-      if (leave === 'cancel') {
-        await click('Cancel opening');
-      } else {
+      if (leave === 'blur') {
+        // A busy preference must not lose its checkpoint owner to browser Back.
+        // Observe the restored cursor, not a timing-dependent DOM snapshot.
+        await script(`const gate=window.__m02Preference,before=location.href;
+          gate.back=new Promise(resolve=>{
+            const restored=()=>{if(location.href===before){gate.stopBack();resolve(true);}};
+            gate.stopBack=()=>window.removeEventListener('popstate',restored);
+            window.addEventListener('popstate',restored);
+          });return true;`);
         await rpc('POST',`/session/${session}/back`,{});
-        await text('Recent sources');
+        assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+          script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.back.then(value=>{clearTimeout(timer);done(value);});',args:[],
+        }),true,'Pending source work must retain Watch and restore its browser cursor');
       }
+      await observeSourceView(`!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.getBoundingClientRect().width>0`);
+      await click('Cancel source update');
+      await observedSourceView('Explicit cancellation must replace the pending source lifetime before its late receipt');
+      // Admitted writes still own their serial receipt; cancellation does not
+      // discard a committed preference to let a later read overtake it.
       await script('window.__m02Preference.release();return true;');
-      if (leave === 'blur') await resumeWatch();
       // Observe the real replacement-source receipt instead of racing a raw
       // recent_sources request against the client's action and display lanes.
       const resumed=await rpc('POST',`/session/${session}/execute/async`,{
@@ -443,8 +455,13 @@ try {
       });
       assert.ok(resumed,'The resumed source must remain persisted');
       assert.equal(resumed.subtitleOffsetMs,offset);
-      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      if (leave === 'blur') {
+        await rpc('POST',`/session/${session}/back`,{});
+        await text('Recent sources');
+        await resumeWatch();
+      }
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
       // controller which queues seeks until metadata. First observe real resume
       // initialization so it cannot overwrite the test's subsequent raw seek.
@@ -460,7 +477,7 @@ try {
       assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
       assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {
-      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
+      await script('const gate=window.__m02Preference;gate.release();gate.stopBack?.();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
     }
   }
   // Real persisted source preferences feed the mounted host and untouched cues.
@@ -559,17 +576,69 @@ try {
     const rect=control.getBoundingClientRect();
     const x=Math.round(rect.x+rect.width/2),y=Math.round(rect.y+rect.height/2);
     const hit=document.elementFromPoint(x,y);
-    return {x,y,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)};
+    const media=document.querySelector('video')?.getBoundingClientRect();
+    if(!media?.width||!media.height)return null;
+    const away={x:Math.round(media.x+media.width/2),y:Math.round(media.y+media.height/4)};
+    const awayHit=document.elementFromPoint(away.x,away.y);
+    return {x,y,away,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)&&!!awayHit&&!control.contains(awayHit)};
   `);
   assert.equal(child?.ready,true,JSON.stringify(child));
-  await rpc('POST',`/session/${session}/actions`,{actions:[
-    {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'},{type:'pause',duration:0},{type:'keyUp',value:'\uE008'}]},
-    {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
-      {type:'pointerMove',duration:0,origin:'viewport',x:0,y:0},
-      {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
-      {type:'pause',duration:0},
-    ]},
-  ]});
+  await script(`const probe={events:[]};
+    const label=arguments[0];
+    const data=event=>({type:event.type,key:event.key??null,shiftKey:event.shiftKey,
+      trusted:event.isTrusted,pointerType:event.pointerType??null,
+      label:event.target instanceof Element?event.target.closest('[aria-label]')?.getAttribute('aria-label')??null:null,
+      relatedLabel:event.relatedTarget instanceof Element?event.relatedTarget.closest('[aria-label]')?.getAttribute('aria-label')??null:null});
+    const record=event=>{if(probe.events.length<16)probe.events.push(data(event));};
+    let keyDone,entryDone;
+    probe.key=new Promise(resolve=>keyDone=resolve);
+    probe.entry=new Promise(resolve=>entryDone=resolve);
+    const key=event=>{record(event);if(event.key==='Shift')keyDone(data(event));};
+    const entry=event=>{record(event);
+      if(event.target instanceof Element&&event.target.closest('[aria-label]')?.getAttribute('aria-label')===label)
+        entryDone(data(event));};
+    const timer=setTimeout(()=>{keyDone({timedOut:true});entryDone({timedOut:true});},10000);
+    probe.cancel=()=>{clearTimeout(timer);
+      document.removeEventListener('keydown',key,true);
+      document.removeEventListener('keyup',record,true);
+      document.removeEventListener('pointerout',record,true);
+      document.removeEventListener('pointerover',entry,true);};
+    document.addEventListener('keydown',key,true);
+    document.addEventListener('keyup',record,true);
+    document.addEventListener('pointerout',record,true);
+    document.addEventListener('pointerover',entry,true);
+    window.__m02Modifier=probe;return true;`,['Children: mixed']);
+  try {
+    // Observe actual delivery instead of assuming zero-duration WebDriver ticks
+    // preserve a modifier across the native key/pointer dispatch boundary.
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'}]},
+    ]});
+    const key=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02Modifier.key.then(done);',args:[],
+    });
+    assert.equal(key.trusted,true,JSON.stringify(key));
+    assert.equal(key.shiftKey,true,JSON.stringify(key));
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
+        {type:'pointerMove',duration:0,origin:'viewport',x:child.away.x,y:child.away.y},
+        {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
+      ]},
+    ]});
+    const entry=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02Modifier.entry.then(done);',args:[],
+    });
+    assert.equal(entry.trusted,true,JSON.stringify(entry));
+    assert.equal(entry.pointerType,'mouse',JSON.stringify(entry));
+    assert.equal(entry.shiftKey,true,JSON.stringify(entry));
+  } finally {
+    // Release immediately after entry, before awaiting asynchronous lookup.
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'key',id:'inspection-modifier',actions:[{type:'keyUp',value:'\uE008'}]},
+    ]});
+    const events=await script('const probe=window.__m02Modifier;probe.cancel();delete window.__m02Modifier;return probe.events;');
+    await writeFile('test-results/desktop/modifier-input.json',JSON.stringify({target:child,events},null,2));
+  }
   await observedSourceView('Shift-assisted real pointer entry must open the shared Inspector without a click');
   await screenshot('native-modifier-inspection');
   await closeInspector();
@@ -809,7 +878,8 @@ try {
   await screenshot('watch-raw-subtitles-with-analysis-unavailable');
   // Two seeks within the same two-second bucket must still change the cue window.
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
-  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  const subsecondAttached=await native({type:'attach_subtitles',sourceId:id,path:unsupported});
+  assert.equal(subsecondAttached.type,'source',JSON.stringify(subsecondAttached));
   await click('Home');await resumeWatch();
   // A Resume click finishes before React mounts the player. Subscribe to its
   // real media/initial-seek events before seeking, retaining that active element.

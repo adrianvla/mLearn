@@ -1,12 +1,14 @@
 use crate::{
+    bounded_reads::{BoundedReadError, BoundedReads},
     guest::{GuestOutput, GuestWork, Prepared},
+    guest_gate::GuestGate,
     Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
-        Arc, Mutex, TryLockError,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        Arc, Condvar, Mutex,
     },
     time::Instant,
 };
@@ -31,19 +33,30 @@ impl From<String> for Failure {
 pub(super) struct Cancellation {
     pub(super) value: Arc<AtomicU64>,
     pub epoch: u64,
+    operation: Option<Arc<AtomicBool>>,
 }
 impl Cancellation {
     pub fn source(value: Arc<AtomicU64>, epoch: u64) -> Self {
-        Self { value, epoch }
+        Self {
+            value,
+            epoch,
+            operation: None,
+        }
     }
     pub fn durable() -> Self {
         Self {
             value: Arc::new(AtomicU64::new(0)),
             epoch: 0,
+            operation: None,
         }
     }
     pub fn check(&self) -> Result<(), Failure> {
-        if self.value.load(Ordering::Relaxed) == self.epoch {
+        if self.value.load(Ordering::Relaxed) == self.epoch
+            && self
+                .operation
+                .as_ref()
+                .is_none_or(|flag| !flag.load(Ordering::Acquire))
+        {
             Ok(())
         } else {
             Err(Failure::Cancelled)
@@ -66,12 +79,21 @@ impl Cancellation {
                 "Selected package does not support this language operation".into(),
             ));
         }
-        let output =
-            package
-                .compiled
-                .invoke_cancellable(capability, input, self.value.clone(), self.epoch);
+        let output = package.compiled.invoke_cancellable_with_operation(
+            capability,
+            input,
+            self.value.clone(),
+            self.epoch,
+            self.operation.clone(),
+        );
         self.check()?;
-        output.map_err(Failure::Operation)
+        output.map_err(|error| {
+            if error.is_busy() {
+                Failure::Busy
+            } else {
+                Failure::Operation(error.to_string())
+            }
+        })
     }
 }
 pub(super) struct CallPermit<'a>(&'a AtomicUsize);
@@ -86,11 +108,34 @@ impl Drop for CallPermit<'_> {
 pub struct RuntimeExecutor {
     pub(super) runtime: Arc<Mutex<Runtime>>,
     conversations: crate::conversation_execution::ConversationOwner,
-    pub(super) guest: Mutex<()>,
+    collections: crate::collection::CollectionOwner,
+    bulk: crate::material_bulk::MaterialBulkOwner,
+    pub(super) guest: GuestGate,
+    bounded_reads: BoundedReads,
     admitted: AtomicUsize,
     cancellation: Arc<AtomicU64>,
 }
 impl RuntimeExecutor {
+    #[cfg(test)]
+    pub(crate) fn observe_material_bulk(
+        &self,
+    ) -> (
+        std::sync::mpsc::Receiver<u32>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        self.bulk.observe()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn observe_collection(
+        &self,
+    ) -> (
+        std::sync::mpsc::Receiver<u32>,
+        std::sync::mpsc::SyncSender<()>,
+    ) {
+        self.collections.observe()
+    }
+
     #[cfg(test)]
     pub(crate) fn observe_generation(
         &self,
@@ -106,13 +151,74 @@ impl RuntimeExecutor {
         Self {
             runtime: Arc::new(Mutex::new(runtime)),
             conversations: crate::conversation_execution::ConversationOwner::default(),
-            guest: Mutex::new(()),
+            collections: crate::collection::CollectionOwner::default(),
+            bulk: crate::material_bulk::MaterialBulkOwner::default(),
+            guest: GuestGate::default(),
+            bounded_reads: BoundedReads::default(),
             admitted: AtomicUsize::new(0),
             cancellation,
         }
     }
     pub fn cancellation_handle(&self) -> Arc<AtomicU64> {
         self.cancellation.clone()
+    }
+    /// Canonical source cancellation also wakes queued scoped reads.
+    pub fn cancel_source_open(&self) {
+        self.cancellation.fetch_add(1, Ordering::Relaxed);
+        self.guest.notify_source_change();
+    }
+    /// Register a fresh native identity without taking a heavy call permit.
+    pub fn begin_bounded_read(&self) -> Result<String, BoundedReadError> {
+        self.bounded_reads.begin(&self.cancellation, Instant::now())
+    }
+    /// Signal one read and join its real cleanup, independently of heavy permits.
+    pub fn cancel_bounded_read(&self, id: &str) -> Result<(), BoundedReadError> {
+        let _control = self.bounded_reads.control()?;
+        if let Some(lease) = self.bounded_reads.cancel(id)? {
+            self.guest.notify_operation(&lease.wake);
+            #[cfg(test)]
+            bounded_read_tests::cancel_signalled();
+            lease.join()?;
+        }
+        Ok(())
+    }
+    pub fn execute_bounded_read(&self, id: &str, request: &str) -> String {
+        let claimed = match self
+            .bounded_reads
+            .claim(id, &self.cancellation, Instant::now())
+        {
+            Ok(claimed) => claimed,
+            Err(error) => return encode(Err(error.into())),
+        };
+        let cancellation = Cancellation {
+            value: Arc::clone(&self.cancellation),
+            epoch: claimed.lease.epoch,
+            operation: Some(Arc::clone(&claimed.lease.cancelled)),
+        };
+        // This inner scope drops the heavy permit and every execution owner
+        // before Claimed removes the lease and acknowledges its cancellation.
+        let result = (|| {
+            let _permit = self.admit()?;
+            #[cfg(test)]
+            bounded_read_tests::hold(bounded_read_tests::Point::Claimed);
+            cancellation.check()?;
+            let request = parse(request)?;
+            if !matches!(
+                request,
+                Request::GraphNeighborhood { .. }
+                    | Request::KnowledgeEvidence { .. }
+                    | Request::SearchDocument { .. }
+            ) {
+                return Err(Failure::Protocol(
+                    "invalid_bounded_read",
+                    "Request is not an operation-scoped bounded read".into(),
+                ));
+            }
+            self.execute_request_scoped(request, Some((&cancellation, &claimed.lease.wake)))
+        })();
+        let response = encode(result);
+        drop(claimed);
+        response
     }
     pub(super) fn admit(&self) -> Result<CallPermit<'_>, Failure> {
         let active = self.admitted.fetch_add(1, Ordering::Relaxed);
@@ -131,7 +237,31 @@ impl RuntimeExecutor {
         encode(parse(request).and_then(|request| self.execute_request(request)))
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
+        self.execute_request_scoped(request, None)
+    }
+    fn execute_request_scoped(
+        &self,
+        request: Request,
+        scoped: Option<(&Cancellation, &Arc<Condvar>)>,
+    ) -> Result<Response, Failure> {
+        if let Some((cancellation, _)) = scoped {
+            cancellation.check()?;
+        }
         let request = match request {
+            Request::MaterialBulk { command } => {
+                return self.bulk.execute(&self.runtime, &self.guest, command);
+            }
+            Request::PrepareCollection { command } => {
+                return self
+                    .collections
+                    .prepare(&self.runtime, &self.guest, command);
+            }
+            Request::CollectionPreparationStatus { command_id } => {
+                return self.collections.status(command_id.as_deref(), false);
+            }
+            Request::CancelCollectionPreparation { command_id } => {
+                return self.collections.status(Some(&command_id), true);
+            }
             Request::Conversation { command } => match command {
                 command @ (mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }
                 | mlearn_core::ConversationCommand::AnalyzeMessageSource { .. }) => {
@@ -144,7 +274,10 @@ impl RuntimeExecutor {
         let started = std::env::var_os("MLEARN_PLUGIN_METRICS")
             .is_some()
             .then(Instant::now);
-        let epoch = self.cancellation.load(Ordering::Relaxed);
+        let epoch = scoped.map_or_else(
+            || self.cancellation.load(Ordering::Relaxed),
+            |(cancellation, _)| cancellation.epoch,
+        );
         // Reserve the single install identity before waiting for guest admission.
         // Status/cancel never take that guest lock or wait behind a transfer.
         let (request, install) = if matches!(
@@ -168,31 +301,29 @@ impl RuntimeExecutor {
             // Background refresh must not queue behind a user action. Foreground
             // lookup/claims wait for current analysis without owning Runtime;
             // the shared three-call permit still bounds all waiting workers.
-            Some(
-                if matches!(
-                    request,
-                    Some(
-                        Request::AnalyzeSource { .. }
-                            | Request::AnalyzeTranscript { .. }
-                            | Request::InspectTargets { .. }
-                    )
-                ) {
-                    self.guest.try_lock().map_err(|error| match error {
-                        TryLockError::WouldBlock => Failure::Busy,
-                        TryLockError::Poisoned(_) => {
-                            Failure::Operation("Native guest admission lock poisoned".into())
-                        }
-                    })?
-                } else {
-                    self.guest.lock().map_err(|_| {
-                        Failure::Operation("Native guest admission lock poisoned".into())
-                    })?
-                },
-            )
+            Some(if let Some((cancellation, wake)) = scoped {
+                self.guest.lock_cancellable(cancellation, wake)?
+            } else if matches!(
+                request,
+                Some(
+                    Request::AnalyzeSource { .. }
+                        | Request::AnalyzeTranscript { .. }
+                        | Request::InspectTargets { .. }
+                )
+            ) {
+                self.guest.try_lock()?
+            } else {
+                self.guest.lock().map_err(|_| {
+                    Failure::Operation("Native guest admission lock poisoned".into())
+                })?
+            })
         } else {
             None
         };
         let admitted_at = started.map(|start| start.elapsed()).unwrap_or_default();
+        if let Some((cancellation, _)) = scoped {
+            cancellation.check()?;
+        }
         let prepared = if let Some(install) = install {
             install
         } else {
@@ -200,10 +331,15 @@ impl RuntimeExecutor {
                 .runtime
                 .lock()
                 .map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?;
-            runtime.prepare(
-                request.ok_or_else(|| Failure::Operation("Missing prepared request".into()))?,
-                epoch,
-            )?
+            let request =
+                request.ok_or_else(|| Failure::Operation("Missing prepared request".into()))?;
+            match scoped {
+                Some((cancellation, _)) => {
+                    cancellation.check()?;
+                    runtime.prepare_cancellable(request, cancellation.clone())?
+                }
+                None => runtime.prepare(request, epoch)?,
+            }
         };
         if let Some(started) = started {
             let capability = match &prepared {
@@ -217,7 +353,16 @@ impl RuntimeExecutor {
             );
         }
         match prepared {
-            Prepared::Immediate(response) => Ok(*response),
+            Prepared::Immediate(response) => {
+                #[cfg(test)]
+                if scoped.is_some() {
+                    bounded_read_tests::hold(bounded_read_tests::Point::Immediate);
+                }
+                if let Some((cancellation, _)) = scoped {
+                    cancellation.check()?;
+                }
+                Ok(*response)
+            }
             Prepared::Work(work) => {
                 let guest_started = started.map(|_| Instant::now());
                 let output = work.run();
@@ -295,12 +440,24 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::AnalyzeTranscript { .. }
         | Request::DescribeLanguage { .. }
         | Request::InspectTarget { .. }
+        | Request::GraphNeighborhood { .. }
         | Request::InspectTargets { .. }
         | Request::ChangeClaim { .. }
         | Request::InvokePlugin { .. }
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
-        Request::Snapshot
+        Request::Collection { .. }
+        | Request::RefreshMaterialCollection { .. }
+        | Request::CreateCollectionSelection { .. }
+        | Request::CollectionSelection { .. }
+        | Request::CollectionSelections
+        | Request::CollectionSelectionMembership { .. }
+        | Request::CollectionSelectionPage { .. }
+        | Request::ReleaseCollectionSelection { .. }
+        | Request::PrepareCollection { .. }
+        | Request::CollectionPreparationStatus { .. }
+        | Request::CancelCollectionPreparation { .. }
+        | Request::Snapshot
         | Request::ImagePage { .. }
         | Request::ImageReaderSettings { .. }
         | Request::SaveImageReaderSettings { .. }
@@ -316,6 +473,8 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::RecentDocuments
         | Request::DocumentWindow { .. }
         | Request::DocumentContents { .. }
+        | Request::SearchDocument { .. }
+        | Request::ReturnSourceAnchor { .. }
         | Request::CheckpointDocument { .. }
         | Request::DocumentResource { .. }
         | Request::ReviewSession { .. }
@@ -325,6 +484,16 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::MaterialMedia { .. }
         | Request::Materials { .. }
         | Request::Material { .. }
+        | Request::MaterialProposals { .. }
+        | Request::MaterialGeneration { .. }
+        | Request::MaterialGenerations { .. }
+        | Request::CollectMaterialGeneration { .. }
+        | Request::MaterialProposal { .. }
+        | Request::SuggestMaterial { .. }
+        | Request::ReviewMaterialProposal { .. }
+        | Request::ReturnMaterialProposalSource { .. }
+        | Request::RemoveMaterial { .. }
+        | Request::MaterialBulk { .. }
         | Request::MaterialEligibility { .. }
         | Request::SetCaptureExclusion { .. }
         | Request::ReturnMaterialSource { .. }
@@ -341,6 +510,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::SetPlaybackRate { .. }
         | Request::SetInspectionTrigger { .. }
         | Request::Knowledge { .. }
+        | Request::KnowledgeEvidence { .. }
         | Request::SaveTheme { .. }
         | Request::SaveInlineLevelScale { .. }
         | Request::SaveStarCollapse { .. }
@@ -380,3 +550,7 @@ pub(super) fn error_response(error: &Failure) -> Response {
         message: error.to_string().chars().take(2048).collect(),
     }
 }
+
+#[cfg(test)]
+#[path = "bounded_read_tests.rs"]
+mod bounded_read_tests;

@@ -1,16 +1,35 @@
-use crate::{ProfileStore, StorageError, material_media::read_media, material_validation::bounded};
+use crate::{material_media::read_media, material_validation::bounded, ProfileStore, StorageError};
 use mlearn_core::{
     CaptureAvailability, Material, MaterialContent, MaterialEligibility, MaterialId, MaterialPage,
     MaterialQuery, MaterialTarget,
 };
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 
 pub(crate) fn read_material(db: &Connection, id: &MaterialId) -> Result<Material, StorageError> {
-    let (revision, excluded, json): (u32, bool, String) = db.query_row(
-        "SELECT revision,excluded,content FROM materials WHERE id=?1",
-        [&id.0],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-    )?;
+    let row: Option<(u32, bool, String)> = db
+        .query_row(
+            "SELECT revision,excluded,content FROM materials WHERE id=?1",
+            [&id.0],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    let (revision, excluded, json) = match row {
+        Some(row) => row,
+        None => {
+            let removed: bool = db.query_row(
+                "SELECT EXISTS(SELECT 1 FROM material_removals WHERE id=?1)",
+                [&id.0],
+                |row| row.get(0),
+            )?;
+            return Err(if removed {
+                StorageError::Invalid(
+                    "Material has been removed; this command will not recreate it".into(),
+                )
+            } else {
+                StorageError::Sql(rusqlite::Error::QueryReturnedNoRows)
+            });
+        }
+    };
     let content: MaterialContent = serde_json::from_str(&json)?;
     let media = content
         .attachments
@@ -111,7 +130,7 @@ impl ProfileStore {
                     query.source_id,
                     query.after.as_ref().map(|id| id.0.as_str()).unwrap_or(""),
                     query.include_excluded,
-                    query.query
+                    query.query.to_lowercase()
                 ],
                 |r| r.get::<_, String>(0),
             )?

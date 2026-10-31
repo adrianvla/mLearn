@@ -11,6 +11,35 @@
     "documentation": "https://www.edrdg.org/jmdict/j_jmdict.html",
     "licenseUrl": "https://www.edrdg.org/edrdg/licence.html"
   },
+  "kanjidic2": {
+    "artifactPath": "kanjidic2-2026-301.xml.gz",
+    "url": "https://www.edrdg.org/kanjidic/kanjidic2.xml.gz",
+    "fileVersion": "4",
+    "databaseVersion": "2026-301",
+    "dateOfCreation": "2026-10-28",
+    "sha256": "554c23fa1d4a0528c6d839017123cb752dff81f0d53696e12e2cef72dbb72dc1",
+    "byteLength": 1488581,
+    "expandedSha256": "b08e787fd4ae147f2d5206f3b25ed4ed16e4c9a3ef037989b0632798156789d8",
+    "expandedByteLength": 15641823,
+    "encoding": "UTF-8",
+    "license": "CC-BY-SA-4.0",
+    "copyright": "James William Breen and the Electronic Dictionary Research and Development Group",
+    "documentation": "https://www.edrdg.org/wiki/KANJIDIC_Project.html",
+    "licenseUrl": "https://www.edrdg.org/edrdg/licence.html"
+  },
+  "kradfile": {
+    "artifactPath": "kradfile-0c5487c1de77.gz",
+    "url": "https://www.edrdg.org/pub/Nihongo/kradfile.gz",
+    "sha256": "0c5487c1de77e36ffb5bde652f469f2de9c52efc8320137c115506f3500e9c5f",
+    "byteLength": 47301,
+    "expandedSha256": "7af04fc513c7a99d285d1bf26368e9d92b9c257307e99bbe2e41f5e36081ae53",
+    "expandedByteLength": 113398,
+    "encoding": "EUC-JP",
+    "license": "CC-BY-SA-4.0",
+    "copyright": "Michael Raine, James William Breen and the Electronic Dictionary Research and Development Group",
+    "documentation": "https://www.edrdg.org/krad/kradinf.html",
+    "licenseUrl": "https://www.edrdg.org/edrdg/licence.html"
+  },
   "sudachi": {
     "wheel": "sudachidict_small-20260116-py3-none-any.whl",
     "wheelUrl": "https://files.pythonhosted.org/packages/53/d4/50aa799a6cde6de872724003e3a3afa9af7d4ecb531572bc01a526ded175/sudachidict_small-20260116-py3-none-any.whl",
