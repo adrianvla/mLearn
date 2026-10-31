@@ -361,8 +361,9 @@ export interface CompactionRecords {
  * Pure compaction classification for one key's rows: exact ledger/recency/
  * acquisition classes stay raw, everything else folds into the archive.
  * Deterministic in row order; `seq` carries journal insertion order.
- * Tombstoned attempts (retracted rows still in the journal) are epistemically
- * dead: dropped entirely, never aggregated, never recorded.
+ * Tombstoned attempts remain exact audit rows, but are never aggregated or
+ * emitted as contribution records. Retaining them preserves Guardian's durable
+ * evidence count even when compaction runs long after the undo was acknowledged.
  *
  * `previous` (the key's existing archive) is merged in: newly archived rows
  * extend its buckets by ordered accumulation. Generation-1 archives carry no
@@ -383,8 +384,8 @@ export function compactKeyEvents(
   }
   const acquisitionCutoff = firstMeaningT !== undefined ? firstMeaningT + KNOWLEDGE_ACQUISITION_WINDOW_MS : Number.NEGATIVE_INFINITY;
 
-  // Retracted attempts are dead rows: their tombstone (kept exact) is the
-  // audit for ordinary rows; provenance rows stay exact but inactive. Neither fold nor record sees them again.
+  // Retracted attempts stay exact and inactive beside their tombstones.
+  // Neither the archive fold nor contribution records see them again.
   const retractedIds = new Set<string>();
   for (const { event } of ordered) {
     if (event.retracts !== undefined) retractedIds.add(`${event.retracts}`);
@@ -416,8 +417,7 @@ export function compactKeyEvents(
 
   for (const { event, seq } of ordered) {
     if (event.attemptId !== undefined && retractedIds.has(`${event.attemptId}`)) {
-      // Outcome provenance remains inspectable after undo, but never enters a fold.
-      if (event.decisionRef !== undefined || event.decision !== undefined || event.transferContext !== undefined) kept.push({ event, seq });
+      kept.push({ event, seq });
       continue;
     }
     const bucketKey = archiveBucketKey(event);

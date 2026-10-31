@@ -213,7 +213,7 @@ describe('record-rebuild equivalence', () => {
 });
 
 describe('compaction record emission', () => {
-  it('drops tombstoned attempts entirely and never records them', () => {
+  it('retains tombstoned attempts as inactive audit rows and never archives them', () => {
     const retractedId = `attempt-${++attemptCounter}`;
     const events: KnowledgeEvent[] = [
       { ...attempt({ t: 200 * DAY, easeAfter: 2.2 }), attemptId: retractedId },
@@ -222,7 +222,7 @@ describe('compaction record emission', () => {
     ];
     const rows = events.map((event, index) => ({ event, seq: index + 1 }));
     const compact = compactKeyEvents(rows, NOW);
-    expect(compact.kept.some(({ event }) => event.attemptId === retractedId)).toBe(false);
+    expect(compact.kept.some(({ event }) => event.attemptId === retractedId)).toBe(true);
     expect(compact.records.attemptRecords.some((record) => record.attemptId === retractedId)).toBe(false);
     // The dead attempt is excluded from the aggregate too: replaying the
     // emitted kept rows must match a journal without the attempt (the
@@ -244,6 +244,7 @@ describe('compaction record emission', () => {
     const exactFold = emptyKeyFold();
     for (const { event, seq } of compact.kept) {
       if (event.kind === 'retraction' || event.retracts !== undefined) continue;
+      if (event.attemptId === retractedId) continue;
       applyEventToFold(exactFold, event, seq);
     }
     const combined = mergeKeyFolds(archiveFoldState, exactFold);

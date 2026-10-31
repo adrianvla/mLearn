@@ -515,6 +515,25 @@ describe('Guardian evidence rebase for undos', () => {
     await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
   });
 
+  it('preserves acknowledged evidence across compaction of previously undone reviews and restart', async () => {
+    writeRetractedProfile();
+    const store = KnowledgeHistoryStore.open(file('knowledge-history.sqlite3'));
+    const now = Date.now();
+    const day = 86_400_000;
+    store.appendEvents({ 'xx:key': [
+      { t: now - 500 * day, kind: 'rollup', source: 'passiveTracking', aspect: 'meaning', timesSeenDelta: 1 },
+      { t: now - 300 * day, kind: 'rollup', source: 'passiveTracking', aspect: 'meaning', timesSeenDelta: 1 },
+    ] });
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const before = guardian.status.metrics!.knowledgeEvidenceCount;
+    store.compact(now, 100);
+    expect(store.getKnowledgeState('xx:key').hasArchive).toBe(true);
+    store.close();
+    expect(inspectGuardianData(temp.tmpDir).knowledgeEvidenceCount).toBe(before);
+    await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
+  });
+
   it('rechecks an evidence-only post-migration block with modern retraction accounting', async () => {
     writeRetractedProfile();
     const guardian = new Guardian(temp.tmpDir);
