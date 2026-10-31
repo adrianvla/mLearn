@@ -105,6 +105,8 @@ pub struct TaskContract {
     pub revision: u32,
     pub response_spec: ResponseSpec,
     pub validator_id: Option<String>,
+    /// Knowledge disclosed by revealing the answer, including related task directions.
+    pub answer_supplied: Vec<KnowledgeKey>,
     pub attribution: String,
     pub limitations: String,
 }
@@ -116,6 +118,14 @@ impl TaskContract {
     /// Returns [`TaskError::Contract`] for a missing, misleading or unbounded descriptor.
     pub fn validate(&self) -> Result<(), TaskError> {
         self.response_spec.validate()?;
+        let mut disclosed = BTreeSet::new();
+        let disclosure_valid = self.answer_supplied.len() <= 64
+            && self.answer_supplied.iter().all(|key| {
+                bounded(&key.package_id, 512)
+                    && bounded(&key.target_id, 512)
+                    && bounded(&key.capability, 512)
+                    && disclosed.insert((&key.package_id, &key.target_id, &key.capability))
+            });
         let validator_matches = match &self.response_spec {
             ResponseSpec::SelfReport => self.validator_id.is_none(),
             ResponseSpec::TypedText { .. } | ResponseSpec::ChoiceId { .. } => self
@@ -125,6 +135,7 @@ impl TaskContract {
         };
         (self.revision > 0
             && validator_matches
+            && disclosure_valid
             && bounded(&self.attribution, 4096)
             && bounded(&self.limitations, 4096))
         .then_some(())
@@ -356,12 +367,42 @@ mod tests {
     }
 
     #[test]
+    fn answer_disclosure_is_required_bounded_and_unique() {
+        // Given a self-report task with explicit answer disclosure.
+        let key = json!({"packageId":"pkg","targetId":"grammar:one","capability":"pkg:form"});
+        let valid = json!({
+            "revision":1,"responseSpec":{"kind":"self_report"},"validatorId":null,
+            "answerSupplied":[key.clone()],
+            "attribution":"Original package content","limitations":"Self-report only"
+        });
+        let mut missing = valid.clone();
+        missing.as_object_mut().unwrap().remove("answerSupplied");
+        let mut duplicate = valid.clone();
+        duplicate["answerSupplied"] = json!([key.clone(), key.clone()]);
+        let mut oversized = valid.clone();
+        oversized["answerSupplied"] = json!(vec![key; 65]);
+        let mut empty_identity = valid.clone();
+        empty_identity["answerSupplied"][0]["capability"] = json!("");
+        // When admitting wire descriptors.
+        let accepted: Vec<_> = [valid, missing, duplicate, oversized, empty_identity]
+            .into_iter()
+            .map(|value| {
+                serde_json::from_value::<TaskContract>(value)
+                    .is_ok_and(|task| task.validate().is_ok())
+            })
+            .collect();
+        // Then missing metadata cannot silently imply independent recall.
+        assert_eq!(accepted, vec![true, false, false, false, false]);
+    }
+
+    #[test]
     fn self_report_cannot_claim_an_executed_validator() {
         // Given a retrospective task carrying a forged validator identity.
         let task = TaskContract {
             revision: 1,
             response_spec: ResponseSpec::SelfReport,
             validator_id: Some("validator".into()),
+            answer_supplied: vec![],
             attribution: "Original package content".into(),
             limitations: "Retrospective self-report only".into(),
         };

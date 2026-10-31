@@ -75,6 +75,14 @@ impl Task {
                 Self::Typed | Self::Contrast => Some(format!("{}/validator-v1", self.id())),
                 Self::Recall => None,
             },
+            answer_supplied: Self::ALL
+                .into_iter()
+                .map(|task| KnowledgeKey {
+                    package_id: PACKAGE.into(),
+                    target_id: grammar::TARGET.into(),
+                    capability: task.capability(),
+                })
+                .collect(),
             attribution: grammar::ATTRIBUTION.into(),
             limitations: format!("{} {supplied}", grammar::LIMITATIONS),
         }
@@ -111,7 +119,14 @@ impl Task {
                     mnemonic: None,
                     key: Some(key),
                 }],
-                supplied: vec![],
+                supplied: vec![KnowledgeKey {
+                    package_id: PACKAGE.into(),
+                    target_id: grammar::TARGET.into(),
+                    capability: match self {
+                        Self::Contrast => Self::Typed.capability(),
+                        Self::Typed | Self::Recall => Self::Contrast.capability(),
+                    },
+                }],
                 required_media: None,
             },
             task: self.contract(),

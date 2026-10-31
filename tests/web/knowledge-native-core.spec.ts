@@ -50,11 +50,13 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     const entries = first.page.items.flatMap(item => item.kind === 'target' ? [item.target] : []);
     expect(entries).toHaveLength(24);
     expect(first.page.next).not.toBeNull();
-    await expect(page.getByText(`${first.page.count} entries`, { exact: true })).toBeVisible();
-    for (const entry of entries)
-      await expect(page.getByTestId(`knowledge-target-${entry.summary.targetId}`)
-        .getByRole('button', { name: `${entry.summary.headword}: untracked`, exact: true })).toBeAttached();
     const language = await client.describeLanguage(packageId);
+    await expect(page.getByText(`${first.page.count} entries`, { exact: true })).toBeVisible();
+    for (const entry of entries) {
+      const status = entry.capabilities.includes(language.annotationCapability) ? 'untracked' : 'unavailable';
+      await expect(page.getByTestId(`knowledge-target-${entry.summary.targetId}`)
+        .getByRole('button', { name: `${entry.summary.headword}: ${status}`, exact: true })).toBeAttached();
+    }
     const capability = language.capabilities.find(item => item.id === language.annotationCapability);
     if (!capability) throw new Error('Package annotation capability has no label');
 
@@ -91,11 +93,15 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     if (second.state !== 'ready') throw new Error('Next native collection page was not ready');
     const next = second.page.items.flatMap(item => item.kind === 'target' ? [item.target] : []);
     expect(new Set([...entries, ...next].map(entry => entry.summary.targetId)).size).toBe(48);
-    for (const entry of next)
+    for (const entry of next) {
+      const status = entry.capabilities.includes(language.annotationCapability) ? 'untracked' : 'unavailable';
       await expect(page.getByTestId(`knowledge-target-${entry.summary.targetId}`)
-        .getByRole('button', { name: `${entry.summary.headword}: untracked`, exact: true })).toBeAttached();
+        .getByRole('button', { name: `${entry.summary.headword}: ${status}`, exact: true })).toBeAttached();
+    }
     const inspector = page.getByTestId('inspector-panel');
-    await page.getByTestId(`knowledge-target-${next[0].summary.targetId}`).getByRole('button').click();
+    const claimed = next.find(entry => entry.capabilities.includes(capability.id));
+    if (!claimed) throw new Error('Next page has no target supporting the claimed capability');
+    await page.getByTestId(`knowledge-target-${claimed.summary.targetId}`).getByRole('button').click();
     await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
     await inspector.getByRole('button', { name: capability.label, exact: true }).click();
     await inspector.getByRole('button', { name: `Claim ${capability.label} known`, exact: true }).click();
@@ -142,7 +148,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await evidence.getByRole('button', { name: 'Stop loading evidence', exact: true }).click();
       await page.screenshot({ path: info.outputPath('knowledge-evidence-stopped.png') });
       await client.changeClaim(client.prepareClaim({
-        packageId, targetId: next[0].summary.targetId, capability: capability.id,
+        packageId, targetId: claimed.summary.targetId, capability: capability.id,
       }, false));
       await evidence.getByRole('button', { name: 'Refresh evidence', exact: true }).click();
       await expect(evidence.getByText(/^Explicit claim: unknown/)).toBeVisible();
@@ -165,7 +171,8 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeFocused();
     await expect(page.getByRole('button', { name: 'First Knowledge page', exact: true })).toBeDisabled();
-    const target = entries[0];
+    const target = entries.find(entry => entry.capabilities.includes(capability.id));
+    if (!target) throw new Error('First page has no target supporting the captured capability');
     const word = page.getByTestId(`knowledge-target-${target.summary.targetId}`)
       .getByRole('button', { name: `${target.summary.headword}: untracked`, exact: true });
     await word.click();

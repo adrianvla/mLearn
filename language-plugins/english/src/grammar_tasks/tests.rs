@@ -53,11 +53,61 @@ fn generation_tests_only_each_requested_key_without_supplying_it() {
             task.probe.targets[0].key.as_ref(),
             Some(&expected.eligible_keys[0])
         );
-        assert!(task.probe.supplied.is_empty());
+        assert!(
+            !task.probe.supplied.contains(&expected.eligible_keys[0]),
+            "The task cue must not supply its own tested direction"
+        );
         assert!(task.probe.required_media.is_none());
         let native: mlearn_core::ReviewProbe =
             serde_json::from_value(serde_json::to_value(&task.probe).unwrap()).unwrap();
         assert!(mlearn_core::review_compatible(&native));
+    }
+}
+
+#[test]
+fn grammar_cues_and_reveals_declare_supplied_knowledge() {
+    // Given all three task directions for the same construction.
+    let input = request(&["grammar-form", "grammar-meaning", "grammar-recall"]);
+    // When real package generation declares the knowledge exposed by each task.
+    let generated = dispatch("learning.probes.v2", input).unwrap();
+    let tasks = generated["tasks"].as_array().unwrap();
+    let contrast = tasks
+        .iter()
+        .find(|value| {
+            value["probe"]["id"]
+                .as_str()
+                .unwrap()
+                .ends_with("/contrast")
+        })
+        .unwrap();
+    // Then visible choice sentences already supply the typed formation answer.
+    assert!(
+        contrast["probe"]["supplied"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|key| { key["capability"] == "org.mlearn.english:grammar-form" }),
+        "Choice options must not leave subsequent formation recall falsely independent"
+    );
+    for task in tasks {
+        let disclosed: std::collections::BTreeSet<_> = task["task"]["answerSupplied"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|key| {
+                assert_eq!(key["packageId"], PACKAGE);
+                assert_eq!(key["targetId"], grammar::TARGET);
+                key["capability"].as_str().unwrap()
+            })
+            .collect();
+        assert_eq!(
+            disclosed,
+            std::collections::BTreeSet::from([
+                "org.mlearn.english:grammar-form",
+                "org.mlearn.english:grammar-meaning",
+                "org.mlearn.english:grammar-recall",
+            ])
+        );
     }
 }
 

@@ -1,5 +1,82 @@
 # Current implementation checkpoint
 
+## M11 disclosure repair and exact-source CI - 2026-10-31
+
+Package checkpoint `e69576ec4e8f46c5d6e326201cdcf0ce2ef944d7` is
+committed/pushed. Its automatic Desktop CI41244626715 passed. Foundation
+CI41244626654 has passing Rust, OCR and both desktop jobs, but web failed
+1/171: Knowledge's initial-page test assumed every target supported the
+package's lexical annotation capability. The new grammar target correctly
+renders `unavailable`, not `untracked`, for that unsupported direction.
+Exact failure: job124665379879, `knowledge-native-core.spec.ts:56`, missing
+button `Past simple negative: untracked`. Root changed both page assertions
+to derive supported annotation eligibility from actual package metadata;
+lexical rows still require `untracked`. The first file rerun under
+`mon_365X7Z7758STX8MN` was interrupted by its resource guard, as recorded below.
+Source-bound Mobile CI41244626640 remains pending. No CI rerun was launched.
+
+Root reproduced a separate package disclosure defect before repair:
+`grammar_cues_and_reveals_declare_supplied_knowledge` failed1/1 because
+contrast options expose formation without declaring that supplied key.
+English now declares cue-supplied formation for contrast, meaning for typed/
+recall, with no supplied/tested overlap. SDK task descriptors require explicit
+bounded/deduplicated `answerSupplied`; missing disclosure metadata is rejected,
+not defaulted to independent work. Revealing any of these related answers
+declares all three package-owned directions supplied. English is version
+`0.1.7-wn30-graph1-grammar1-ocr2`. This is producer metadata, not yet durable
+native exposure tracking or an independent-calibration claim.
+
+Changed Rust diagnostics and recursive Rustfmt pass. Serial SDK/English suites
+pass10/26 tests (compile3.71s); normal offline `npm run build:plugin` passes
+(English6.47s, Japanese9.35s). All9 native runtime Review tests pass against
+that rebuilt authenticated module (compile3.88s, execution1.42s). Actual
+English module SHA-256 is
+`224a2b35d3d655853043290874d1f4d7e92c46f41fd73204c84e8f804c037198`,
+569494B; lexicon identity is unchanged. Earlier module identities below
+remain historical checkpoints, not this uncommitted repair.
+
+Only confirmed owned analyzer33938, then restarted34617, were stopped before
+serial checks. Fresh unchanged2560MiB admission passed three samples:
+root604621944/604163192/604507256B, final available8727986176B,
+projected6043631616B, pressure1, swap3104505856B and unchanged
+swapOut314122223616B. The Rust guard stopped after native checks. A separate
+fresh browser admission passed, final root606145656B,
+available7801225216B/projected5116870656B, same pressure/swap counters.
+Browser guard `mon_1MSJ86D9SPDZZH2Q` stopped70 at projected4271587328B,
+below the unchanged4294967296B reserve. Root immediately killed the test
+monitor; that run is interrupted, not passed. Its owned preview35534 remained
+orphaned and was stopped after cwd/launch-time confirmation. Idle owned
+TypeScript service35407 and children35408/35409/35410 were also released.
+Fresh admission then passed3 samples, final available8012283904B and
+projected5327929344B, pressure1 and unchanged swapOut. A title-filter attempt
+selected no tests (`^` incorrectly anchored Playwright's full title); no
+scenario ran there. Corrected single-scenario monitor
+`mon_NMSMED0QR4V5CRQN` is running with guard `mon_G8FDNPR7ZKQST4Z7`,
+output `/tmp/mlearn-resume.i3aHcr/m11-knowledge-grammar-web-focused`.
+That corrected run failed at line175: a second positional assumption selected
+the grammar entry for a lexical claim/capture scenario. Root read the remaining
+full scenario and selects both claim/capture targets by actual supported
+capability, with explicit failure if none exists. No claim/evidence/capture or
+restart assertions were removed. Diagnostics pass.
+
+Final single-scenario run `mon_H66YWSHQN5QDBWKH` passes1/1 in2.4m, output
+`/tmp/mlearn-resume.i3aHcr/m11-knowledge-grammar-web-capability`. It drives
+real signed-package install, both page projections, claims/evidence and
+stopped/stale reads, source-free capture, desktop/narrow management retention,
+actual source return and crash/restart persistence. It is browser/Rust-owner
+evidence, not new native-platform certification. Fresh unchanged admission
+preceding it passed3 samples: root594496632/594480248/594431096B, final
+available7854342144B/projected5169987584B, pressure1, unchanged swap counters.
+Guard `mon_36C1W6TSDDHW5SGE` stopped after terminal success. Post-test no
+preview listener remains; root592268408B, available7825801216B, pressure1,
+swap3104505856B/swapOut314122223616B, disk9074320KiB. No test servers,
+devices or analyzers remain from that run. Earlier failed/interrupted artifacts
+are preserved separately; the exact e695 Foundation run remains failed.
+During that test root606456952B, available7314030592B, pressure1 and unchanged
+swapOut; disk10151532KiB. No device, inference or persistent launch monitor
+was started. Next finish the browser regression, then extend the existing
+native Review provenance/capture/exact-scope owners. M11 remains incomplete.
+
 ## M11 package/task unit verified - 2026-10-31
 
 M10 evidence checkpoint `0d3732dbbe81faa0ef57d89d852c626369fc8a7c` is
