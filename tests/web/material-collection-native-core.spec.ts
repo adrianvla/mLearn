@@ -68,11 +68,22 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('option', { name: 'Text A–Z', exact: true }).click();
     for (const material of saved.slice(0, 24))
       await expect(page.getByRole('button', { name: `Edit ${material.content.phrase}`, exact: true })).toBeAttached();
+    await page.getByRole('button', { name: 'Select items', exact: true }).click();
+    await page.getByRole('button', { name: 'Select entry-01', exact: true }).click();
+    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
     await page.getByRole('button', { name: 'Next Material page', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit entry-00', exact: true })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Select items', exact: true }).click();
+    await page.getByRole('button', { name: 'Add Material', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Previous Material', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await page.getByRole('button', { name: 'Select entry-40', exact: true }).click();
-    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
+    await expect(page.getByText(/^2 selected.*frozen selection$/)).toBeVisible();
+    const selections = await client.collectionSelections();
+    expect(selections).toHaveLength(1);
+    const frozen = await client.collectionSelectionPage(selections[0].id);
+    expect(frozen.items.map(entry => entry.item)).toEqual(
+      [saved[1].id, saved[40].id].sort().map(id => ({ kind: 'material', id })),
+    );
     const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
     await search.fill('Unsubmitted collection query');
     const origin = page.getByRole('button', { name: 'Edit entry-40', exact: true });
@@ -101,13 +112,92 @@ test('Material collections preserve exact counts and native order through paging
     await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Retain the originating collection page.');
     await expect(page.getByRole('alert')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath('material-editor-after-save-refocus-1080.png') });
+    const current = page.getByRole('combobox', { name: /^Current Material selection:/ });
+    const phrase = page.getByRole('textbox', { name: 'Phrase', exact: true });
+    const next = page.getByRole('button', { name: 'Next Material', exact: true });
+    const previous = page.getByRole('button', { name: 'Previous Material', exact: true });
+    await current.click();
+    await page.getByRole('option', { name: 'entry-47', exact: true }).click();
+    await expect(phrase).toHaveValue('entry-47');
+    await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Keep this page-boundary draft.');
+    await expect(next).toBeEnabled();
+    await next.click();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(phrase).toHaveValue('entry-47');
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Keep this page-boundary draft.');
+    await next.click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(phrase).toHaveValue('entry-48');
+    expect((await client.material(saved[47].id)).content.notes).toBe('Keep this page-boundary draft.');
+    await page.screenshot({ path: info.outputPath('material-editor-next-window-1080.png') });
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.screenshot({ path: info.outputPath('material-editor-next-window-390.png') });
+    await page.setViewportSize({ width: 1080, height: 900 });
+    await previous.click();
+    await expect(phrase).toHaveValue('entry-47');
+    const failWindow = async (route: import('@playwright/test').Route) => {
+      const request = JSON.parse(route.request().postDataJSON().args.request);
+      if (request.type !== 'refresh_material_collection') return route.continue();
+      await route.fulfill({ status: 503, contentType: 'application/json',
+        body: JSON.stringify({ error: 'Collection window unavailable' }) });
+    };
+    await page.route(`${backend.url}/invoke`, failWindow);
+    await next.click();
+    await expect(page.getByRole('alert')).toHaveText('Collection window unavailable');
+    await expect(phrase).toHaveValue('entry-47');
+    await page.unroute(`${backend.url}/invoke`, failWindow);
+    await page.getByRole('button', { name: 'Retry opening Material', exact: true }).click();
+    await expect(phrase).toHaveValue('entry-48');
+    await previous.click();
+    await expect(phrase).toHaveValue('entry-47');
+    await current.click();
+    await page.getByRole('option', { name: 'entry-24', exact: true }).click();
+    await previous.click();
+    await expect(phrase).toHaveValue('entry-23');
+    await next.click();
+    await expect(phrase).toHaveValue('entry-24');
+    await current.click();
+    await page.getByRole('option', { name: 'entry-40', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Retain the originating collection page.');
+    await expect(page.getByRole('alert')).toHaveCount(0);
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeEnabled();
     await expect(origin).toBeFocused();
     await expect(search).toHaveValue('Unsubmitted collection query');
-    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
+    await expect(page.getByText(/^2 selected.*frozen selection$/)).toBeVisible();
+    expect(await client.collectionSelectionPage(selections[0].id)).toEqual(frozen);
     expect(await scroller.evaluate(node => node.scrollTop)).toBe(scroll);
     await page.screenshot({ path: info.outputPath('material-origin-after-save-refocus-1080.png') });
+    const boundaryOrigin = page.getByRole('button', { name: 'Edit entry-47', exact: true });
+    await boundaryOrigin.click();
+    const windowStarted = Promise.withResolvers<void>();
+    const releaseWindow = Promise.withResolvers<void>();
+    const windowSettled = Promise.withResolvers<void>();
+    const holdWindow = async (route: import('@playwright/test').Route) => {
+      const request = JSON.parse(route.request().postDataJSON().args.request);
+      if (request.type !== 'refresh_material_collection') return route.continue();
+      const response = await route.fetch();
+      windowStarted.resolve();
+      await releaseWindow.promise;
+      await route.fulfill({ response });
+      windowSettled.resolve();
+    };
+    await page.route(`${backend.url}/invoke`, holdWindow);
+    try {
+      await next.click();
+      await windowStarted.promise;
+      await expect(page.getByText('Opening Material…', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+      await expect(boundaryOrigin).toBeFocused();
+    } finally {
+      releaseWindow.resolve();
+      await windowSettled.promise;
+      await page.unroute(`${backend.url}/invoke`, holdWindow);
+    }
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit entry-47', exact: true })).toBeAttached();
     await page.getByRole('button', { name: 'Edit entry-24', exact: true }).click();
     await page.getByRole('button', { name: 'Exclude Material', exact: true }).click();
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -125,6 +215,7 @@ test('Material collections preserve exact counts and native order through paging
     await expect(page.getByText('1 of 1 items', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit entry-24', exact: true })).toBeVisible();
     await backend.crashRestart();
+    expect(await client.collectionSelectionPage(selections[0].id)).toEqual(frozen);
     await page.goto('/materials');
     await expect(page.getByText('24 of 51 items', { exact: true })).toBeVisible();
     await page.setViewportSize({ width: 390, height: 844 });

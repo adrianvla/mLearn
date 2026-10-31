@@ -26,6 +26,16 @@ const orders = [
   { value: 'due_descending', label: 'Due last' },
 ] as const;
 
+type MaterialWindow = {
+  readonly query: CollectionQuery;
+  readonly next: string | null;
+  readonly previous: string | null;
+};
+type MaterialStep = {
+  readonly query: CollectionQuery;
+  readonly backwards: boolean;
+};
+
 function focus(target: View | NativeText | null | undefined) {
   if (Platform.OS === 'web') target?.focus();
   else {
@@ -57,13 +67,14 @@ export function MaterialScreen() {
   const [packages, setPackages] = useState<PluginSummary[]>([]);
   const [packageId, setPackageId] = useState('');
   const [editor, setEditor] = useState<{ key: string; content: MaterialContent; material?: Material; trigger: string | null;
-    items: readonly { value: string; label: string }[]; returnToOrigin: boolean } | null>(null);
+    items: readonly { value: string; label: string }[]; window: MaterialWindow | null; returnToOrigin: boolean } | null>(null);
   const editorActions = useRef<MaterialEditorHandle>(null);
   const currentItems = useRef<readonly { value: string; label: string }[]>([]);
+  const currentWindow = useRef<MaterialWindow | null>(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [opening, setOpening] = useState<{ id: string; pending: boolean; error: string; trigger: string | null;
-    returnToOrigin: boolean } | null>(null);
+    returnToOrigin: boolean; step?: MaterialStep } | null>(null);
   const [returning, setReturning] = useState<{ material: Material; location: string; pending: boolean; error: string } | null>(null);
   const [reload, setReload] = useState(0);
   const [proposalsOpen, setProposalsOpen] = useState(false);
@@ -93,10 +104,12 @@ export function MaterialScreen() {
   const selection = useCollectionSelection(host.available ? host.client : null, collectionQuery, visibleItems);
   currentItems.current = page?.items.flatMap(item => item.kind === 'material'
     ? [{ value: item.material.id, label: item.material.content.phrase || item.material.id }] : []) ?? [];
+  currentWindow.current = page && loadedQuery.current === queryKey
+    ? { query: { ...collectionQuery, after }, next: page.next, previous: page.previous } : null;
   useLayoutEffect(() => {
     if (!page?.items.length) return;
     setEditor(previous => previous && !previous.items.length
-      ? { ...previous, items: currentItems.current } : previous);
+      ? { ...previous, items: currentItems.current, window: currentWindow.current } : previous);
   }, [page, editor?.key]);
   useLayoutEffect(() => {
     if (!editor && restore.current) {
@@ -124,20 +137,41 @@ export function MaterialScreen() {
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, after, collectionQuery, reload, queryKey]));
-  const open = useCallback(async (id: string, trigger: string | null, returnToOrigin = false) => {
+  const open = useCallback(async (id: string, trigger: string | null, returnToOrigin = false, step?: MaterialStep) => {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
     const request = {}; openRequest.current = request;
-    setOpening({ id, trigger, returnToOrigin, pending: true, error: '' });
+    setOpening({ id, trigger, returnToOrigin, step, pending: true, error: '' });
     try {
-      const material = await host.client.material(id);
+      let window: MaterialWindow | null = null;
+      let items: readonly { value: string; label: string }[] | null = null;
+      let material: Material;
+      if (step) {
+        // The editor keeps one bounded window, independent of the originating
+        // collection's bookmark and scroll. Only Rust interprets these cursors.
+        const value = await host.client.refreshMaterialCollection(step.query);
+        switch (value.state) {
+          case 'preparing': throw new Error(`Preparing collection: ${value.processed} of ${value.total}`);
+          case 'unavailable': throw new Error(value.message);
+          case 'ready': {
+            const materials = value.page.items.flatMap(item => item.kind === 'material' ? [item.material] : []);
+            const selected = step.backwards ? materials.at(-1) : materials[0];
+            if (!selected) throw new Error('No Material remains in this collection window.');
+            material = selected;
+            items = materials.map(item => ({ value: item.id, label: item.content.phrase || item.id }));
+            window = { query: step.query, next: value.page.next, previous: value.page.previous };
+            break;
+          }
+        }
+      } else material = await host.client.material(id);
       if (scope && owner.current === scope && openRequest.current === request) {
         if (returnRequest.current?.location === 'editor') returnRequest.current = null;
         setReturning(previous => previous?.location === 'editor' ? null : previous);
         editorActions.current?.replace(material);
         setEditor(previous => ({ key: previous?.key ?? `${id}:${material.revision}`, material, content: material.content,
-          trigger: previous ? previous.trigger : trigger, items: (previous?.items ?? currentItems.current)
+          trigger: previous ? previous.trigger : trigger, items: (items ?? previous?.items ?? currentItems.current)
             .map(item => item.value === material.id ? { ...item, label: material.content.phrase || material.id } : item),
+          window: step ? window : previous ? previous.window : currentWindow.current,
           returnToOrigin: previous?.returnToOrigin ?? returnToOrigin }));
         setOpening(null);
         // Consume this entry intent. Keeping an old route id would reopen it
@@ -146,12 +180,12 @@ export function MaterialScreen() {
       }
     } catch (cause) {
       if (owner.current === scope && openRequest.current === request)
-        setOpening({ id, trigger, returnToOrigin, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
+        setOpening({ id, trigger, returnToOrigin, step, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
     } finally { if (openRequest.current === request) openRequest.current = null; }
   }, [host, router]);
-  const requestOpen = useCallback((id: string, trigger: string | null, returnToOrigin = false) => {
+  const requestOpen = useCallback((id: string, trigger: string | null, returnToOrigin = false, step?: MaterialStep) => {
     const scope = owner.current;
-    const proceed = () => { if (scope && owner.current === scope) void open(id, trigger, returnToOrigin); };
+    const proceed = () => { if (scope && owner.current === scope) void open(id, trigger, returnToOrigin, step); };
     if (editorActions.current) editorActions.current.requestLeave(proceed);
     else proceed();
   }, [open]);
@@ -204,7 +238,7 @@ export function MaterialScreen() {
       {opening.pending ? <Text accessibilityLiveRegion="polite">Opening Material…</Text> : null}
       {opening.error ? <><Text accessibilityRole="alert">{opening.error}</Text>
         <Button label="Retry opening Material"
-          onPress={() => requestOpen(opening.id, opening.trigger, opening.returnToOrigin)} /></> : null}
+          onPress={() => requestOpen(opening.id, opening.trigger, opening.returnToOrigin, opening.step)} /></> : null}
     </> : null;
   }
   function returnStatus(location: string) {
@@ -218,6 +252,17 @@ export function MaterialScreen() {
     ? [...editor.items, { value: editor.material.id, label: editor.material.content.phrase || editor.material.id }]
     : editor?.items ?? [];
   const editorIndex = editorItems.findIndex(item => item.value === editor?.material?.id);
+  function stepEditor(backwards: boolean) {
+    if (!editor) return;
+    const item = editorItems[editorIndex + (backwards ? -1 : 1)];
+    if (item) requestOpen(item.value, editor.trigger);
+    else {
+      const bookmark = backwards ? editor.window?.previous : editor.window?.next;
+      if (bookmark && editor.window && editor.material)
+        requestOpen(editor.material.id, editor.trigger, editor.returnToOrigin,
+          { query: { ...editor.window.query, after: bookmark }, backwards });
+    }
+  }
   const listStatus = pending || error || result?.state === 'preparing' || result?.state === 'unavailable' ? <View style={styles.notice}>
     {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
     {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
@@ -241,7 +286,7 @@ export function MaterialScreen() {
           if (returnRequest.current?.location === 'editor') returnRequest.current = null;
           setReturning(previous => previous?.location === 'editor' ? null : previous);
           setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add',
-            items: currentItems.current, returnToOrigin: false });
+            items: currentItems.current, window: currentWindow.current, returnToOrigin: false });
         }} />
       <Button ref={proposalTrigger} label="Review proposals" variant="secondary" onPress={() => {
         proposalFocus.current = proposalTrigger.current;
@@ -298,16 +343,16 @@ export function MaterialScreen() {
             </Row>
             <Row>
               <Button label="Previous" accessibilityLabel="Previous Material" variant="secondary" size="compact"
-                disabled={blocked || !!opening?.pending || editorIndex <= 0}
-                onPress={() => requestOpen(editorItems[editorIndex - 1].value, editor.trigger)} />
+                disabled={blocked || !!opening?.pending || editorIndex < 0 || (editorIndex === 0 && !editor.window?.previous)}
+                onPress={() => stepEditor(true)} />
               <View style={styles.editorSelection}>
                 <Select label="Current Material selection" size="compact" value={editor.material?.id ?? ''}
                   placeholder="New Material" options={editorItems} disabled={blocked || !!opening?.pending}
                   onValueChange={id => { if (id !== editor.material?.id) requestOpen(id, editor.trigger); }} />
               </View>
               <Button label="Next" accessibilityLabel="Next Material" variant="secondary" size="compact"
-                disabled={blocked || !!opening?.pending || editorIndex + 1 >= editorItems.length}
-                onPress={() => requestOpen(editorItems[editorIndex + 1].value, editor.trigger)} />
+                disabled={blocked || !!opening?.pending || (editorIndex + 1 >= editorItems.length && !editor.window?.next)}
+                onPress={() => stepEditor(false)} />
             </Row>
             {listStatus}
             {opening ? openStatus(opening.id) : null}

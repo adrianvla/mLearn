@@ -1,5 +1,58 @@
 # Current implementation checkpoint
 
+## Material window continuation - 2026-10-31
+
+Resumed `agent/m10-m11` at `3ae38153b693be8893d4b9e6f4eea7aaac00c83c`.
+Before editing, the two dirty modal files matched the recorded binary-diff
+SHA-256 `25e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671`.
+The earlier restart handoff below remains historical evidence, not the current
+verification state. Unrelated reports, Watch fixtures and Python cache remain
+untouched.
+
+The retained modal increment now passes real native-backed window navigation:
+entry47 Next48, Previous47, Previous24/23 and Next24, dirty Cancel/Save,
+durable notes, exact origin query/focus/positive scroll, and crash/restart.
+One bounded modal window uses native opaque bookmarks without moving the
+underlying collection. The recorded Add Material concern was reproduced in
+personal browser QA and the native test (`Expected disabled; Received enabled`).
+Previous now stays disabled when the new item has no saved current identity.
+Actual failed-window retry retains47 and reaches48 after recovery; a held
+successful native response after Close cannot reopen the modal on refocus.
+The native frozen selection includes entry01/40 from different pages and keeps
+its exact identity, membership and revisions through modal saves/navigation,
+origin restoration and native restart.
+
+Verification: `npm test` passes89 tooling and203 client/owner tests;
+`npm run typecheck` and `npm run lint` pass. Normal single-worker web export
+passes. The connected Material collection/editor/proposal and native selection
+run passes22 browser scenarios in27.2s. Source LSP is clean; test-file fresh
+diagnostics time out, so no test-LSP pass is claimed. The first browser run
+failed before Material because the existing development catalog expired;
+`node tools/prepare-plugins.mjs --sign-bundle` refreshed only its authenticated
+signature/expiry. No native rebuild, plugin rebuild or asset download occurred.
+
+Root personally drove the final native-backed app with omowright: Add on a
+later page, disabled Previous, entry47/48 forward/reverse, dirty Cancel,
+Save-before-switch and saved-note reload. Desktop1080/narrow390 captures were
+inspected. Evidence is `/tmp/mlearn-resume.i3aHcr/material-final-results/`
+and repository `tmp/manual-{add,window}-fixed{1080,390}.png`,
+`tmp/manual-window-save1080.png`; these are local evidence, not staged assets.
+Notepad:
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261031-resume.XXXXXX.md.Nujle2G5SI`.
+
+Fresh admission passed three samples at the unchanged2560MiB budget and4GiB
+reserve. Final post-QA footprint294323904B, available9391652864B, pressure1,
+swap3490381824B, with swapOut unchanged. All owned personal browser/backend/
+preview sessions stopped; port4173/9223/52313 and native-process readbacks are
+empty. Four disposable task browser profiles were removed with absence
+receipts; native profiles and evidence remain. No shared cleanup was performed.
+
+This is a verified Material increment, not M10 approval. Whole-M10 independent
+review and affected native scope remain open. Existing208c6226 native/storage
+evidence is reused only for its unchanged owners. All provisional M07,
+platform/visual and draft-PR limits below remain. M11 is untouched and gated
+on actual M10 engineering and independent review.
+
 ## Restart handoff - 2026-10-31, passive resource cycling stopped
 
 The maintainer redirected this process to one inspection/admission decision,
