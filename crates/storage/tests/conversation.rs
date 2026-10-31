@@ -80,18 +80,16 @@ fn explanation_admission_replays_one_actual_turn_and_reuses_edited_software_iden
     // Then no second user turn is invented, and changed payload/archived identity is refused.
     let owner = store.read_conversation(&first.conversation_id).unwrap();
     assert_eq!(page(&mut store, &owner).items.len(), 2);
-    assert!(
-        store
-            .conversation_command(
-                &ConversationCommand::Explain {
-                    command_id: "explain".into(),
-                    source: source.clone(),
-                    instruction: "different payload".into(),
-                },
-                false
-            )
-            .is_err()
-    );
+    assert!(store
+        .conversation_command(
+            &ConversationCommand::Explain {
+                command_id: "explain".into(),
+                source: source.clone(),
+                instruction: "different payload".into(),
+            },
+            false
+        )
+        .is_err());
     assistant.revision = reused.participants[0].revision;
     assistant.archived = true;
     run(
@@ -102,18 +100,16 @@ fn explanation_admission_replays_one_actual_turn_and_reuses_edited_software_iden
             contact: assistant,
         },
     );
-    assert!(
-        store
-            .conversation_command(
-                &ConversationCommand::Explain {
-                    command_id: "archived-explanation".into(),
-                    source,
-                    instruction: "Explain".into(),
-                },
-                false
-            )
-            .is_err()
-    );
+    assert!(store
+        .conversation_command(
+            &ConversationCommand::Explain {
+                command_id: "archived-explanation".into(),
+                source,
+                instruction: "Explain".into(),
+            },
+            false
+        )
+        .is_err());
 }
 
 #[test]
@@ -216,7 +212,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
             .unwrap(),
-        19
+        20
     );
     assert_eq!(
         db.query_row(
@@ -227,7 +223,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
         .unwrap(),
         1
     );
-    db.pragma_update(None, "user_version", 20).unwrap();
+    db.pragma_update(None, "user_version", 21).unwrap();
     drop(db);
     assert!(ProfileStore::open(&path).is_err());
 }
@@ -490,12 +486,10 @@ fn bounded_pages_literal_search_and_trace_chunks_reconstruct_actual_content() {
         other => panic!("{other:?}"),
     };
     assert_eq!(second.items.len(), 6);
-    assert!(
-        first
-            .items
-            .iter()
-            .all(|a| second.items.iter().all(|b| a.id != b.id))
-    );
+    assert!(first
+        .items
+        .iter()
+        .all(|a| second.items.iter().all(|b| a.id != b.id)));
     let mut after = None;
     let mut prompt = String::new();
     let mut request = String::new();
@@ -637,11 +631,9 @@ fn corrupt_rows_and_oversized_inputs_fail_without_partial_admission() {
     let (dir, mut store, owner) = fixture();
     let mut oversized = turn(&owner, "oversized");
     oversized.text = "x".repeat(CONVERSATION_TEXT_BYTES + 1);
-    assert!(
-        store
-            .conversation_command(&ConversationCommand::SendTurn { turn: oversized }, false)
-            .is_err()
-    );
+    assert!(store
+        .conversation_command(&ConversationCommand::SendTurn { turn: oversized }, false)
+        .is_err());
     assert!(page(&mut store, &owner).items.is_empty());
     let generation = send(&mut store, &owner, "corrupt");
     let db = Connection::open(dir.path().join("profile.sqlite")).unwrap();
@@ -656,26 +648,22 @@ fn corrupt_rows_and_oversized_inputs_fail_without_partial_admission() {
         store.read_conversation_message(&generation.user_message_id),
         Err(StorageError::Invalid(_))
     ));
-    assert!(
-        store
-            .conversation_generation_context(&generation.id)
-            .is_err()
-    );
+    assert!(store
+        .conversation_generation_context(&generation.id)
+        .is_err());
     db.execute(
         "UPDATE conversation_contacts SET data='not json' WHERE id='person'",
         [],
     )
     .unwrap();
-    assert!(
-        store
-            .conversation_command(
-                &ConversationCommand::GetContact {
-                    id: ContactId("person".into())
-                },
-                false
-            )
-            .is_err()
-    );
+    assert!(store
+        .conversation_command(
+            &ConversationCommand::GetContact {
+                id: ContactId("person".into())
+            },
+            false
+        )
+        .is_err());
 }
 
 #[test]
@@ -696,16 +684,14 @@ fn provider_configuration_and_runtime_only_actions_never_persist_credentials() {
     }
     let secret = "never-store-this-token";
     // When credential dispatch is attempted at the content boundary and then reopened.
-    assert!(
-        store
-            .conversation_command(
-                &ConversationCommand::SetSessionCredential {
-                    credential: Some(secret.into())
-                },
-                false
-            )
-            .is_err()
-    );
+    assert!(store
+        .conversation_command(
+            &ConversationCommand::SetSessionCredential {
+                credential: Some(secret.into())
+            },
+            false
+        )
+        .is_err());
     drop(store);
     let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
     // Then only configuration survives, and readiness reflects this new session.

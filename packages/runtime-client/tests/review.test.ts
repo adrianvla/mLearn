@@ -1,6 +1,7 @@
+/// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Request, ReviewCommand, ReviewEncounter, ReviewSession } from '@mlearn/contracts';
+import type { Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { createReviewClient, type ReviewAction } from '../src/reviewClient';
 import { RuntimeError } from '../src/errors';
 import { isReviewCommand, isReviewResponse } from '../src/reviewProtocol';
@@ -27,6 +28,105 @@ function gate<T>() {
   return { promise, release };
 }
 const protocol = (error: unknown) => error instanceof RuntimeError && error.code === 'protocol';
+
+const typedEncounter: ReviewEncounter = {
+  ...encounter,
+  task: { revision: 1, responseSpec: { kind: 'typed_text', maxBytes: 2048 },
+    attribution: 'Original package content', limitations: 'Finite matching only' },
+};
+const typedSession: ReviewSession = {
+  ...session, mode: { kind: 'practice', items: [{ materialId: 'material', source: null }] },
+  total: 1, encounter: typedEncounter,
+};
+const capturedEncounter: ReviewEncounter = {
+  ...typedEncounter,
+  capture: { id: 'native-capture', response: { kind: 'typed_text', text: '  RAW  ' },
+    conditions: { ...encounter.conditions }, feedback: null },
+};
+
+test('captured questions reject feedback leaks and foreign validator rows', () => {
+  // Given valid hidden and Revealed projections of one immutable capture.
+  const feedback = { contractVersion: 1, taskId: 'written', taskRevision: 1,
+    validatorId: 'package:validator',
+    outcomes: [{ targetId: 'row', result: 'accepted', reason: 'finite_match' }],
+  };
+  const revealedCapture = { ...capturedEncounter, answer: 'answer',
+    conditions: { ...encounter.conditions, revealed: true },
+    capture: { ...capturedEncounter.capture, feedback },
+  };
+  assert.equal(isReviewResponse({ type: 'review_session', session: typedSession }), true);
+  for (const value of [capturedEncounter, revealedCapture])
+    assert.equal(isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: value } }), true);
+  // When feedback appears early, claims another task/row or violates the admitted input.
+  const invalid = [
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture, feedback } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      conditions: { ...encounter.conditions, revealed: true } } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      response: { kind: 'choice_id', id: 'choice' } } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      response: { kind: 'typed_text', text: 'é'.repeat(1025) } } },
+    { ...typedEncounter, task: { ...typedEncounter.task, responseSpec: { kind: 'typed_text', maxBytes: 0 } } },
+    { ...typedEncounter, task: { ...typedEncounter.task, hiddenAnswer: 'leaked' } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback, taskId: 'another-task' } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback, taskRevision: 2 } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback,
+      outcomes: [...feedback.outcomes, ...feedback.outcomes] } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback,
+      outcomes: [{ ...feedback.outcomes[0], targetId: 'another-row' }] } } },
+  ];
+  // Then none acquires the trusted question projection.
+  for (const value of invalid)
+    assert.equal(isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: value } }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: { ...session, encounter: typedEncounter } }), false);
+});
+
+test('choice captures retain only a declared option identity', () => {
+  // Given a question with two actual stable choice IDs.
+  const choice = { ...capturedEncounter, task: {
+    revision: 1, responseSpec: { kind: 'choice_id', options: [
+      { id: 'a', label: 'First sentence' }, { id: 'b', label: 'Second sentence' },
+    ] }, attribution: 'Original package content', limitations: 'Choice contrast only',
+  }, capture: { ...capturedEncounter.capture, response: { kind: 'choice_id', id: 'a' } } };
+  // When the host projects a declared option and an invented replacement.
+  const accepted = isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: choice } });
+  const foreign = isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: {
+    ...choice, capture: { ...choice.capture, response: { kind: 'choice_id', id: 'outside' } },
+  } } });
+  // Then only the declared choice belongs to the admitted response.
+  assert.equal(accepted, true);
+  assert.equal(foreign, false);
+});
+
+test('prepared capture retries preserve raw bytes and reject renderer-supplied grading', async () => {
+  // Given an uncertain save and a mutable local response.
+  const wire: Request[] = [];
+  const client = createReviewClient(async request => {
+    wire.push(structuredClone(request));
+    if (wire.length === 1) throw new RuntimeError('transport', 'Receipt lost');
+    return { type: 'review', commit: { commandId: 'capture', committedRevision: 2,
+      session: { ...typedSession, revision: 2, encounter: capturedEncounter } } };
+  }, () => 'capture');
+  const raw = { kind: 'typed_text', text: '  RAW  ' } satisfies TaskResponse;
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: raw,
+  });
+  raw.text = 'edited after admission';
+  // When the same frozen command retries after uncertain transport.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  await client.review(command);
+  // Then original input survives without a client-authored success or oversized payload.
+  assert.deepEqual(wire[0], wire[1]);
+  assert.equal(command.kind, 'capture_response');
+  if (command.kind !== 'capture_response') throw new Error('Expected prepared capture');
+  assert.deepEqual(command.response, { kind: 'typed_text', text: '  RAW  ' });
+  for (const response of [
+    { kind: 'typed_text', text: 'answer', accepted: true },
+    { kind: 'typed_text', text: 'é'.repeat(1025) },
+    { kind: 'choice_id', id: '' },
+  ]) assert.equal(isReviewCommand({ ...command, response }), false);
+  assert.equal(isReviewCommand({ ...command, response: { kind: 'typed_text', text: 'é'.repeat(1024) } }), true);
+});
 
 test('Word Practice validates explicit membership and preserves a prepared selection across retry', async () => {
   // Given an exact selected native membership and an uncertain transport result.

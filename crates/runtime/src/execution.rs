@@ -1,14 +1,14 @@
 use crate::{
+    Runtime,
     bounded_reads::{BoundedReadError, BoundedReads},
     guest::{GuestOutput, GuestWork, Prepared},
     guest_gate::GuestGate,
-    Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc, Condvar, Mutex,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -17,7 +17,7 @@ use std::{
 pub(super) enum Failure {
     #[error("{0}")]
     Operation(String),
-    #[error("Source work cancelled; saved progress is unchanged")]
+    #[error("Work cancelled; saved progress is unchanged")]
     Cancelled,
     #[error("Native language execution is busy; retry the action")]
     Busy,
@@ -424,7 +424,9 @@ fn guest_bearing(request: &Request) -> bool {
         ),
         Request::Review { command } => matches!(
             command,
-            mlearn_core::ReviewCommand::Start { .. } | mlearn_core::ReviewCommand::Next { .. }
+            mlearn_core::ReviewCommand::Start { .. }
+                | mlearn_core::ReviewCommand::Next { .. }
+                | mlearn_core::ReviewCommand::CaptureResponse { .. }
         ),
         Request::OpenSource { .. }
         | Request::ImportImageCollection { .. }

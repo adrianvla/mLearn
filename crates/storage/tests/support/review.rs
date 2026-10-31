@@ -55,6 +55,7 @@ pub fn admission(store: &mut ProfileStore, command: &str) -> ReviewAdmission {
         package_version: "1".into(),
         package_revision: "revision".into(),
         scheduler_version: REVIEW_POLICY_VERSION,
+        task: None,
         source: Some(SourceAnchor {
             source_id: "source".into(),
             content_revision: "source-v1".into(),
@@ -140,6 +141,7 @@ pub fn reveal(store: &mut ProfileStore, session: &ReviewSession, id: &str) -> Re
 
 pub fn response(session: &ReviewSession, quality: Option<AttemptQuality>) -> ReviewResponse {
     ReviewResponse {
+        capture_id: None,
         encounter_id: session.encounter.as_ref().unwrap().id.clone(),
         grades: session
             .encounter

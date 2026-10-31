@@ -1,7 +1,7 @@
 use crate::{
+    Installed, Runtime,
     execution::Failure,
     guest::{GuestOutput, GuestWork, LanguageAction},
-    Installed, Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::sync::Arc;
@@ -20,6 +20,14 @@ impl Runtime {
                 Ok((self.complete_review(work, admissions)?, None))
             }
             GuestWork::Language(work) => {
+                if let LanguageAction::ReviewCapture { command, .. } = &work.action
+                    && let Some(commit) = self
+                        .store
+                        .review_receipt(command)
+                        .map_err(crate::review::storage_failure)?
+                {
+                    return Ok((Response::Review { commit }, None));
+                }
                 work.cancellation.check()?;
                 let current = self
                     .installed
@@ -50,6 +58,10 @@ impl Runtime {
                     }
                 }
                 let response = match (&work.action, output) {
+                    (
+                        LanguageAction::ReviewCapture { command, admission },
+                        GuestOutput::Validation(output),
+                    ) => self.complete_review_capture(work, command, admission, output)?,
                     (
                         LanguageAction::OpenDocument { .. }
                         | LanguageAction::OpenImageCollection { .. },

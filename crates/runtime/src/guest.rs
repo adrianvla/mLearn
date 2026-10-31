@@ -32,6 +32,10 @@ pub(super) struct LanguageWork {
     pub action: LanguageAction,
 }
 pub(super) enum LanguageAction {
+    ReviewCapture {
+        command: Box<mlearn_core::ReviewCommand>,
+        admission: Box<mlearn_core::ReviewAdmission>,
+    },
     EditMaterial(Box<mlearn_core::MaterialEdit>),
     Capture {
         inputs: Vec<crate::capture::CaptureInput>,
@@ -73,6 +77,7 @@ pub(super) enum LanguageAction {
     },
 }
 pub(super) enum GuestOutput {
+    Validation(mlearn_core::ValidationOutput),
     Review(Vec<mlearn_core::ReviewAdmission>),
     Capture(Vec<Result<(), String>>),
     Open,
@@ -97,6 +102,9 @@ impl GuestWork {
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
+                    LanguageAction::ReviewCapture { command, admission } => {
+                        GuestOutput::Validation(work.validate_review_response(command, admission)?)
+                    }
                     LanguageAction::OpenImageCollection { root, paths, title } => {
                         work.description()?;
                         GuestOutput::Document(Box::new(crate::document_import::prepare_images(
@@ -247,6 +255,7 @@ impl GuestWork {
         match self {
             Self::Review(_) => "learning.probes.v1",
             Self::Language(work) => match &work.action {
+                LanguageAction::ReviewCapture { .. } => "learning.validate.v1",
                 LanguageAction::Analyze(_) => "text.analyze.v1",
                 LanguageAction::Graph(_) => "graph.neighborhood.v1",
                 LanguageAction::Inspect { .. }

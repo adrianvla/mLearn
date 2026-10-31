@@ -1,6 +1,6 @@
 import type { KnowledgeEvidencePage, KnowledgeObservation } from '@mlearn/contracts';
 import { isKnowledgeProjection } from './watchProtocol';
-import { isReviewConditions, isReviewGrade } from './reviewProtocol';
+import { isReviewCapture, isReviewConditions, isReviewGrade } from './reviewProtocol';
 import { isSourceAnchor } from './sourceProtocol';
 
 const encoder = new TextEncoder();
@@ -13,13 +13,19 @@ const uint = (value: unknown): value is number =>
 const positive = (value: unknown): value is number => uint(value) && value > 0;
 const optionalBoolean = (value: unknown) => value === null || typeof value === 'boolean';
 function observation(value: unknown): value is KnowledgeObservation {
-  return object(value) && positive(value.sequence) && text(value.attemptId) && text(value.sessionId)
+  if (!object(value) || !isReviewGrade(value.grade)) return false;
+  const grade = value.grade;
+  return positive(value.sequence) && text(value.attemptId) && text(value.sessionId)
     && text(value.encounterId) && typeof value.active === 'boolean'
     && typeof value.createdAt === 'number' && Number.isSafeInteger(value.createdAt) && value.createdAt >= 0
     && text(value.materialId) && positive(value.materialRevision) && text(value.packageVersion)
     && text(value.packageRevision) && text(value.probeId, 256) && positive(value.probeContractVersion)
     && typeof value.direction === 'string' && ['written', 'focused', 'audio'].includes(value.direction)
-    && isReviewConditions(value.conditions) && isReviewGrade(value.grade) && value.grade.quality !== null
+    && isReviewConditions(value.conditions) && value.conditions.revealed
+    && (value.capture === undefined ? grade.quality !== null
+      : isReviewCapture(value.capture) && value.capture.feedback !== null
+        && value.capture.feedback.taskId === value.probeId
+        && value.capture.feedback.outcomes.some(row => row.targetId === grade.targetId))
     && optionalBoolean(value.assessed) && typeof value.practice === 'boolean'
     && (value.source === null || isSourceAnchor(value.source));
 }

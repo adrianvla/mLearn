@@ -17,6 +17,11 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[path = "review_capture.rs"]
+mod capture;
+#[cfg(test)]
+#[path = "review_capture_tests.rs"]
+mod capture_tests;
 #[path = "review_practice.rs"]
 mod practice;
 
@@ -56,6 +61,7 @@ impl Runtime {
         }
         let now = now()?;
         let limit = match &command {
+            ReviewCommand::CaptureResponse { .. } => return self.prepare_review_capture(command),
             ReviewCommand::Start { start } => match &start.mode {
                 ReviewMode::Continuous => 1,
                 ReviewMode::Finite { limit } if (1..=128).contains(limit) => {
@@ -98,6 +104,7 @@ impl Runtime {
                             .store
                             .review_next(mutation, None, now)
                             .map_err(storage_failure)?;
+                        self.cancel_review_validation(&commit.session.id);
                         return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
                     }
                 }
@@ -114,6 +121,7 @@ impl Runtime {
                     .store
                     .review_apply(&command, now)
                     .map_err(storage_failure)?;
+                self.cancel_review_validation(&commit.session.id);
                 return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
             }
         };
@@ -268,6 +276,7 @@ impl ReviewWork {
                         probe,
                         source: due.material.content.source.clone(),
                         scheduler_version: REVIEW_POLICY_VERSION,
+                        task: None,
                     });
                     if admissions.len() == self.limit {
                         return Ok(admissions);
@@ -398,7 +407,7 @@ mod tests {
     use mlearn_core::AuthoredMediaId;
     use serde_json::json;
 
-    fn runtime_with_package(root: &std::path::Path) -> Runtime {
+    pub(super) fn runtime_with_package(root: &std::path::Path) -> Runtime {
         let artifacts = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
         let manifests: Vec<crate::catalog::Manifest> =
             serde_json::from_slice(&std::fs::read(artifacts.join("bundle.json")).unwrap()).unwrap();
@@ -677,7 +686,7 @@ mod tests {
         assert!(runtime.store.review_receipt(&command).unwrap().is_none());
     }
 
-    fn material() -> Material {
+    pub(super) fn material() -> Material {
         serde_json::from_value(json!({
             "id":"material","revision":1,"excluded":false,
             "content":{"packageId":"example.language","targetId":null,"packageRevision":null,

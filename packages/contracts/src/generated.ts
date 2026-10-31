@@ -195,6 +195,8 @@ export type ReviewAttemptId = string;
 
 export type ReviewWorkId = string;
 
+export type ReviewCaptureId = string;
+
 export type AttemptQuality = "missed" | "struggled" | "fluent";
 
 export type ResponseMethod = "remembered" | "worked_out";
@@ -216,6 +218,10 @@ export type TaskContract = { revision: number, responseSpec: ResponseSpec, valid
  * Knowledge disclosed by revealing the answer, including related task directions.
  */
 answerSupplied: Array<KnowledgeKey>, attribution: string, limitations: string, };
+
+export type ReviewTask = { revision: number, responseSpec: ResponseSpec, attribution: string, limitations: string, };
+
+export type ReviewCapture = { id: ReviewCaptureId, response: TaskResponse, conditions: ReviewConditions, feedback: ValidationOutput | null, };
 
 export type ValidationResult = "accepted" | "rejected" | "unassessed";
 
@@ -239,7 +245,7 @@ export type ReviewAssistance = "inspector" | "source" | "prior_disclosure" | "re
 
 export type ReviewConditions = { revealed: boolean, exposureCount: number, assistance: Array<ReviewAssistance>, delivery: ReviewDelivery, };
 
-export type ReviewEncounter = { id: ReviewEncounterId, workId: ReviewWorkId, materialId: MaterialId, materialRevision: number, packageId: string, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, cue: string, answer: string | null, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, source: SourceAnchor | null, conditions: ReviewConditions, correction: boolean, };
+export type ReviewEncounter = { id: ReviewEncounterId, workId: ReviewWorkId, materialId: MaterialId, materialRevision: number, packageId: string, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, cue: string, answer: string | null, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, source: SourceAnchor | null, conditions: ReviewConditions, correction: boolean, task?: ReviewTask, capture?: ReviewCapture, };
 
 export type ReviewSession = { id: ReviewSessionId, revision: number, mode: ReviewMode, state: ReviewSessionState, completed: number, total: number | null, encounter: ReviewEncounter | null, canUndo: boolean, message: string | null, };
 
@@ -249,9 +255,9 @@ export type ReviewMutation = { commandId: string, sessionId: ReviewSessionId, ex
 
 export type ReviewGrade = { targetId: string, quality: AttemptQuality | null, method: ResponseMethod, easy: boolean, };
 
-export type ReviewResponse = { encounterId: ReviewEncounterId, grades: Array<ReviewGrade>, };
+export type ReviewResponse = { encounterId: ReviewEncounterId, grades: Array<ReviewGrade>, captureId?: ReviewCaptureId, };
 
-export type ReviewCommand = { "kind": "start", start: ReviewStart, } | { "kind": "next", mutation: ReviewMutation, } | { "kind": "reveal", mutation: ReviewMutation, encounterId: ReviewEncounterId, } | { "kind": "delivery", mutation: ReviewMutation, encounterId: ReviewEncounterId, delivery: ReviewDelivery, } | { "kind": "assistance", mutation: ReviewMutation, encounterId: ReviewEncounterId, assistance: ReviewAssistance, } | { "kind": "submit", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "undo", mutation: ReviewMutation, } | { "kind": "correct", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "pause", mutation: ReviewMutation, } | { "kind": "resume", mutation: ReviewMutation, };
+export type ReviewCommand = { "kind": "start", start: ReviewStart, } | { "kind": "next", mutation: ReviewMutation, } | { "kind": "reveal", mutation: ReviewMutation, encounterId: ReviewEncounterId, } | { "kind": "delivery", mutation: ReviewMutation, encounterId: ReviewEncounterId, delivery: ReviewDelivery, } | { "kind": "assistance", mutation: ReviewMutation, encounterId: ReviewEncounterId, assistance: ReviewAssistance, } | { "kind": "capture_response", mutation: ReviewMutation, encounterId: ReviewEncounterId, response: TaskResponse, } | { "kind": "submit", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "undo", mutation: ReviewMutation, } | { "kind": "correct", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "pause", mutation: ReviewMutation, } | { "kind": "resume", mutation: ReviewMutation, };
 
 export type ReviewCommit = { commandId: string, committedRevision: number, session: ReviewSession, };
 
@@ -525,7 +531,7 @@ export type KnowledgeEvidenceCursor = { identity: string, before: number, revisi
 
 export type KnowledgeEvidenceQuery = { key: KnowledgeKey, after: KnowledgeEvidenceCursor | null, };
 
-export type KnowledgeObservation = { sequence: number, attemptId: ReviewAttemptId, sessionId: ReviewSessionId, encounterId: ReviewEncounterId, active: boolean, createdAt: number, materialId: MaterialId, materialRevision: number, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, conditions: ReviewConditions, grade: ReviewGrade, assessed: boolean | null, practice: boolean, source: SourceAnchor | null, };
+export type KnowledgeObservation = { sequence: number, attemptId: ReviewAttemptId, sessionId: ReviewSessionId, encounterId: ReviewEncounterId, active: boolean, createdAt: number, materialId: MaterialId, materialRevision: number, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, conditions: ReviewConditions, grade: ReviewGrade, assessed: boolean | null, practice: boolean, source: SourceAnchor | null, capture?: ReviewCapture, };
 
 export type KnowledgeEvidencePage = { projection: KnowledgeProjection, claimRevision: number | null, assessedAttempt: ReviewAttemptId | null, observations: Array<KnowledgeObservation>, next: KnowledgeEvidenceCursor | null, };
 

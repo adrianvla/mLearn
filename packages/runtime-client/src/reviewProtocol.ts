@@ -1,4 +1,4 @@
-import type { PracticeItem, Response, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession } from '@mlearn/contracts';
+import type { ChoiceOption, PracticeItem, Response, ResponseSpec, ReviewCapture, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession, ReviewTask, TaskResponse, ValidationOutput } from '@mlearn/contracts';
 import { encodedBytes, isSourceAnchor } from './materialProtocol';
 
 const encoder = new TextEncoder();
@@ -51,6 +51,58 @@ function practiceItem(value: unknown): value is PracticeItem {
   return record(value, ['materialId', 'source']) && text(value.materialId)
     && nullable(value.source, isSourceAnchor);
 }
+function responseSpec(value: unknown): value is ResponseSpec {
+  if (!object(value)) return false;
+  switch (value.kind) {
+    case 'self_report': return record(value, ['kind']);
+    case 'typed_text': return record(value, ['kind', 'maxBytes'])
+      && positive(value.maxBytes) && value.maxBytes <= 2048;
+    case 'choice_id': return record(value, ['kind', 'options'])
+      && list(value.options, 8, (item): item is ChoiceOption =>
+        record(item, ['id', 'label']) && text(item.id, 256) && text(item.label, 2048))
+      && value.options.length >= 2
+      && new Set(value.options.map(option => option.id)).size === value.options.length;
+    default: return false;
+  }
+}
+function taskResponse(value: unknown): value is TaskResponse {
+  if (!object(value)) return false;
+  switch (value.kind) {
+    case 'typed_text': return record(value, ['kind', 'text'])
+      && typeof value.text === 'string' && value.text.length <= 2048 && encoder.encode(value.text).length <= 2048;
+    case 'choice_id': return record(value, ['kind', 'id']) && text(value.id, 256);
+    default: return false;
+  }
+}
+function task(value: unknown): value is ReviewTask {
+  return record(value, ['revision', 'responseSpec', 'attribution', 'limitations'])
+    && positive(value.revision) && responseSpec(value.responseSpec)
+    && text(value.attribution, 4096) && text(value.limitations, 4096);
+}
+function validation(value: unknown): value is ValidationOutput {
+  return record(value, ['contractVersion', 'taskId', 'taskRevision', 'validatorId', 'outcomes'])
+    && value.contractVersion === 1 && text(value.taskId, 256)
+    && positive(value.taskRevision) && text(value.validatorId, 256)
+    && list(value.outcomes, 32, (row): row is ValidationOutput['outcomes'][number] =>
+      record(row, ['targetId', 'result', 'reason']) && text(row.targetId, 256)
+      && member(row.result, ['accepted', 'rejected', 'unassessed']) && text(row.reason, 256))
+    && value.outcomes.length > 0
+    && new Set(value.outcomes.map(row => row.targetId)).size === value.outcomes.length;
+}
+export function isReviewCapture(value: unknown): value is ReviewCapture {
+  return record(value, ['id', 'response', 'conditions', 'feedback'])
+    && text(value.id) && taskResponse(value.response) && isReviewConditions(value.conditions)
+    && nullable(value.feedback, validation);
+}
+function responseMatchesTask(specification: ResponseSpec, response: TaskResponse): boolean {
+  switch (specification.kind) {
+    case 'self_report': return false;
+    case 'typed_text': return response.kind === 'typed_text'
+      && encoder.encode(response.text).length <= specification.maxBytes;
+    case 'choice_id': return response.kind === 'choice_id'
+      && specification.options.some(option => option.id === response.id);
+  }
+}
 function mode(value: unknown): value is ReviewMode {
   if (!object(value)) return false;
   switch (value.kind) {
@@ -62,9 +114,12 @@ function mode(value: unknown): value is ReviewMode {
   }
 }
 function encounter(value: unknown): value is ReviewEncounter {
-  if (!record(value, ['id', 'workId', 'materialId', 'materialRevision', 'packageId', 'packageVersion',
+  const fields = ['id', 'workId', 'materialId', 'materialRevision', 'packageId', 'packageVersion',
     'packageRevision', 'probeId', 'probeContractVersion', 'direction', 'cue', 'answer', 'targets',
-    'supplied', 'requiredMedia', 'source', 'conditions', 'correction'])
+    'supplied', 'requiredMedia', 'source', 'conditions', 'correction'];
+  if (object(value) && Object.hasOwn(value, 'task')) fields.push('task');
+  if (object(value) && Object.hasOwn(value, 'capture')) fields.push('capture');
+  if (!record(value, fields)
     || !text(value.id) || !text(value.workId) || !text(value.materialId) || !positive(value.materialRevision)
     || !text(value.packageId) || !text(value.packageVersion) || !text(value.packageRevision)
     || !text(value.probeId, 256) || value.probeContractVersion !== 1
@@ -73,7 +128,9 @@ function encounter(value: unknown): value is ReviewEncounter {
     || !list(value.targets, 32, target) || !value.targets.length || !list(value.supplied, 64, key)
     || !nullable(value.requiredMedia, text) || !nullable(value.source, isSourceAnchor)
     || typeof value.correction !== 'boolean'
-    || !isReviewConditions(value.conditions)) return false;
+    || !isReviewConditions(value.conditions)
+    || value.task !== undefined && !task(value.task)
+    || value.capture !== undefined && !isReviewCapture(value.capture)) return false;
   const conditions = value.conditions;
   if (conditions.revealed !== (value.answer !== null)
     || value.correction && !conditions.revealed
@@ -81,6 +138,20 @@ function encounter(value: unknown): value is ReviewEncounter {
   const tested = value.targets.flatMap(row => row.key === null ? [] : [keyId(row.key)]);
   if (new Set(tested).size !== tested.length || value.supplied.some(item => tested.includes(keyId(item)))
     || value.targets.some(row => row.key !== null && row.key.packageId !== value.packageId)) return false;
+  const captured = value.capture;
+  const specification = value.task;
+  const targets = value.targets;
+  if (captured !== undefined) {
+    if (specification === undefined || !responseMatchesTask(specification.responseSpec, captured.response)
+      || captured.conditions.exposureCount > conditions.exposureCount
+      || captured.conditions.revealed && !conditions.revealed
+      || captured.conditions.assistance.some(item => !conditions.assistance.includes(item))
+      || (captured.feedback !== null) !== conditions.revealed) return false;
+    if (captured.feedback !== null
+      && (captured.feedback.taskId !== value.probeId || captured.feedback.taskRevision !== specification.revision
+        || captured.feedback.outcomes.length !== targets.length
+        || captured.feedback.outcomes.some(row => !targets.some(target => target.id === row.targetId)))) return false;
+  }
   return value.direction === 'audio'
     ? value.requiredMedia !== null && conditions.delivery !== 'not_required'
     : value.requiredMedia === null && conditions.delivery === 'not_required';
@@ -89,17 +160,19 @@ export function isReviewSession(value: unknown): value is ReviewSession {
   if (!record(value, ['id', 'revision', 'mode', 'state', 'completed', 'total', 'encounter', 'canUndo', 'message'])
     || !text(value.id) || !positive(value.revision) || !mode(value.mode)
     || !member(value.state, ['active', 'paused', 'complete', 'unavailable']) || !uint(value.completed)
-    || !nullable(value.total, uint) || !nullable(value.encounter, encounter) || typeof value.canUndo !== 'boolean'
+    || !nullable(value.total, uint) || typeof value.canUndo !== 'boolean'
     || !nullable(value.message, item => text(item, 32768))) return false;
   if (typeof value.total === 'number' && value.completed > value.total) return false;
   const currentEncounter = value.encounter;
+  if (currentEncounter !== null && !encounter(currentEncounter)) return false;
+  if (currentEncounter !== null && currentEncounter.task !== undefined && value.mode.kind !== 'practice') return false;
   switch (value.mode.kind) {
     case 'continuous': return value.total === null;
     case 'finite': return uint(value.total) && value.total <= value.mode.limit;
     case 'practice': return uint(value.total) && value.total >= value.mode.items.length
       && value.total <= value.mode.items.length * 8
-      && (currentEncounter === null || encounter(currentEncounter)
-        && value.mode.items.some(item => item.materialId === currentEncounter.materialId));
+      && (currentEncounter === null
+        || value.mode.items.some(item => item.materialId === currentEncounter.materialId));
   }
 }
 function mutation(value: unknown) {
@@ -107,7 +180,10 @@ function mutation(value: unknown) {
     && text(value.commandId, 128) && text(value.sessionId) && positive(value.expectedRevision);
 }
 function response(value: unknown) {
-  return record(value, ['encounterId', 'grades']) && text(value.encounterId)
+  const fields = ['encounterId', 'grades'];
+  if (object(value) && Object.hasOwn(value, 'captureId')) fields.push('captureId');
+  return record(value, fields) && text(value.encounterId)
+    && (value.captureId === undefined || text(value.captureId))
     && list(value.grades, 32, isReviewGrade)
     && value.grades.length > 0 && new Set(value.grades.map(row => row.targetId)).size === value.grades.length;
 }
@@ -125,6 +201,8 @@ export function isReviewCommand(value: unknown): value is ReviewCommand {
       && mutation(value.mutation) && text(value.encounterId) && delivery(value.delivery);
     case 'assistance': return record(value, ['kind', 'mutation', 'encounterId', 'assistance'])
       && mutation(value.mutation) && text(value.encounterId) && assistance(value.assistance);
+    case 'capture_response': return record(value, ['kind', 'mutation', 'encounterId', 'response'])
+      && mutation(value.mutation) && text(value.encounterId) && taskResponse(value.response);
     case 'submit': case 'correct': return record(value, ['kind', 'mutation', 'response'])
       && mutation(value.mutation) && response(value.response);
     default: return false;

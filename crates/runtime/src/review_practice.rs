@@ -45,10 +45,10 @@ impl ReviewWork {
                 .manifest
                 .capabilities
                 .iter()
-                .any(|c| c == "learning.probes.v1")
+                .any(|c| c == "learning.probes.v1" || c == "learning.probes.v2")
             {
                 return Err(Failure::Operation(format!(
-                    "Word Practice language package {package_id} does not provide learning.probes.v1"
+                    "Word Practice language package {package_id} does not provide supported learning tasks"
                 )));
             }
             let work = LanguageWork {
@@ -60,14 +60,42 @@ impl ReviewWork {
             if let Some(anchor) = &item.source {
                 work.validate_practice_target(&material, anchor)?;
             }
-            let probes = work.review_probes(&material, &revision)?;
-            if probes.is_empty() {
+            let mut tasks: Vec<_> = if package
+                .manifest
+                .capabilities
+                .iter()
+                .any(|id| id == "learning.probes.v1")
+            {
+                work.review_probes(&material, &revision)?
+                    .into_iter()
+                    .map(|probe| (probe, None))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            // A package may explicitly omit a valid target from its v1 family.
+            // Only then ask its declared v2 family; errors never trigger fallback.
+            if tasks.is_empty()
+                && package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|id| id == "learning.probes.v2")
+                && let Some(target) = material.content.target_id.as_deref()
+            {
+                tasks = work
+                    .review_tasks(target, &revision)?
+                    .into_iter()
+                    .map(|task| (task.probe, Some(task.task)))
+                    .collect();
+            }
+            if tasks.is_empty() {
                 return Err(Failure::Protocol(
                     "invalid_review",
                     "A selected Material has no supported Word Practice probe".into(),
                 ));
             }
-            for probe in probes {
+            for (probe, task) in tasks {
                 use sha2::{Digest, Sha256};
                 let identity = serde_json::to_vec(&(
                     &material.id,
@@ -90,6 +118,7 @@ impl ReviewWork {
                         .clone()
                         .or_else(|| material.content.source.clone()),
                     scheduler_version: REVIEW_POLICY_VERSION,
+                    task,
                 });
             }
         }
@@ -98,6 +127,90 @@ impl ReviewWork {
 }
 
 impl LanguageWork {
+    fn review_tasks(
+        &self,
+        target: &str,
+        revision: &str,
+    ) -> Result<Vec<mlearn_core::PackageTask>, Failure> {
+        use mlearn_core::{KnowledgeKey, ResponseSpec, TaskInput, TaskOutput};
+        let entry = self.entry(target)?;
+        let package = &self.package.manifest.id;
+        let input = TaskInput {
+            contract_version: 2,
+            package_id: package.clone(),
+            package_revision: revision.into(),
+            target_id: target.into(),
+            eligible_keys: entry
+                .capabilities
+                .iter()
+                .map(|capability| KnowledgeKey {
+                    package_id: package.clone(),
+                    target_id: target.into(),
+                    capability: capability.id.clone(),
+                })
+                .collect(),
+        };
+        input
+            .validate(package)
+            .map_err(|error| Failure::Operation(error.to_string()))?;
+        let value = self.invoke(
+            "learning.probes.v2",
+            serde_json::to_value(&input).map_err(|error| Failure::Operation(error.to_string()))?,
+        )?;
+        if serde_json::to_vec(&value)
+            .map_err(|error| Failure::Operation(error.to_string()))?
+            .len()
+            > 131_072
+        {
+            return Err(Failure::Operation(
+                "Package task output exceeds its bound".into(),
+            ));
+        }
+        let output: TaskOutput =
+            serde_json::from_value(value).map_err(|error| Failure::Operation(error.to_string()))?;
+        if output.contract_version != 2 || !(1..=8).contains(&output.tasks.len()) {
+            return Err(Failure::Operation(
+                "Unsupported or empty package task output".into(),
+            ));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        let mut tested = std::collections::BTreeSet::new();
+        for task in &output.tasks {
+            task.task
+                .validate()
+                .map_err(|error| Failure::Operation(error.to_string()))?;
+            let valid_key = |key: &KnowledgeKey| input.eligible_keys.contains(key);
+            if !mlearn_core::review_compatible(&task.probe)
+                || !ids.insert(&task.probe.id)
+                || task.probe.required_media.is_some()
+                || task.probe.targets.iter().any(|row| {
+                    row.key.as_ref().is_none_or(|key| {
+                        !valid_key(key) || !tested.insert(key.capability.as_str())
+                    })
+                })
+                || task.probe.supplied.iter().any(|key| !valid_key(key))
+                || task.task.answer_supplied.iter().any(|key| !valid_key(key))
+                || (!matches!(task.task.response_spec, ResponseSpec::SelfReport)
+                    && !self
+                        .package
+                        .manifest
+                        .capabilities
+                        .iter()
+                        .any(|id| id == "learning.validate.v1"))
+            {
+                return Err(Failure::Operation(
+                    "Package task widened or duplicated the admitted scope".into(),
+                ));
+            }
+        }
+        if tested.len() != input.eligible_keys.len() {
+            return Err(Failure::Operation(
+                "Package does not support all requested task directions".into(),
+            ));
+        }
+        Ok(output.tasks)
+    }
+
     fn validate_practice_target(
         &self,
         material: &Material,

@@ -1,6 +1,6 @@
 use crate::{ProfileStore, StorageError};
 use mlearn_core::{ClaimChange, KnowledgeKey, KnowledgeProjection};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn claim_sql(package: &str, target: &str, capability: &str) -> String {
@@ -121,6 +121,11 @@ impl ProfileStore {
                     assessed: row.get(7)?,
                     practice: row.get(10)?,
                     source: admission.source,
+                    capture: crate::review_capture::read(
+                        &tx,
+                        &ReviewEncounterId(row.get(3)?),
+                        true,
+                    )?,
                 };
                 let size = serde_json::to_vec(&observation)?.len();
                 if size > 128 * 1024 {

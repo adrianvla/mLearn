@@ -44,7 +44,7 @@ pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn advance_revision(session: &mut ReviewSession) -> Result<(), StorageError> {
+pub(crate) fn advance_revision(session: &mut ReviewSession) -> Result<(), StorageError> {
     session.revision = session
         .revision
         .checked_add(1)
@@ -87,25 +87,42 @@ impl ProfileStore {
                 review_admission::practice_items(items)?;
                 // Package admission supplies at most eight compatible probes per Material.
                 if admissions.len() > items.len() * 8 {
-                    return Err(StorageError::Invalid("Word Practice probe bound exceeded".into()));
+                    return Err(StorageError::Invalid(
+                        "Word Practice probe bound exceeded".into(),
+                    ));
                 }
                 for item in items {
                     let material = review_admission::practice_material(&tx, &item.material_id)?;
-                    if !admissions.iter().any(|value| value.material_id == item.material_id)
+                    if !admissions
+                        .iter()
+                        .any(|value| value.material_id == item.material_id)
                         || admissions.iter().any(|value| {
                             value.material_id == item.material_id
                                 && (value.material_revision != material.revision
                                     || value.package_id != material.content.package_id
-                                    || value.source != item.source.clone().or_else(|| material.content.source.clone()))
+                                    || value.source
+                                        != item
+                                            .source
+                                            .clone()
+                                            .or_else(|| material.content.source.clone()))
                         })
                     {
-                        return Err(StorageError::Invalid("Selected Word Practice membership changed or is unavailable".into()));
+                        return Err(StorageError::Invalid(
+                            "Selected Word Practice membership changed or is unavailable".into(),
+                        ));
                     }
                 }
-                if admissions.iter().any(|value| !items.iter().any(|item| item.material_id == value.material_id)) {
-                    return Err(StorageError::Invalid("Word Practice cannot broaden selected membership".into()));
+                if admissions.iter().any(|value| {
+                    !items
+                        .iter()
+                        .any(|item| item.material_id == value.material_id)
+                }) {
+                    return Err(StorageError::Invalid(
+                        "Word Practice cannot broaden selected membership".into(),
+                    ));
                 }
-                u32::try_from(admissions.len()).map_err(|error| StorageError::Invalid(error.to_string()))?
+                u32::try_from(admissions.len())
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?
             }
         };
         let exists: bool = tx.query_row(
@@ -139,6 +156,11 @@ impl ProfileStore {
                 break;
             }
             review_admission::validate_admission(admission)?;
+            if admission.task.is_some() && !matches!(&start.mode, ReviewMode::Practice { .. }) {
+                return Err(StorageError::Invalid(
+                    "Package response tasks require deliberate Word Practice".into(),
+                ));
+            }
             if !matches!(&start.mode, ReviewMode::Practice { .. }) {
                 review_admission::due(&tx, admission, now)?;
             }
@@ -182,7 +204,9 @@ impl ProfileStore {
         now: i64,
     ) -> Result<ReviewCommit, StorageError> {
         match command {
-            ReviewCommand::Start { .. } | ReviewCommand::Next { .. } => Err(StorageError::Invalid(
+            ReviewCommand::Start { .. }
+            | ReviewCommand::Next { .. }
+            | ReviewCommand::CaptureResponse { .. } => Err(StorageError::Invalid(
                 "Review admission requires its storage entry point".into(),
             )),
             ReviewCommand::Reveal { .. }
@@ -215,6 +239,7 @@ impl ProfileStore {
                 return Err(StorageError::Invalid("Use Review start".into()));
             }
             ReviewCommand::Next { mutation }
+            | ReviewCommand::CaptureResponse { mutation, .. }
             | ReviewCommand::Reveal { mutation, .. }
             | ReviewCommand::Delivery { mutation, .. }
             | ReviewCommand::Assistance { mutation, .. }

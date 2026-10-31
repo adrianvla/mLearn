@@ -1,5 +1,100 @@
 # Current implementation checkpoint
 
+## M11 native captured-response integration in progress - 2026-10-31
+
+Canonical protocol checkpoint `8f79b095` is committed/pushed. This source
+checkpoint adds its next native consumer, not a delivered M11 UI. Saved grammar
+Material now enters the existing deliberate Practice owner with real v2 tasks:
+v1 remains first, an explicitly empty valid family permits declared v2, and
+operation failures never trigger substitution. Native output validates exact
+declared keys, task/validator contracts and disclosures. Due Review stays v1.
+Package-only Knowledge scope, calibration and expert authoring remain open.
+
+Review admission freezes optional task metadata. Native CaptureResponse stages
+the authenticated package validator, rechecks package/encounter/revision, and
+commits raw input, immutable result, capture conditions and receipt together.
+Question projection exposes raw input but no feedback until durable Reveal.
+Submit references that capture; accepted/rejected/unassessed and capture-time
+conditions own assessment, not contradictory retrospective grades. Undo/Correct
+retain the same capture. V20 Review-owned migration retains historical receipt
+bytes and reconstructs bounded-key cue/answer disclosures once from v19 history.
+An unanswered related cue can taint another Material's canonical direction.
+
+Native execution uses bounded weak per-session validation tokens. Successful
+same-session mutations invalidate its token; errors release the owned work
+without saving a response. Existing three-call native admission is unchanged.
+All23 storage Review tests pass, including7 new capture/migration scenarios
+(15.40s compile); historical Submit-byte regression passes1/1 (4.74s compile).
+Actual authenticated English native Review run passes12/12 (22.60s compile,
+2.47s execution), including real capture/restart/retry/Reveal/once-only Submit,
+Pause-before-invoke token release and Pause after actual validation before
+publication, followed by recoverable Resume. Changed Rust diagnostics and
+scoped formatting pass. The expanded five-case actual capture suite also passes
+5/5 (3.23s compile/1.57s execution), adding peer-session cancellation isolation
+and exact-package unavailability/recovery. The full actual-package typed/
+contrast/recall session also passes1/1 (3.74s compile/0.36s execution): unlisted
+typed text stays unassessed, a foreign choice ID cannot commit, the real declared
+choice validates, and retrospective recall cannot invoke a validator. Prior
+disclosure prevents those later directions from becoming cold success; all
+three real tasks complete through the same session owner. The targeted guard
+stopped after terminal success; no UI or native-device workflow is inferred.
+
+Fresh unchanged admission for that run: root600738960/600722576/600722576B,
+available8964145152B/projected6279790592B, pressure1,
+swap3096117248B/swapOut314122223616B unchanged; disk8078956KiB.
+Only confirmed idle analyzer40432 was stopped before testing. Original guard
+`mon_VR4AXK30JK5XD4NX` stopped after terminal native success. No devices,
+models or test servers were launched. Guest algorithm/wire owners are unchanged
+from the rebuilt modules recorded below; these tests use those real bundles.
+
+Generated declarations now include the new native fields. Strict client guards
+validate response specifications, raw UTF-8 bounds, immutable captures, private
+feedback, task/row identity and nullable captured evidence. Nineteen focused
+Review/client-integration/Knowledge tests pass. `npm run codegen` (6.21s),
+`npm run typecheck`, `npm run lint`, and `npm run check:contracts` pass.
+Two source LSP freshness requests timed out; the actual compiler passes, and
+both changed test files have clean diagnostics after explicit Node type
+references. No dependency was installed to mask an editor environment issue.
+The earlier native/codegen guard expired after its checks had already finished,
+not during an active build. Post-check root607505528B,
+available7890976768B, pressure1, unchanged swap/swapOut, disk7570596KiB.
+
+Schema-wide verification then reproduced nine failures across seven storage
+targets: historical migration replay hit already-present capture tables, and
+the current-version assertion still expected19. The new migration now follows
+existing idempotent table/index creation. Current-version assertions advance to20
+and future-version rejection still rejects the next version21; preservation
+assertions remain intact. Capture restart/retry now also exercises migration
+replay with existing immutable raw input. The repaired complete serial storage
+run passes145/145 across22 integration suites, zero ignored; no failing owner
+was waived. The schema fixtures were automatically formatted by the edit tool.
+New capture source/replay checks pass Rust2024 formatting; those existing
+fixtures pass their tool-applied Rust2021 formatting. A duplicate frozen
+admission read introduced in Reveal was removed within this increment.
+
+Fresh unchanged admission before that repaired run: root625937528/625921144/
+625773688B, available8879194112B/projected6194839552B, pressure1,
+swap3037396992B/swapOut314122223616B unchanged. Post-run root610815096B,
+available8592605184B, pressure1 and the same swap/swapOut; disk7393924KiB.
+Only confirmed workspace analyzer48182 was stopped before admission. The
+guard stopped after terminal success; no devices, servers or models launched.
+
+Actual Review presentation and cancellation-control integration are still pending.
+The current shared client serializes ordinary requests and ReviewWorkspace
+retains one write flight. Thus an ordinary Pause queued behind validation does
+not establish app-level Stop. Do not claim cancellation from that UI yet.
+Next add a bounded native control
+path with exact command/revision fencing and actual worker-drain acknowledgment;
+it must bypass the blocked queue without relaxing the three-native/two-waiter
+bounds or retiring uncertain work merely on receipt delivery. Preserve the
+existing single shared session/retry owner and inspect actual desktop/narrow
+surfaces before further presentation changes.
+
+Source-bound e695 Mobile CI41244626640 finished: Android124665379771 passes;
+iOS124665379980 step13 fails at22:31:49.9130560Z on retained Watch picker
+assertion `id: m01-watch, mp4 is not visible`. No hosted diagnostic variant or
+rerun was launched. This is not a new M11 native-app pass.
+
 ## M11 canonical native/package task protocol - 2026-10-31
 
 Disclosure/browser repair checkpoint

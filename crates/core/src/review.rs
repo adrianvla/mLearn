@@ -14,6 +14,7 @@ identity!(ReviewSessionId);
 identity!(ReviewEncounterId);
 identity!(ReviewAttemptId);
 identity!(ReviewWorkId);
+identity!(ReviewCaptureId);
 
 macro_rules! record {
     ($name:ident { $($(#[$attr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
@@ -78,7 +79,25 @@ record!(ReviewAdmission {
     package_revision: String,
     probe: ReviewProbe,
     source: Option<SourceAnchor>,
-    scheduler_version: u32
+    scheduler_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    task: Option<crate::TaskContract>
+});
+
+/// The question projection never contains validator rules or results.
+record!(ReviewTask {
+    revision: u32,
+    response_spec: crate::ResponseSpec,
+    attribution: String,
+    limitations: String
+});
+
+record!(ReviewCapture {
+    id: ReviewCaptureId,
+    response: crate::TaskResponse,
+    conditions: ReviewConditions,
+    feedback: Option<crate::ValidationOutput>
 });
 
 record!(PracticeItem {
@@ -153,7 +172,13 @@ record!(ReviewEncounter {
     required_media: Option<AuthoredMediaId>,
     source: Option<SourceAnchor>,
     conditions: ReviewConditions,
-    correction: bool
+    correction: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    task: Option<ReviewTask>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    capture: Option<ReviewCapture>
 });
 
 record!(ReviewSession {
@@ -189,7 +214,10 @@ record!(ReviewGrade {
 
 record!(ReviewResponse {
     encounter_id: ReviewEncounterId,
-    grades: Vec<ReviewGrade>
+    grades: Vec<ReviewGrade>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    capture_id: Option<ReviewCaptureId>
 });
 
 /// Command identity covers the complete operation and payload, not just its ID.
@@ -219,6 +247,12 @@ pub enum ReviewCommand {
         #[serde(rename = "encounterId")]
         encounter_id: ReviewEncounterId,
         assistance: ReviewAssistance,
+    },
+    CaptureResponse {
+        mutation: ReviewMutation,
+        #[serde(rename = "encounterId")]
+        encounter_id: ReviewEncounterId,
+        response: crate::TaskResponse,
     },
     Submit {
         mutation: ReviewMutation,

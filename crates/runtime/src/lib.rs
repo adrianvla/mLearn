@@ -36,9 +36,9 @@ mod review;
 mod source_file;
 mod watch;
 pub use bounded_reads::BoundedReadError;
-use catalog::{verify_artifact, CatalogClient, CatalogTrust, Manifest};
+use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
 pub use execution::RuntimeExecutor;
-use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
+use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{
@@ -78,6 +78,7 @@ pub struct Runtime {
     package_issues: BTreeMap<String, String>,
     analysis_cache: std::collections::VecDeque<(String, Vec<Vec<mlearn_core::AnalyzedToken>>)>,
     ocr_admission: Option<(String, u64)>,
+    review_validations: BTreeMap<String, std::sync::Weak<std::sync::atomic::AtomicU64>>,
 }
 fn summary(manifest: &Manifest) -> PluginSummary {
     PluginSummary {
@@ -122,6 +123,7 @@ impl Runtime {
             package_issues: BTreeMap::new(),
             analysis_cache: std::collections::VecDeque::new(),
             ocr_admission: None,
+            review_validations: BTreeMap::new(),
         };
         if policy == CodePolicy::DesktopDownloaded {
             for (id, stored) in runtime

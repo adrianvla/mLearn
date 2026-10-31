@@ -111,12 +111,16 @@ model!(KnowledgeObservation {
     grade:crate::ReviewGrade,
     assessed:Option<bool>,
     practice:bool,
-    source:Option<crate::SourceAnchor>
+    source:Option<crate::SourceAnchor>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[cfg_attr(feature="typescript",ts(optional))]
+    capture:Option<crate::ReviewCapture>
 });
 // Projection is the same shared native projection, not a renderer aggregate.
-// The current assessment is the latest qualifying self-report, not external
-// validation. Claims override its displayed status; prediction remains absent
-// until a real predictor exists. Claim timestamps/history are not retained.
+// Current assessment comes from the latest qualifying self-report or captured
+// package validation, with the measurement method retained in its observation.
+// Claims override displayed status; prediction remains absent until a real
+// predictor exists. Claim timestamps/history are not retained.
 model!(KnowledgeEvidencePage {
     projection:KnowledgeProjection,
     claim_revision:Option<u32>,

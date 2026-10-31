@@ -1,7 +1,9 @@
+/// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { KnowledgeEvidencePage, KnowledgeEvidenceQuery } from '@mlearn/contracts';
 import { createBoundedReadTestClient as createRuntimeClient } from './boundedReadFixture.ts';
+import { isKnowledgeEvidencePage } from '../src/knowledgeProtocol';
 
 function fixture(): { query: KnowledgeEvidenceQuery; page: KnowledgeEvidencePage } {
   const key = { packageId: 'package', targetId: 'target', capability: 'meaning' };
@@ -21,6 +23,32 @@ function fixture(): { query: KnowledgeEvidenceQuery; page: KnowledgeEvidencePage
     },
   };
 }
+
+test('captured validation permits an unrated row without fabricating retrospective self-report', () => {
+  // Given a real-shaped captured result with no retrospective quality rating.
+  const { page } = fixture();
+  const observation = page.observations[0];
+  observation.grade.quality = null;
+  observation.capture = {
+    id: 'capture', response: { kind: 'typed_text', text: ' raw answer ' },
+    conditions: { ...observation.conditions, revealed: false },
+    feedback: { contractVersion: 1, taskId: observation.probeId, taskRevision: 1,
+      validatorId: 'package:finite',
+      outcomes: [{ targetId: observation.grade.targetId, result: 'rejected', reason: 'listed_contrast' }] },
+  };
+  // When that validation is projected beside the exact tested row.
+  const valid = isKnowledgeEvidencePage(page);
+  const foreign = isKnowledgeEvidencePage({ ...page, observations: [{ ...observation,
+    capture: { ...observation.capture, feedback: { ...observation.capture.feedback, taskId: 'other-task' } },
+  }] });
+  const privateResult = isKnowledgeEvidencePage({ ...page, observations: [{ ...observation,
+    capture: { ...observation.capture, feedback: null },
+  }] });
+  // Then unrated captured input is inspectable, but foreign or missing results are not.
+  assert.equal(valid, true);
+  assert.equal(foreign, false);
+  assert.equal(privateResult, false);
+});
 
 test('Knowledge evidence rejects foreign scope, fabricated provenance and unbounded or inconsistent pages', async () => {
   const { query, page } = fixture();

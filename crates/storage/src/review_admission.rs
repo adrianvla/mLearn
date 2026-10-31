@@ -4,6 +4,19 @@ use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn validate_admission(value: &ReviewAdmission) -> Result<(), StorageError> {
+    if let Some(task) = &value.task {
+        task.validate()
+            .map_err(|error| StorageError::Invalid(error.to_string()))?;
+        if task
+            .answer_supplied
+            .iter()
+            .any(|key| key.package_id != value.package_id)
+        {
+            return Err(StorageError::Invalid(
+                "Task answer disclosure belongs to another package".into(),
+            ));
+        }
+    }
     for id in [
         &value.work_id.0,
         &value.material_id.0,
@@ -21,6 +34,11 @@ pub(crate) fn validate_admission(value: &ReviewAdmission) -> Result<(), StorageE
                 .as_ref()
                 .is_some_and(|k| k.package_id != value.package_id)
         })
+        || value
+            .probe
+            .supplied
+            .iter()
+            .any(|key| key.package_id != value.package_id)
     {
         return Err(StorageError::Invalid("Invalid Review admission".into()));
     }
@@ -147,7 +165,29 @@ pub(crate) fn next(
             "SELECT EXISTS(SELECT 1 FROM review_encounters e JOIN review_work w ON w.session_id=e.session_id AND w.work_id=e.work_id WHERE (e.session_id=?1 OR NOT EXISTS(SELECT 1 FROM review_attempts a WHERE a.encounter_id=e.id AND a.active=1 AND EXISTS(SELECT 1 FROM json_each(a.response,'$.grades') g WHERE json_extract(g.value,'$.quality') IS NOT NULL))) AND json_extract(w.admission,'$.materialId')=?2 AND json_extract(e.projection,'$.conditions.revealed')=1)",
             params![session.id.0, value.material_id.0], |r| r.get(0),
         )?;
-        if disclosed {
+        let tested: Vec<_> = value
+            .probe
+            .targets
+            .iter()
+            .filter_map(|row| row.key.as_ref())
+            .collect();
+        let key_disclosed: bool = db.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM review_disclosures d
+                JOIN review_encounters e ON e.id=d.encounter_id
+                JOIN json_each(?2) k
+                    ON d.package_id=json_extract(k.value,'$.packageId')
+                    AND d.target_id=json_extract(k.value,'$.targetId')
+                    AND d.capability=json_extract(k.value,'$.capability')
+                WHERE e.session_id=?1 OR NOT EXISTS(
+                    SELECT 1 FROM review_attempts a WHERE a.encounter_id=e.id AND a.active=1
+                    AND (json_extract(a.response,'$.captureId') IS NOT NULL OR EXISTS(
+                        SELECT 1 FROM json_each(a.response,'$.grades') g
+                        WHERE json_extract(g.value,'$.quality') IS NOT NULL))))",
+            params![session.id.0, serde_json::to_string(&tested)?],
+            |row| row.get(0),
+        )?;
+        if disclosed || key_disclosed {
             conditions
                 .assistance
                 .push(ReviewAssistance::PriorDisclosure);
@@ -171,6 +211,13 @@ pub(crate) fn next(
             source: value.source.clone(),
             conditions,
             correction: false,
+            task: value.task.as_ref().map(|task| ReviewTask {
+                revision: task.revision,
+                response_spec: task.response_spec.clone(),
+                attribution: task.attribution.clone(),
+                limitations: task.limitations.clone(),
+            }),
+            capture: None,
         };
         db.execute(
             "INSERT INTO review_encounters VALUES(?1,?2,?3,?4)",
@@ -185,6 +232,7 @@ pub(crate) fn next(
             "UPDATE review_work SET admitted=1 WHERE session_id=?1 AND work_id=?2",
             params![session.id.0, value.work_id.0],
         )?;
+        crate::review_capture::disclose(db, &id, &value.probe.supplied, "cue")?;
         session.encounter = Some(encounter);
         session.state = ReviewSessionState::Active;
     } else {

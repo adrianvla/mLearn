@@ -20,7 +20,9 @@ pub(crate) fn apply(
         ));
     }
     match command {
-        ReviewCommand::Start { .. } => Err(StorageError::Invalid("Use Review start".into())),
+        ReviewCommand::Start { .. } | ReviewCommand::CaptureResponse { .. } => Err(
+            StorageError::Invalid("Use the Review admission/capture entry point".into()),
+        ),
         ReviewCommand::Next { .. } => next(db, session, candidate),
         ReviewCommand::Pause { .. } => {
             if let Some(encounter) = session.encounter.as_mut()
@@ -57,8 +59,22 @@ pub(crate) fn apply(
         }
         ReviewCommand::Reveal { encounter_id, .. } => {
             let encounter = current(session, encounter_id)?;
-            encounter.answer = Some(review_read::admission(db, encounter_id)?.probe.answer);
+            let admission = review_read::admission(db, encounter_id)?;
+            encounter.answer = Some(admission.probe.answer);
             encounter.conditions.revealed = true;
+            encounter.capture = crate::review_capture::read(db, encounter_id, true)?;
+            let keys = admission.task.map_or_else(
+                || {
+                    admission
+                        .probe
+                        .targets
+                        .into_iter()
+                        .filter_map(|row| row.key)
+                        .collect()
+                },
+                |task| task.answer_supplied,
+            );
+            crate::review_capture::disclose(db, encounter_id, &keys, "answer")?;
             Ok(())
         }
         ReviewCommand::Assistance {

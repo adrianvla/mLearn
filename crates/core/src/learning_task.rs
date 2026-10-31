@@ -303,6 +303,17 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn historical_submit_bytes_remain_unchanged_without_a_capture() {
+        // Given the original machine-consumed command used by durable receipt hashes.
+        let original = r#"{"kind":"submit","mutation":{"commandId":"c","sessionId":"s","expectedRevision":1},"response":{"encounterId":"e","grades":[{"targetId":"answer","quality":"fluent","method":"remembered","easy":false}]}}"#;
+        // When the extended protocol parses and reserializes historical self-report.
+        let command: crate::ReviewCommand = serde_json::from_str(original).unwrap();
+        let restored = serde_json::to_string(&command).unwrap();
+        // Then absent capture metadata cannot invalidate previously committed retries.
+        assert_eq!(restored, original);
+    }
+
+    #[test]
     fn scope_input_rejects_foreign_and_duplicate_capabilities() {
         // Given exact keys for one authenticated package target.
         let value = json!({"contractVersion":2,"packageId":"pkg","packageRevision":"r1",
