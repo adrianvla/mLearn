@@ -2,6 +2,84 @@
 
 ## Material window continuation - 2026-10-31
 
+Committed base before the selector repair: `af9ddf9f89370e1ef8f44d6c4ce16b68422a2d47`
+(`fix: keep native Material search editable`), pushed to draft PR45.
+The current one-line selector minimum and existing layout-test extension have
+product/test delta SHA-256
+`45a712fea98118dfb38b5c7776099067b3807c86be465fa0549bb442dd1368df`
+against that base. This verified increment does not close the M10 gate.
+Current native window QA has confirmed52 matching authored Native entry items
+through actual controls/save receipts on the preserved Android QA profile.
+Actual Android page-two setup preserves two frozen selected items (01/40).
+Native modal47 ->48 ->47 passes. Keyboard-authored Cancel retains the draft;
+Discard reaches48 and native reload47 has an independently verified empty
+Reading value. Save-before-navigation reaches48 and reloading47 returns the
+exact durable Reading. Close retains the unsubmitted query, Text A–Z order,
+page2 and positive body scroll. Root inspected the actual guard, boundary and
+origin frames. Saving adds a Reading line to the row, so unchanged Edit-button
+pixel geometry is not claimed; native keyboard/accessibility-focus restoration
+is also not established. Actual selector24 ->Previous23 ->Next24 passes;
+Close restores the original47, and the two-item frozen selection remains.
+Evidence is under `/tmp/mlearn-resume.i3aHcr/android-{window-boundary,draft-scroll,durable-origin}/`.
+The final reverse/selection run passes62s under `android-reverse-selection/`.
+Owned Android and diagnostic observer are stopped with empty PID/device
+readbacks; all authored data/evidence remain. No resource alarm occurred:
+peak physical footprints525142344B OmO /3722006440B QEMU, minimum observed
+available6663520256B, pressure1 and unchanged swapOut314122223616B.
+Whole-M10 review remains REQUESTS_CHANGES; M11 is untouched.
+Targeted current-source iOS Material now passes its existing native search,
+input, save and process-restart/reopen flow in53s on a new isolated iPhone16/
+iOS26.5 device; the old stalled iOS27 profile remains untouched. Root inspected
+the actual restarted modal. That native capture/hierarchy exposed an additional
+blocker: the166pt selector occupies `[139,198][305,242]`, overlapping Next
+`[291,198][348,242]` by14pt. Its existing flex wrapper could shrink below the
+shared native Select minimum. The one-line wrapper minimum repair and extended
+existing non-overlap checks pass LSP, typecheck, lint, normal export and13
+connected modal/native-core cases. Root inspected1080/390/320 captures.
+Actual repaired-iOS replay passes12s on preserved M03card/sense. Root inspected
+the native result and asserted non-overlap from native rectangles: Previous
+`[45,198][127,242]`, selector `[139,198][348,242]`, Next
+`[45,254][101,298]`. The unchanged af9 native instructions were reused with
+normally generated Expo/Hermes consuming UI; hashes are in the gate report.
+Actual Android replay of this additional repair now passes19s on preserved
+Native entry00/Native sense. Root inspected the normal native frame and asserted
+non-overlap from XML: Previous `[119,527][330,643]`, selector
+`[362,527][963,643]`, Next `[119,674][264,790]`. Consuming Gradle passes47s;
+APK SHA-256 `21126fb11393b977e8ca113f258bbf4ff75cbddc0e8824393f2abe02f9a54b7d`,
+embedded/current UI `71d15658e2f37044e2224f90f8e4c685e3dfcbd9a217fe4260f60a3276b61ac0`.
+All four JNI libraries remain exact recorded CI bytes. This closes the native
+selector defect on both platforms; native in-flight cancellation is still open.
+The new device `A5EAA41D-B8F0-4264-A9CA-9F6ECC7EF2F5` completed the bounded
+iOS window case and is now shut down, preserving its profile/evidence.
+Native save receipts and inspected collection
+confirm25 distinct matching fixtures00..24; the final11-item batch14..24 passes
+in7m54s and root inspected the actual24-of25 collection. Actual iOS24->23->24,
+keyboard draft Cancel/Discard, Save-before-switch/reload, query/order/page2/
+positive-scroll origin and two-item frozen selection all pass. Actual process
+stop/relaunch reloads the saved Reading and exposes the same retained snapshot,
+which root explicitly selects; no automatic volatile-pointer restoration is
+claimed. Root inspected all final frames, including a fresh compositor capture
+when Maestro's screenshot/parent-clipping visibility was insufficient.
+Detailed invocations,31s/36s/39s results and limits are in the gate report/notepad.
+Separate M03card/profile
+are preserved. Whole-string automation probes
+reordered phrase/meaning characters before save; those failures remain. Only
+their unsaved QA drafts were discarded. The existing acknowledged per-character
+pattern now passes the12-item02..13 batch in8m11s, with no repeated writes.
+The additional observer retained its original baseline and was stopped before
+deliberate process restart; no final summary was delivered, so no peak summary
+is invented. Post-device teardown root574147488B, available8676114432B,
+pressure1, swap3196780544B and unchanged swapOut314122223616B. Only the next
+serial Android consuming-layout replay ran. Its owned emulator is now stopped;
+PID/device readbacks are empty and the profile/evidence remain. Post-stop root
+568904608B, available8685518848B, pressure1 and unchanged swapOut.
+Native cancellation remains an open engineering gate.
+Exact af9 Desktop CI passes. Foundation passes web/Rust/OCR/macOS but fails the
+previously recorded Windows theme-input loss: expected Slate, retained Dark
+Quartz. Mobile Android passes; iOS fails its existing Watch flow earlier at
+`Open local video, Enabled` not found. Preserve these distinct failures;
+no workflow rerun or platform acceptance waiver was introduced.
+
 Resumed `agent/m10-m11` at `3ae38153b693be8893d4b9e6f4eea7aaac00c83c`.
 Before editing, the two dirty modal files matched the recorded binary-diff
 SHA-256 `25e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671`.

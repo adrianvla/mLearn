@@ -421,7 +421,7 @@ export function MaterialScreen() {
 
 const styles = StyleSheet.create(theme => ({
   search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 220 },
-  editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+  editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 166 },
   notice: { paddingHorizontal: theme.spacing.large, gap: theme.spacing.small },
   gridInset: { padding: theme.spacing.large },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.medium, alignItems: 'flex-start' },

@@ -306,7 +306,7 @@ test('a long Material label keeps switching controls compact and keyboard access
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   const selected = page.getByRole('combobox', { name: /^Current Material selection:/ });
   await expect(selected).toHaveText(phrase);
-  for (const width of [1080, 390]) {
+  for (const width of [1080, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await selected.scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath(`material-long-selection-${width}.png`) });
@@ -316,6 +316,13 @@ test('a long Material label keeps switching controls compact and keyboard access
     expect(bounds.height, 'A selection label must not displace the editing workflow').toBeLessThan(900 / 4);
     expect(bounds.x).toBeGreaterThanOrEqual(dialog.x);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(dialog.x + dialog.width);
+    for (const label of ['Previous Material', 'Next Material']) {
+      const button = await page.getByRole('button', { name: label, exact: true }).boundingBox();
+      if (!button) throw new Error(`${label} has no visible bounds`);
+      const overlapWidth = Math.min(bounds.x + bounds.width, button.x + button.width) - Math.max(bounds.x, button.x);
+      const overlapHeight = Math.min(bounds.y + bounds.height, button.y + button.height) - Math.max(bounds.y, button.y);
+      expect(overlapWidth <= 0 || overlapHeight <= 0, `${label} must not overlap the selection`).toBe(true);
+    }
   }
   await selected.focus();
   await selected.press('Space');
