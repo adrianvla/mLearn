@@ -1,5 +1,73 @@
 # Current implementation checkpoint
 
+## Restart handoff - 2026-10-31, passive resource cycling stopped
+
+The maintainer redirected this process to one inspection/admission decision,
+then direct work if safe or a verified-only pushed checkpoint and clean process
+exit if unsafe. Do not resume the old passive readiness/cache-warm cycle.
+
+- **Source:** branch `agent/m10-m11`, pre-handoff HEAD/upstream
+  `3410883c5483824e275bc1484872ae7e43b7cdc1`. This handoff is a documentation-only
+  checkpoint; it does not ship the dirty modal increment. PR45 was freshly
+  queried OPEN/draft at that source; keep it open/draft, with M11 still gated
+  on actual M10 engineering and independent review. PR44/M07 limits remain.
+- **Preserved dirty implementation:** `apps/client/src/features/material/MaterialScreen.tsx`
+  (77-line delta) and `tests/web/material-collection-native-core.spec.ts`
+  (33 added lines). Their combined `git diff --binary -- <these two paths>`
+  SHA-256 is `25e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671`.
+  Neither path is staged in this handoff commit. Unrelated untracked old M03/M04
+  reports, `tests/fixtures/reader/m07-qa-watch.{mov,srt}` and
+  `tools/__pycache__/` are unchanged and must not be removed or staged.
+- **Verified foundation:** native previous bookmarks and reverse byte-budget
+  regression are pushed as `9a85a881`/`208c6226`. The reused reviewer
+  `st_01a18ee4` is terminal APPROVE for the bounded `208c6226` repair, not the
+  modal or M10. The final restored storage suite passed 24 tests; both boundary
+  mutations failed and were restored. Exact-source `208c6226` Foundation
+  41145140460 and Desktop 41145140717 pass. Mobile 41145140565 has Android pass,
+  iOS compile/retained-app pass and the unresolved `m01-watch, mp4 is not visible`
+  UI failure. No CI rerun or acceptance waiver was introduced.
+- **Actual modal result:** the fresh native-backed red run exported
+  `69d7f7ffcc870f750252a41bfc57dd33` and failed at test line112: Next Material
+  disabled on entry-47 despite four following items. Log and inspected frame:
+  `/tmp/mlearn-ci-independent.6EaZ3F/material-boundary-browser-red-stable.log`
+  and its frame under
+  `material-boundary-browser-red-stable-results/material-collection-native-1a6e1-er-through-paging-and-edits-chromium/test-failed-1.png`.
+  The subsequent dirty source retains one native window, opaque next/previous
+  bookmarks and the existing draft/owner/retry guards without changing the
+  underlying collection page. LSP found no source errors. All green attempts
+  were held before checks/export/rendering: no passing UI claim exists.
+  Also inspect the Add Material/Previous boundary before delivery: the dirty
+  condition can enable Previous with no saved current item; this is a
+  source-review concern, not an executed regression.
+- **One-shot admission failed:** disk was 8530988 KiB available, but
+  `node tools/resource-guard.mjs 82251 once "$PWD/.mlearn/m03-m07/m07-messenger/macos-resource-sample" 2560`
+  exited70 with `projected_headroom` on all three samples. Final footprint
+  7547270584 bytes, RSS6421676032, available6874071040, pressure1,
+  swap5362155520; projected4189716480 is below the original4294967296-byte
+  reserve. Do not lower the budget/reserve to admit this process.
+  Exact log: `/tmp/mlearn-stop-resume.zPO4U2/admission.log`.
+- **Processes/outputs:** only this interactive session is addressable; no
+  scheduled prompts exist. The reviewer above is completed. Process ancestry
+  shows OmO82251 plus its Python kernel11325 and LSP daemon60258, not a running
+  device/browser/server/model workload. All33 owned terminal/observer sessions
+  were stopped with `kill_bash(all:true)`; that stops local observers, not CI.
+  No replacement observer, child, build or verification workload was launched.
+- **Next in a fresh process:** preserve the dirty diff; take fresh admission,
+  then directly run typecheck/lint, normal single-worker web export and the
+  focused native-backed Material scenario. The real Rust QA executable was
+  already rebuilt against native source208c6226 (19.81s, exit0). Do not rebuild
+  native owners or rerun CI unchanged. Inspect actual1080/390 modal captures
+  before further UI edits, repair demonstrated failures and exercise dirty
+  Cancel/Save, reverse boundaries, retry/stale-focus and exact origin
+  restoration. Full frozen-selection navigation remains open. No M11 work.
+
+The bounded continuation notepad is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261031-132257.XXXXXX.md.06C8Nn8liQ`.
+Its resource root/admission log and prior11GiB evidence root are retained, not
+deleted as caches. No cleanup approval was assumed. The goal tool still holds
+an obsolete unfinished visual-parity objective and rejected replacement; do
+not mark that old goal complete to hide this unfinished work.
+
 ## Active continuation — M10 then M11, 2026-10-27
 
 The maintainer authorizes M10–M11 while comprehensive M03–M07 review is
@@ -106,7 +174,24 @@ SUCCESS on `17103953`, native job 124357150133. Foundation 41141663145 also
 completed SUCCESS on exact `17103953`: web 124357150213, OCR 124357150539,
 Rust 124357150549, Windows 124359239810 and macOS 124359239829 all pass.
 This verifies that source, not the later bookmark extension or historical
-platform/visual acceptance gaps. The mobile observer remains active.
+platform/visual acceptance gaps. Mobile 41141663087 completed FAILURE on exact
+`17103953`: Android job 124357150052 passes compilation, source-bound app
+retention, actual UI/Rust persistence and tracked-source integrity. iOS job
+124357149762 fails actual UI/Rust persistence. The exact local log
+`material-17103953-ios-failed.log` reports the existing picker-dismissal
+assertion: `id: m01-watch, mp4 is not visible` is false after 1m31s. This is not
+the later clipped-Home entry failure. The deferred FileProvider gate remains
+unresolved; no diagnostic variant, assertion weakening or rerun is launched.
+No root cause or iOS pass is assumed. Hosted artifacts remain available:
+iOS evidence 13020419876 (67395175 bytes, SHA-256
+7b05245b353360bfe8ea54acf3d30ccdd1c463de2a3c05a680f6ab9fa71ba7ae) and Android
+evidence 13020477223 (59957467 bytes, SHA-256
+e77b9414a7660a97742f292457281e1f9945c2e3843dcb644dccf5c131951fba).
+Their metadata was read, not their archives; compiled-app artifacts likewise
+remain hosted rather than consuming the constrained local disk.
+This source precedes the clipped-Home entry correction and native bookmark
+extension. Android's existing Watch workflow does not certify the unimplemented
+cross-page modal navigation or full M10 native scope.
 No workflow was manually launched. Next: continue the remaining Material
 selection/navigation scope.
 M10/M11/native/frozen-selection-window acceptance remains open.
@@ -167,10 +252,26 @@ fixed-ID observers validate their source. Desktop completed SUCCESS on exact
 `9a85a881`, native job 124364583410, including real IPC/plugin download/restart
 and tracked-source integrity. Mobile 41143968640 ended CANCELLED with no jobs;
 that source has no mobile pass and root did not cancel/rerun it. Foundation
-remains pending. Repair-source desktop 41145140717 completed SUCCESS on exact
+41143968649 completed SUCCESS on exact `9a85a881`: Rust 124366182791, OCR
+124366183064, web 124366183240, macOS 124368102261 and Windows 124368102287
+all pass. This does not close mobile, modal-integration or historical acceptance
+gaps. Repair-source desktop 41145140717 completed SUCCESS on exact
 `208c6226`, native job 124368371881, including real IPC/plugin download/restart
-and tracked-source integrity. Mobile 41145140565 and foundation 41145140460
-observers remain active. No workflow was rerun manually.
+and tracked-source integrity. Foundation 41145140460 also completed SUCCESS
+on exact `208c6226`: web 124374183884, Rust 124374184269, OCR 124374184283,
+macOS 124375856873 and Windows 124375856877 all pass. Mobile 41145140565
+completed FAILURE on exact `208c6226`. Its first one-hour observer timed out,
+not the CI run; the resumed observer retained the original log and followed
+the same run to completion. Android job 124373208646 passes actual UI/Rust
+persistence, compiled-app retention and tracked-source integrity. iOS job
+124373209219 passes offline simulator compilation and source-bound app
+retention, then fails UI verification at the existing picker-dismissal assertion:
+`id: m01-watch, mp4 is not visible` is false after 1m55s.
+The exact local log is `collection-budget-208c6226-ios-failed.log`. This matches
+the earlier assertion, not proof of its underlying cause; it does not verify
+the later clipped-Home step. The deferred FileProvider gate remains open,
+without a new diagnostic campaign, assertion weakening, cancellation or rerun.
+These results do not certify modal integration or the full M10 native scope.
 
 The next disk read is 1463304 KiB available, below the unchanged 2097152 KiB
 admission threshold. Further builds/exports/rendering are paused. No device,
@@ -196,6 +297,55 @@ the original 2 GiB floor plus 2 GiB for rebuild/export outputs; it also retains
 the original memory reserve/admission. The last read was 2552028 KiB free.
 Nothing was deleted and no cleanup approval is assumed. No simulator,
 emulator or persistent test server is restarted by this queued run.
+That combined one-hour disk gate expired with only `DISK_REQUIRED_KIB 4194304`
+in its log: no native build, export or browser started. A fresh read is now
+3621136 KiB free, without agent deletion or assumed cleanup approval. The work
+is split into stages rather than reserving both output estimates together.
+`material-boundary-native.log` admits only the native rebuild with one Cargo
+job at a 3145728 KiB entrance (the original 2 GiB floor plus 1 GiB rebuild
+headroom) and the unchanged memory guard. It verifies native source matches
+`208c6226`. That rebuild completes exit 0 in 19.81 s, with 3296268 KiB free
+afterward and the original 4 GiB memory reserve intact. It rebuilds the real
+core/storage/runtime QA owner; no app, device or persistent server is launched.
+The separate fresh export/browser run holds at disk admission (exit 75) with
+2248312 KiB available, before any export or browser starts
+(`material-boundary-browser-red.log`). Its 2621440 KiB entrance keeps the
+original 2 GiB floor plus 512 MiB for this stage. A disk-readiness-only monitor
+is active; it cannot launch a workload. The next run will recheck admission.
+Fresh bounded memory samples show pressure 1, root footprint about 7.47 GB,
+available 7.15-7.42 GB and swap 5.08-5.14 GB; the unexplained resource history
+remains open. No product red failure or rendered verification is claimed.
+The readiness monitor subsequently signalled headroom, but the immediate
+workload entrance read only 2232216 KiB and correctly held again (exit 75,
+`material-boundary-browser-red-ready.log`), before export or browser launch.
+The replacement readiness-only subscription requires three consecutive
+2621440 KiB readings before notifying; actual workload admission will still
+be rechecked. No files were deleted and cleanup permission remains unanswered.
+The next admitted run exported web bundle
+`69d7f7ffcc870f750252a41bfc57dd33` and reproduced the intended failure:
+Next Material remained disabled at entry-47 despite four following items
+(`material-boundary-browser-red-stable.log`, test line 112). The failure
+capture was inspected. Resource samples remained safe with the original
+4 GiB reserve, pressure 1 and footprint about 3.54 GB.
+MaterialScreen now retains one modal window's native query/bookmarks and
+replaces that bounded cohort when crossing a boundary, without changing the
+underlying collection bookmark. It reuses the draft departure and stale-result
+owners, including the exact failed-window retry. This is unverified source:
+the first green run held before any checks/export/browser at 2202816 KiB
+(`material-boundary-browser-green.log`). A single nonpersistent subscription
+now joins sustained disk readiness directly to admission and the planned
+typecheck/lint/fresh-export/real-Rust regression, removing the earlier
+notification-to-launch gap. No workload is running while that gate waits.
+That one-hour gate expired before admission: its workload log was never
+created, so no checks, export or browser started. The subsequent disk read is
+2201252 KiB, below the unchanged 2621440 KiB entrance. A fresh zero-workload
+sample reports footprint 7699527096 bytes, RSS 3518005248 bytes, available
+6755434496 bytes, pressure 1 and swap 5873205248 bytes. Footprint growth since
+the red run remains unexplained; substantial work must not resume on the basis
+of disk recovery alone. The modal source remains unverified, with LSP reporting
+no errors but no green execution or fresh render. No further launch is queued.
+Cleanup permission for target/debug/incremental remains unanswered; nothing
+has been deleted.
 
 Detailed chronological continuation receipts follow.
 October 30 Messenger Back candidate: the new real-Rust recovery case reproduced
