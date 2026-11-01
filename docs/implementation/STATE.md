@@ -1,5 +1,35 @@
 # Current implementation checkpoint
 
+## M11 independent gate: native evidence outstanding - 2026-11-01
+
+Pushed product/test checkpoint is `bd26d592fac9400900255fc7677a442bae5dacbf`.
+Final regenerated-module runtime tests pass 92/92 and the actual authored,
+calibration and grammar browser regressions pass 5/5 in 2.4 minutes.
+The single independent reviewer `st_01a19893`, on the observed
+`chatgpt-subscription/gpt-6.1-sol` route, reports **REQUESTS_CHANGES** solely
+for **M11-NATIVE-01**: terminal exact-source platform builds and affected native
+Expo validation/cancellation/retry/restart evidence are missing. It identifies
+no blocking source defect. This is not approval or milestone completion.
+
+Report: `.mlearn/m11/m11-independent-gate-bd26d592.md`.
+QA matrix: `.mlearn/m11/m11-qa-bd26d592.md`. The locked read-only review checkout
+`/tmp/mlearn-m11-review-bd26d592` remains retained while its native gate is open.
+Current existing CI is Foundation41341597443, Desktop41341597372 and
+Mobile41341597380; subscriptions remain active. The older cc0 iOS and Android
+failures are confirmed to share the repaired Japanese lock mismatch, not a new
+native UI failure. No workflow rerun or historical diagnostic variant occurred.
+
+Only the missing native prerequisite is being prepared: the new test-only
+`crates/runtime/examples/mobile_review_seed.rs` creates an isolated actual
+MobileBundled grammar session through public native owners and refuses existing
+profiles. Seed preparation passes; it does not establish Expo interaction.
+`tests/mobile/review-capture.yaml` is an unexecuted typed-capture/restart/resume flow,
+not cancellation proof. Both drafts remain uncommitted. Preserve them and
+`.mlearn/m11/native-bd26d592-20261101/`; compare the source-bound compiled app's
+package identity before placing a seed copy in a stopped, task-owned app profile.
+No M11 device or app has been started automatically. Actual cancellation/drain
+still needs deterministic native evidence, not a timing-luck Stop click.
+
 ## Verified expert-authoring candidate - 2026-11-01
 
 Continues the pushed Word Sync checkpoint `9131d5e8` on `agent/m10-m11`.
