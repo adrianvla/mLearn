@@ -21,12 +21,36 @@ fixtures incorrectly using now-supported21. The source-only follow-up advances
 current expectations to21 and future fixtures to22, retaining all preservation
 and unsupported-version assertions. It has not run locally because disk remains
 below admission; the migration gate remains open pending exact-source CI.
+The isolated follow-up is committed/pushed as
+`57e91caaa5690429b2b65c18293a9f9b74f5a917`; its exact-source CI subscription is
+active. Calibration implementation and generated contracts are excluded.
+Desktop41301273134 passes at57e91caa. Foundation41301272968 passes web/OCR;
+Rust logs confirm the corrected collection, conversation and document migration
+tests pass. The later Material migration suite has not yet been reached.
+Rust124832498996 now fails the later
+`schema_sixteen_bulk_migration_compacts_retired_drafts_without_inventing_removed_labels`
+fixture at material.rs:162. Its expected selection was captured before the
+retained removal job pinned it; actual `in_use=Some(true)` differs from that
+pre-job snapshot's `Some(false)`. The source repair captures and asserts the
+pinned projection at the migration boundary, preserving full equality and every
+retention/identity assertion. No production pin semantics change. This fixture
+follow-up has not run locally; disk admission and the broader Rust gate remain
+open.
 
 Collection mobile41293714797 completed: Android job124813746246 passes; iOS
 job124813746441 fails the actual UI/persistence step at
 `m01-watch, mp4 is not visible` (Watch Inspector Knowledge and native source
 resume). This is the retained deferred assertion, not a new calibration result.
 Preserve the failure and do not restart its hosted diagnostic campaign.
+
+Repair-checkpoint mobile41298281441 at56a6d29b also completed: Android
+job124824664679 passes; iOS job124824664814 fails the same named Watch workflow
+at a different observable boundary:
+`Element not found: Text matching regex: Open local video, Enabled`.
+This is not the earlier `m01-watch, mp4` assertion and has not been diagnosed.
+Preserve both signatures as unresolved hosted-iOS acceptance evidence, not
+calibration coverage or proof of a common cause. No rerun, diagnostic variant,
+device launch or product change was started from this failure.
 
 The worktree contains an uncommitted, unexecuted calibration draft. It adds a
 native 1..32-key selection over existing package filters, independent of claims,
@@ -54,6 +78,17 @@ no generated contract or diagnostic was suppressed. Word Sync UI integration is
 still unwritten. The exact next invocations and expected observables were appended
 before this scenario to the retained October31 continuation notepad.
 Do not call this draft buildable, delivered or accepted.
+One additional unrun storage regression covers cold versus Source-assisted
+calibration and Undo: only an active independent assessment removes eligibility,
+Undo restores it while retaining inactive historical evidence and the explicit
+claim, and the restored encounter remains revealed. It uses the existing native
+session/evidence owners; no alternate calibration state was introduced.
+Source review also repaired an empty-result identity hole: preparation previously
+checked revision only on returned items, so an empty stale catalog escaped that
+check. It now reads the existing native catalog revision before selection.
+An unrun runtime regression distinguishes stale-empty rejection from a genuine
+current-revision empty result. Neither this draft repair nor its regression has
+runtime verification yet.
 
 Disk remains about 600 MB free. A durable read-only disk monitor waits for 5 GiB
 before fresh resource admission; it cannot launch builds, devices or servers.

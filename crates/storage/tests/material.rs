@@ -142,6 +142,8 @@ fn schema_sixteen_bulk_migration_compacts_retired_drafts_without_inventing_remov
     let mut legacy = store.cancel_material_bulk(&edit.command_id).unwrap();
     store.release_material_bulk(&edit.command_id).unwrap();
     legacy.results_available = false;
+    let selected = store.collection_selection(&selected.id).unwrap();
+    assert_eq!(selected.in_use, Some(true));
     drop(store);
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute(
