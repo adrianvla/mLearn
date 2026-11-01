@@ -1,5 +1,51 @@
 # Current implementation checkpoint
 
+## M11 captured-answer disclosure repair - 2026-11-01
+
+The captured-response disclosure regression fails before the repair and all24
+storage Review tests pass afterward. The independently checkpointed repair
+treats an active capture as an answered attempt even when retrospective quality
+is null, matching existing canonical-key admission. It preserves real exposure,
+same-session, inactive and undone semantics. The cancellation work described
+below is a separate uncommitted increment, not part of this repair's verification.
+
+## M11 validation cancellation boundary in progress - 2026-11-01
+
+On committed base `1db7a09e84b0d7c77bc51a7201ac743c079b1584`,
+uncommitted validation control now shares the existing two-operation lease and
+two-control waiter owner with bounded source reads. A validation lease binds
+the immutable native CaptureResponse command, survives unrelated source changes,
+and acknowledges cancellation only after its actual worker drains. Existing
+three-heavy-call admission is unchanged. Desktop, mobile and browser QA adapters
+and the typed client are wired; Review presentation and its Stop control are
+not implemented yet.
+
+Current native owner checks pass20 Review and8 bounded/teardown tests, including
+actual authenticated English validation cancellation before claim, while queued,
+and after the real guest result. Focused client Review/source-read/Knowledge
+checks, typecheck and ownership lint pass. The bundled FFI build passes; generated
+Swift and Kotlin bindings regenerate cleanly. The build script now relies on the
+existing crate-local UniFFI config rather than its obsolete global override.
+Generated Swift typechecks for arm64 and x86_64 simulator ABIs. These checks do
+not certify Expo module compilation, linked mobile apps, Kotlin compilation or
+device workflows. Desktop handler `cargo check --locked -p mlearn-desktop --lib`
+passes in27.27s. Final platform flows remain open.
+
+A separate captured-response disclosure regression failed before the repair:
+an answered machine-graded capture with null retrospective quality incorrectly
+left prior-disclosure debt when reopening the same Material in a new session.
+The Material predicate now matches the existing canonical-key predicate
+(capture identity or non-null quality). All24 storage Review tests pass after
+the repair; no exposure or inactive/undone conditions were removed.
+
+Latest unchanged admission passes three samples at physical footprint
+629394552/629378168/629099640B, pressure1, swap3020619776B and unchanged
+swapOut314122223616B. Final projected headroom5864947712B exceeds the unchanged
+4294967296B reserve with2684354560B workload allowance. The generated Swift
+guard was stopped after both successful ABI checks. No devices, persistent
+servers, model work or downloads were started. M11 remains incomplete and
+maintainer acceptance, merge and release remain out of scope.
+
 ## Material native selection verification synchronization - 2026-11-01
 
 Base `1549540eb91bcde72811b7e86cfe22154c4447fb` is committed/pushed.
@@ -13,7 +59,10 @@ to the exact predecessor's native release receipt before toggling, validates
 that receipt, and retains the one-selection and exact-membership assertions.
 This changes synchronization, not production behavior or acceptance criteria.
 
-Targeted verification is pending. Current client export passes; the native QA
+Exact-source foundation CI41258412669 passes on synchronization checkpoint
+`1db7a09e84b0d7c77bc51a7201ac743c079b1584`, including the full web suite and
+the retained one-selection/membership assertions. No assertion was relaxed.
+Current client export passes; the native QA
 example, including uncommitted cancellation-core work, builds in10.81s with an
 unused macro-doc warning, corrected as a
 separate uncommitted prose-only change. Both local resource guards held near
@@ -22,7 +71,7 @@ Export guard minimum projected3904569344B; native build guard4159127944B;
 required reserve remains4294967296B and workload2684354560B. Root footprint
 stays about597MB, pressure1 and swapOut314122223616B unchanged. Idle analysis
 processes exited; unrelated processes were not stopped. Native browser
-verification will use existing CI rather than relax those limits. Mobile iOS
+verification used existing CI rather than relaxing those limits. Mobile iOS
 step13 remains failed and unresolved; no diagnostic variant or rerun launched.
 M11 presentation, validation Stop integration and remaining scope are still open.
 

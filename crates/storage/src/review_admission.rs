@@ -1,6 +1,8 @@
-use crate::{StorageError, material_validation::bounded, review_read};
+use crate::StorageError;
+use crate::{material_validation::bounded, review_read};
 use mlearn_core::*;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::params;
+use rusqlite::{Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn validate_admission(value: &ReviewAdmission) -> Result<(), StorageError> {
@@ -162,7 +164,7 @@ pub(crate) fn next(
             },
         };
         let disclosed: bool = db.query_row(
-            "SELECT EXISTS(SELECT 1 FROM review_encounters e JOIN review_work w ON w.session_id=e.session_id AND w.work_id=e.work_id WHERE (e.session_id=?1 OR NOT EXISTS(SELECT 1 FROM review_attempts a WHERE a.encounter_id=e.id AND a.active=1 AND EXISTS(SELECT 1 FROM json_each(a.response,'$.grades') g WHERE json_extract(g.value,'$.quality') IS NOT NULL))) AND json_extract(w.admission,'$.materialId')=?2 AND json_extract(e.projection,'$.conditions.revealed')=1)",
+            "SELECT EXISTS(SELECT 1 FROM review_encounters e JOIN review_work w ON w.session_id=e.session_id AND w.work_id=e.work_id WHERE (e.session_id=?1 OR NOT EXISTS(SELECT 1 FROM review_attempts a WHERE a.encounter_id=e.id AND a.active=1 AND (json_extract(a.response,'$.captureId') IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(a.response,'$.grades') g WHERE json_extract(g.value,'$.quality') IS NOT NULL)))) AND json_extract(w.admission,'$.materialId')=?2 AND json_extract(e.projection,'$.conditions.revealed')=1)",
             params![session.id.0, value.material_id.0], |r| r.get(0),
         )?;
         let tested: Vec<_> = value

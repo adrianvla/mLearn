@@ -134,7 +134,8 @@ fn capture_resumes_private_raw_input_and_retry_without_creating_an_attempt() {
                     text: "replacement".into()
                 },
             })
-            .is_err()
+            .is_err(),
+        "A committed capture cannot be replaced by another command"
     );
 }
 
@@ -216,7 +217,8 @@ fn validated_rows_not_retrospective_grades_own_assessment_and_correction() {
             .review_due_materials(None, 1000, 32)
             .unwrap()
             .iter()
-            .all(|value| value.schedules.is_empty())
+            .all(|value| value.schedules.is_empty()),
+        "Practice must not change due schedules"
     );
 }
 
@@ -237,7 +239,8 @@ fn malformed_validation_does_not_partially_capture_or_advance_the_question() {
     assert!(
         store
             .review_capture(&capture(&session), &output(&item), 101)
-            .is_ok()
+            .is_ok(),
+        "A failed capture transaction must permit the original retry"
     );
 }
 
@@ -327,8 +330,51 @@ fn legacy_exposures_migrate_once_without_changing_receipts_or_material_identity(
             .unwrap()
             .conditions
             .assistance
-            .contains(&ReviewAssistance::PriorDisclosure)
+            .contains(&ReviewAssistance::PriorDisclosure),
+        "Revealed canonical answers must taint related Material"
     );
+}
+
+#[test]
+fn captured_unrated_response_closes_unanswered_disclosure_between_sessions() {
+    // Given a revealed captured response without retrospective fluency ratings.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    let (item, session) = typed(&mut store);
+    let session = store
+        .review_capture(&capture(&session), &output(&item), 100)
+        .unwrap()
+        .session;
+    let session = reveal(&mut store, &session);
+    let mut response = captured_response(&session);
+    for grade in &mut response.grades {
+        grade.quality = None;
+    }
+    store
+        .review_apply(
+            &ReviewCommand::Submit {
+                mutation: mutation(&session, "unrated-submit"),
+                response,
+            },
+            120,
+        )
+        .unwrap();
+    let evidence = store
+        .knowledge_evidence(&KnowledgeEvidenceQuery {
+            key: key("meaning"),
+            after: None,
+        })
+        .unwrap();
+    assert_eq!(evidence.projection.assessed, Some(true));
+    // When another session admits the same Material after that answered encounter.
+    let next = start(
+        &mut store,
+        "after-captured-response",
+        &[item.clone()],
+        practice(&[item]),
+    );
+    // Then a missing self-report rating cannot turn an answered task into disclosure debt.
+    assert!(next.encounter.unwrap().conditions.assistance.is_empty());
 }
 
 #[test]
@@ -370,7 +416,8 @@ fn an_unanswered_cue_taints_related_keys_on_another_material() {
             .unwrap()
             .conditions
             .assistance
-            .contains(&ReviewAssistance::PriorDisclosure)
+            .contains(&ReviewAssistance::PriorDisclosure),
+        "An unanswered supplied cue must remain visible to admission"
     );
     let session = support::reveal(&mut store, &session, "second-reveal");
     submit(&mut store, &session, "second-submit");
