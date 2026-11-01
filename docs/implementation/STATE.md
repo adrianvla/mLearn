@@ -1,5 +1,24 @@
 # Current implementation checkpoint
 
+## Review task response UI candidate - 2026-11-01
+
+The separate Review increment adds package-declared typed input and choice
+selection, immutable native capture, capture-aware Submit, hidden feedback until
+Reveal, a post-Reveal provenance/limitations disclosure and acknowledged Stop.
+It extends the existing flight/retry/session owner rather than adding another
+learning store. A lost registration receipt remains uncertain, never a
+successful Stop. The unchanged self-report and expanded granular rating flows
+remain available.
+
+Typecheck, ownership lint, draft guard and export pass. The actual typed
+capture/restart/Reveal/Submit workflow passes1/1 and both question/revealed
+desktop/narrow image pairs were inspected, with the resource-limit qualification
+below. The subsequently added exact-ticket Stop/Pause/Resume/retry and actual
+contrast-to-self-report scenarios are not executed yet. Test discovery is only
+syntax/loading evidence, not functional verification. New candidate CI must
+execute them before this unit's engineering gate can close. Native app/platform
+and final independent M11 gates remain open.
+
 ## Desktop CI dependency acquisition repair - 2026-11-01
 
 Cancellation checkpoint `198ddfe4` and generator correction `024c1006` are

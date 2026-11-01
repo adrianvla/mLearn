@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { StyleSheet } from 'react-native-unistyles';
-import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewSession } from '@mlearn/contracts';
+import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { AppShell, Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
@@ -51,6 +51,11 @@ function ReviewWorkspace({ client, media }: {
   const returnLock = useRef(false);
   const [returnError, setReturnError] = useState('');
   const audio = useRef<{ readonly cancel: () => Promise<void> } | null>(null);
+  const validation = useRef<AbortController | null>(null);
+  const [validating, setValidating] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [taskDetails, setTaskDetails] = useState(false);
+  const [draft, setDraft] = useState<{ readonly encounterId: ReviewEncounterId; readonly response: TaskResponse } | null>(null);
 
   function publish(value: ReviewSession) {
     current.current = value;
@@ -83,6 +88,7 @@ function ReviewWorkspace({ client, media }: {
     void refresh();
     return () => {
       if (scope.current === active) { scope.current = null; readOwner.current = null; }
+      validation.current?.abort();
       setFocused(false);
     };
   }, [refresh]));
@@ -91,23 +97,41 @@ function ReviewWorkspace({ client, media }: {
   function execute(command: ReviewCommand): Promise<ReviewSession | null> {
     if (flight.current) return flight.current;
     const active = scope.current;
+    const controller = command.kind === 'capture_response' ? new AbortController() : null;
+    validation.current = controller;
+    setValidating(controller !== null); setStopping(false);
     setPending(true); setError('');
-    const result = client.review(command).then(commit => {
+    const result = client.review(command, controller?.signal).then(commit => {
       failedCommand.current = null;
       if (scope.current === active && active) {
         publish(commit.session);
         setFailed(null);
       }
       return commit.session;
-    }).catch((cause: unknown) => {
+    }).catch(async (cause: unknown) => {
+      let failure = cause;
+      if (controller?.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled'
+        && command.kind === 'capture_response') {
+        // Only confirmed native termination permits retiring this intent.
+        // A commit can win the Stop race, so reload the authoritative capture.
+        try {
+          const restored = await client.reviewSession(command.mutation.sessionId);
+          failedCommand.current = null;
+          if (scope.current === active && active) { publish(restored); setFailed(null); }
+          return restored;
+        } catch (refreshFailure) { failure = refreshFailure; }
+      }
       failedCommand.current = command;
-      if (scope.current === active && active) { setFailed(command); setError(messageOf(cause)); }
+      if (scope.current === active && active) { setFailed(command); setError(messageOf(failure)); }
       return null;
     }).finally(() => {
       flight.current = null;
+      if (validation.current === controller) validation.current = null;
+      setValidating(false); setStopping(false);
       // Updating the saved-session route can renew focus during this write.
       // Pending belongs to the shared flight, not its previous focus scope.
       if (scope.current) setPending(false);
+      if (scope.current && scope.current !== active) void refresh();
     });
     flight.current = result;
     return result;
@@ -228,13 +252,31 @@ function ReviewWorkspace({ client, media }: {
   const blocked = pending || failed !== null || loading || returning;
   const actionable = focused && session?.state === 'active' && !!encounter && !blocked;
   const canRate = actionable && encounter.conditions.revealed && encounter.answer !== null && !audioPlaying;
+  const responseSpec = encounter?.task?.responseSpec;
+  const requiresCapture = responseSpec !== undefined && responseSpec.kind !== 'self_report';
+  const response = encounter?.capture?.response ?? (draft?.encounterId === encounter?.id ? draft?.response : null);
+  const canReveal = !requiresCapture || encounter?.capture != null;
+  function captureResponse() {
+    if (!actionable || !encounter || encounter.capture || !responseSpec) return;
+    let input: TaskResponse;
+    switch (responseSpec.kind) {
+      case 'self_report': return;
+      case 'typed_text': input = { kind: 'typed_text', text: response?.kind === 'typed_text' ? response.text : '' }; break;
+      case 'choice_id':
+        if (response?.kind !== 'choice_id') return;
+        input = response; break;
+    }
+    try {
+      void mutate({ kind: 'capture_response', encounterId: encounter.id, response: input });
+    } catch (cause) { setError(messageOf(cause)); }
+  }
   function reveal() {
-    if (actionable && encounter && !encounter.conditions.revealed && !audioPlaying)
+    if (actionable && canReveal && encounter && !encounter.conditions.revealed && !audioPlaying)
       void mutate({ kind: 'reveal', encounterId: encounter.id });
   }
   useReviewKeys(focused && !blocked, (key, _at, alt) => {
     if (alt) return false;
-    if ((key === ' ' || key === 'Enter') && actionable && !encounter?.conditions.revealed && !audioPlaying) {
+    if ((key === ' ' || key === 'Enter') && actionable && canReveal && !encounter?.conditions.revealed && !audioPlaying) {
       reveal(); return true;
     }
     if ((key.toLowerCase() === 'z' || key === 'Backspace') && session?.canUndo && !encounter?.correction && !audioPlaying) {
@@ -247,7 +289,9 @@ function ReviewWorkspace({ client, media }: {
   }
   async function submit(grades: ReviewGrade[]) {
     if (!canRate || !encounter) return;
-    await advance(await mutate({ kind: encounter.correction ? 'correct' : 'submit', response: { encounterId: encounter.id, grades } }));
+    await advance(await mutate({ kind: encounter.correction ? 'correct' : 'submit', response: {
+      encounterId: encounter.id, grades, ...(encounter.capture ? { captureId: encounter.capture.id } : {}),
+    } }));
   }
   const finiteValid = /^[1-9]\d{0,2}$/.test(limit) && Number(limit) <= 128;
   const purpose = session?.mode.kind === 'practice' ? 'Word Practice' : 'Review';
@@ -292,12 +336,41 @@ function ReviewWorkspace({ client, media }: {
               {encounter.conditions.revealed && encounter.answer !== null ?
                 <Text testID="review-answer" selectable align="center" variant="reviewExample">{encounter.answer}</Text> : null}
             </View>
+            {responseSpec?.kind === 'typed_text' ? <TextField label="Your response"
+              value={response?.kind === 'typed_text' ? response.text : ''}
+              editable={!blocked && !encounter.capture} multiline multilineSize="compact" maxLength={responseSpec.maxBytes}
+              onChangeText={text => setDraft({ encounterId: encounter.id, response: { kind: 'typed_text', text } })} /> : null}
+            {responseSpec?.kind === 'choice_id' ? <Stack>
+              {responseSpec.options.map(option => <Button key={option.id} label={option.label} variant="secondary"
+                accessibilityState={{ selected: response?.kind === 'choice_id' && response.id === option.id }}
+                disabled={blocked || !!encounter.capture}
+                onPress={() => setDraft({ encounterId: encounter.id, response: { kind: 'choice_id', id: option.id } })} />)}
+            </Stack> : null}
+            {requiresCapture && !encounter.capture ? <Button label="Check response"
+              disabled={!actionable || responseSpec?.kind === 'choice_id' && response?.kind !== 'choice_id'}
+              onPress={captureResponse} /> : null}
+            {validating ? <Button label={stopping ? 'Stopping validation' : 'Stop validation'} variant="secondary"
+              disabled={stopping} onPress={() => { setStopping(true); validation.current?.abort(); }} /> : null}
+            {encounter.capture?.feedback ? <Stack>
+              {encounter.capture.feedback.outcomes.map(outcome => <Text key={outcome.targetId}>
+                {encounter.targets.find(target => target.id === outcome.targetId)?.label}: {outcome.result}
+                {outcome.reason ? ` · ${outcome.reason}` : ''}
+              </Text>)}
+            </Stack> : null}
             {encounter.correction ? <Text accessibilityLiveRegion="polite">Correct the original response. Its original retrieval conditions are retained.</Text> : null}
             {encounter.conditions.assistance.length ? <Text variant="caption" muted>Assistance: {encounter.conditions.assistance.join(', ')}</Text> : null}
             {encounter.conditions.revealed && encounter.answer !== null ?
               <RatingMatrix key={`${encounter.id}:${encounter.correction}`} targets={encounter.targets}
                 focused={encounter.direction === 'focused'} disabled={!canRate} onSubmit={grades => void submit(grades)} />
-              : <Button label="Reveal" detail="Space" disabled={!actionable || !!audioPlaying} onPress={reveal} />}
+              : <Button label="Reveal" detail="Space" disabled={!actionable || !canReveal || !!audioPlaying} onPress={reveal} />}
+            {encounter.task && encounter.conditions.revealed ? <Stack>
+              <Button label="Task details" variant="quiet" accessibilityState={{ expanded: taskDetails }}
+                onPress={() => setTaskDetails(value => !value)} />
+              {taskDetails ? <>
+                <Text variant="caption" muted>{encounter.task.attribution}</Text>
+                {encounter.task.limitations ? <Text variant="caption" muted>{encounter.task.limitations}</Text> : null}
+              </> : null}
+            </Stack> : null}
             {encounter.source ? <Button label="Return to source" variant="quiet" disabled={blocked || !!audioPlaying}
               onPress={() => void returnSource()} /> : null}
             {returnError ? <Text accessibilityRole="alert">{returnError}</Text> : null}

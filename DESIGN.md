@@ -495,6 +495,30 @@ UTF-8 position measurement. A rendered page/column is never source identity.
 
 ## Review shared roles, 2026-10-22
 
+### Captured task responses, 2026-11-01
+
+Primary action before capture: Check response. Information priority is the
+native cue, the learner's raw input or declared choices, then capture/recovery
+status. After capture, Reveal becomes available; after Reveal, existing
+retrospective ratings retain their original bulk and granular interactions.
+Validator outcomes are displayed separately from those retrospective ratings.
+Required content: package-declared response form, immutable captured input,
+validation Stop, native acknowledgement/recovery, Reveal, actual result,
+attribution/limitations, assistance and existing session/source controls.
+Self-report tasks retain the existing Reveal flow. No answer, feedback or
+validator rule is disclosed on the question side.
+
+Layout: Review response - keep cue and input in one bounded reading column ->
+existing content-limiter with stacked shared controls; scroll owner:
+app-shell-content. Preserve the existing500px workspace and300px minimum cue
+face, with shared TextField and wrapping selected Buttons after the cue.
+Do not add another scroll container, a second card/palette or a separate
+session/write owner. The real-native typed question at1080/390 is the before
+set; captures are required before changing its rendered source. Typed input,
+choice selection, capture-pending/Stop, captured, revealed and recoverable error
+states require fresh desktop/narrow inspection. Source-only reference geometry
+does not establish rendered or native visual conformity.
+
 M04 has no approved Review screenshot. Its secondary reference is
 `/Users/adrian/dev/mlearn-ts` revision
 `1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`, not a sibling of the private
