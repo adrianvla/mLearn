@@ -7,7 +7,7 @@ import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runti
 import { builtInThemes } from '../../packages/theme/src/theme';
 
 test('visible unsaved source words use canonical Practice and retain their exact return context', async ({ page }, info) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   const backend = await startRuntimeBrowserQa({ profile: info.outputPath('source-practice-profile') });
   const client = createRuntimeBrowserClient(backend);
   try {
@@ -56,6 +56,29 @@ test('visible unsaved source words use canonical Practice and retain their exact
     expect(session.encounter).not.toHaveProperty('materialId');
     const key = session.encounter.targets[0]?.key;
     if (!key) throw new Error('Canonical source Practice must retain a Knowledge key');
+    // Suspending source work and calibrating another scope must not replace its queue.
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    expect((await client.prepareCollectionCatalog(client.prepareCollection('org.mlearn.english'))).phase).toBe('succeeded');
+    const query = {
+      packageId: 'org.mlearn.english', capability: 'org.mlearn.english:grammar-form',
+      filter: { kind: 'text' as const, text: 'Past simple negative' }, limit: 1,
+    };
+    const calibration = (await client.review(client.prepareReviewStart({
+      kind: 'calibration', query, items: await client.calibrationCandidates(query),
+    }))).session;
+    await page.goto(`/review?sessionId=${calibration.id}`);
+    await expect(page.getByRole('heading', { name: 'Word Sync', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Sessions', exact: true }).click();
+    await page.getByRole('button', { name: `Open Word Practice ${session.id}`, exact: true }).click();
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
+    expect((await client.reviewSession(session.id)).mode).toEqual(session.mode);
+    expect((await client.reviewSession(session.id)).encounter).toEqual(session.encounter);
+    expect((await client.reviewSession(calibration.id)).state).toBe('paused');
+    expect(await client.reviewSessions()).toHaveLength(2);
     // Then restart keeps that encounter and return restores its exact selected source word.
     await backend.crashRestart();
     await page.reload();

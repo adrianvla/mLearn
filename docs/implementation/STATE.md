@@ -27,9 +27,19 @@ Desktop/narrow authoring captures in both themes were inspected. Native QA SHA25
 The adjacent run passes setup and all three actual grammar task/validation
 scenarios. Its new cross-session source scenario timed out preparing the cold
 catalog under the old 120-second budget; its trace is retained, and its existing
-300-second calibration-equivalent budget rerun remains pending. No product
-assertion was weakened. Final repository regressions, personal manual QA,
-independent M11 review and affected-platform gates remain open. This is not M11
+300-second calibration-equivalent budget rerun passes in 2.2 minutes. It proves
+source Practice -> Pause -> distinct Word Sync -> Pause -> original Practice
+Resume -> native restart -> exact source Return. No product assertion was weakened.
+Contract conformance and all 312 repository tests pass (89 tooling, 223 client).
+Root's personal omowright authoring/preview/Reveal/rating/Pause actions and native
+session readback pass; see `manual-qa.md` beside the evidence. Independent M11
+review and affected-platform gates remain open. Current exact-source CI exposed
+a Japanese standalone lockfile mismatch after shared-core gained sha2. Cargo's
+offline minimal lock update adds that dependency; the actual locked package build
+then passes. Regenerated English/Japanese module hashes are respectively
+`3c9a612c7af6edc85d988220c0e63a08c09411b3da1a139f7db2776231c5a111` and
+`001226c02182395d7d72215a4cad35389ee5af450d73817090f575652c79ada7`.
+This was a new build-input defect, not inherited infrastructure. This is not M11
 completion or maintainer acceptance. Preserve all inherited gaps and both draft
 PRs; no historical platform diagnostic campaign was resumed.
 
