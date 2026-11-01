@@ -7,9 +7,26 @@ Collection Foundation41293714859 fails Rust job124810076944 only at the final
 schema assertion in
 `schema_twelve_catalog_rebuild_preserves_material_claims_and_receipts`:
 actual 21, expected 20. All preceding preservation/replay assertions and the
-other 23 collection tests passed. Update that machine-consumed expectation to
-21 without removing any assertion. Its separate CI repair checkpoint must not
-include the unverified calibration draft or formatter-only changes.
+other 23 collection tests passed. The machine-consumed expectation is corrected
+to 21 in committed/pushed `56a6d29b27c7acc0f008fb65021c682d780ef005`, without
+removing any assertion. That isolated repair excludes the calibration draft and
+formatter-only changes; its exact-source CI is monitored separately.
+Desktop41298281555 passes for that repair checkpoint. Foundation41298281579
+passes web/OCR and all 24 collection tests, verifying the isolated collection
+schema repair. Rust124824128224 then fails the next stale schema expectation in
+`version_eight_migration_preserves_existing_profile_rows` at conversation.rs:212:
+actual21, expected20. A bounded search found matching stale final expectations
+in document.rs and material_migration.rs, plus two future-schema rejection
+fixtures incorrectly using now-supported21. The source-only follow-up advances
+current expectations to21 and future fixtures to22, retaining all preservation
+and unsupported-version assertions. It has not run locally because disk remains
+below admission; the migration gate remains open pending exact-source CI.
+
+Collection mobile41293714797 completed: Android job124813746246 passes; iOS
+job124813746441 fails the actual UI/persistence step at
+`m01-watch, mp4 is not visible` (Watch Inspector Knowledge and native source
+resume). This is the retained deferred assertion, not a new calibration result.
+Preserve the failure and do not restart its hosted diagnostic campaign.
 
 The worktree contains an uncommitted, unexecuted calibration draft. It adds a
 native 1..32-key selection over existing package filters, independent of claims,
@@ -27,11 +44,20 @@ Source review also found that Knowledge evidence's old Practice predicate omitte
 Review/Practice/Calibration purpose provenance, with storage and wire regressions.
 The schema expectation, purpose repair, calibration storage/package tests and new
 metadata wire tests have NOT run locally. Generated TypeScript contracts have NOT
-been regenerated, and Word Sync UI/client admission integration is still unwritten.
+been regenerated. The client draft now routes calibration preparation through the
+existing cancellable bounded-read owner, freezes its query, validates the native
+membership and recognizes canonical calibration sessions. Four new client tests
+cover scope freezing/widening, assistance preservation, cancellation/drain/reuse
+and Boolean-filter depth/node/UTF-8 bounds; these have NOT run. Fresh LSP output
+still reports the missing generated CalibrationQuery/mode/request declarations;
+no generated contract or diagnostic was suppressed. Word Sync UI integration is
+still unwritten. The exact next invocations and expected observables were appended
+before this scenario to the retained October31 continuation notepad.
 Do not call this draft buildable, delivered or accepted.
 
-Disk remains about 600 MB free. A nonpersistent disk monitor waits for 5 GiB before
-fresh resource admission; no native build/test, model or device is running. The
+Disk remains about 600 MB free. A durable read-only disk monitor waits for 5 GiB
+before fresh resource admission; it cannot launch builds, devices or servers.
+No native build/test, model or device is running. The
 maintainer did not answer the nonblocking space question within 30 minutes; do not
 ask it again. Preserve artifacts/profiles and continue only work not requiring
 additional execution space. Once admitted: regenerate contracts, run the original
