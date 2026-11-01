@@ -148,6 +148,7 @@ fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
                 command_id: "canonical-start".into(),
                 session_id: ReviewSessionId("canonical-practice".into()),
                 mode: ReviewMode::TargetPractice {
+                    assistance: None,
                     items: vec![TargetPracticeItem {
                         package_id: package_id.into(),
                         package_revision: revision,
@@ -326,6 +327,7 @@ fn canonical_grammar_executes_captured_validation_without_authored_identity() {
                 command_id: "canonical-grammar-start".into(),
                 session_id: ReviewSessionId("canonical-grammar".into()),
                 mode: ReviewMode::TargetPractice {
+                    assistance: None,
                     items: vec![TargetPracticeItem {
                         package_id: PACKAGE.into(),
                         package_revision: revision,

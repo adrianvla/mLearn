@@ -142,16 +142,25 @@ pub(super) fn inspect(
             })
             .collect::<Vec<_>>()
     });
+    let reading = has_reading.then(|| readings.join(" / "));
+    let canonical = super::review::canonical_capabilities(
+        target,
+        &character.literal,
+        reading.as_deref().unwrap_or(""),
+        &definition,
+        &supported,
+    );
     Ok(json!({
         "targetId":target,
         "headword":character.literal,
-        "reading":has_reading.then(|| readings.join(" / ")),
+        "reading":reading,
         "partOfSpeech":"",
         "definition":definition,
         "summary":summary,
         "senses":senses,
         "attribution":ATTRIBUTION,
         "capabilities":supported,
+        "canonicalPracticeCapabilities":canonical,
     }))
 }
 

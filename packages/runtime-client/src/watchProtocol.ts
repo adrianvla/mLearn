@@ -79,9 +79,14 @@ export function isLexicalSummary(v: unknown): v is LexicalSummary {
   &&string(v.summary)&&Array.from(v.summary).length<=512&&presentation(v.presentation,v.headword);
 }
 function entry(v:unknown):boolean {
- return object(v)&&['targetId','headword','partOfSpeech','definition','attribution'].every(k=>string(v[k]))
+ if (!(object(v)&&['targetId','headword','partOfSpeech','definition','attribution'].every(k=>string(v[k]))
   &&typeof v.headword==='string'&&presentation(v.presentation,v.headword)&&optionalString(v.reading)&&optionalString(v.summary)
-  &&(v.senses===null||list(v.senses,128,sense)&&Array.isArray(v.senses)&&v.senses.length>0)&&list(v.capabilities,8,capability);
+  &&(v.senses===null||list(v.senses,128,sense)&&Array.isArray(v.senses)&&v.senses.length>0)&&list(v.capabilities,8,capability))) return false;
+ const canonical=v.canonicalPracticeCapabilities;
+ const capabilities=v.capabilities;
+ return canonical===undefined||canonical===null||list(canonical,8,string)&&Array.isArray(canonical)
+  &&new Set(canonical).size===canonical.length&&Array.isArray(capabilities)
+  &&canonical.every(id=>capabilities.some(cap=>object(cap)&&cap.id===id));
 }
 function targetKnowledge(v:unknown):boolean {
  return object(v)&&list(v.projections,8,projection)&&typeof v.claim==='string'

@@ -74,10 +74,20 @@ fn canonical_all_requested_keys_have_exact_disjoint_coverage() {
         .map(|key| key.capability.as_str())
         .collect::<BTreeSet<_>>();
     assert_eq!(tested, requested);
-    assert!(output
-        .tasks
-        .iter()
-        .all(|task| mlearn_core::review_compatible(&task.probe)));
+    let declared = inspect(TARGET, &lookup)
+        .unwrap()
+        .canonical_practice_capabilities
+        .unwrap();
+    assert_eq!(
+        declared.iter().map(String::as_str).collect::<BTreeSet<_>>(),
+        requested
+    );
+    assert!(
+        output
+            .tasks
+            .iter()
+            .all(|task| mlearn_core::review_compatible(&task.probe))
+    );
     for task in &output.tasks {
         assert!(task.probe.targets.iter().all(|row| {
             let key = row.key.as_ref().unwrap();

@@ -325,12 +325,21 @@ fn inspect_entry(
             json!({"heading":heading,"labels":sense.pos,"definitions":sense.glosses,"notes":notes})
         })
         .collect::<Vec<_>>();
+    let supported = dictionary_capabilities(target);
+    let canonical = review::canonical_capabilities(
+        target,
+        &entry.headword,
+        reading.as_deref().unwrap_or(""),
+        &definition,
+        &supported,
+    );
     Ok((
         json!({
             "targetId":entry.target_id,"headword":entry.headword,"reading":reading,"presentation":presentation,
             "partOfSpeech":if target == SOURCE_METADATA_TARGET { String::new() } else { parts.join("; ") },
             "definition":definition,"summary":summary,"senses":senses,
-            "attribution":ATTRIBUTION,"capabilities":dictionary_capabilities(target)
+            "attribution":ATTRIBUTION,"capabilities":supported,
+            "canonicalPracticeCapabilities":canonical
         }),
         levels,
     ))

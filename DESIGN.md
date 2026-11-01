@@ -38,6 +38,18 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Inspector Knowledge keeps its existing bounded ContextPanel popover.
+Inspect evidence and package-supported Practice share a wrapping Row rather
+than adding a hidden vertical action. While Practice admission is pending or
+has an uncertain receipt, the same popover shows that capability's progress or
+error and exact-command retry/dismiss controls instead of the claim form.
+ContextPanel retains scroll, header and footer ownership. Existing shared
+Button, Row and media Text roles own geometry and states; no panel-height or
+theme override is introduced. Before captures are the eight
+`inspector-practice-*.png` files in
+`.mlearn/m11/inspector-practice-72cf03c5-20261101/selector-repair/results/`.
+They show desktop action/progress/recovery below the visible popover area.
+
 Layout: Material authoring moves into the existing shared dialog, using the
 reference editor's measured768px desktop bound and the shared narrow inset,
 header, close control and independently scrolling body. Compact Previous,

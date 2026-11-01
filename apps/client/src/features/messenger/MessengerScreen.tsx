@@ -362,7 +362,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
         {messenger.error && messenger.origin === 'history' ? <Button label="Reload conversation" variant="secondary" onPress={messenger.reload} /> : null}</View> : null}
     </View> : null}
     {inspection && chat ? <Inspector inspection={inspection} packageId={chat.packageId} client={client}
-      onBeforeOpenMaterial={messenger.persistDraft}
+      onBeforeNavigate={messenger.persistDraft}
       onChanged={async () => { messenger.retryAnalysis(); }} onClose={() => setInspection(null)} /> : null}
     {materialId || proposalId || reviewSessionId && reviewEncounterId ? <ConversationSource client={client}
       materialId={materialId} proposalId={proposalId} reviewSessionId={reviewSessionId} reviewEncounterId={reviewEncounterId}

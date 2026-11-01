@@ -10,7 +10,7 @@ import { Badge } from '@mlearn/ui/badge';
 import { Dialog } from '@mlearn/ui/dialog';
 import { useRouter } from 'expo-router';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
-import type { ClaimChange, LexicalSense, SourceAnchor } from '@mlearn/contracts';
+import type { ClaimChange, LexicalSense, ReviewCommand, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Pronunciation } from '../linguistic';
 import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
@@ -34,7 +34,7 @@ type InspectorProps = {
     client: RuntimeClient;
     onChanged: () => Promise<void>;
     onClose: () => void;
-    onBeforeOpenMaterial?: () => Promise<void>;
+    onBeforeNavigate?: () => Promise<void>;
     readOnlySourceReason?: string;
 };
 export function Inspector(props: InspectorProps) {
@@ -45,7 +45,7 @@ export function Inspector(props: InspectorProps) {
         inspection.sourceAnchor, inspection.sourceForm, inspection.context, inspection.targets,
         inspection.initialTargetId])} {...props} />;
 }
-function InspectorSession({ inspection, packageId, client, onChanged, onClose, onBeforeOpenMaterial, readOnlySourceReason }: InspectorProps) {
+function InspectorSession({ inspection, packageId, client, onChanged, onClose, onBeforeNavigate, readOnlySourceReason }: InspectorProps) {
     const router = useRouter();
     const host = useRuntime();
     const [selectedSense, setSelectedSense] = useState<LexicalSense | null>(null);
@@ -63,6 +63,11 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
     const knowledge = result?.knowledge.projections ?? [];
     const scope = useRef<object | null>(null);
     const openingMaterial = useRef<object | null>(null);
+    const startingPractice = useRef<object | null>(null);
+    const [practiceRetry, setPracticeRetry] = useState<{
+        readonly capability: string; readonly command: ReviewCommand;
+    } | null>(null);
+    const [practiceError, setPracticeError] = useState('');
     const [materialError, setMaterialError] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
@@ -93,6 +98,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         const owner = {};
         scope.current = owner;
         setMaterialError('');
+        setPracticeError('');
+        setPracticeRetry(null);
         setError('');
         setResult(null);
         setBusy(false);
@@ -116,6 +123,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         // Invalidate the previous lookup/claim before React runs effect cleanup.
         scope.current = null;
         setMaterialError('');
+        setPracticeError('');
+        setPracticeRetry(null);
         setResult(null);
         setError('');
         setRetry(null);
@@ -137,7 +146,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         setBusy(true);
         setMaterialError('');
         try {
-            await onBeforeOpenMaterial?.();
+            await onBeforeNavigate?.();
             if (scope.current !== owner) return;
             close();
             if (inspection.sourceAnchor) {
@@ -149,6 +158,39 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
             if (scope.current === owner) setMaterialError(cause instanceof Error ? cause.message : String(cause));
         } finally {
             if (openingMaterial.current === owner) openingMaterial.current = null;
+            if (scope.current === owner) setBusy(false);
+        }
+    }
+    async function practice(capability: string, prepared?: ReviewCommand) {
+        const owner = scope.current;
+        if (!owner || !result || !entry || busy || startingPractice.current === owner) return;
+        const command = prepared ?? client.prepareReviewStart({
+            kind: 'target_practice', assistance: ['inspector'], items: [{
+                packageId, packageRevision: result.packageRevision, targetId: entry.targetId,
+                capabilities: [capability],
+                source: inspection.targets.includes(entry.targetId) ? inspection.sourceAnchor : null,
+            }],
+        });
+        startingPractice.current = owner;
+        setBusy(true);
+        setPracticeError('');
+        try {
+            const committed = await client.review(command);
+            if (scope.current !== owner) return;
+            await onBeforeNavigate?.();
+            if (scope.current !== owner) return;
+            setPracticeRetry(null);
+            close();
+            router.navigate({ pathname: '/review', params: { sessionId: committed.session.id } });
+        } catch (cause) {
+            if (scope.current === owner) {
+                setPracticeRetry({ capability, command });
+                setPracticeError(cause instanceof Error ? cause.message : String(cause));
+                setEvidenceCapability(null);
+                setExpandedCapability(capability);
+            }
+        } finally {
+            if (startingPractice.current === owner) startingPractice.current = null;
             if (scope.current === owner) setBusy(false);
         }
     }
@@ -206,9 +248,22 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 knowledgeTrigger.current?.focus();
             }}
             popover={entry && activeCapability ? <View style={styles.adjustment}>
+                    {busy && startingPractice.current === scope.current ? <>
+                        <Text tone="media">{`Practice ${activeCapability.label}`}</Text>
+                        <Text tone="media" variant="caption" accessibilityLiveRegion="polite">Starting Word Practice…</Text>
+                    </> : practiceRetry?.capability === activeCapability.id ? <>
+                        <Text tone="media">{`Practice ${activeCapability.label}`}</Text>
+                        <Text tone="media" accessibilityRole="alert">{practiceError}</Text>
+                        <Row>
+                            <Button label="Retry practice" variant="media" size="compact" disabled={busy}
+                                onPress={() => void practice(practiceRetry.capability, practiceRetry.command)} />
+                            <Button label="Dismiss practice retry" variant="media" size="compact" disabled={busy}
+                                onPress={() => { setPracticeRetry(null); setPracticeError(''); }} />
+                        </Row>
+                    </> : <>
                     <View style={styles.pills}>
                         {entry.capabilities.map(cap => <Button key={cap.id} size="compact" variant="media"
-                            label={cap.label} disabled={busy}
+                            label={cap.label} disabled={busy || practiceRetry !== null}
                             accessibilityState={{ selected: expandedCapability === cap.id }}
                             onPress={() => setExpandedCapability(cap.id)} />)}
                     </View>
@@ -227,12 +282,19 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     <Text tone="media" muted variant="caption">
                         Assessed: {activeProjection?.assessed == null ? 'unmeasured' : String(activeProjection.assessed)} · Prediction: {activeProjection?.prediction == null ? 'unavailable' : String(activeProjection.prediction)}
                     </Text>
-                    <Button ref={evidenceTrigger} label="Inspect evidence" variant="media" size="compact" disabled={busy}
-                        onPress={() => { setEvidenceCapability(activeCapability.id); setExpandedCapability(null); }} />
+                    <Row>
+                        <Button ref={evidenceTrigger} label="Inspect evidence" variant="media" size="compact" disabled={busy}
+                            onPress={() => { setEvidenceCapability(activeCapability.id); setExpandedCapability(null); }} />
+                        {!readOnlySourceReason && entry.canonicalPracticeCapabilities?.includes(activeCapability.id) ?
+                        <Button label={`Practice ${activeCapability.label}`} variant="media" size="compact"
+                            disabled={busy}
+                            onPress={() => void practice(activeCapability.id)} /> : null}
+                    </Row>
                     {error && retry?.key.capability === activeCapability.id ? <>
                         <Text tone="media" accessibilityRole="alert">{error}</Text>
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
+                    </>}
                 </View> : null}
             footer={<>
                 {history.length ? <>
@@ -249,7 +311,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 accessibilityValue={{ text: claim.label }}
                 accessibilityState={{ expanded: expandedCapability !== null }}
                 disabled={busy || result?.knowledge.claim === 'unavailable'}
-                onPress={() => { setEvidenceCapability(null); setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null); }} /> : null}
+                onPress={() => { setEvidenceCapability(null); setExpandedCapability(value => value ? null
+                    : practiceRetry?.capability ?? entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
                     client={client} tone="media" presentation="actions" disabled={busy}

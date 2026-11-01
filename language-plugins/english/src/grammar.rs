@@ -52,6 +52,9 @@ pub(super) fn entry() -> LexicalEntry {
         senses: None,
         attribution: ATTRIBUTION.into(),
         capabilities: capabilities(),
+        canonical_practice_capabilities: Some(
+            capabilities().into_iter().map(|value| value.id).collect(),
+        ),
     }
 }
 

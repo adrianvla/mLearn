@@ -348,6 +348,17 @@ test('canonical Practice confines target identity revision and tested capabiliti
     total: 1, encounter: current };
   // When the native projection crosses its ordinary response boundary.
   assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  const assisted = { ...practice, mode: { ...practice.mode, assistance: ['inspector'] } };
+  assert.equal(isReviewResponse({ type: 'review_session', session: assisted }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...assisted, encounter: { ...current,
+      conditions: { ...encounter.conditions, assistance: ['inspector'] } },
+  } }), true);
+  for (const assistance of [['inspector', 'inspector'], ['prior_disclosure'], ['replay']]) {
+    assert.equal(isReviewCommand({ kind: 'start', start: {
+      commandId: 'start', sessionId: 's', mode: { ...practice.mode, assistance },
+    } }), false);
+  }
   // Then a different subject, revision, key or authored identity cannot broaden it.
   for (const invalid of [
     { ...current, targetId: 'other-target' },

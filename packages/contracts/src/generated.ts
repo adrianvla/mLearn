@@ -239,7 +239,7 @@ export type PracticeItem = { materialId: MaterialId, source: SourceAnchor | null
 
 export type TargetPracticeItem = { packageId: string, packageRevision: string, targetId: string, capabilities: Array<string>, source: SourceAnchor | null, };
 
-export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, } | { "kind": "target_practice", items: Array<TargetPracticeItem>, };
+export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, } | { "kind": "target_practice", items: Array<TargetPracticeItem>, assistance?: Array<ReviewAssistance>, };
 
 export type ReviewSessionState = "active" | "paused" | "complete" | "unavailable";
 
@@ -525,7 +525,7 @@ export type AnalysisBatch = { sourceId: string, subtitleRevision: string, packag
 
 export type LexicalSense = { heading: string, labels: Array<string>, definitions: Array<string>, notes: Array<string>, };
 
-export type LexicalEntry = { targetId: string, headword: string, reading: string | null, partOfSpeech: string, definition: string, summary: string | null, senses: Array<LexicalSense> | null, attribution: string, capabilities: Array<Capability>, presentation?: LinguisticPresentation, };
+export type LexicalEntry = { targetId: string, headword: string, reading: string | null, partOfSpeech: string, definition: string, summary: string | null, senses: Array<LexicalSense> | null, attribution: string, capabilities: Array<Capability>, canonicalPracticeCapabilities?: Array<string>, presentation?: LinguisticPresentation, };
 
 export type KnowledgeKey = { packageId: string, targetId: string, capability: string, };
 

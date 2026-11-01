@@ -1,5 +1,87 @@
 # Current implementation checkpoint
 
+## Canonical Inspector Practice launch and honest assistance - 2026-11-01
+
+On admission base `72cf03c5`, actual English/Japanese inspection now declares
+canonical Practice capabilities from the same package-owned composition that
+generates tasks without authored audio. Native entry admission bounds that
+declaration, rejects duplicates/foreign keys and requires the actual v2 task
+capability. Older installed entries may omit it. The renderer does not infer
+support from language codes or offer unavailable listening/reading work.
+English grammar advertises its existing real typed/choice/recall directions;
+this is not Japanese grammar or new grammar content.
+
+Inspector Knowledge launches one explicit supported target/capability without
+saving a Material. Package revision and optional attested source stay frozen.
+The existing Reader position, Watch pause/save and Messenger draft callbacks
+guard navigation through the renamed shared `onBeforeNavigate` prop. Lost
+admission receipts retain the exact prepared command; stale Inspector owners
+cannot navigate. Native TargetPractice freezes initial Inspector/Source
+assistance atomically, so receipt loss cannot leave a falsely cold encounter.
+The same conditions persist through queue admission/profile reopen and the
+client rejects projections that strip initial assistance.
+
+Passing checks: 32 English and 53 Japanese package tests, the canonical storage
+rollback/reopen test, 89 runtime tests under the normal parallel harness
+(20.18 seconds), 18 Review and 13 inspection client tests, typecheck, ownership
+lint, generated-contract conformance, authenticated offline WASM rebuild,
+production native QA example build and normal web export. Existing ts-rs and
+vendored Sudachi warnings remain unsuppressed.
+
+Real Rust/SQLite/WASM browser verification completes the actual Inspector
+launch, lost receipt, byte-identical retry, one retained session, zero Materials,
+process restart, source return and fluent retrospective submission. Evidence
+retains Inspector/Source assistance and does not create independent assessment.
+Initial test selectors incorrectly expected `Knowledge` rather than
+`Knowledge: Untracked`, then `All Fluent` rather than the single-capability
+`Fluent`; corrected selectors retain all original behavior assertions.
+The passing workflow exposed desktop clipping in real captures. A new
+intersection assertion fails against the pre-repair export. The repaired
+composition shares one wrapping action Row and shows pending/uncertain-receipt
+recovery instead of the claim form, within the unchanged ContextPanel bounds.
+The regression and workflow pass in 2.3 seconds; all eight final action/pending/
+retry captures at 1080x900 and 390x900 were inspected, with both themes for the
+normal action. Evidence:
+`.mlearn/m11/inspector-practice-72cf03c5-20261101/visibility-repair/`.
+This is browser/native-core proof, not native-window/mobile interaction proof.
+UI artifact: `index-60e88ddd0296bcc187421460a5ac3cbf.js`.
+After Rust-only formatting, both canonical runtime tests and the production
+native QA rebuild pass. The exact final native binary SHA256 is
+`2e19395f3ee366b97f1578291b1804a8182d062dbe2ca26fc598c88da7f7eb22`.
+The full launch workflow passes again against that binary under `final-source/`;
+both existing real-core management/evidence browser regressions pass under
+`evidence-regression/`. No source behavior or assertion was weakened.
+
+Executable package versions are English
+`0.1.9-wn30-graph1-grammar1-practice2-ocr2`, SHA256
+`1a83d4e715ced426a26750be77e3e10d9cbfa544c1969e8464377b004aa4b9cc`,
+and Japanese
+`0.1.13-sudachi20260116-jmdict20261017-graph1-characters1-practice2-ocr2`,
+SHA256 `662ee3d187fbca2a32bd7e899a2df9e9a12277eda441da139360e0802cf5f253`.
+
+An initial codegen attempt used unsupported ts-rs optional Vec annotation;
+the field now uses native Option with absent/default compatibility. A subsequent
+guard stopped the verification chain at 4291608713 bytes projected headroom,
+below the unchanged 4 GiB reserve. The confirmed owned analyzer was released
+and fresh admission passed; no assertion or budget was relaxed. The successful
+focused run retained at least 6289915904 bytes projected headroom. A later
+browser guard reached its timer deadline, not a resource failure; supervision
+was restored and the completed browser run's minimum was 4385488896 bytes.
+No devices, reference apps or persistent launch monitors were started.
+Final serial verification retained at least 4297868180 bytes projected
+headroom, above the same reserve; OmO footprint ended at 715394384 bytes,
+pressure 1 and swapOut unchanged at 314122223616. Final disk availability is
+2095424 KiB. All task QA hosts and guards are stopped; port4173 is released
+and no production QA backend survives. Preserve retained evidence/profiles;
+fresh disk/memory admission remains mandatory before further builds.
+
+M11 remains 36/48 tasks complete, not maintainer accepted. Frozen collection/
+source/list/status/level presets, Word Sync, full grammar delivery, accountable
+expert authoring and final independent review remain open. Preserve the exact
+Windows/iOS failures recorded below; this unit does not waive those gates.
+Next: checkpoint this connected launch, then implement exact collection scope
+through the same native Review owner.
+
 ## Native canonical Practice admission and projection - 2026-11-01
 
 On package base `a9c6f677`, the shared Review owner now admits explicit canonical
@@ -57,8 +139,19 @@ Package checkpoint `a9c6f677` passes foundation41275861339,
 desktop41275861354 and mobile Android124763554148. Hosted iOS124763554336
 fails in Apple Files at `id: m01-watch, mp4 is not visible`, as did prior
 run41273923207. Its original assertion and artifacts remain; no diagnostic
-variant or acceptance waiver was introduced. This increment's native platform
-gates await its committed source. M11 remains 35/47, incomplete and not
+variant or acceptance waiver was introduced. Committed admission checkpoint
+`72cf03c5` passes desktop41283012530 and mobile Android124778605239.
+Foundation41283012465 fails Windows124779874829 at
+`Exercise actual Windows native theme materials`: clipboard equality and UIA
+focus pass, but the second Slate edit retains Dark Quartz. Immediately before
+the failed paste, Win32 focus changes from 66132 to 131676 while UIA still
+reports the editor focused. Product versus input-harness cause is unproven;
+the theme input, shared controls and harness have no diff from `a9c6f677`.
+No sleeps, retries or weaker assertions were added. Mobile41283012471 iOS124778605408
+fails earlier than the prior Files assertion: no enabled `Open local video`
+action after 5m5s. Do not equate these failures. Retained iOS artifact13074915477
+is 91122642 bytes; no diagnostic rerun was launched.
+M11 remains 35/47, incomplete and not
 maintainer accepted. Next: connect real scoped launch actions, then frozen
 collection scope, Word Sync and accountable authoring before independent M11
 review. Unrelated untracked reports, fixtures, temporary files and profiles stay.

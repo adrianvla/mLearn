@@ -148,6 +148,26 @@ impl LanguageWork {
                 "Entry declares an unavailable capability".into(),
             ));
         }
+        if let Some(canonical) = &entry.canonical_practice_capabilities {
+            let unique = canonical.iter().collect::<std::collections::BTreeSet<_>>();
+            if canonical.len() > 8
+                || unique.len() != canonical.len()
+                || canonical
+                    .iter()
+                    .any(|id| !entry.capabilities.iter().any(|cap| cap.id == *id))
+                || !canonical.is_empty()
+                    && !self
+                        .package
+                        .manifest
+                        .capabilities
+                        .iter()
+                        .any(|capability| capability == "learning.probes.v2")
+            {
+                return Err(Failure::Operation(
+                    "Entry declares unavailable canonical practice".into(),
+                ));
+            }
+        }
         Ok(entry)
     }
 }

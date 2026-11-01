@@ -130,8 +130,13 @@ impl ProfileStore {
                 u32::try_from(admissions.len())
                     .map_err(|error| StorageError::Invalid(error.to_string()))?
             }
-            ReviewMode::TargetPractice { items } => {
-                crate::review_target_practice::admit(&tx, items, admissions)?
+            ReviewMode::TargetPractice { items, assistance } => {
+                crate::review_target_practice::admit(
+                    &tx,
+                    items,
+                    assistance.as_deref().unwrap_or_default(),
+                    admissions,
+                )?
             }
         };
         let exists: bool = tx.query_row(

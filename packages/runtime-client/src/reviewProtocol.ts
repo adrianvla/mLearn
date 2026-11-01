@@ -125,7 +125,11 @@ function mode(value: unknown): value is ReviewMode {
     case 'finite': return record(value, ['kind', 'limit']) && positive(value.limit) && value.limit <= 128;
     case 'practice': return record(value, ['kind', 'items']) && list(value.items, 128, practiceItem)
       && value.items.length > 0 && new Set(value.items.map(item => item.materialId)).size === value.items.length;
-    case 'target_practice': return record(value, ['kind', 'items'])
+    case 'target_practice': return record(value,
+      Object.hasOwn(value, 'assistance') ? ['kind', 'items', 'assistance'] : ['kind', 'items'])
+      && (value.assistance === undefined || list(value.assistance, 2,
+        item => item === 'inspector' || item === 'source')
+        && new Set(value.assistance).size === value.assistance.length)
       && list(value.items, 128, targetPracticeItem) && value.items.length > 0
       && new Set(value.items.map(item => JSON.stringify([item.packageId, item.targetId]))).size === value.items.length;
     default: return false;
@@ -199,6 +203,7 @@ export function isReviewSession(value: unknown): value is ReviewSession {
     case 'target_practice': return uint(value.total) && value.total >= value.mode.items.length
       && value.total <= value.mode.items.length * 8
       && (currentEncounter === null || 'targetId' in currentEncounter
+        && (value.mode.assistance ?? []).every(item => currentEncounter.conditions.assistance.includes(item))
         && value.mode.items.some(item => item.targetId === currentEncounter.targetId
           && item.packageId === currentEncounter.packageId
           && item.packageRevision === currentEncounter.packageRevision

@@ -77,7 +77,7 @@ model!(CueAnalysis { cue:Cue,tokens:Vec<AnalyzedToken> });
 model!(AnalysisBatch { source_id:String,subtitle_revision:String,package_id:String,package_version:String,package_revision:String,cues:Vec<CueAnalysis>,knowledge:Vec<KnowledgeProjection>,annotations:Vec<OccurrenceKnowledge> });
 model!(LexicalSense { heading:String,labels:Vec<String>,definitions:Vec<String>,notes:Vec<String> });
 // Absent structured detail remains readable for already installed ABI-v1 packages.
-model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,summary:Option<String>,senses:Option<Vec<LexicalSense>>,attribution:String,capabilities:Vec<Capability>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation> });
+model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,summary:Option<String>,senses:Option<Vec<LexicalSense>>,attribution:String,capabilities:Vec<Capability>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] canonical_practice_capabilities:Option<Vec<String>>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation> });
 model!(KnowledgeKey {
     package_id: String,
     target_id: String,

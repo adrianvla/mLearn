@@ -2,6 +2,7 @@
 mod composition;
 #[path = "review_tasks.rs"]
 mod tasks;
+pub(super) use composition::canonical_capabilities;
 pub(super) use composition::generate;
 pub(super) use tasks::generate as generate_tasks;
 

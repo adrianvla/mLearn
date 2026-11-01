@@ -187,7 +187,14 @@ pub(crate) fn next(
         let mut conditions = ReviewConditions {
             revealed: false,
             exposure_count: 1,
-            assistance: vec![],
+            assistance: match &session.mode {
+                ReviewMode::TargetPractice { assistance, .. } => {
+                    assistance.clone().unwrap_or_default()
+                }
+                ReviewMode::Continuous
+                | ReviewMode::Finite { .. }
+                | ReviewMode::Practice { .. } => vec![],
+            },
             delivery: if value.probe.required_media.is_some() {
                 ReviewDelivery::Pending
             } else {

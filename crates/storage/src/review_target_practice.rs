@@ -1,10 +1,24 @@
 //! Exact canonical Practice scope, committed by the existing Review transaction.
-use crate::{ProfileStore, StorageError, material_read, material_validation};
+use crate::{material_read, material_validation, ProfileStore, StorageError};
 use mlearn_core::*;
 use rusqlite::Connection;
 use std::collections::BTreeSet;
 
-pub(crate) fn validate(db: &Connection, items: &[TargetPracticeItem]) -> Result<(), StorageError> {
+pub(crate) fn validate(
+    db: &Connection,
+    items: &[TargetPracticeItem],
+    assistance: &[ReviewAssistance],
+) -> Result<(), StorageError> {
+    if assistance.len() > 2
+        || assistance.iter().enumerate().any(|(index, item)| {
+            !matches!(item, ReviewAssistance::Inspector | ReviewAssistance::Source)
+                || assistance[..index].contains(item)
+        })
+    {
+        return Err(StorageError::Invalid(
+            "Invalid initial Practice assistance".into(),
+        ));
+    }
     if !(1..=128).contains(&items.len()) {
         return Err(StorageError::Invalid(
             "Practice requires 1..128 explicit targets".into(),
@@ -57,9 +71,10 @@ pub(crate) fn validate(db: &Connection, items: &[TargetPracticeItem]) -> Result<
 pub(crate) fn admit(
     db: &Connection,
     items: &[TargetPracticeItem],
+    assistance: &[ReviewAssistance],
     admissions: &[ReviewAdmission],
 ) -> Result<u32, StorageError> {
-    validate(db, items)?;
+    validate(db, items, assistance)?;
     if admissions.is_empty() || admissions.len() > items.len() * 8 {
         return Err(StorageError::Invalid(
             "Canonical Practice probe bound exceeded".into(),
@@ -123,7 +138,8 @@ impl ProfileStore {
     pub fn review_practice_targets(
         &self,
         items: &[TargetPracticeItem],
+        assistance: &[ReviewAssistance],
     ) -> Result<(), StorageError> {
-        validate(&self.connection, items)
+        validate(&self.connection, items, assistance)
     }
 }

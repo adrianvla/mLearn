@@ -87,8 +87,11 @@ impl Runtime {
                     self.validate_practice(items)?;
                     items.len() * 8
                 }
-                ReviewMode::TargetPractice { items } => {
-                    self.validate_target_practice(items)?;
+                ReviewMode::TargetPractice { items, assistance } => {
+                    self.validate_target_practice(
+                        items,
+                        assistance.as_deref().unwrap_or_default(),
+                    )?;
                     items.len() * 8
                 }
             },
@@ -165,7 +168,10 @@ impl Runtime {
         if let ReviewCommand::Start { start } = &work.command {
             match &start.mode {
                 ReviewMode::Practice { items } => self.validate_practice(items)?,
-                ReviewMode::TargetPractice { items } => self.validate_target_practice(items)?,
+                ReviewMode::TargetPractice { items, assistance } => self.validate_target_practice(
+                    items,
+                    assistance.as_deref().unwrap_or_default(),
+                )?,
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }
         }
@@ -212,8 +218,12 @@ impl ReviewWork {
         if let ReviewCommand::Start { start } = &self.command {
             match &start.mode {
                 ReviewMode::Practice { items } => return self.run_practice(&store, items),
-                ReviewMode::TargetPractice { items } => {
-                    return self.run_target_practice(&store, items);
+                ReviewMode::TargetPractice { items, assistance } => {
+                    return self.run_target_practice(
+                        &store,
+                        items,
+                        assistance.as_deref().unwrap_or_default(),
+                    );
                 }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }

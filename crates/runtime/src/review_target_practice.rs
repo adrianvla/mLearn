@@ -1,14 +1,15 @@
 //! Canonical tasks use the same admitted Review work without creating Materials.
 use super::*;
-use mlearn_core::{KnowledgeKey, TargetPracticeItem};
+use mlearn_core::{KnowledgeKey, ReviewAssistance, TargetPracticeItem};
 
 impl Runtime {
     pub(super) fn validate_target_practice(
         &self,
         items: &[TargetPracticeItem],
+        assistance: &[ReviewAssistance],
     ) -> Result<(), Failure> {
         self.store
-            .review_practice_targets(items)
+            .review_practice_targets(items, assistance)
             .map_err(storage_failure)?;
         for item in items {
             if let Some(anchor) = &item.source {
@@ -30,9 +31,10 @@ impl ReviewWork {
         &self,
         store: &ProfileStore,
         items: &[TargetPracticeItem],
+        assistance: &[ReviewAssistance],
     ) -> Result<Vec<ReviewAdmission>, Failure> {
         store
-            .review_practice_targets(items)
+            .review_practice_targets(items, assistance)
             .map_err(storage_failure)?;
         let mut admissions = Vec::new();
         for item in items {

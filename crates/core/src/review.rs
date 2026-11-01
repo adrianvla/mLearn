@@ -150,9 +150,18 @@ record!(TargetPracticeItem {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum ReviewMode {
     Continuous,
-    Finite { limit: u32 },
-    Practice { items: Vec<PracticeItem> },
-    TargetPractice { items: Vec<TargetPracticeItem> },
+    Finite {
+        limit: u32,
+    },
+    Practice {
+        items: Vec<PracticeItem>,
+    },
+    TargetPractice {
+        items: Vec<TargetPracticeItem>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "typescript", ts(optional))]
+        assistance: Option<Vec<ReviewAssistance>>,
+    },
 }
 
 impl ReviewMode {

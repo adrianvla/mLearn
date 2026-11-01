@@ -1,4 +1,4 @@
-use super::super::{PACKAGE, validate_target};
+use super::super::{validate_target, PACKAGE};
 use mlearn_language_sdk::{
     learning::{
         KnowledgeKey, MediaKind, ProbeInput, ProbeMedia, ProbeOutput, ReviewDirection, ReviewProbe,
@@ -13,6 +13,22 @@ pub(super) struct Content<'a> {
     pub phrase: &'a str,
     pub meaning: &'a str,
     pub media: &'a [ProbeMedia],
+}
+
+/// Canonical support comes from the same actual cues, without authored audio.
+pub(crate) fn canonical_capabilities(target: &str, phrase: &str, meaning: &str) -> Vec<String> {
+    compose(Content {
+        target_id: Some(target),
+        phrase,
+        meaning,
+        media: &[],
+    })
+    .into_iter()
+    .flat_map(|probe| probe.targets)
+    .filter_map(|row| row.key.map(|key| key.capability))
+    .collect::<std::collections::BTreeSet<_>>()
+    .into_iter()
+    .collect()
 }
 
 pub(crate) fn generate(

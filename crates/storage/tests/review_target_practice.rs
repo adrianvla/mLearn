@@ -52,6 +52,7 @@ fn canonical_scope_rejects_partial_foreign_and_duplicate_work_without_poisoning_
         }),
     };
     let mode = ReviewMode::TargetPractice {
+        assistance: Some(vec![ReviewAssistance::Inspector]),
         items: vec![TargetPracticeItem {
             package_id: "package".into(),
             package_revision: "revision".into(),
@@ -112,6 +113,15 @@ fn canonical_scope_rejects_partial_foreign_and_duplicate_work_without_poisoning_
             .review_start(&start, std::slice::from_ref(&value), 100)
             .unwrap();
         assert_eq!(committed.session.total, Some(1));
-        assert_eq!(committed.session.encounter.unwrap().subject, value.subject);
+        let encounter = committed.session.encounter.unwrap();
+        assert_eq!(encounter.subject, value.subject);
+        assert_eq!(
+            encounter.conditions.assistance,
+            vec![ReviewAssistance::Inspector]
+        );
+        drop(store);
+        store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+        let recovered = store.review_session(&start.session_id).unwrap();
+        assert_eq!(recovered.encounter.unwrap(), encounter);
     }
 }

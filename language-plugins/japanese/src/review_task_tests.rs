@@ -107,6 +107,24 @@ fn canonical_exact_requested_coverage_is_disjoint_from_cues() {
         request.eligible_keys.len(),
         "Each admitted capability must be tested once, not repeated across tasks"
     );
+    let (inspected, _) = inspect_entry("jmdict:1", lookup("entry/1").unwrap().unwrap(), &|key| {
+        lookup(key).map(|value| value.map(Rc::new))
+    })
+    .unwrap();
+    let declared = inspected["canonicalPracticeCapabilities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        declared,
+        request
+            .eligible_keys
+            .iter()
+            .map(|key| key.capability.as_str())
+            .collect()
+    );
     for task in &output.tasks {
         assert!(mlearn_core::review_compatible(&task.probe));
         assert!(task.probe.targets.iter().all(|row| {

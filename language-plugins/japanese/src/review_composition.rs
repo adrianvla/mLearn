@@ -18,6 +18,30 @@ pub(super) struct Content<'a> {
     pub capabilities: Option<&'a [Capability]>,
 }
 
+/// Use real package composition to exclude unavailable or already supplied keys.
+pub(crate) fn canonical_capabilities(
+    target: &str,
+    phrase: &str,
+    reading: &str,
+    meaning: &str,
+    capabilities: &[Capability],
+) -> Vec<String> {
+    compose(Content {
+        target_id: Some(target),
+        phrase,
+        reading,
+        meaning,
+        media: &[],
+        capabilities: Some(capabilities),
+    })
+    .into_iter()
+    .flat_map(|probe| probe.targets)
+    .filter_map(|row| row.key.map(|key| key.capability))
+    .collect::<std::collections::BTreeSet<_>>()
+    .into_iter()
+    .collect()
+}
+
 pub(crate) fn generate(
     value: Value,
     lookup: &impl Fn(&str) -> Result<Option<Value>, String>,

@@ -156,20 +156,21 @@ fn inspect(
     }
     let sense = validate_target(id, lookup)?;
     let headword = id.splitn(4, ':').nth(3).ok_or("Target lemma missing")?;
+    let headword = headword.replace('_', " ");
+    let definition = sense["definition"].as_str().ok_or("Invalid definition")?;
+    let canonical = review::canonical_capabilities(id, &headword, definition);
     Ok(LexicalEntry {
         target_id: id.into(),
-        headword: headword.replace('_', " "),
+        headword,
         reading: None,
         presentation: None,
         part_of_speech: sense["pos"].as_str().ok_or("Invalid sense")?.into(),
-        definition: sense["definition"]
-            .as_str()
-            .ok_or("Invalid definition")?
-            .into(),
+        definition: definition.into(),
         summary: None,
         senses: None,
         attribution: "Princeton WordNet 3.0".into(),
         capabilities: capabilities(),
+        canonical_practice_capabilities: Some(canonical),
     })
 }
 fn validate_target(
