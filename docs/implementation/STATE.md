@@ -1,5 +1,54 @@
 # Current implementation checkpoint
 
+## Canonical lexical task package prerequisite - 2026-11-01
+
+English and Japanese now generate bounded `learning.probes.v2` recall tasks from
+their actual canonical inspection owners, without manufacturing saved Materials.
+The v1 authored-Material path shares package-owned probe composition. Requested
+tested keys remain exact; cue and answer disclosures retain untested information
+that is actually visible. Missing audio, unknown identity and unsupported
+capabilities fail explicitly. Self-report has no objective validator.
+
+Japanese's returned implementation repeated reading across written and focused
+tasks. The strengthened existing test fails with four rows for three eligible
+keys; the repaired generator chooses one suitable cue per requested key while
+preserving full answer disclosures. The initial English test compilation also
+exposed a missing `ReviewDirection` import, now repaired. No assertion was
+weakened. All 32 English and 53 Japanese package tests pass. The unchanged
+vendored Sudachi code still emits 13 warnings; none was suppressed.
+
+The offline single-job package build passes and regenerates actual WASM and
+catalog artifacts. English version is
+`0.1.8-wn30-graph1-grammar1-practice1-ocr2`, code SHA256
+`7ca8e66713f87a7648b120011885e649db7c2f3ee60d3742b5046b92af6e7919`.
+Japanese version is
+`0.1.12-sudachi20260116-jmdict20261017-graph1-characters1-practice1-ocr2`,
+code SHA256
+`2683174c311fab5862e401bd7fb6a0b9a72fd30e2df3a2b96cf502a42651e53d`.
+Both manifests declare v2; resource data identities remain unchanged.
+
+All 88 runtime tests pass in the normal parallel harness in 16.95 seconds.
+The new real bundled-package test analyzes actual English/Japanese input,
+resolves canonical targets, executes narrowly scoped v2 generation through the
+native admission owner, and verifies exact self-report tasks with no saved
+Material. This is real guest execution, not a mocked generator or a rendered
+canonical Practice session. Per-file formatting and whitespace checks pass;
+the editor's mixed formatter styles are retained without repository config edits.
+
+The package build and native suite remain inside the unchanged resource gate,
+with observed minimum projected headroom 5375885312 and 4794892288 bytes,
+respectively. Their guards are stopped after success. Native post-run physical
+footprint is 825838808 bytes, pressure is 1 and swapOut remains 314122223616.
+Disk has 3613680 KiB available; artifacts, profiles and unrelated files remain.
+
+Checkpoint `9e29f082` is pushed; its real desktop run41273923205 passes.
+Foundation41273923244 and mobile41273923207 remain subscribed. The package
+increment is not pushed while the earlier exact-source foundation gate runs.
+Next implementation is canonical Review subject/session admission and exact
+collection capability scope, then calibration and accountable expert authoring.
+None of those user workflows is retired by this prerequisite. M11 remains
+35/47 tasks done, incomplete and not maintainer accepted.
+
 ## Review audio focus renewal repair - 2026-11-01
 
 Local checkpoint `6be70652` preserves the partial-capability admission repair.
@@ -35,10 +84,10 @@ flow fails at step13 after5min, missing enabled `Open local video`. This remains
 an unresolved platform gate; no diagnostic campaign is restarted or M11 native
 response-form pass inferred. Both PRs remain draft and unmerged.
 
-A returned canonical lexical package increment remains unverified and
-incomplete: Japanese v2 dispatch and exact tested-key multiplicity still need
-integration before package execution and artifact regeneration. No canonical
-Review subject/session protocol or calibration workflow has been added.
+At this checkpoint, canonical lexical package dispatch and tested-key
+multiplicity were still unverified; the package prerequisite above now records
+their repair and execution. Canonical Review subject/session admission and
+calibration workflows remain absent.
 M11 remains35/47 tasks done, not complete or maintainer accepted.
 
 ## Partial-capability task admission - 2026-11-01

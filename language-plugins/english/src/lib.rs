@@ -2,8 +2,8 @@
 //! Candidates are lexical senses, not a claim of contextual disambiguation.
 use mlearn_core::{AnalyzedToken, Capability, LexicalEntry};
 use mlearn_language_sdk::{
+    serde_json::{self, json, Value},
     Call,
-    serde_json::{self, Value, json},
 };
 use std::collections::BTreeMap;
 use unicode_segmentation::UnicodeSegmentation;
@@ -44,7 +44,13 @@ fn handle(call: Call) -> Result<Value, String> {
         "image.ocr.recognition.v1" => ocr::recognition(call.input),
         "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
-        "learning.probes.v2" => grammar_tasks::generate(call.input),
+        "learning.probes.v2" => {
+            if call.input.get("targetId").and_then(Value::as_str) == Some(grammar::TARGET) {
+                grammar_tasks::generate(call.input)
+            } else {
+                review::generate_tasks(call.input, &read)
+            }
+        }
         "learning.validate.v1" => grammar_tasks::validate(call.input),
         "language.describe.v1" => Ok(
             json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities().into_iter().chain(grammar::capabilities()).collect::<Vec<_>>(),"annotationCapability":"org.mlearn.english:meaning","attribution":format!("Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation. {}",grammar::ATTRIBUTION),"catalog":catalog::description()}),

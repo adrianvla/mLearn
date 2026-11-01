@@ -1,111 +1,18 @@
-use super::validate_target;
-use mlearn_language_sdk::{
-    learning::{
-        KnowledgeKey, MediaKind, ProbeInput, ProbeOutput, ReviewDirection, ReviewProbe,
-        ReviewTarget,
+#[path = "review_composition.rs"]
+mod composition;
+#[path = "review_tasks.rs"]
+mod tasks;
+pub(super) use composition::generate;
+pub(super) use tasks::generate as generate_tasks;
+
+#[cfg(test)]
+use {
+    super::PACKAGE,
+    mlearn_language_sdk::{
+        learning::{ProbeOutput, ReviewDirection},
+        serde_json::{self, Value},
     },
-    serde_json::{self, Value},
 };
-
-use super::PACKAGE;
-
-pub(super) fn generate(
-    value: Value,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Value, String> {
-    let input: ProbeInput = serde_json::from_value(value).map_err(|error| error.to_string())?;
-    input.validate(PACKAGE)?;
-    if input.target_id.as_deref() == Some(super::grammar::TARGET) {
-        // This registered target has v2 tasks, not v1 lexical recall. Omit it
-        // rather than failing the shared due queue or inventing a word probe.
-        return serde_json::to_value(ProbeOutput {
-            contract_version: 1,
-            probes: Vec::new(),
-        })
-        .map_err(|error| error.to_string());
-    }
-    if let Some(target) = &input.target_id {
-        validate_target(target, lookup)?;
-    }
-    let key = |capability: &str| {
-        input.target_id.as_ref().map(|target| KnowledgeKey {
-            package_id: PACKAGE.into(),
-            target_id: target.clone(),
-            capability: format!("{PACKAGE}:{capability}"),
-        })
-    };
-    let row = |capability: &str, label: &str| ReviewTarget {
-        id: capability.into(),
-        label: label.into(),
-        mnemonic: None,
-        key: key(capability),
-    };
-    let mut probes = Vec::new();
-    let meaning = input.meaning.trim();
-    if !input.phrase.trim().is_empty()
-        && !meaning.is_empty()
-        && !input
-            .phrase
-            .to_lowercase()
-            .contains(&meaning.to_lowercase())
-    {
-        probes.push(ReviewProbe {
-            id: "written".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Written,
-            cue: input.phrase.clone(),
-            answer: meaning.into(),
-            targets: vec![row("meaning", "Meaning")],
-            supplied: key("written-recognition").into_iter().collect(),
-            required_media: None,
-        });
-    }
-    if !input.phrase.trim().is_empty()
-        && !meaning.is_empty()
-        && !meaning
-            .to_lowercase()
-            .contains(&input.phrase.to_lowercase())
-    {
-        probes.push(ReviewProbe {
-            id: "focused".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Focused,
-            cue: meaning.into(),
-            answer: input.phrase.clone(),
-            targets: vec![row("written-recognition", "Written form")],
-            supplied: key("meaning").into_iter().collect(),
-            required_media: None,
-        });
-    }
-    if let Some(media) = input.media.iter().find(|media| {
-        !input.phrase.trim().is_empty() && media.kind == MediaKind::Audio && media.bound_to_target
-    }) {
-        let mut targets = vec![row("listening", "Listening recognition")];
-        if !meaning.is_empty() {
-            targets.push(row("meaning", "Meaning"));
-        }
-        probes.push(ReviewProbe {
-            id: "audio".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Audio,
-            cue: "Listen to the audio".into(),
-            answer: if meaning.is_empty() {
-                input.phrase.clone()
-            } else {
-                format!("{}\n{meaning}", input.phrase)
-            },
-            targets,
-            supplied: vec![],
-            required_media: Some(mlearn_core::AuthoredMediaId(media.id.clone())),
-        });
-    }
-    probes.retain(|probe| probe.cue.len() <= 16_384 && probe.answer.len() <= 16_384);
-    serde_json::to_value(ProbeOutput {
-        contract_version: 1,
-        probes,
-    })
-    .map_err(|error| error.to_string())
-}
 
 #[cfg(test)]
 mod tests {

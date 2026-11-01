@@ -1,173 +1,18 @@
-use super::{characters, dictionary_capabilities, hiragana, validate_entry, PACKAGE};
-use mlearn_core::LexicalEntry;
-use mlearn_language_sdk::{
-    learning::{
-        KnowledgeKey, MediaKind, ProbeInput, ProbeOutput, ReviewDirection, ReviewProbe,
-        ReviewTarget,
-    },
-    serde_json::{self, Value},
-};
+#[path = "review_composition.rs"]
+mod composition;
+#[path = "review_tasks.rs"]
+mod tasks;
+pub(super) use composition::generate;
+pub(super) use tasks::generate as generate_tasks;
 
-pub(super) fn generate(
-    value: Value,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Value, String> {
-    let input: ProbeInput = serde_json::from_value(value).map_err(|error| error.to_string())?;
-    input.validate(PACKAGE)?;
-    let character = match input.target_id.as_deref() {
-        Some(target) if target.starts_with("kanjidic:") => {
-            let entry: LexicalEntry = serde_json::from_value(characters::inspect(target, lookup)?)
-                .map_err(|error| error.to_string())?;
-            if input.phrase.trim() != entry.headword {
-                return Err("Character material differs from its canonical literal".into());
-            }
-            Some(entry)
-        }
-        Some(target) => {
-            let sequence = target
-                .strip_prefix("jmdict:")
-                .filter(|seq| {
-                    !seq.is_empty()
-                        && seq.len() <= 10
-                        && seq.bytes().all(|byte| byte.is_ascii_digit())
-                })
-                .ok_or("Unknown Japanese target identity")?;
-            validate_entry(
-                target,
-                lookup(&format!("entry/{sequence}"))?.ok_or("JMdict entry not found")?,
-            )?;
-            if dictionary_capabilities(target).is_empty() {
-                return serde_json::to_value(ProbeOutput {
-                    contract_version: 1,
-                    probes: Vec::new(),
-                })
-                .map_err(|error| error.to_string());
-            }
-            None
-        }
-        None => None,
-    };
-    let supported = |capability: &str| {
-        character.as_ref().is_none_or(|entry| {
-            let id = format!("{PACKAGE}:{capability}");
-            entry.capabilities.iter().any(|value| value.id == id)
-        })
-    };
-    let key = |capability: &str| {
-        input
-            .target_id
-            .as_ref()
-            .filter(|_| supported(capability))
-            .map(|target| KnowledgeKey {
-                package_id: PACKAGE.into(),
-                target_id: target.clone(),
-                capability: format!("{PACKAGE}:{capability}"),
-            })
-    };
-    let row = |capability: &str, label: &str| ReviewTarget {
-        id: capability.into(),
-        label: label.into(),
-        mnemonic: None,
-        key: key(capability),
-    };
-    let meaning = if supported("meaning") {
-        input.meaning.trim()
-    } else {
-        ""
-    };
-    let reading = if supported("reading") {
-        input.reading.trim()
-    } else {
-        ""
-    };
-    let hidden_reading =
-        !reading.is_empty() && !hiragana(&input.phrase).contains(&hiragana(reading));
-    let mut probes = Vec::new();
-    let mut targets = Vec::new();
-    if hidden_reading {
-        targets.push(row("reading", "Reading"));
-    }
-    if !meaning.is_empty() && !input.phrase.contains(meaning) {
-        targets.push(row("meaning", "Meaning"));
-    }
-    let answer = [reading, meaning]
-        .into_iter()
-        .filter(|text| !text.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
-    if !input.phrase.trim().is_empty() && !targets.is_empty() {
-        let mut supplied: Vec<_> = key("written-recognition").into_iter().collect();
-        if !hidden_reading && !reading.is_empty() {
-            supplied.extend(key("reading"));
-        }
-        probes.push(ReviewProbe {
-            id: "written".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Written,
-            cue: input.phrase.clone(),
-            answer,
-            targets,
-            supplied,
-            required_media: None,
-        });
-    }
-    if supported("written-recognition")
-        && !input.phrase.trim().is_empty()
-        && !meaning.is_empty()
-        && !meaning.contains(&input.phrase)
-        && (reading.is_empty() || !meaning.contains(reading))
-    {
-        let mut targets = vec![row("written-recognition", "Written form")];
-        if hidden_reading {
-            targets.push(row("reading", "Reading"));
-        }
-        probes.push(ReviewProbe {
-            id: "focused".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Focused,
-            cue: meaning.into(),
-            answer: if hidden_reading {
-                format!("{}\n{reading}", input.phrase)
-            } else {
-                input.phrase.clone()
-            },
-            targets,
-            supplied: key("meaning").into_iter().collect(),
-            required_media: None,
-        });
-    }
-    if let Some(media) = input.media.iter().find(|media| {
-        supported("listening")
-            && !input.phrase.trim().is_empty()
-            && media.kind == MediaKind::Audio
-            && media.bound_to_target
-    }) {
-        let mut targets = vec![row("listening", "Listening recognition")];
-        if !meaning.is_empty() {
-            targets.push(row("meaning", "Meaning"));
-        }
-        probes.push(ReviewProbe {
-            id: "audio".into(),
-            contract_version: 1,
-            direction: ReviewDirection::Audio,
-            cue: "音声を聞く".into(),
-            answer: [input.phrase.as_str(), reading, meaning]
-                .into_iter()
-                .filter(|text| !text.is_empty())
-                .collect::<Vec<_>>()
-                .join("\n"),
-            targets,
-            supplied: key("reading").into_iter().collect(),
-            required_media: Some(mlearn_core::AuthoredMediaId(media.id.clone())),
-        });
-    }
-    probes.retain(|probe| probe.cue.len() <= 16_384 && probe.answer.len() <= 16_384);
-    serde_json::to_value(ProbeOutput {
-        contract_version: 1,
-        probes,
-    })
-    .map_err(|error| error.to_string())
-}
+#[cfg(test)]
+use {
+    super::PACKAGE,
+    mlearn_language_sdk::{
+        learning::{ProbeOutput, ReviewDirection},
+        serde_json::{self, Value},
+    },
+};
 
 #[cfg(test)]
 mod tests {

@@ -69,6 +69,89 @@ fn capture(session: &ReviewSession, id: &str) -> ReviewCommand {
 }
 
 #[test]
+fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
+    // Given independently opened profiles and the actual built language packages.
+    let directory = NativeTestProfile::new();
+    let artifacts = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
+    let manifests: Vec<crate::catalog::Manifest> =
+        serde_json::from_slice(&std::fs::read(artifacts.join("bundle.json")).unwrap()).unwrap();
+    for (package_id, text) in [("org.mlearn.english", "cat"), ("org.mlearn.japanese", "猫")] {
+        let manifest = manifests
+            .iter()
+            .find(|manifest| manifest.id == package_id)
+            .unwrap()
+            .clone();
+        let bundle = crate::BundledPlugin {
+            code: std::fs::read(artifacts.join(&manifest.code.path)).unwrap(),
+            assets: manifest
+                .assets
+                .iter()
+                .map(|(key, artifact)| {
+                    (
+                        key.clone(),
+                        std::fs::read(artifacts.join(&artifact.path))
+                            .unwrap()
+                            .into(),
+                    )
+                })
+                .collect(),
+            manifest,
+        };
+        let runtime = Runtime::open(
+            &directory.path().join(package_id),
+            mlearn_language_host::CodePolicy::MobileBundled,
+            None,
+            vec![bundle],
+        )
+        .unwrap();
+        let package = runtime.installed.get(package_id).unwrap();
+        assert!(package
+            .manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability == "learning.probes.v2"));
+        let work = LanguageWork {
+            package: package.clone(),
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        };
+        // When actual guest analysis resolves the target and v2 admits only meaning.
+        let tokens: Vec<Vec<AnalyzedToken>> = serde_json::from_value(
+            work.invoke("text.analyze.v1", json!({"texts":[text]}))
+                .unwrap(),
+        )
+        .unwrap();
+        let target = tokens
+            .iter()
+            .flatten()
+            .flat_map(|token| &token.targets)
+            .next()
+            .expect("The real package must resolve its canonical sample");
+        let keys = [KnowledgeKey {
+            package_id: package_id.into(),
+            target_id: target.clone(),
+            capability: format!("{package_id}:meaning"),
+        }];
+        let tasks = work
+            .review_tasks(target, &package.revision().unwrap(), Some(&keys))
+            .unwrap();
+        // Then the real native owner receives exact, honest recall without hidden saves.
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].probe.targets.len(), 1);
+        assert_eq!(tasks[0].probe.targets[0].key.as_ref(), Some(&keys[0]));
+        assert!(!tasks[0].probe.supplied.contains(&keys[0]));
+        assert!(tasks[0].task.answer_supplied.contains(&keys[0]));
+        assert_eq!(tasks[0].task.response_spec, ResponseSpec::SelfReport);
+        assert!(tasks[0].task.validator_id.is_none());
+        assert!(runtime
+            .store
+            .review_due_materials(None, 0, 1)
+            .unwrap()
+            .is_empty());
+    }
+}
+
+#[test]
 fn partial_task_scope_retains_real_disclosures_without_testing_sibling_capabilities() {
     // Given a real package target with only one requested capability.
     let directory = NativeTestProfile::new();
@@ -255,8 +338,8 @@ fn validation_cancel_wakes_queued_work_without_unlocking_unrelated_guest() {
 
 #[test]
 fn validation_cancel_drains_actual_guest_result_before_capacity_and_retry() {
-    use crate::execution::bounded_read_tests::HeldOperation;
     use crate::execution::bounded_read_tests::observe_cancel_join;
+    use crate::execution::bounded_read_tests::HeldOperation;
     use std::sync::Arc;
     use std::{sync::mpsc, thread, time::Duration};
     // Given actual package output held before publication, with both slots charged.

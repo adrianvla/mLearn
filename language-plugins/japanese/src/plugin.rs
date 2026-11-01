@@ -354,6 +354,7 @@ fn handle(call: Call) -> Result<Value, String> {
         "image.ocr.recognition.v1" => ocr::recognition(call.input),
         "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
+        "learning.probes.v2" => review::generate_tasks(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":format!("{ATTRIBUTION}\n{}\n{}", characters::ATTRIBUTION, characters::COMPONENT_ATTRIBUTION),
                 "levelScales":[{"id":format!("{PACKAGE}:jlpt-vocabulary"),"label":"JLPT vocabulary","attribution":"Reference JLPT vocabulary list, 1788f9c7; not an official syllabus"}],"catalog":catalog::description()}),
