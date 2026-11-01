@@ -1,5 +1,22 @@
 # Current implementation checkpoint
 
+## Desktop CI dependency acquisition repair - 2026-11-01
+
+Cancellation checkpoint `198ddfe4` and generator correction `024c1006` are
+committed/pushed. Its real desktop run41265680611 fails before any product build
+or test: the bounded Linux dependency step exits100 because the Ubuntu Resolute
+runner has no installation candidate for `webkit2gtk-driver`. APT identifies
+`webkitgtk-webdriver` as its replacement; Ubuntu's published Resolute package
+also lists the same `WebKitWebDriver` executable.
+
+The workflow changes only that package name. It retains `ubuntu-latest`,
+the40-minute job limit, bounded acquisition, signed metadata, Japanese glyph and
+decoder assertions, actual app build and native IPC/restart suite. The existing
+YAML parser accepts all17 steps; YAML LSP is unavailable and was not installed.
+Actual repaired-run acquisition/build/tests remain pending. No diagnostic
+workflow variant, runner downgrade or local native workload was launched.
+Foundation41265680615 and mobile41265680668 remain subscribed on `198ddfe4`.
+
 ## M11 captured-answer disclosure repair - 2026-11-01
 
 The captured-response disclosure regression fails before the repair and all24
@@ -77,7 +94,7 @@ in physical ownership. No heap dump or device/model workload was launched.
 Source-only work continues; no allowance or reserve was lowered.
 Existing disclosure-checkpoint foundation41263884147 passes completely,
 including Rust, detector, macOS, Windows and the full web suite.
-M11 remains27/39 tasks done and incomplete; maintainer acceptance, merge and
+M11 remains28/41 tasks done and incomplete; maintainer acceptance, merge and
 release remain out of scope.
 
 ## Material native selection verification synchronization - 2026-11-01
