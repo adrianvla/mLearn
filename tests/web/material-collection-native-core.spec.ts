@@ -76,7 +76,23 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('button', { name: 'Add Material', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Previous Material', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
-    await page.getByRole('button', { name: 'Select entry-40', exact: true }).click();
+    const existing = await client.collectionSelections();
+    expect(existing).toHaveLength(1);
+    const previousId = existing[0].id;
+    // The count updates before retirement finishes; observe its native receipt.
+    const released = page.waitForResponse(response => {
+      if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+      const raw = response.request().postDataJSON().args?.request;
+      if (typeof raw !== 'string') return false;
+      const request = JSON.parse(raw);
+      return request.type === 'release_collection_selection' && request.id === previousId;
+    });
+    const [releaseResponse] = await Promise.all([
+      released, page.getByRole('button', { name: 'Select entry-40', exact: true }).click(),
+    ]);
+    expect(JSON.parse((await releaseResponse.json()).value)).toMatchObject({
+      type: 'collection_selection_released', id: previousId,
+    });
     await expect(page.getByText(/^2 selected.*frozen selection$/)).toBeVisible();
     const selections = await client.collectionSelections();
     expect(selections).toHaveLength(1);

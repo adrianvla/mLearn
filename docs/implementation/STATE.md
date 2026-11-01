@@ -1,5 +1,31 @@
 # Current implementation checkpoint
 
+## Material native selection verification synchronization - 2026-11-01
+
+Base `1549540eb91bcde72811b7e86cfe22154c4447fb` is committed/pushed.
+Its existing foundation Rust, detector, macOS and Windows jobs, real desktop
+integration, and Android mobile job pass. Foundation web fails the Material
+native-core scenario at the one-selection assertion: it reads two snapshots
+after the displayed count becomes2 but before superseded retirement finishes.
+The unchanged shared selection owner deliberately publishes committed membership
+before awaiting retirement and clearing pending state. The test now subscribes
+to the exact predecessor's native release receipt before toggling, validates
+that receipt, and retains the one-selection and exact-membership assertions.
+This changes synchronization, not production behavior or acceptance criteria.
+
+Targeted verification is pending. Current client export passes; the native QA
+example, including uncommitted cancellation-core work, builds in10.81s with an
+unused macro-doc warning, corrected as a
+separate uncommitted prose-only change. Both local resource guards held near
+command completion on projected headroom, so no browser workload was launched.
+Export guard minimum projected3904569344B; native build guard4159127944B;
+required reserve remains4294967296B and workload2684354560B. Root footprint
+stays about597MB, pressure1 and swapOut314122223616B unchanged. Idle analysis
+processes exited; unrelated processes were not stopped. Native browser
+verification will use existing CI rather than relax those limits. Mobile iOS
+step13 remains failed and unresolved; no diagnostic variant or rerun launched.
+M11 presentation, validation Stop integration and remaining scope are still open.
+
 ## M11 native captured-response integration in progress - 2026-10-31
 
 Canonical protocol checkpoint `8f79b095` is committed/pushed. This source
