@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse } from '@mlearn/contracts';
+import type { Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse, SourcePracticeTarget } from '@mlearn/contracts';
 import { createReviewClient, type ReviewAction } from '../src/reviewClient';
 import { createRuntimeClient } from '../src/client';
 import { RuntimeError } from '../src/errors';
@@ -49,6 +49,34 @@ const captureReceipt = JSON.stringify({ type: 'review', commit: {
   commandId: 'capture', committedRevision: 2,
   session: { ...typedSession, revision: 2, encounter: capturedEncounter },
 } });
+
+test('source Practice preparation rejects widened targets, revisions and return anchors', async () => {
+  // Given one explicitly selected source target and the native preparation transport.
+  const targets: SourcePracticeTarget[] = [{
+    targetId: 'target',
+    source: { sourceId: 'source', contentRevision: 'media', packageId: 'package', packageVersion: '1',
+      text: 'word', locator: { kind: 'video', subtitleRevision: 'subtitles', cueIndex: 0,
+        selectionStart: 0, selectionEnd: 4, positionMs: 0, subtitleOffsetMs: 0, playbackRate: 1 } },
+  }];
+  const item = { packageId: 'package', packageRevision: 'revision', ...targets[0], capabilities: ['package:meaning'] };
+  let response: unknown = { type: 'source_practice', items: [item] };
+  const client = createReviewClient(async request => {
+    assert.equal(request.type, 'prepare_source_practice');
+    return response;
+  }, () => { throw new Error('A preparation read must not allocate a durable command.'); });
+  // When a real bounded projection preserves every requested identity and return location.
+  assert.deepEqual(await client.sourcePractice('package', 'revision', targets), [item]);
+  // Then malformed support or scope changes fail rather than becoming a different Practice session.
+  for (const changed of [
+    { ...item, targetId: 'another' },
+    { ...item, packageRevision: 'another' },
+    { ...item, source: { ...targets[0]?.source, text: 'another' } },
+    { ...item, capabilities: [] },
+  ]) {
+    response = { type: 'source_practice', items: [changed] };
+    await assert.rejects(client.sourcePractice('package', 'revision', targets), protocol);
+  }
+});
 
 test('validation preserves its frozen request outside ordinary and source cancellation queues', { timeout: 5000 }, async () => {
   // Given ordinary transport and source cancellation whose receipts remain pending.

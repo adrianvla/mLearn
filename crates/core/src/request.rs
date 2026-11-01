@@ -360,6 +360,13 @@ pub enum Request {
         #[serde(rename = "expectedRevision")]
         expected_revision: Option<String>,
     },
+    PrepareSourcePractice {
+        #[serde(rename = "packageId")]
+        package_id: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        targets: Vec<crate::SourcePracticeTarget>,
+    },
     InspectTargets {
         #[serde(rename = "sourceId")]
         source_id: String,

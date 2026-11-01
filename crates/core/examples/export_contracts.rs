@@ -116,6 +116,7 @@ fn main() {
         ValidationOutput::decl(),
         PracticeItem::decl(),
         TargetPracticeItem::decl(),
+        SourcePracticeTarget::decl(),
         ReviewMode::decl(),
         ReviewSessionState::decl(),
         ReviewDelivery::decl(),

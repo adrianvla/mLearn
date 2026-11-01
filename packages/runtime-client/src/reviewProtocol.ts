@@ -262,10 +262,14 @@ export function isReviewCommand(value: unknown): value is ReviewCommand {
     default: return false;
   }
 }
-export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' }>;
+export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' | 'source_practice' }>;
 export function isReviewResponse(value: unknown): value is ReviewWireResponse {
   if (!object(value) || encodedBytes(value) > 524288) return false;
   switch (value.type) {
+    case 'source_practice': return record(value, ['type', 'items'])
+      && list(value.items, 128, targetPracticeItem) && value.items.length > 0
+      && value.items.every(item => item.source !== null)
+      && new Set(value.items.map(item => JSON.stringify([item.packageId, item.targetId]))).size === value.items.length;
     case 'review': return record(value, ['type', 'commit'])
       && record(value.commit, ['commandId', 'committedRevision', 'session']) && text(value.commit.commandId, 128)
       && positive(value.commit.committedRevision) && isReviewSession(value.commit.session)

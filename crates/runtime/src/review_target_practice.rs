@@ -3,7 +3,7 @@ use super::*;
 use mlearn_core::{KnowledgeKey, ReviewAssistance, TargetPracticeItem};
 
 impl Runtime {
-    pub(super) fn validate_target_practice(
+    pub(crate) fn validate_target_practice(
         &self,
         items: &[TargetPracticeItem],
         assistance: &[ReviewAssistance],
@@ -104,5 +104,38 @@ impl ReviewWork {
             }
         }
         Ok(admissions)
+    }
+}
+
+impl LanguageWork {
+    pub(crate) fn source_practice(
+        &self,
+        targets: &[mlearn_core::SourcePracticeTarget],
+    ) -> Result<Vec<TargetPracticeItem>, Failure> {
+        let schema = self.description()?;
+        let revision = self.package.revision()?;
+        let mut items = Vec::with_capacity(targets.len());
+        for target in targets {
+            self.cancellation.check()?;
+            let entry = self.entry_with_schema(&target.target_id, &schema)?;
+            let capabilities = entry
+                .canonical_practice_capabilities
+                .filter(|capabilities| !capabilities.is_empty())
+                .ok_or_else(|| {
+                    Failure::Operation(format!(
+                        "Selected target {} has no package-supported canonical Practice",
+                        target.target_id
+                    ))
+                })?;
+            self.validate_canonical_practice_source(&target.target_id, &target.source)?;
+            items.push(TargetPracticeItem {
+                package_id: self.package.manifest.id.clone(),
+                package_revision: revision.clone(),
+                target_id: target.target_id.clone(),
+                capabilities,
+                source: Some(target.source.clone()),
+            });
+        }
+        Ok(items)
     }
 }

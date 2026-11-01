@@ -1,6 +1,57 @@
 # Current implementation checkpoint
 
-## Active collection Practice continuation - 2026-11-01
+## Active source Practice continuation - 2026-11-01
+
+Committed/pushed collection checkpoint is `5ded3635`; its Desktop41293714855
+passes, with Foundation/mobile still separately monitored. The uncommitted next
+increment removes the saved-Material prerequisite from source Practice. Watch
+Vocabulary and Reader image words use one bounded, cancellable native preparation
+read over explicit target/source identities. The package declares canonical task
+support; existing source validation, exclusions and Review admission remain the
+authorities. Revision changes, unsupported targets and mismatched source spans
+fail explicitly. No new learner store, per-token IPC, due substitution or hidden
+Material save is introduced. Initial Source assistance stays frozen.
+
+Passing checks: generated-contract conformance, all 91 runtime tests under the
+normal parallel harness, 40 affected client/source tests, 16 bounded-read client
+tests, typecheck, ownership lint, production native QA build and normal web export.
+The two new real-package tests cover unsaved source preparation, forged/changed
+scope, cancellation after actual guest execution and recovery. Initial compile
+found sibling-module visibility errors; those were repaired, not suppressed.
+An owned analyzer restarted during source edits and drove a resource guard below
+the unchanged reserve after the failed compile had ended. No build was running;
+the identified analyzer was released and fresh three-sample admission passed.
+
+The real Watch source workflow and existing image-sidebar retry workflow pass
+together in 4.1 seconds. Native-core proof includes four unsaved canonical targets,
+restart, exact source return and Source-assisted evidence without independent
+assessment or authored Materials. The first browser attempt failed because its
+identity-only video fixture had no decoder-provided duration. The fixture now
+declares its duration through normal SavePosition; this is not video decoding
+or playback verification. All seven final Watch/image action and encounter
+captures were inspected at desktop/narrow widths (Watch in both themes).
+Evidence: `.mlearn/m11/source-practice-5ded3635-20261101/duration-fixture/`.
+Rust formatting passes. The final formatted-source native tests pass again,
+the production native QA binary rebuilds, and the connected real workflow passes
+in 4.3 seconds under `final-source/`. Its binary SHA256 is
+`ddcc8f4d3c305fe31e92b6c456b493748b94522237259e4eec88099bd9525cc8`;
+UI artifact is `index-1dae1d6d537346d022fc540dbea05887.js`.
+No port 4173 listener survives. Post-run physical footprint is 841 MB, with
+6.12 GB projected headroom, normal pressure and unchanged swap counters.
+
+ABI-repair mobile41290145478 fails iOS job124802425582 at the retained
+`m01-watch, mp4 is not visible` assertion. Preserve this deferred platform gap;
+do not restart the hosted-iOS campaign. The Windows native theme-input gate
+below also remains unresolved. Disk has only about 600 MB free: no further local
+native builds, profile recreation campaign or resource-policy relaxation.
+The maintainer has been asked to free several GB; continue source-only work
+until fresh disk admission permits execution. M11 is 39/51 tasks, incomplete.
+After checkpointing source Practice, implement
+bounded unmeasured Word Sync through the same session and Knowledge owners,
+then finish grammar/actual validators and expert authoring. Milestone review,
+affected-platform verification and maintainer acceptance are separate gates.
+
+## Collection Practice checkpoint - 2026-11-01
 
 Committed/pushed source is `e201fad5af583fde719d14b78d396e8ccaddec49`.
 Its Desktop41290145418 and Foundation Rust job124799521154 pass. Foundation

@@ -143,9 +143,9 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
           if (command === 'execute_bounded_read') {
             const id = String(args.id), ticket = boundedReads.get(id);
             if (!ticket || ticket.completion) throw { code: 'invalid_bounded_read', message: 'Fixture read is not available' };
-            if (JSON.parse(String(args.request)).type !== 'search_document') {
+            if (!['search_document', 'prepare_source_practice'].includes(JSON.parse(String(args.request)).type)) {
               boundedReads.delete(id);
-              throw new Error('This image fixture supports only saved-recognition search');
+              throw new Error('This image fixture supports search and source Practice preparation');
             }
             const execution = invoke('runtime_execute', args);
             ticket.completion = execution.then(() => {}, () => {});
@@ -370,22 +370,33 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
               return JSON.stringify({ type: 'material_eligibility', items: [{
                 target: { packageId: 'package', targetId: 'line-0' }, availability: { state: 'existing', materialId: 'saved-tokyo', excluded: false } }] });
             }
+            case 'prepare_source_practice': {
+              if (!Array.isArray(request.targets)) throw new Error('Missing source Practice targets');
+              return JSON.stringify({ type: 'source_practice', items: request.targets.map(target => {
+                if (!object(target)) throw new Error('Invalid source Practice target');
+                return { ...target, packageId: request.packageId, packageRevision: request.packageRevision,
+                  capabilities: ['package:meaning'] };
+              }) });
+            }
             case 'review': {
               if (!object(request.command) || request.command.kind !== 'start' || !object(request.command.start))
                 throw new Error('Source practice must use the shared native Start command');
               const start = request.command.start;
-              if (!object(start.mode) || start.mode.kind !== 'practice' || !Array.isArray(start.mode.items)
+              if (!object(start.mode) || start.mode.kind !== 'target_practice' || !Array.isArray(start.mode.items)
                 || !object(start.mode.items[0])) throw new Error('Missing finite source practice membership');
               if (practiceReceipt !== null && practiceReceipt !== start.commandId) throw new Error('Practice retry changed command identity');
               practiceReceipt = start.commandId;
               practiceSession ??= { id: start.sessionId, revision: 1, mode: start.mode, state: 'active', completed: 0,
                 total: 1, canUndo: false, message: null, encounter: {
-                  id: 'practice-encounter', workId: 'practice-work', materialId: start.mode.items[0].materialId, materialRevision: 1,
+                  id: 'practice-encounter', workId: 'practice-work', targetId: start.mode.items[0].targetId,
                   packageId: 'package', packageVersion: '1', packageRevision: 'a'.repeat(64), probeId: 'written',
                   probeContractVersion: 1, direction: 'written', cue: '東京', answer: null, source: start.mode.items[0].source,
                   requiredMedia: null, supplied: [], correction: false,
-                  targets: [{ id: 'meaning', label: 'Meaning', mnemonic: null, key: null }],
-                  conditions: { revealed: false, exposureCount: 1, assistance: [], delivery: 'not_required' },
+                  targets: [{ id: 'meaning', label: 'Meaning', mnemonic: null,
+                    key: { packageId: 'package', targetId: start.mode.items[0].targetId, capability: 'package:meaning' } }],
+                  task: { revision: 1, responseSpec: { kind: 'self_report' },
+                    attribution: 'Fixture package', limitations: 'Recall only' },
+                  conditions: { revealed: false, exposureCount: 1, assistance: ['source'], delivery: 'not_required' },
                 } };
               if (losePracticeReceipt) {
                 losePracticeReceipt = false;
@@ -564,7 +575,13 @@ test('source practice retries one frozen request and opens its actually admitted
   await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
-  await words.getByRole('button', { name: 'Practice saved words in this view', exact: true }).click();
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    const action = words.getByRole('button', { name: 'Practice words in this view', exact: true });
+    await expect(action).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: testInfo.outputPath(`source-word-practice-${width}.png`) });
+  }
+  await words.getByRole('button', { name: 'Practice words in this view', exact: true }).click();
   await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
   await words.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Page words', exact: true })).toBeFocused();
@@ -579,8 +596,8 @@ test('source practice retries one frozen request and opens its actually admitted
   const starts = await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'review'));
   expect(starts).toHaveLength(2);
   expect(starts[1]).toEqual(starts[0]);
-  expect(starts[0]).toMatchObject({ command: { kind: 'start', start: { mode: { kind: 'practice', items: [{
-    materialId: 'saved-tokyo', source: { text: '東京', locator: { kind: 'image', resourceId: 'image-0',
+  expect(starts[0]).toMatchObject({ command: { kind: 'start', start: { mode: { kind: 'target_practice', assistance: ['source'], items: [{
+    targetId: 'line-0', source: { text: '東京', locator: { kind: 'image', resourceId: 'image-0',
       ocrRevision: 1, regionId: 'line-0', contextStart: 0, selectionStart: 0, selectionEnd: 6 } },
   }] } } } });
   await page.screenshot({ path: testInfo.outputPath('source-word-native-practice-entry.png') });

@@ -145,6 +145,11 @@ record!(TargetPracticeItem {
     source: Option<SourceAnchor>
 });
 
+record!(SourcePracticeTarget {
+    target_id: String,
+    source: SourceAnchor
+});
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]

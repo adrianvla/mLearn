@@ -214,7 +214,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   </>;
   const vocabularyControls = <>
     <Row>
-      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
+      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice words in this view'}
         size="compact" variant="secondary" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
         onPress={() => void practice.start()} />
       <Button label="All" accessibilityLabel="All words" size="compact" variant="pill" accessibilityState={{ selected: !unknownOnly }}

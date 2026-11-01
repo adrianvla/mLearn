@@ -1,6 +1,6 @@
-import type { Request, ReviewCommand, ReviewMode, ReviewSession } from '@mlearn/contracts';
+import type { Request, ReviewCommand, ReviewMode, ReviewSession, SourcePracticeTarget } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
-import { isMaterialResponse } from './materialProtocol';
+import { isMaterialResponse, isSourceAnchor } from './materialProtocol';
 import { isReviewCommand, isReviewResponse } from './reviewProtocol';
 
 type Mutation = Exclude<ReviewCommand, { kind: 'start' }>;
@@ -29,6 +29,27 @@ export function createReviewClient(request: (command: Request, signal?: AbortSig
     return structuredClone(command);
   }
   return {
+    async sourcePractice(packageId: string, packageRevision: string, targets: readonly SourcePracticeTarget[], signal?: AbortSignal) {
+      const selected = structuredClone(targets);
+      if (!packageId || !packageRevision || selected.length === 0 || selected.length > 128
+        || selected.some(item => !item.targetId || item.targetId.length > 512 || !isSourceAnchor(item.source)
+          || item.source.packageId !== packageId)
+        || new Set(selected.map(item => item.targetId)).size !== selected.length)
+        throw new RuntimeError('invalid_request', 'Invalid visible Practice target scope.');
+      const value = await request({ type: 'prepare_source_practice', packageId, packageRevision, targets: [...selected] }, signal);
+      if (!isReviewResponse(value) || value.type !== 'source_practice' || value.items.length !== selected.length
+        || value.items.some((item, index) => {
+          const original = selected[index];
+          const source = item.source;
+          return !original || !source || item.packageId !== packageId || item.packageRevision !== packageRevision
+            || item.targetId !== original.targetId || source.sourceId !== original.source.sourceId
+            || source.contentRevision !== original.source.contentRevision || source.packageId !== original.source.packageId
+            || source.packageVersion !== original.source.packageVersion || source.text !== original.source.text
+            || Object.entries(source.locator).some(([key, value]) => Reflect.get(original.source.locator, key) !== value);
+        }))
+        throw malformed();
+      return value.items;
+    },
     prepareReviewStart(mode: ReviewMode): ReviewCommand {
       return prepared({ kind: 'start', start: { commandId: commandId(), sessionId: commandId(), mode } });
     },

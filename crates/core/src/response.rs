@@ -214,6 +214,9 @@ pub enum Response {
     Dictionary {
         batch: DictionaryBatch,
     },
+    SourcePractice {
+        items: Vec<crate::TargetPracticeItem>,
+    },
     Knowledge {
         projections: Vec<KnowledgeProjection>,
     },

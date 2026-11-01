@@ -296,6 +296,47 @@ impl Runtime {
                     cancellation,
                 )
             }
+            Request::PrepareSourcePractice {
+                package_id,
+                package_revision,
+                targets,
+            } => {
+                if !(1..=128).contains(&targets.len())
+                    || targets.iter().any(|target| {
+                        target.target_id.is_empty()
+                            || target.target_id.len() > 512
+                            || target.target_id.contains('\0')
+                            || target.source.package_id != package_id
+                    })
+                    || targets
+                        .iter()
+                        .map(|target| &target.target_id)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != targets.len()
+                {
+                    return Err(Failure::Operation(
+                        "Invalid visible Practice target scope".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if package.revision()? != package_revision {
+                    return Err(Failure::Operation(
+                        "Language package changed; refresh the selected source".into(),
+                    ));
+                }
+                for target in &targets {
+                    self.validate_capture_source(&target.source)?;
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::SourcePractice(targets),
+                    cancellation,
+                )
+            }
             Request::GraphNeighborhood { query } => {
                 if [&query.package_id, &query.target_id]
                     .iter()

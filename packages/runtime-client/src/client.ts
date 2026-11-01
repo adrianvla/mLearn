@@ -144,7 +144,7 @@ export function createRuntimeClient(transport: Transport) {
     }
   }
   async function request(command:Request,signal?:AbortSignal):Promise<Response>{
-    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood'){
+    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood'||command.type==='prepare_source_practice'){
       const capability=transport.boundedReads;
       if(!capability)throw new RuntimeError('transport','This host does not support cancellable bounded reads.');
       return scopedRequest(command,capability,()=>capability.begin(),true,signal);

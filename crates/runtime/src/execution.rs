@@ -275,6 +275,7 @@ impl RuntimeExecutor {
                 && !matches!(
                     request,
                     Request::GraphNeighborhood { .. }
+                        | Request::PrepareSourcePractice { .. }
                         | Request::KnowledgeEvidence { .. }
                         | Request::SearchDocument { .. }
                 )
@@ -512,6 +513,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::AnalyzeTranscript { .. }
         | Request::DescribeLanguage { .. }
         | Request::InspectTarget { .. }
+        | Request::PrepareSourcePractice { .. }
         | Request::GraphNeighborhood { .. }
         | Request::InspectTargets { .. }
         | Request::ChangeClaim { .. }

@@ -178,6 +178,15 @@ impl Runtime {
                     (LanguageAction::Graph(query), GuestOutput::Graph(value)) => {
                         self.complete_graph(query, &work.package, value)?
                     }
+                    (LanguageAction::SourcePractice(_), GuestOutput::SourcePractice(items)) => {
+                        self.validate_target_practice(
+                            items,
+                            &[mlearn_core::ReviewAssistance::Source],
+                        )?;
+                        Response::SourcePractice {
+                            items: std::mem::take(items),
+                        }
+                    }
                     (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {
                         Response::Dictionary {
                             batch: mlearn_core::DictionaryBatch {

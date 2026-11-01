@@ -129,11 +129,11 @@ test('changed source identity and nonadvancing pages cannot admit capture', asyn
   assert.equal((await captureSourcePage(client, source, 0, new AbortController().signal)).done, true);
 });
 
-test('source practice freezes saved eligible video selections at native cue positions', async () => {
+test('source practice includes unsaved eligible targets at native cue positions without creating Materials', async () => {
   const cue = { index: 3, startMs: 1500, endMs: 4000, text: '前 勇気 次' };
   const candidates = ['courage', 'next', 'excluded', 'unsaved'].map((targetId, index) => ({
     key: targetId, resolveCuePosition: true,
-    content: { ...emptyMaterial(source.packageId), phrase: index ? '次' : '勇気', targetId,
+    content: { ...emptyMaterial(source.packageId), packageRevision: 'package', phrase: index ? '次' : '勇気', targetId,
       source: cueAnchor(source, cue, index ? { start: 11, end: 14 } : { start: 4, end: 10 }, 1000) },
   }));
   const positions: unknown[][] = [];
@@ -143,13 +143,17 @@ test('source practice freezes saved eligible video selections at native cue posi
         : { state: 'existing', materialId: target.targetId, excluded: target.targetId === 'excluded' } }));
     },
     async cuePosition(...args) { positions.push(args); return 900; },
+    async sourcePractice(packageId, packageRevision, targets) {
+      return targets.map(target => ({ ...target, packageId, packageRevision, capabilities: [`${packageId}:meaning`] }));
+    },
     prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
   };
   const command = await prepareSourcePractice(client, candidates, new AbortController().signal);
   assert.equal(command.kind, 'start');
-  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'target_practice');
   const items = command.start.mode.items;
-  assert.deepEqual(items.map(item => item.materialId), ['courage', 'next']);
+  assert.deepEqual(items.map(item => item.targetId), ['courage', 'next', 'unsaved']);
+  assert.deepEqual(command.start.mode.assistance, ['source']);
   assert.deepEqual(positions, [[source.id, source.subtitleRevision, cue.index]]);
   const anchor = items[0].source;
   assert.ok(anchor?.locator.kind === 'video');
@@ -169,11 +173,14 @@ test('source practice preserves the Reader image selection and original region p
     async materialEligibility(targets) { return targets.map(target => ({
       target, availability: { state: 'existing', materialId: 'saved', excluded: false },
     })); },
+    async sourcePractice(packageId, packageRevision, targets) {
+      return targets.map(target => ({ ...target, packageId, packageRevision, capabilities: [`${packageId}:meaning`] }));
+    },
     async cuePosition() { throw new Error('An image must not resolve a video cue.'); },
     prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
-  }, [{ key: 'courage', content: { ...emptyMaterial(source.packageId), targetId: 'courage', source: anchor } }],
+  }, [{ key: 'courage', content: { ...emptyMaterial(source.packageId), packageRevision: 'package', targetId: 'courage', source: anchor } }],
   new AbortController().signal);
-  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'target_practice');
   assert.deepEqual(command.start.mode.items[0].source, { ...anchor, text: '勇気',
     locator: { ...anchor.locator, contextStart: 24, selectionStart: 0, selectionEnd: 6 } });
 });
@@ -184,13 +191,14 @@ test('source practice cancellation admits no session after an in-flight position
   const reading = new Promise<void>(resolve => { entered = resolve; });
   let release!: () => void;
   const completion = new Promise<void>(resolve => { release = resolve; });
-  const candidate = { key: 'word', resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
+  const candidate = { key: 'word', resolveCuePosition: true, content: { ...emptyMaterial(source.packageId), packageRevision: 'package',
     targetId: 'word', source: cueAnchor(source, { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } };
   const pending = prepareSourcePractice({
     async materialEligibility(targets) { return targets.map(target => ({
       target, availability: { state: 'existing', materialId: 'saved', excluded: false },
     })); },
     async cuePosition() { entered(); await completion; return 1000; },
+    async sourcePractice() { throw new Error('Cancelled preparation must not run a native batch.'); },
     prepareReviewStart() { throw new Error('Cancelled preparation must not admit a session.'); },
   }, [candidate], controller.signal);
   await reading;
@@ -213,6 +221,17 @@ test('shared source practice retries the original admission after an uncertain r
         const commands = [], receipts = new Map();
         const client = createRuntimeClient({
           commandId: () => 'command-' + next++,
+          boundedReads: {
+            begin: async () => 'source-read',
+            execute: async (_id, raw) => {
+              const request = JSON.parse(raw);
+              return JSON.stringify({ type: 'source_practice', items: request.targets.map(target => ({
+                ...target, packageId: request.packageId, packageRevision: request.packageRevision,
+                capabilities: [request.packageId + ':meaning']
+              })) });
+            },
+            cancel: async () => {},
+          },
           execute: async raw => {
             const request = JSON.parse(raw);
             if (request.type === 'material_eligibility') return JSON.stringify({
@@ -235,7 +254,7 @@ test('shared source practice retries the original admission after an uncertain r
             return JSON.stringify({ type: 'review', commit: receipts.get(command.start.commandId) });
           }
         });
-        const candidates = [{ key: 'word', content: { ...emptyMaterial(source.packageId),
+        const candidates = [{ key: 'word', content: { ...emptyMaterial(source.packageId), packageRevision: 'package',
           targetId: 'word', phrase: 'word', source: cueAnchor(source,
             { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } }];
         window.practiceState = () => ({ commands, prepared: next, committed: receipts.size });
@@ -286,7 +305,7 @@ test('shared source practice retries the original admission after an uncertain r
         assert.equal(state.commands.length, 2);
         if (mode === 'replacement') {
           assert.notDeepEqual(state.commands[1], state.commands[0]);
-          assert.equal(state.commands[1].start.mode.items[0].materialId, 'saved-other');
+          assert.equal(state.commands[1].start.mode.items[0].targetId, 'other');
         } else assert.deepEqual(state.commands[1], state.commands[0]);
       } finally { await page.close(); }
     });
