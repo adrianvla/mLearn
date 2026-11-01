@@ -27,6 +27,9 @@ function observation(value: unknown): value is KnowledgeObservation {
         && value.capture.feedback.taskId === value.probeId
         && value.capture.feedback.outcomes.some(row => row.targetId === grade.targetId))
     && optionalBoolean(value.assessed) && typeof value.practice === 'boolean'
+    && (value.purpose === undefined || value.purpose === null
+      || typeof value.purpose === 'string' && ['review', 'practice', 'calibration'].includes(value.purpose)
+        && value.practice === (value.purpose !== 'review'))
     && (value.source === null || isSourceAnchor(value.source));
 }
 

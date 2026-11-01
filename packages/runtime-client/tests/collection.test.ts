@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { CollectionItemId, CollectionQuery, CollectionSelectionSource } from '@mlearn/contracts';
 import { createRuntimeClient } from '../src/client.ts';
-import { isCollectionResponse } from '../src/collectionProtocol';
+import { isCollectionFilter, isCollectionResponse } from '../src/collectionProtocol';
+import { isCollectionDescription } from '../src/watchProtocol';
 
 const query: CollectionQuery = {
   packageId: 'org.example',
@@ -12,6 +13,43 @@ const query: CollectionQuery = {
   sort: 'default',
   after: null,
 };
+
+test('collection filter wire bounds preserve Boolean scope rather than accepting arbitrary operators', () => {
+  // Given a compound package scope using the native Boolean filter contract.
+  const filter: CollectionQuery['filter'] = { kind: 'all', filters: [
+    { kind: 'any', filters: [{ kind: 'scope', id: 'org.example:scope' },
+      { kind: 'level', scaleId: 'org.example:scale', level: 'one' }] },
+    { kind: 'not', filter: { kind: 'material', state: 'excluded' } },
+  ] };
+  const wideText = String.fromCodePoint(0x754c);
+  // When a selected scope crosses the same wire boundary as calibration.
+  assert.equal(isCollectionFilter(filter), true);
+  assert.equal(isCollectionFilter({ kind: 'text', text: wideText.repeat(682) }), true);
+  let deep: CollectionQuery['filter'] = { kind: 'text', text: '' };
+  for (let depth = 0; depth < 9; depth++) deep = { kind: 'not', filter: deep };
+  // Then excess depth/nodes/UTF-8 bytes and malformed operators cannot widen it.
+  for (const invalid of [
+    deep, { kind: 'all', filters: Array.from({ length: 64 }, () => ({ kind: 'text', text: '' })) },
+    { kind: 'text', text: wideText.repeat(683) },
+    { kind: 'capability', capability: 'org.example:meaning', states: ['untracked', 'untracked'] },
+    { kind: 'future_operator', filters: [] },
+  ]) assert.equal(isCollectionFilter(invalid), false);
+});
+
+test('calibration declarations are optional bounded subsets of package capabilities', () => {
+  // Given a retained package description and one declared task capability.
+  const capability = 'org.example:written';
+  const description = { capabilities: [{ id: capability, label: 'Written' }],
+    kinds: [{ id: 'org.example:entry', label: 'Entry', color: null, attribution: 'Fixture' }],
+    scopes: [], levels: [] };
+  // When old or newly declared metadata crosses the same bounded wire owner.
+  assert.equal(isCollectionDescription(description), true);
+  assert.equal(isCollectionDescription({ ...description, calibrationCapabilities: [capability] }), true);
+  // Then new declarations cannot invent capability authority or exceed their work bound.
+  for (const calibrationCapabilities of [[capability, capability], ['foreign:written'], 'written',
+    Array.from({ length: 33 }, () => capability)])
+    assert.equal(isCollectionDescription({ ...description, calibrationCapabilities }), false);
+});
 
 test('frozen selection lifetime pins are native booleans rather than renderer guesses', () => {
   // Given frozen identity and counts from the native selection owner.

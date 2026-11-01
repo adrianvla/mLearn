@@ -276,6 +276,7 @@ impl RuntimeExecutor {
                     request,
                     Request::GraphNeighborhood { .. }
                         | Request::PrepareSourcePractice { .. }
+                        | Request::PrepareCalibration { .. }
                         | Request::KnowledgeEvidence { .. }
                         | Request::SearchDocument { .. }
                 )
@@ -521,6 +522,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Collection { .. }
+        | Request::PrepareCalibration { .. }
         | Request::RefreshMaterialCollection { .. }
         | Request::CreateCollectionSelection { .. }
         | Request::CollectionSelection { .. }

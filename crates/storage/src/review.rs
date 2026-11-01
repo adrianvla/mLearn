@@ -141,6 +141,9 @@ impl ProfileStore {
             ReviewMode::CollectionPractice { .. } => {
                 crate::review_collection_practice::admit_start(&tx, &start.mode, admissions)?
             }
+            ReviewMode::Calibration { query, items } => {
+                crate::review_calibration::admit(&tx, query, items, admissions)?
+            }
         };
         let exists: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM review_sessions WHERE id=?1)",
@@ -196,7 +199,8 @@ impl ProfileStore {
         session.total = match &start.mode {
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
-            | ReviewMode::TargetPractice { .. } => Some(count),
+            | ReviewMode::TargetPractice { .. }
+            | ReviewMode::Calibration { .. } => Some(count),
             ReviewMode::Continuous | ReviewMode::CollectionPractice { .. } => None,
         };
         review_admission::next(&tx, &mut session, None)?;

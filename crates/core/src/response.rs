@@ -217,6 +217,9 @@ pub enum Response {
     SourcePractice {
         items: Vec<crate::TargetPracticeItem>,
     },
+    Calibration {
+        items: Vec<crate::TargetPracticeItem>,
+    },
     Knowledge {
         projections: Vec<KnowledgeProjection>,
     },

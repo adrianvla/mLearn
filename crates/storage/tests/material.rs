@@ -533,6 +533,7 @@ fn bulk_add_preserves_package_identity_and_reports_duplicates_before_distinct_ad
     let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
     let original = saved(store.create_material(&capture("already-saved")).unwrap());
     let metadata = CollectionDescription {
+        calibration_capabilities: None,
         capabilities: vec![Capability {
             id: "example.language:meaning".into(),
             label: "Meaning".into(),
@@ -557,6 +558,7 @@ fn bulk_add_preserves_package_identity_and_reports_duplicates_before_distinct_ad
             None,
             &CollectionCatalogPage {
                 items: vec![CollectionTarget {
+                    calibration_capabilities: None,
                     summary: LexicalSummary {
                         target_id: "target-one".into(),
                         headword: "語".into(),

@@ -71,6 +71,15 @@ pub(super) fn description(
             ));
         }
     }
+    if !package
+        .manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == "learning.probes.v2")
+        && let Some(catalog) = &mut description.catalog
+    {
+        catalog.calibration_capabilities = None;
+    }
     Ok(description)
 }
 
@@ -261,10 +270,12 @@ mod tests {
                 .unwrap();
             let knowledge = runtime.target_knowledge("org.example", &entry).unwrap();
             assert_eq!(knowledge.claim, expected);
-            assert!(knowledge
-                .projections
-                .iter()
-                .all(|p| p.assessed.is_none() && p.prediction.is_none()));
+            assert!(
+                knowledge
+                    .projections
+                    .iter()
+                    .all(|p| p.assessed.is_none() && p.prediction.is_none())
+            );
         }
         drop(runtime);
         let runtime = Runtime::open(&path, CodePolicy::MobileBundled, None, vec![]).unwrap();

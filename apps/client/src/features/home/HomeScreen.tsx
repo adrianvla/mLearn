@@ -133,6 +133,8 @@ export function HomeScreen() {
         <ActivityCard title="Review" accessibilityLabel="Open Review" icon="book" onPress={() => router.push('../review')}>
           <Row>
             <Button testID="home-open-review" label="Review" variant="quiet" size="compact" onPress={() => router.push('../review')} />
+            <Button label="Word Sync" variant="quiet" size="compact" disabled={busy || !selected}
+              onPress={() => router.push({ pathname: '/review', params: { activity: 'calibration', packageId: selected } })} />
           </Row>
         </ActivityCard>
         </View>

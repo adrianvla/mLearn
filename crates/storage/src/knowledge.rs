@@ -81,7 +81,7 @@ impl ProfileStore {
             let mut statement = tx.prepare(
                 "SELECT a.sequence,a.id,a.session_id,a.encounter_id,a.active,a.created_at,
                         o.grade,o.assessed,a.conditions,w.admission,
-                        json_extract(s.projection,'$.mode.kind') IN ('practice','target_practice')
+                        json_extract(s.projection,'$.mode.kind')
                  FROM review_observations o
                  JOIN review_attempts a ON a.id=o.attempt_id
                  JOIN review_encounters e ON e.id=a.encounter_id
@@ -102,6 +102,18 @@ impl ProfileStore {
             let mut more = false;
             while let Some(row) = rows.next()? {
                 let admission: ReviewAdmission = serde_json::from_str(&row.get::<_, String>(9)?)?;
+                let purpose = match row.get::<_, String>(10)?.as_str() {
+                    "continuous" | "finite" => ReviewPurpose::Review,
+                    "practice" | "target_practice" | "collection_practice" => {
+                        ReviewPurpose::Practice
+                    }
+                    "calibration" => ReviewPurpose::Calibration,
+                    _ => {
+                        return Err(StorageError::Invalid(
+                            "Unknown learning-session purpose".into(),
+                        ));
+                    }
+                };
                 let observation = KnowledgeObservation {
                     sequence: row.get(0)?,
                     attempt_id: ReviewAttemptId(row.get(1)?),
@@ -118,7 +130,8 @@ impl ProfileStore {
                     conditions: serde_json::from_str(&row.get::<_, String>(8)?)?,
                     grade: serde_json::from_str(&row.get::<_, String>(6)?)?,
                     assessed: row.get(7)?,
-                    practice: row.get(10)?,
+                    practice: purpose != ReviewPurpose::Review,
+                    purpose: Some(purpose),
                     source: admission.source,
                     capture: crate::review_capture::read(
                         &tx,

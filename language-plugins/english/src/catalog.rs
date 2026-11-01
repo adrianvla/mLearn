@@ -16,6 +16,15 @@ fn scope_id(pos: &str) -> String {
 
 pub(super) fn description() -> CollectionDescription {
     CollectionDescription {
+        calibration_capabilities: Some(
+            std::iter::once(format!("{PACKAGE}:written-recognition"))
+                .chain(
+                    grammar::capabilities()
+                        .into_iter()
+                        .map(|capability| capability.id),
+                )
+                .collect(),
+        ),
         capabilities: capabilities()
             .into_iter()
             .chain(grammar::capabilities())
@@ -104,6 +113,19 @@ pub(super) fn page(
         for target in targets.iter().skip(current.sense).take(limit - items.len()) {
             let id = target.as_str().ok_or("Invalid WordNet target")?;
             let entry = inspect(id, lookup)?;
+            // A plain headword does not identify one WordNet sense. Only the
+            // definition-to-written-form direction is eligible for cold calibration.
+            let written = format!("{PACKAGE}:written-recognition");
+            let calibration_capabilities = Some(
+                entry
+                    .canonical_practice_capabilities
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .filter(|id| *id == &written)
+                    .cloned()
+                    .collect(),
+            );
             let scope = scope_id(&entry.part_of_speech);
             let capabilities = entry
                 .capabilities
@@ -114,6 +136,7 @@ pub(super) fn page(
                 summary: entry.into(),
                 kind: format!("{PACKAGE}:lexical-sense"),
                 capabilities,
+                calibration_capabilities,
                 scopes: vec![scope],
                 levels: vec![],
                 extensions: BTreeMap::new(),
@@ -198,6 +221,25 @@ mod tests {
         assert_eq!(first.items[0].kind, grammar::kind().id);
         assert_eq!(first.items[1].summary.summary, "First line");
         assert_eq!(first.items[1].summary.target_id, "wn30:n:00000001:alpha");
+        assert_eq!(
+            first.items[1].calibration_capabilities,
+            Some(vec![format!("{PACKAGE}:written-recognition")])
+        );
+        assert!(
+            !description()
+                .calibration_capabilities
+                .unwrap()
+                .contains(&format!("{PACKAGE}:meaning"))
+        );
+        assert_eq!(
+            first.items[0].calibration_capabilities,
+            Some(
+                grammar::capabilities()
+                    .into_iter()
+                    .map(|capability| capability.id)
+                    .collect()
+            )
+        );
         let last = page(json!({"after":first.next,"limit":2}), &lookup, &keys).unwrap();
         assert_eq!(
             last.items

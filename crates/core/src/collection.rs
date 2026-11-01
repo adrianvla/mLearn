@@ -12,6 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct CollectionDescription {
     pub capabilities: Vec<Capability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub calibration_capabilities: Option<Vec<String>>,
     pub kinds: Vec<LinguisticLabel>,
     pub scopes: Vec<LinguisticLabel>,
     pub levels: Vec<InlineLevel>,
@@ -39,6 +42,16 @@ impl CollectionDescription {
                 || !capabilities.insert(&capability.id)
             {
                 return Err("Invalid or duplicate catalog capability".into());
+            }
+        }
+        if let Some(selected) = &self.calibration_capabilities {
+            let mut seen = BTreeSet::new();
+            if selected.len() > 32
+                || selected
+                    .iter()
+                    .any(|id| !capabilities.contains(id) || !seen.insert(id))
+            {
+                return Err("Invalid catalog calibration capabilities".into());
             }
         }
         for choices in [&self.kinds, &self.scopes] {
@@ -91,6 +104,9 @@ pub struct CollectionTarget {
     pub summary: LexicalSummary,
     pub kind: String,
     pub capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub calibration_capabilities: Option<Vec<String>>,
     pub scopes: Vec<String>,
     /// Full source memberships, separate from the selected inline display level.
     pub levels: Vec<CollectionLevelMembership>,

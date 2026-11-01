@@ -22,6 +22,10 @@ enum Cursor {
 
 pub(super) fn description() -> CollectionDescription {
     CollectionDescription {
+        calibration_capabilities: Some(vec![
+            format!("{PACKAGE}:reading"),
+            format!("{PACKAGE}:written-recognition"),
+        ]),
         capabilities: capabilities(),
         kinds: vec![
             LinguisticLabel {
@@ -59,6 +63,21 @@ pub(super) fn description() -> CollectionDescription {
         ],
         levels: (1..=5).map(presentation::vocabulary_level).collect(),
     }
+}
+
+fn calibration_capabilities(entry: &LexicalEntry) -> Vec<String> {
+    let supported = [
+        format!("{PACKAGE}:reading"),
+        format!("{PACKAGE}:written-recognition"),
+    ];
+    entry
+        .canonical_practice_capabilities
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .filter(|id| supported.contains(*id))
+        .cloned()
+        .collect()
 }
 
 pub(super) fn page(
@@ -139,7 +158,9 @@ pub(super) fn page(
                     .iter()
                     .map(|value| value.id.clone())
                     .collect();
+                let calibration_capabilities = Some(calibration_capabilities(&entry));
                 items.push(CollectionTarget {
+                    calibration_capabilities,
                     summary: entry.into(),
                     kind: format!("{PACKAGE}:character"),
                     capabilities,
@@ -161,6 +182,7 @@ pub(super) fn page(
         let (entry, levels) = inspect_entry(&target, record, &resolve)?;
         let entry: LexicalEntry =
             serde_json::from_value(entry).map_err(|error| error.to_string())?;
+        let calibration_capabilities = Some(calibration_capabilities(&entry));
         let capabilities = entry
             .capabilities
             .iter()
@@ -187,6 +209,7 @@ pub(super) fn page(
                 }
             ),
             capabilities,
+            calibration_capabilities,
             scopes: vec![format!("{PACKAGE}:jmdict")],
             levels,
             extensions: BTreeMap::new(),
@@ -282,6 +305,19 @@ mod tests {
             ["jmdict:1", "kanjidic:20000", "kanjidic:6a4b"]
         );
         assert!(second.items[0].capabilities.is_empty());
+        assert_eq!(second.items[0].calibration_capabilities, Some(vec![]));
+        assert!(first.items[0]
+            .calibration_capabilities
+            .as_ref()
+            .unwrap()
+            .contains(&format!("{PACKAGE}:reading")));
+        assert!(last.items[0]
+            .calibration_capabilities
+            .as_ref()
+            .unwrap()
+            .iter()
+            .all(|id| id == &format!("{PACKAGE}:reading")
+                || id == &format!("{PACKAGE}:written-recognition")));
         assert_eq!(last.items[0].kind, format!("{PACKAGE}:character"));
         assert!(!last.items[0].capabilities.is_empty());
         assert!(last.items[0].levels.is_empty());

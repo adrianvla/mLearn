@@ -367,6 +367,9 @@ pub enum Request {
         package_revision: String,
         targets: Vec<crate::SourcePracticeTarget>,
     },
+    PrepareCalibration {
+        query: crate::CalibrationQuery,
+    },
     InspectTargets {
         #[serde(rename = "sourceId")]
         source_id: String,

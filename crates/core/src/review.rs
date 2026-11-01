@@ -150,6 +150,22 @@ record!(SourcePracticeTarget {
     source: SourceAnchor
 });
 
+record!(CalibrationQuery {
+    package_id: String,
+    capability: String,
+    filter: crate::CollectionFilter,
+    limit: u32
+});
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum ReviewPurpose {
+    Review,
+    Practice,
+    Calibration,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -172,6 +188,10 @@ pub enum ReviewMode {
         selection_id: CollectionSelectionId,
         capabilities: Vec<String>,
     },
+    Calibration {
+        query: CalibrationQuery,
+        items: Vec<TargetPracticeItem>,
+    },
 }
 
 impl ReviewMode {
@@ -181,7 +201,8 @@ impl ReviewMode {
             Self::Continuous | Self::Finite { .. } => true,
             Self::Practice { .. }
             | Self::TargetPractice { .. }
-            | Self::CollectionPractice { .. } => false,
+            | Self::CollectionPractice { .. }
+            | Self::Calibration { .. } => false,
         }
     }
 }

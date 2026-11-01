@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse, SourcePracticeTarget } from '@mlearn/contracts';
+import type { CalibrationQuery, Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse, SourcePracticeTarget, TargetPracticeItem } from '@mlearn/contracts';
 import { createReviewClient, type ReviewAction } from '../src/reviewClient';
 import { createRuntimeClient } from '../src/client';
 import { RuntimeError } from '../src/errors';
@@ -49,6 +49,112 @@ const captureReceipt = JSON.stringify({ type: 'review', commit: {
   commandId: 'capture', committedRevision: 2,
   session: { ...typedSession, revision: 2, encounter: capturedEncounter },
 } });
+
+const calibrationQuery: CalibrationQuery = {
+  packageId: 'package', capability: 'package:meaning',
+  filter: { kind: 'scope', id: 'package:scope' }, limit: 2,
+};
+const calibrationItems: TargetPracticeItem[] = ['target', 'second'].map(targetId => ({
+  packageId: 'package', packageRevision: 'revision', targetId,
+  capabilities: ['package:meaning'], source: null,
+}));
+
+test('calibration preparation freezes its query and rejects broadened native membership', { timeout: 5000 }, async () => {
+  // Given a requested scope held at its real client/transport boundary.
+  const entered = gate<void>(), released = gate<void>();
+  let requested: Request | null = null;
+  let response: unknown = { type: 'calibration', items: calibrationItems };
+  const client = createReviewClient(async request => {
+    requested = structuredClone(request); entered.release(); await released.promise;
+    return response;
+  }, () => { throw new Error('Preparation must not allocate a durable command.'); });
+  const query = structuredClone(calibrationQuery);
+  const pending = client.calibrationCandidates(query);
+  // When caller input changes while the bounded read is in flight.
+  await entered.promise;
+  query.limit = 1; query.filter = { kind: 'all', filters: [] };
+  released.release();
+  assert.deepEqual(await pending, calibrationItems);
+  // Then the original scope is retained, and widened results cannot become a Start.
+  assert.deepEqual(requested, { type: 'prepare_calibration', query: calibrationQuery });
+  for (const items of [
+    [{ ...calibrationItems[0], packageId: 'foreign' }],
+    [{ ...calibrationItems[0], capabilities: ['package:reading'] }],
+    [calibrationItems[0], { ...calibrationItems[1], packageRevision: 'changed' }],
+    [calibrationItems[0], calibrationItems[0]],
+    [...calibrationItems, { ...calibrationItems[0], targetId: 'third' }],
+    [{ ...calibrationItems[0], source: {
+      sourceId: 'source', contentRevision: 'media', packageId: 'package', packageVersion: '1',
+      text: 'cue', locator: { kind: 'video', subtitleRevision: 'subtitles', cueIndex: 0,
+        selectionStart: 0, selectionEnd: 3, positionMs: 0, subtitleOffsetMs: 0, playbackRate: 1 },
+    } }],
+  ]) {
+    response = { type: 'calibration', items };
+    await assert.rejects(client.calibrationCandidates(calibrationQuery), protocol);
+  }
+  response = { type: 'calibration', items: [] };
+  assert.deepEqual(await client.calibrationCandidates(calibrationQuery), []);
+});
+
+test('calibration keeps canonical session scope without discarding legitimate assistance', () => {
+  // Given one native canonical question in a frozen, finite calibration.
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: typedEncounter.task };
+  const projection = { ...session, total: 2, encounter: current,
+    mode: { kind: 'calibration', query: calibrationQuery, items: calibrationItems } };
+  // When the shared Review boundary admits the command and current projection.
+  assert.equal(isReviewCommand({ kind: 'start', start: {
+    commandId: 'once', sessionId: 'calibrate', mode: projection.mode,
+  } }), true);
+  assert.equal(isReviewResponse({ type: 'review_session', session: projection }), true);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...projection, encounter: { ...current, conditions: {
+      ...encounter.conditions, assistance: ['prior_disclosure'],
+    } },
+  } }), true);
+  // Then false completion, foreign targets and alternate scopes fail closed.
+  for (const invalid of [
+    { ...projection, total: null },
+    { ...projection, state: 'complete' },
+    { ...projection, encounter: { ...current, targetId: 'foreign' } },
+    { ...projection, mode: { ...projection.mode, query: { ...calibrationQuery, capability: 'package:reading' } } },
+    { ...projection, mode: { ...projection.mode, items: [] } },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+});
+
+test('calibration cancellation drains its own bounded slot and permits a fresh read', { timeout: 5000 }, async () => {
+  // Given a native read held until its exact cancellation acknowledgement.
+  const entered = gate<void>(), cancelled = gate<void>(), terminal = gate<string>();
+  let sequence = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'unused',
+    execute: async () => { throw new Error('Calibration must not use the ordinary request queue.'); },
+    cancelSourceOpen: async () => { assert.fail('A calibration read must not cancel the source owner.'); },
+    boundedReads: {
+      begin: async () => `calibration-${++sequence}`,
+      execute: async (id, raw) => {
+        assert.deepEqual(JSON.parse(raw), { type: 'prepare_calibration', query: calibrationQuery });
+        if (id === 'calibration-1') { entered.release(); return terminal.promise; }
+        assert.equal(id, 'calibration-2');
+        return JSON.stringify({ type: 'calibration', items: calibrationItems });
+      },
+      cancel: async id => {
+        assert.equal(id, 'calibration-1'); cancelled.release(); await terminal.promise;
+      },
+    },
+  });
+  const controller = new AbortController();
+  const pending = client.calibrationCandidates(calibrationQuery, controller.signal);
+  // When cancellation reaches the owned operation before its terminal receipt.
+  await entered.promise;
+  controller.abort();
+  await cancelled.promise;
+  terminal.release(JSON.stringify({ type: 'error', code: 'cancelled', message: 'Fixture terminal receipt' }));
+  // Then the stale response is rejected and its acknowledged slot is reusable.
+  await assert.rejects(pending, error => error instanceof RuntimeError && error.code === 'cancelled');
+  assert.deepEqual(await client.calibrationCandidates(calibrationQuery), calibrationItems);
+});
 
 test('source Practice preparation rejects widened targets, revisions and return anchors', async () => {
   // Given one explicitly selected source target and the native preparation transport.

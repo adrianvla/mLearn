@@ -1,10 +1,10 @@
 //! Collection preparation uses the host's existing blocking call and admission.
 //! Only one command is active; each page releases guest and Runtime ownership.
+use crate::{Installed, Runtime};
 use crate::{
     execution::{Cancellation, Failure},
     guest_gate::GuestGate,
 };
-use crate::{Installed, Runtime};
 use mlearn_core::{
     CollectionCatalogPage, CollectionCatalogRequest, CollectionPreparationCommand,
     CollectionPreparationPhase, CollectionPreparationStatus, Response,
@@ -532,6 +532,71 @@ mod tests {
         assert!(matches!(
             call(&executor, Request::RefreshMaterialCollection { query }),
             Response::Error { code, .. } if code == "invalid_request"
+        ));
+    }
+
+    #[test]
+    fn empty_calibration_checks_catalog_revision_before_returning_no_candidates() {
+        use mlearn_core::CalibrationQuery;
+        // Given an explicitly empty catalog under a real installed package.
+        let directory = NativeTestProfile::new();
+        let executor = open(&directory.path().join("profile"));
+        let package_id = "org.mlearn.english";
+        let Response::Language { description } = call(
+            &executor,
+            Request::DescribeLanguage {
+                package_id: package_id.into(),
+            },
+        ) else {
+            panic!("Expected actual package metadata");
+        };
+        let mut metadata = description.catalog.unwrap();
+        let capability = metadata.capabilities[0].id.clone();
+        metadata.calibration_capabilities = Some(vec![capability.clone()]);
+        let query = CalibrationQuery {
+            package_id: package_id.into(),
+            capability,
+            filter: CollectionFilter::All { filters: vec![] },
+            limit: 1,
+        };
+        let revision = {
+            let mut runtime = executor.runtime.lock().unwrap();
+            let revision = runtime.installed[package_id].revision().unwrap();
+            runtime
+                .store
+                .begin_collection_catalog(package_id, "stale", &metadata, 0)
+                .unwrap();
+            // Storage selection is genuinely empty, not an item-level conflict.
+            assert!(
+                runtime
+                    .store
+                    .calibration_candidates(&query)
+                    .unwrap()
+                    .is_empty()
+            );
+            revision
+        };
+        // When preparation checks the package identity, zero items cannot hide staleness.
+        assert!(matches!(
+            call(
+                &executor,
+                Request::PrepareCalibration {
+                    query: query.clone()
+                }
+            ),
+            Response::Error { .. }
+        ));
+        executor
+            .runtime
+            .lock()
+            .unwrap()
+            .store
+            .begin_collection_catalog(package_id, &revision, &metadata, 0)
+            .unwrap();
+        // Then a current empty catalog remains an honest empty result.
+        assert!(matches!(
+            call(&executor, Request::PrepareCalibration { query }),
+            Response::Calibration { items } if items.is_empty()
         ));
     }
 

@@ -1,7 +1,7 @@
-import type { Request, ReviewCommand, ReviewMode, ReviewSession, SourcePracticeTarget } from '@mlearn/contracts';
+import type { CalibrationQuery, Request, ReviewCommand, ReviewMode, ReviewSession, SourcePracticeTarget } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
 import { isMaterialResponse, isSourceAnchor } from './materialProtocol';
-import { isReviewCommand, isReviewResponse } from './reviewProtocol';
+import { isCalibrationQuery, isReviewCommand, isReviewResponse } from './reviewProtocol';
 
 type Mutation = Exclude<ReviewCommand, { kind: 'start' }>;
 export type ReviewAction = Mutation extends infer Command
@@ -29,6 +29,16 @@ export function createReviewClient(request: (command: Request, signal?: AbortSig
     return structuredClone(command);
   }
   return {
+    async calibrationCandidates(query: CalibrationQuery, signal?: AbortSignal) {
+      const scope = structuredClone(query);
+      if (!isCalibrationQuery(scope))
+        throw new RuntimeError('invalid_request', 'Invalid Word Sync scope.');
+      const value = await request({ type: 'prepare_calibration', query: scope }, signal);
+      if (!isReviewResponse(value) || value.type !== 'calibration' || value.items.length > scope.limit
+        || value.items.some(item => item.packageId !== scope.packageId || item.capabilities[0] !== scope.capability))
+        throw malformed();
+      return value.items;
+    },
     async sourcePractice(packageId: string, packageRevision: string, targets: readonly SourcePracticeTarget[], signal?: AbortSignal) {
       const selected = structuredClone(targets);
       if (!packageId || !packageRevision || selected.length === 0 || selected.length > 128

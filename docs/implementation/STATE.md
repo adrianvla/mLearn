@@ -1,5 +1,127 @@
 # Current implementation checkpoint
 
+## Verified Word Sync checkpoint candidate - 2026-11-01
+
+Work continues from `86f88940` on `agent/m10-m11`, draft PR #45 based on
+`agent/m01`; PR #44 remains separate and unmerged. The maintainer requested a
+quota-constrained M11 sprint, not acceptance or a scope waiver.
+
+Integrated native bounded unmeasured selection, package-declared eligible
+directions, frozen calibration sessions and native evidence purpose. Home now
+opens actual Word Sync setup using shared controls and compound filters.
+Empty, cancellation/drain, explicit read retry, byte-identical uncertain Start,
+saved-session URL recovery, restart and Inspector provenance execute through the
+existing owners. Fixed the reproduced generic Start retry missing its session URL
+and the Inspector incorrectly displaying calibration as Practice.
+
+Verified: Rust-owned codegen; 49 focused client tests; eight SQLite owner tests;
+the stale-empty catalog runtime regression; two English and five Japanese catalog
+tests; typecheck, scenario compiler check, ownership lint and web export.
+Native browser session-capture-signal passes raw typed validation, restart,
+calibration assessment/claim separation and Undo. The final candidate-workflows
+run passes all five actual setup/evidence, Material typed task/choice/recall,
+validation cancellation/replay and source Practice/restart/Return scenarios
+(14.1 seconds). Captures in both themes at 1080/390 were inspected; Inspector
+calibration evidence captures were inspected after its repair.
+
+Evidence: `.mlearn/m11/calibration-86f88940-20261101/`, especially
+`session-capture-signal/`, `setup-first-render/`, `setup-route-repair/`,
+`setup-evidence-red/` and `candidate-workflows/`. Native QA SHA256 is
+`1724bc7d6965c33638527ef97f3d9112aa7018e07aab38d304d50752788c91fc`.
+English/Japanese package code hashes and resource samples are in the retained
+append-only notepad. Public contracts were generated, not manually patched.
+
+M11 is NOT complete: expert probe authoring remains absent; final independent
+milestone review and affected-platform verification remain open. Do not treat
+this checkpoint as approval or erase the inherited source-bound iOS/Windows
+gaps. Continue the required Practice/grammar coverage and actual expert authoring,
+then review one final candidate. Preserve all earlier evidence and unrelated
+untracked files. No cleanup investigation, device restart, merge or release.
+
+## Admitted M11 resumption - 2026-11-01
+
+Maintainer cleaned regenerable artifacts and explicitly resumed M11 from
+`86f88940b881344d805a27451ca6397b23c3f9a5`, prioritizing Word Sync, package grammar
+tasks and expert probe authoring. All existing drafts and unrelated entries are
+preserved. No cleanup investigation or device/server restart was performed.
+
+The requested single unchanged admission passes: 21537428 KiB disk available;
+three PID62039 physical-footprint samples 737283576, 736579064 and 737136120 bytes;
+pressure 1 throughout; swap used 2978676736 and cumulative swap-out 314122223616
+bytes unchanged across all samples. Available memory is 7352844288, 7352647680
+and 7352598528 bytes. Original workload 2684354560 bytes and reserve 4294967296
+bytes yield final projected headroom 4668243968 bytes, with zero sustained
+growth. `RESOURCE_READY consecutive=3`, admission exit 0.
+
+First admitted workload is `CARGO_BUILD_JOBS=1 npm run codegen`; generated
+contracts remain Rust-owned. Serial compilation/test/render admission and
+resource ownership remain mandatory. The historical blocker and acceptance
+evidence below are retained, not current instructions to remain paused.
+
+## External disk blocker - 2026-11-01
+
+M11 remains incomplete at 41/53 tasks after blocked-checkpoint resource teardown.
+Latest disk evidence is 581732 KiB free,
+below unchanged workload admission. Contract generation, native/client tests,
+package rebuilds and real Word Sync UI verification cannot proceed. The earlier
+nonblocking space question expired unanswered; do not ask it again or remove
+profiles, evidence, worktrees or unrelated data to manufacture admission.
+
+All existing checkpoint CI is terminal. The remaining disk poll was stopped
+after confirming no autonomous work will supply the missing space; killed status
+and absent owned PID44899 were read back. The mobile-only monitor completed
+normally. No wait channel remains responsible for resuming this work. Resume
+only after external disk intervention and fresh unchanged footprint/pressure/
+swap/disk admission, then regenerate contracts and execute the recorded tests.
+Preserve the entire uncommitted calibration draft, original evidence and open
+draft PRs. Nothing here grants milestone completion, maintainer acceptance,
+merge or release.
+Final teardown readback: no listener on QA port 4173; no child build, test,
+device, server or language-server worker remains under the owned process.
+Only harness LSP/desktop service processes remain and are not task QA workloads.
+Both owned wait processes have terminal receipts. Evidence, compiled artifacts,
+profiles, uncommitted drafts and worktrees are retained. Any later admitted QA
+run must acquire and release its own resources anew.
+
+## Verified migration repair checkpoint - 2026-11-01
+
+Current committed/pushed source is
+`86f88940b881344d805a27451ca6397b23c3f9a5`; product implementation remains the
+Source Practice increment from `e556d37f`, with isolated migration fixture repairs.
+Foundation41303862831 passes all five jobs: Rust124840167264,
+web124840167303, OCR124840167026, Windows124841482839 and macOS124841482864.
+Desktop integration41303862807 also passes. This closes the collection migration
+checkpoint regression, including current-schema expectations, future-schema
+rejection and the retained bulk pin at the migration boundary. Named Rust log
+results confirm all five repaired migration tests pass.
+
+This exact-source pass does not include any uncommitted calibration code,
+regenerated contracts, new package binaries or Word Sync UI. Mobile remains
+separately monitored; prior source-bound Windows/iOS failures and provisional
+M03-M07 acceptance limits remain recorded, not erased by these later job passes.
+M11 is 40/53 tasks complete, 13 open. Next is contract generation and native/client
+calibration tests after unchanged resource admission; disk-readiness monitoring
+remains active. No local workload, device, merge, release or acceptance was
+started or granted to obtain this checkpoint.
+Wait-channel audit: only mobile41303862791 remains in progress at this source;
+the broad CI watcher was stopped because it repeatedly emitted already-recorded
+successes. Its process exit was read back. A one-shot mobile-only subscription
+now waits for that existing run without rerunning it. The disk watcher is alive,
+not hung: current free space is 576008 KiB, below its 5 GiB readiness condition.
+No filesystem cleanup or workload launch is authorized by this wait.
+Second wait audit: Android124845851588 passes at86f88940. iOS124845851401
+advanced to the actual UI/persistence step at 13:04:11 UTC, so this is not a
+demonstrated runner stall. The existing workflow bounds that step to 20 minutes
+within its 90-minute job; no cancellation or diagnostic variant is justified.
+Disk is now 567392 KiB free and its watcher remains alive. Mobile completion and
+disk readiness remain distinct one-shot waits.
+Mobile41303862791 has now completed: Android124845851588 passes; iOS124845851401
+fails the actual Watch workflow with
+`Assertion is false: id: m01-watch, mp4 is not visible` at 13:12:12 UTC.
+This repeats the preserved hosted-iOS signature, not a new calibration result.
+The mobile-only watcher completed normally. No CI run is still awaited and no
+hosted-iOS diagnostic rerun is authorized by this failure.
+
 ## Active calibration source draft and disk wait - 2026-11-01
 
 Verified/pushed product source remains `e556d37f`; Desktop41295444008 passes.
@@ -36,6 +158,10 @@ pinned projection at the migration boundary, preserving full equality and every
 retention/identity assertion. No production pin semantics change. This fixture
 follow-up has not run locally; disk admission and the broader Rust gate remain
 open.
+The isolated bulk-pin fixture repair is committed/pushed as
+`86f88940b881344d805a27451ca6397b23c3f9a5`. Desktop41303862807 passes at that
+source; Foundation Rust and mobile remain separately monitored. This desktop
+result does not verify the bulk migration fixture or the uncommitted calibration.
 
 Collection mobile41293714797 completed: Android job124813746246 passes; iOS
 job124813746441 fails the actual UI/persistence step at
@@ -51,6 +177,12 @@ This is not the earlier `m01-watch, mp4` assertion and has not been diagnosed.
 Preserve both signatures as unresolved hosted-iOS acceptance evidence, not
 calibration coverage or proof of a common cause. No rerun, diagnostic variant,
 device launch or product change was started from this failure.
+At57e91caa, mobile41301272967 also completed: Android124832796968 passes;
+iOS124832797133 fails Watch Inspector Knowledge and native source resume with
+`Assertion is false: id: m01-watch, mp4 is not visible`. This repeats the earlier
+observable signature, not the intervening missing Open local video result.
+No common cause, fix or acceptance is inferred. Its completed CI watcher is
+retired; the86f88940 CI and disk-readiness subscriptions remain active.
 
 The worktree contains an uncommitted, unexecuted calibration draft. It adds a
 native 1..32-key selection over existing package filters, independent of claims,

@@ -154,6 +154,23 @@ fn target(
             ));
         }
     }
+    if let Some(selected) = &entry.calibration_capabilities {
+        let mut seen = BTreeSet::new();
+        if selected.len() > 32
+            || selected.iter().any(|id| {
+                !capabilities.contains(id)
+                    || !seen.insert(id)
+                    || description
+                        .calibration_capabilities
+                        .as_ref()
+                        .is_some_and(|supported| !supported.contains(id))
+            })
+        {
+            return Err(StorageError::Invalid(
+                "Invalid catalog calibration target".into(),
+            ));
+        }
+    }
     let mut scopes = BTreeSet::new();
     for id in &entry.scopes {
         if !description.scopes.iter().any(|value| &value.id == id) || !scopes.insert(id) {

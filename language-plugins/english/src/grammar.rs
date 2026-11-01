@@ -60,6 +60,12 @@ pub(super) fn entry() -> LexicalEntry {
 
 pub(super) fn collection_target() -> CollectionTarget {
     CollectionTarget {
+        calibration_capabilities: Some(
+            capabilities()
+                .into_iter()
+                .map(|capability| capability.id)
+                .collect(),
+        ),
         summary: entry().into(),
         kind: kind().id,
         capabilities: capabilities().into_iter().map(|value| value.id).collect(),

@@ -74,7 +74,7 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
                     onPress={() => setExpanded(value => value === item.attemptId ? null : item.attemptId)} />
                 <Text tone="media" muted variant="caption">{!item.active ? 'Undone · excluded from assessment'
                     : page.assessedAttempt === item.attemptId ? 'Current assessment basis' : 'Recorded observation'}
-                    {item.practice ? ' · Practice' : ' · Review'}</Text>
+                    {item.purpose === 'calibration' ? ' · Word Sync' : item.practice ? ' · Practice' : ' · Review'}</Text>
                 {expanded === item.attemptId ? <>
                     <Text tone="media" selectable>Conditions: {item.conditions.exposureCount} exposure(s)
                         {' · '}{item.conditions.revealed ? 'answer revealed' : 'answer not revealed'}

@@ -14,6 +14,7 @@ fn capability(name: &str) -> String {
 
 fn catalog(store: &mut ProfileStore, count: u32) {
     let description = CollectionDescription {
+        calibration_capabilities: Some(vec![capability("meaning"), capability("reading")]),
         capabilities: ["meaning", "reading"]
             .map(|name| Capability {
                 id: capability(name),
@@ -51,6 +52,10 @@ fn catalog(store: &mut ProfileStore, count: u32) {
                 &CollectionCatalogPage {
                     items: (offset..end)
                         .map(|index| CollectionTarget {
+                            calibration_capabilities: Some(vec![
+                                capability("meaning"),
+                                capability("reading"),
+                            ]),
                             summary: LexicalSummary {
                                 target_id: format!("entry-{index:03}"),
                                 headword: format!("word {index}"),
@@ -622,4 +627,298 @@ fn stop_releases_unfinished_selection_without_erasing_attempts_or_admitting_rema
         .unwrap();
     assert_eq!(evidence.observations.len(), 1);
     assert_eq!(evidence.projection.assessed, None);
+    assert!(evidence.observations[0].practice);
+    assert_eq!(
+        evidence.observations[0].purpose,
+        Some(ReviewPurpose::Practice)
+    );
+}
+
+#[test]
+fn calibration_keeps_claims_separate_from_measurement_and_resumes_its_frozen_queue() {
+    // Given unmeasured known/unknown claims, one exclusion and a package-defined scope.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    catalog(&mut store, 6);
+    let key = |target: &str| KnowledgeKey {
+        package_id: PACKAGE.into(),
+        target_id: target.into(),
+        capability: capability("meaning"),
+    };
+    for (target, known) in [("entry-000", true), ("entry-002", false)] {
+        store
+            .change_claim(&ClaimChange {
+                command_id: format!("claim-{target}"),
+                key: key(target),
+                claim: Some(known),
+            })
+            .unwrap();
+    }
+    store
+        .set_capture_exclusion(&CaptureExclusion {
+            command_id: "exclude-four".into(),
+            target: MaterialTarget {
+                package_id: PACKAGE.into(),
+                target_id: "entry-004".into(),
+            },
+            excluded: true,
+        })
+        .unwrap();
+    let query = CalibrationQuery {
+        package_id: PACKAGE.into(),
+        capability: capability("meaning"),
+        filter: CollectionFilter::Scope {
+            id: capability("even"),
+        },
+        limit: 4,
+    };
+    let items = store.calibration_candidates(&query).unwrap();
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.target_id.as_str())
+            .collect::<Vec<_>>(),
+        ["entry-000", "entry-002"]
+    );
+    let start = ReviewStart {
+        command_id: "calibrate".into(),
+        session_id: ReviewSessionId("calibration".into()),
+        mode: ReviewMode::Calibration {
+            query: query.clone(),
+            items: items.clone(),
+        },
+    };
+    let plan: Vec<_> = items.iter().flat_map(admissions).collect();
+    // When the existing Review owner admits, rates, pauses and reopens that finite queue.
+    let committed = store.review_start(&start, &plan, 100).unwrap();
+    assert!(!committed.session.mode.is_scheduled());
+    assert_eq!(committed.session.total, Some(2));
+    assert!(committed
+        .session
+        .encounter
+        .as_ref()
+        .unwrap()
+        .conditions
+        .assistance
+        .is_empty());
+    let done = finish(&mut store, &committed.session, "calibration-first");
+    let next = store
+        .review_next(&mutation(&done, "calibration-next"), None, 103)
+        .unwrap()
+        .session;
+    let paused = store
+        .review_apply(
+            &ReviewCommand::Pause {
+                mutation: mutation(&next, "calibration-pause"),
+            },
+            104,
+        )
+        .unwrap()
+        .session;
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+    let resumed = store
+        .review_apply(
+            &ReviewCommand::Resume {
+                mutation: mutation(&paused, "calibration-resume"),
+            },
+            105,
+        )
+        .unwrap()
+        .session;
+    // Then native measurement, not a claim, removes a key from subsequent calibration.
+    assert_eq!(resumed.encounter, next.encounter);
+    assert_eq!(
+        store.review_start(&start, &plan, 999).unwrap(),
+        ReviewCommit {
+            session: resumed,
+            ..committed
+        }
+    );
+    let measured = store
+        .knowledge_evidence(&KnowledgeEvidenceQuery {
+            key: key("entry-000"),
+            after: None,
+        })
+        .unwrap();
+    assert_eq!(measured.projection.claim, Some(true));
+    assert_eq!(measured.projection.assessed, Some(true));
+    assert_eq!(measured.observations.len(), 1);
+    assert_eq!(
+        measured.observations[0].purpose,
+        Some(ReviewPurpose::Calibration)
+    );
+    assert_eq!(
+        measured.observations[0].grade.method,
+        ResponseMethod::Remembered
+    );
+    assert_eq!(
+        store
+            .calibration_candidates(&query)
+            .unwrap()
+            .iter()
+            .map(|item| item.target_id.as_str())
+            .collect::<Vec<_>>(),
+        ["entry-002"]
+    );
+    assert!(store
+        .materials(&MaterialQuery {
+            after: None,
+            query: String::new(),
+            source_id: None,
+            include_excluded: true,
+        })
+        .unwrap()
+        .items
+        .is_empty());
+}
+
+#[test]
+fn calibration_bounds_and_rechecks_the_native_unmeasured_scope_before_any_durable_write() {
+    // Given a bounded preparation from a larger real catalog.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+    catalog(&mut store, 40);
+    let query = CalibrationQuery {
+        package_id: PACKAGE.into(),
+        capability: capability("meaning"),
+        filter: CollectionFilter::All { filters: vec![] },
+        limit: 32,
+    };
+    let items = store.calibration_candidates(&query).unwrap();
+    assert_eq!(items.len(), 32);
+    for limit in [0, 33] {
+        assert!(store
+            .calibration_candidates(&CalibrationQuery {
+                limit,
+                ..query.clone()
+            })
+            .is_err());
+    }
+    assert!(store
+        .calibration_candidates(&CalibrationQuery {
+            capability: capability("unavailable"),
+            ..query.clone()
+        })
+        .is_err());
+    let mut stale = items.clone();
+    stale[0].package_revision = "stale".into();
+    let mut broadened = items.clone();
+    broadened[0].capabilities.push(capability("reading"));
+    let mut reordered = items.clone();
+    reordered.swap(0, 1);
+    // When a caller changes membership, revision, capabilities or preparation order.
+    for selected in [vec![], items[..31].to_vec(), stale, broadened, reordered] {
+        let start = ReviewStart {
+            command_id: "uncharged-calibration".into(),
+            session_id: ReviewSessionId("uncharged".into()),
+            mode: ReviewMode::Calibration {
+                query: query.clone(),
+                items: selected,
+            },
+        };
+        let plan: Vec<_> = items.iter().flat_map(admissions).collect();
+        assert!(store.review_start(&start, &plan, 100).is_err());
+        // Then failed admission commits neither a session nor a command receipt.
+        assert!(store.review_session(&start.session_id).is_err());
+        assert!(store
+            .review_receipt(&ReviewCommand::Start { start })
+            .unwrap()
+            .is_none());
+    }
+}
+
+#[test]
+fn calibration_assistance_and_undo_preserve_unmeasured_eligibility() {
+    for assisted in [false, true] {
+        // Given one unmeasured target and an unchanged explicit claim.
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = ProfileStore::open(&directory.path().join("profile")).unwrap();
+        catalog(&mut store, 1);
+        let key = KnowledgeKey {
+            package_id: PACKAGE.into(),
+            target_id: "entry-000".into(),
+            capability: capability("meaning"),
+        };
+        store
+            .change_claim(&ClaimChange {
+                command_id: "claim".into(),
+                key: key.clone(),
+                claim: Some(true),
+            })
+            .unwrap();
+        let query = CalibrationQuery {
+            package_id: PACKAGE.into(),
+            capability: capability("meaning"),
+            filter: CollectionFilter::All { filters: vec![] },
+            limit: 1,
+        };
+        let items = store.calibration_candidates(&query).unwrap();
+        let plan: Vec<_> = items.iter().flat_map(admissions).collect();
+        let mut session = store
+            .review_start(
+                &ReviewStart {
+                    command_id: "start".into(),
+                    session_id: ReviewSessionId("calibration".into()),
+                    mode: ReviewMode::Calibration {
+                        query: query.clone(),
+                        items: items.clone(),
+                    },
+                },
+                &plan,
+                100,
+            )
+            .unwrap()
+            .session;
+        if assisted {
+            session = store
+                .review_apply(
+                    &ReviewCommand::Assistance {
+                        mutation: mutation(&session, "assist"),
+                        encounter_id: session.encounter.as_ref().unwrap().id.clone(),
+                        assistance: ReviewAssistance::Source,
+                    },
+                    101,
+                )
+                .unwrap()
+                .session;
+        }
+        // When recall is reported, only the independent attempt measures this key.
+        let done = finish(&mut store, &session, "recall");
+        assert_eq!(
+            store.knowledge(&[key.clone()]).unwrap()[0].assessed,
+            if assisted { None } else { Some(true) }
+        );
+        assert_eq!(
+            store.calibration_candidates(&query).unwrap(),
+            if assisted { items.clone() } else { vec![] }
+        );
+        let undone = store
+            .review_apply(
+                &ReviewCommand::Undo {
+                    mutation: mutation(&done, "undo"),
+                },
+                104,
+            )
+            .unwrap()
+            .session;
+        // Then Undo restores eligibility, not an independent second attempt.
+        assert!(undone.encounter.as_ref().unwrap().conditions.revealed);
+        assert_eq!(store.calibration_candidates(&query).unwrap(), items);
+        let evidence = store
+            .knowledge_evidence(&KnowledgeEvidenceQuery { key, after: None })
+            .unwrap();
+        assert_eq!(evidence.projection.claim, Some(true));
+        assert_eq!(evidence.projection.assessed, None);
+        assert_eq!(evidence.observations.len(), 1);
+        assert!(!evidence.observations[0].active);
+        assert_eq!(
+            evidence.observations[0]
+                .conditions
+                .assistance
+                .contains(&ReviewAssistance::Source),
+            assisted
+        );
+    }
 }

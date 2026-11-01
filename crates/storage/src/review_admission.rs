@@ -145,6 +145,7 @@ pub(crate) fn next(
         ReviewMode::Finite { .. }
         | ReviewMode::Practice { .. }
         | ReviewMode::TargetPractice { .. }
+        | ReviewMode::Calibration { .. }
         | ReviewMode::CollectionPractice { .. } => {
             let json: Option<String> = db.query_row(
                 "SELECT admission FROM review_work WHERE session_id=?1 AND admitted=0 ORDER BY position LIMIT 1",
@@ -195,7 +196,8 @@ pub(crate) fn next(
                 ReviewMode::CollectionPractice { .. } => vec![ReviewAssistance::Source],
                 ReviewMode::Continuous
                 | ReviewMode::Finite { .. }
-                | ReviewMode::Practice { .. } => vec![],
+                | ReviewMode::Practice { .. }
+                | ReviewMode::Calibration { .. } => vec![],
             },
             delivery: if value.probe.required_media.is_some() {
                 ReviewDelivery::Pending
@@ -291,7 +293,8 @@ pub(crate) fn next(
             }
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
-            | ReviewMode::TargetPractice { .. } => ReviewSessionState::Complete,
+            | ReviewMode::TargetPractice { .. }
+            | ReviewMode::Calibration { .. } => ReviewSessionState::Complete,
             ReviewMode::Continuous => ReviewSessionState::Unavailable,
         };
         session.message = match &session.mode {
@@ -301,7 +304,8 @@ pub(crate) fn next(
             ReviewMode::Continuous => Some("No due Review work is available".into()),
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
-            | ReviewMode::TargetPractice { .. } => None,
+            | ReviewMode::TargetPractice { .. }
+            | ReviewMode::Calibration { .. } => None,
         };
     }
     Ok(())

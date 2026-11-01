@@ -38,6 +38,22 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Word Sync reuses the existing Review shell, encounter, response capture,
+rating, saved-session and recovery controls. Its purpose remains Word Sync in
+both the active encounter and recent-session list, rather than ordinary Review
+or Word Practice. Setup uses installed package metadata, the shared capability
+Select, bounded TextField and CollectionFilters; Rust chooses the unmeasured
+membership. Selected words and answers are not previewed before admission.
+The primary setup action starts Word Sync; reading priorities are package and
+capability, exact scope and bound, then pending/empty/error feedback. Claims do
+not remove unmeasured keys. Self-report and actually validated responses keep
+their existing distinct interpretation. No extra design system, progress score,
+renderer-owned learner store or automatic due substitution is introduced.
+Required states include unsupported package/direction, unavailable catalog,
+cancelled selection, empty scope, uncertain start receipt, restart and Undo.
+The real native-core calibration test captures the pre-edit Review composition
+and then both built-in themes at desktop1080/narrow390.
+
 Layout: frozen Knowledge selection Practice extends the existing selection
 toolbar with a package-declared capability selector and an explicit start
 action. The native selection remains the scope; filters do not become another

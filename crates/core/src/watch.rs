@@ -112,6 +112,9 @@ model!(KnowledgeObservation {
     grade:crate::ReviewGrade,
     assessed:Option<bool>,
     practice:bool,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[cfg_attr(feature="typescript",ts(optional))]
+    purpose:Option<crate::ReviewPurpose>,
     source:Option<crate::SourceAnchor>,
     #[serde(default,skip_serializing_if="Option::is_none")]
     #[cfg_attr(feature="typescript",ts(optional))]

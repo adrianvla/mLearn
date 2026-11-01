@@ -117,6 +117,8 @@ fn main() {
         PracticeItem::decl(),
         TargetPracticeItem::decl(),
         SourcePracticeTarget::decl(),
+        CalibrationQuery::decl(),
+        ReviewPurpose::decl(),
         ReviewMode::decl(),
         ReviewSessionState::decl(),
         ReviewDelivery::decl(),

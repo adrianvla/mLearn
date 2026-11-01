@@ -166,6 +166,43 @@ impl Runtime {
                 )
             }
             Request::Review { command } => self.prepare_review(command, cancellation),
+            Request::PrepareCalibration { query } => {
+                cancellation.check()?;
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|id| id == "learning.probes.v2")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not support Word Sync tasks".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                if self
+                    .store
+                    .collection_catalog_revision(&query.package_id)
+                    .map_err(crate::review::storage_failure)?
+                    .as_deref()
+                    != Some(revision.as_str())
+                {
+                    return Err(Failure::Operation(
+                        "Language package changed; prepare its current Knowledge catalog".into(),
+                    ));
+                }
+                let items = self
+                    .store
+                    .calibration_candidates(&query)
+                    .map_err(crate::review::storage_failure)?;
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(Response::Calibration {
+                    items,
+                })))
+            }
             Request::ReviewSession { session_id } => {
                 Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
                     session: self

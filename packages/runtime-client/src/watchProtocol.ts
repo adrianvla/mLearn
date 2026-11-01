@@ -19,11 +19,17 @@ function inlineLevel(v: unknown): boolean {
  return levelMetadata(v)&&object(v)&&Number(v.rank)>=1&&Number(v.rank)<=7;
 }
 export function isCollectionDescription(v: unknown): v is CollectionDescription {
+ if(!object(v))return false;
+ const capabilities=v.capabilities;
  const label=(value:unknown)=>object(value)&&string(value.id)&&value.id.includes(':')&&value.id.length<=512
   &&string(value.label)&&value.label.length>0&&value.label.length<=256
   &&(value.color===null||string(value.color)&&value.color.length>0&&value.color.length<=64)
   &&string(value.attribution)&&value.attribution.length>0&&value.attribution.length<=2048;
- return object(v)&&list(v.capabilities,32,capability)&&Array.isArray(v.capabilities)&&v.capabilities.length>0
+ return list(capabilities,32,capability)&&Array.isArray(capabilities)&&capabilities.length>0
+  &&(v.calibrationCapabilities===undefined||v.calibrationCapabilities===null
+   ||Array.isArray(v.calibrationCapabilities)&&list(v.calibrationCapabilities,32,id=>string(id)&&id.length>0&&id.length<=512)
+    &&new Set(v.calibrationCapabilities).size===v.calibrationCapabilities.length
+    &&v.calibrationCapabilities.every(id=>capabilities.some(value=>object(value)&&value.id===id)))
   &&list(v.kinds,64,label)&&Array.isArray(v.kinds)&&v.kinds.length>0&&list(v.scopes,128,label)
   &&list(v.levels,256,level=>levelMetadata(level)&&object(level)&&string(level.label)&&level.label.length<=256)
   &&new TextEncoder().encode(JSON.stringify(v)).length<=65536;

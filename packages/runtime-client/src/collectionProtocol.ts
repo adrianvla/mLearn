@@ -1,4 +1,4 @@
-import type { CollectionPreparationStatus, CollectionSelectionEntry, Response } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionPreparationStatus, CollectionSelectionEntry, Response } from '@mlearn/contracts';
 import { encodedBytes, isMaterial } from './materialProtocol';
 import { isKnowledgeProjection, isLexicalSummary } from './watchProtocol';
 
@@ -15,9 +15,41 @@ function uint(value: unknown, maximum = 4294967295): value is number {
 function list(value: unknown, maximum: number, guard: (item: unknown) => boolean): boolean {
   return Array.isArray(value) && value.length <= maximum && value.every(guard);
 }
+export function isCollectionFilter(value: unknown): value is CollectionFilter {
+  let nodes = 0;
+  function filter(value: unknown, depth: number): boolean {
+    if (!object(value) || ++nodes > 64 || depth > 8) return false;
+    switch (value.kind) {
+      case 'all':
+      case 'any': return list(value.filters, 64, child => filter(child, depth + 1));
+      case 'not': return filter(value.filter, depth + 1);
+      case 'text': return typeof value.text === 'string'
+        && new TextEncoder().encode(value.text).length <= 2048;
+      case 'scope':
+      case 'entity_kind': return text(value.id, 512);
+      case 'source': return text(value.sourceId, 512);
+      case 'level': return text(value.scaleId, 512) && text(value.level, 128);
+      case 'capability': return text(value.capability, 512) && Array.isArray(value.states)
+        && value.states.length > 0 && value.states.length <= 5
+        && new Set(value.states).size === value.states.length
+        && value.states.every(state => typeof state === 'string'
+          && ['untracked', 'claimed_known', 'claimed_unknown', 'assessed_known', 'assessed_unknown'].includes(state));
+      case 'material': return typeof value.state === 'string'
+        && ['saved', 'unsaved', 'excluded', 'not_excluded'].includes(value.state);
+      default: return false;
+    }
+  }
+  return filter(value, 0);
+}
 function target(value: unknown): boolean {
-  return object(value) && isLexicalSummary(value.summary) && text(value.kind, 512)
-    && list(value.capabilities, 32, item => text(item, 512))
+  if (!object(value)) return false;
+  const capabilities = value.capabilities;
+  return isLexicalSummary(value.summary) && text(value.kind, 512)
+    && Array.isArray(capabilities) && list(capabilities, 32, item => text(item, 512))
+    && (value.calibrationCapabilities === undefined || value.calibrationCapabilities === null
+      || Array.isArray(value.calibrationCapabilities) && list(value.calibrationCapabilities, 32, item => text(item, 512))
+        && new Set(value.calibrationCapabilities).size === value.calibrationCapabilities.length
+        && value.calibrationCapabilities.every(id => capabilities.includes(id)))
     && list(value.scopes, 128, item => text(item, 512))
     && list(value.levels, 256, item => object(item) && text(item.scaleId, 512) && text(item.level, 128))
     && object(value.extensions)

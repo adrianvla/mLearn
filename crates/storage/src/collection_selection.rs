@@ -148,6 +148,7 @@ fn compile_selection(
     }
     .unwrap_or(CollectionDescription {
         capabilities: vec![],
+        calibration_capabilities: None,
         kinds: vec![],
         scopes: vec![],
         levels: vec![],

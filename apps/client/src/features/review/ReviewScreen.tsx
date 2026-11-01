@@ -13,6 +13,7 @@ import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { ReviewAudio } from '../review-media';
 import { RatingMatrix } from './RatingMatrix';
 import { useReviewKeys } from './useReviewKeys';
+import { CalibrationSetup } from './CalibrationSetup';
 
 type MutationAction = Parameters<RuntimeClient['prepareReviewMutation']>[1];
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -23,6 +24,8 @@ function practiceScope(mode: ReviewMode): string | null {
     case 'target_practice':
       return `${mode.items.length} selected ${mode.items.length === 1 ? 'target' : 'targets'}`;
     case 'collection_practice': return 'Frozen collection selection';
+    case 'calibration':
+      return `${mode.items.length} selected calibration ${mode.items.length === 1 ? 'target' : 'targets'}`;
     case 'continuous':
     case 'finite': return null;
   }
@@ -42,7 +45,7 @@ function ReviewWorkspace({ client, media }: {
   readonly media: { readonly uri: (id: AuthoredMediaId) => Promise<string> };
 }) {
   const router = useRouter();
-  const params = useLocalSearchParams<{ sessionId?: string }>();
+  const params = useLocalSearchParams<{ sessionId?: string; activity?: string; packageId?: string }>();
   const navigation = useNavigation();
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
   const [session, setSession] = useState<ReviewSession | null>(null);
@@ -258,6 +261,12 @@ function ReviewWorkspace({ client, media }: {
     const value = await execute(client.prepareReviewStart(finite ? { kind: 'finite', limit: Number(limit) } : { kind: 'continuous' }));
     if (value && scope.current) router.setParams({ sessionId: value.id });
   }
+  async function startCalibration(mode: Extract<ReviewMode, { kind: 'calibration' }>) {
+    const active = scope.current;
+    if (!active || flight.current || failedCommand.current || loading || returnLock.current) return;
+    const value = await execute(client.prepareReviewStart(mode));
+    if (value && scope.current === active) router.setParams({ sessionId: value.id });
+  }
   async function returnSource() {
     const value = current.current;
     const encounter = value?.encounter;
@@ -336,7 +345,9 @@ function ReviewWorkspace({ client, media }: {
   }
   const finiteValid = /^[1-9]\d{0,2}$/.test(limit) && Number(limit) <= 128;
   const selectedScope = session ? practiceScope(session.mode) : null;
-  const purpose = selectedScope ? 'Word Practice' : 'Review';
+  const calibrationSetup = params.activity === 'calibration';
+  const purpose = session?.mode.kind === 'calibration' || !session && calibrationSetup
+    ? 'Word Sync' : selectedScope ? 'Word Practice' : 'Review';
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
     <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
@@ -348,9 +359,14 @@ function ReviewWorkspace({ client, media }: {
       {readError ? <Panel><Text accessibilityRole="alert">{readError}</Text><Button label="Retry Review sessions" onPress={() => void refresh()} /></Panel> : null}
       {loading ? <Text accessibilityLiveRegion="polite">Loading Review sessions…</Text> : null}
       {!session && !requestedSession ? <Panel>
+        {calibrationSetup ? <CalibrationSetup client={client}
+          initialPackageId={typeof params.packageId === 'string' ? params.packageId : ''}
+          disabled={blocked} onStart={startCalibration}
+          onOpenKnowledge={packageId => router.push({ pathname: '/knowledge', params: { packageId } })} /> : <>
         <Button label="Start Review" disabled={blocked} onPress={() => void start(false)} />
         <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
           <Button label="Start finite Review" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
+        </>}
       </Panel> : session ? <>
         {selectedScope ? <Text variant="caption" muted>{selectedScope}</Text> : null}
         <Row>
@@ -424,15 +440,19 @@ function ReviewWorkspace({ client, media }: {
       {pending ? <Text accessibilityLiveRegion="polite">Saving {purpose}…</Text> : null}
       {error ? <Panel><Text accessibilityRole="alert">{error}</Text>
         {failed ? <Button label="Retry Review save" busy={pending} onPress={() => {
-          void execute(failed).then(value => failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined);
+          void execute(failed).then(value => {
+            if (value && scope.current && failed.kind === 'start') router.setParams({ sessionId: value.id });
+            return failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined;
+          });
         }} /> : null}</Panel> : null}
       {!session && sessions.length ? <Stack><Text variant="section">Recent sessions</Text>
         {sessions.map(value => {
           const selected = practiceScope(value.mode);
+          const savedPurpose = value.mode.kind === 'calibration' ? 'Word Sync' : selected ? 'Word Practice' : 'Review';
           return <Panel key={value.id}>
-            <Text>{selected ? 'Word Practice' : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
+            <Text>{selected ? savedPurpose : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
             {selected ? <Text variant="caption" muted>{selected}</Text> : null}
-            <Button label={`Open ${selected ? 'Word Practice' : 'Review'} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
+            <Button label={`Open ${savedPurpose} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
           </Panel>;
         })}</Stack> : null}
     </View>

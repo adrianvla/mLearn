@@ -1,5 +1,6 @@
-import type { ChoiceOption, PracticeItem, Response, ResponseSpec, ReviewCapture, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession, ReviewSubject, ReviewTask, TargetPracticeItem, TaskResponse, ValidationOutput } from '@mlearn/contracts';
+import type { CalibrationQuery, ChoiceOption, PracticeItem, Response, ResponseSpec, ReviewCapture, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession, ReviewSubject, ReviewTask, TargetPracticeItem, TaskResponse, ValidationOutput } from '@mlearn/contracts';
 import { encodedBytes, isSourceAnchor } from './materialProtocol';
+import { isCollectionFilter } from './collectionProtocol';
 
 const encoder = new TextEncoder();
 function object(value: unknown): value is Record<string, unknown> {
@@ -65,6 +66,13 @@ function targetPracticeItem(value: unknown): value is TargetPracticeItem {
     && list(value.capabilities, 32, (item): item is string => text(item)) && value.capabilities.length > 0
     && new Set(value.capabilities).size === value.capabilities.length
     && nullable(value.source, isSourceAnchor);
+}
+export function isCalibrationQuery(value: unknown): value is CalibrationQuery {
+  return record(value, ['packageId', 'capability', 'filter', 'limit'])
+    && text(value.packageId) && !value.packageId.includes('\0')
+    && text(value.capability) && !value.capability.includes('\0')
+    && positive(value.limit) && value.limit <= 32
+    && isCollectionFilter(value.filter) && encodedBytes(value) <= 262144;
 }
 function responseSpec(value: unknown): value is ResponseSpec {
   if (!object(value)) return false;
@@ -135,6 +143,16 @@ function mode(value: unknown): value is ReviewMode {
     case 'collection_practice': return record(value, ['kind', 'selectionId', 'capabilities'])
       && text(value.selectionId, 128) && list(value.capabilities, 32, item => text(item))
       && value.capabilities.length > 0 && new Set(value.capabilities).size === value.capabilities.length;
+    case 'calibration': {
+      if (!record(value, ['kind', 'query', 'items']) || !isCalibrationQuery(value.query)
+        || !list(value.items, 32, targetPracticeItem) || !value.items.length
+        || value.items.length > value.query.limit) return false;
+      const query = value.query;
+      const revision = value.items[0]?.packageRevision;
+      return value.items.every(item => item.packageId === query.packageId && item.packageRevision === revision
+        && item.source === null && item.capabilities.length === 1 && item.capabilities[0] === query.capability)
+        && new Set(value.items.map(item => item.targetId)).size === value.items.length;
+    }
     default: return false;
   }
 }
@@ -196,7 +214,7 @@ export function isReviewSession(value: unknown): value is ReviewSession {
   if (currentEncounter !== null && !encounter(currentEncounter)) return false;
   if (currentEncounter !== null && currentEncounter.task !== undefined
     && value.mode.kind !== 'practice' && value.mode.kind !== 'target_practice'
-    && value.mode.kind !== 'collection_practice') return false;
+    && value.mode.kind !== 'collection_practice' && value.mode.kind !== 'calibration') return false;
   if (value.state === 'stopped' && (value.mode.kind !== 'collection_practice'
     || currentEncounter !== null || value.canUndo)) return false;
   switch (value.mode.kind) {
@@ -216,6 +234,16 @@ export function isReviewSession(value: unknown): value is ReviewSession {
           && item.packageRevision === currentEncounter.packageRevision
           && currentEncounter.targets.every(row => row.key !== null
             && item.capabilities.includes(row.key.capability))));
+    case 'calibration': {
+      const items = value.mode.items;
+      return uint(value.total) && value.total >= items.length && value.total <= items.length * 8
+        && (value.state !== 'complete' || currentEncounter === null && value.completed === value.total)
+        && (currentEncounter === null || 'targetId' in currentEncounter && currentEncounter.source === null
+          && items.some(item => item.targetId === currentEncounter.targetId
+            && item.packageId === currentEncounter.packageId
+            && item.packageRevision === currentEncounter.packageRevision
+            && currentEncounter.targets.every(row => row.key !== null && item.capabilities.includes(row.key.capability))));
+    }
     case 'collection_practice': {
       const capabilities = value.mode.capabilities;
       return (value.total === null
@@ -262,7 +290,7 @@ export function isReviewCommand(value: unknown): value is ReviewCommand {
     default: return false;
   }
 }
-export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' | 'source_practice' }>;
+export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' | 'source_practice' | 'calibration' }>;
 export function isReviewResponse(value: unknown): value is ReviewWireResponse {
   if (!object(value) || encodedBytes(value) > 524288) return false;
   switch (value.type) {
@@ -270,6 +298,13 @@ export function isReviewResponse(value: unknown): value is ReviewWireResponse {
       && list(value.items, 128, targetPracticeItem) && value.items.length > 0
       && value.items.every(item => item.source !== null)
       && new Set(value.items.map(item => JSON.stringify([item.packageId, item.targetId]))).size === value.items.length;
+    case 'calibration': {
+      if (!record(value, ['type', 'items']) || !list(value.items, 32, targetPracticeItem)) return false;
+      const items = value.items;
+      return items.every(item => item.source === null && item.capabilities.length === 1
+        && item.packageId === items[0]?.packageId && item.packageRevision === items[0]?.packageRevision)
+        && new Set(items.map(item => item.targetId)).size === items.length;
+    }
     case 'review': return record(value, ['type', 'commit'])
       && record(value.commit, ['commandId', 'committedRevision', 'session']) && text(value.commit.commandId, 128)
       && positive(value.commit.committedRevision) && isReviewSession(value.commit.session)

@@ -428,6 +428,7 @@ fn read_collection_page(
                 None,
                 CollectionDescription {
                     capabilities: Vec::new(),
+                    calibration_capabilities: None,
                     kinds: Vec::new(),
                     scopes: Vec::new(),
                     levels: Vec::new(),

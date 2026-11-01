@@ -103,6 +103,11 @@ impl Runtime {
                         .map_err(storage_failure)?;
                     8
                 }
+                ReviewMode::Calibration { query, items } => {
+                    self.store.validate_calibration(query, items).map_err(storage_failure)?;
+                    self.validate_target_practice(items, &[])?;
+                    items.len() * 8
+                }
             },
             ReviewCommand::Next { mutation } => {
                 let session = self
@@ -142,7 +147,8 @@ impl Runtime {
                     }
                     ReviewMode::Finite { .. }
                     | ReviewMode::Practice { .. }
-                    | ReviewMode::TargetPractice { .. } => {
+                    | ReviewMode::TargetPractice { .. }
+                    | ReviewMode::Calibration { .. } => {
                         let commit = self
                             .store
                             .review_next(mutation, None, now)
@@ -203,6 +209,10 @@ impl Runtime {
                     self.store
                         .review_collection_first(selection_id, capabilities)
                         .map_err(storage_failure)?;
+                }
+                ReviewMode::Calibration { query, items } => {
+                    self.store.validate_calibration(query, items).map_err(storage_failure)?;
+                    self.validate_target_practice(items, &[])?;
                 }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }
@@ -278,6 +288,10 @@ impl ReviewWork {
                         &[item],
                         &[mlearn_core::ReviewAssistance::Source],
                     );
+                }
+                ReviewMode::Calibration { query, items } => {
+                    store.validate_calibration(query, items).map_err(storage_failure)?;
+                    return self.run_target_practice(&store, items, &[]);
                 }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }
