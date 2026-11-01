@@ -97,6 +97,37 @@ test('Word Sync preserves actual calibrated responses through restart and Undo',
     expect(undone.projection.assessed).toBeNull();
     expect(undone.observations).toHaveLength(1);
     expect(undone.observations[0]?.active).toBe(false);
+    const correctionCommitted = () => page.waitForResponse(response => response.url() === `${backend.url}/invoke`
+      && response.request().method() === 'POST'
+      && response.request().postDataJSON().command === 'runtime_execute'
+      && JSON.parse(response.request().postDataJSON().args.request).command?.kind === 'correct');
+    const firstCorrection = correctionCommitted();
+    await page.getByRole('button', { name: 'All Missed', exact: true }).click();
+    await firstCorrection;
+    await expect(page.getByTestId('review-answer')).toHaveCount(0);
+    const corrected = await client.knowledgeEvidence({ key, after: null });
+    expect(corrected.projection.claim).toBe(true);
+    // The actual accepted capture remains positive; subjective quality is separate.
+    expect(corrected.projection.assessed).toBe(true);
+    expect(corrected.observations).toHaveLength(1);
+    expect(corrected.observations[0]?.attemptId).toBe(undone.observations[0]?.attemptId);
+    expect(corrected.observations[0]?.active).toBe(true);
+    expect(corrected.observations[0]?.grade.quality).toBe('missed');
+    expect(await client.calibrationCandidates(query)).toEqual([]);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.getByTestId('review-answer')).toBeVisible();
+    await page.getByRole('button', { name: 'Worked out', exact: true }).click();
+    const workedOutCorrection = correctionCommitted();
+    await page.getByRole('button', { name: 'All Missed', exact: true }).click();
+    await workedOutCorrection;
+    await expect(page.getByTestId('review-answer')).toHaveCount(0);
+    const assisted = await client.knowledgeEvidence({ key, after: null });
+    expect(assisted.observations).toHaveLength(1);
+    expect(assisted.observations[0]?.attemptId).toBe(undone.observations[0]?.attemptId);
+    expect(assisted.observations[0]?.grade.method).toBe('worked_out');
+    expect(assisted.projection.assessed).toBeNull();
+    expect(assisted.projection.claim).toBe(true);
+    expect((await client.calibrationCandidates(query)).map(item => item.targetId)).toEqual([targetId]);
     expect(backend.metadata().providerRequests).toBe(0);
   } finally {
     await backend.close();

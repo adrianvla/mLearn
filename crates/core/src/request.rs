@@ -370,6 +370,12 @@ pub enum Request {
     PrepareCalibration {
         query: crate::CalibrationQuery,
     },
+    PreviewAuthoredPractice {
+        #[serde(rename = "materialId")]
+        material_id: crate::MaterialId,
+        #[serde(rename = "materialRevision")]
+        material_revision: u32,
+    },
     InspectTargets {
         #[serde(rename = "sourceId")]
         source_id: String,

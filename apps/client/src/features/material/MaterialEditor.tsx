@@ -22,9 +22,10 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
   readonly material?: Material;
   readonly onSaved?: (material: Material) => void;
   readonly onPropose?: (material: Material, trigger: View | null) => void;
+  readonly onAuthor?: (material: Material) => void;
   readonly navigationPending?: boolean;
   readonly renderFrame?: (body: ReactNode, blocked: boolean) => ReactNode;
-}>(function MaterialEditor({ client, authoredMedia, initial, material, onSaved, onPropose,
+}>(function MaterialEditor({ client, authoredMedia, initial, material, onSaved, onPropose, onAuthor,
   navigationPending = false, renderFrame }, ref) {
   const [draft, setDraft] = useState(initial);
   const [base, setBase] = useState(material);
@@ -243,6 +244,9 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
       disabled={!!retry || mediaPending || navigationPending} onPress={() => submit()} />
       {base && onPropose ? <Button ref={proposeTrigger} label="Propose changes to saved Material" variant="secondary"
         disabled={pending || !!retry || mediaPending || navigationPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}</Row>
+    {base && onAuthor ? <Button label="Author probes" variant="secondary"
+      disabled={dirty || pending || mediaPending || navigationPending || base.excluded}
+      onPress={() => onAuthor(base)} /> : null}
     {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
     {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
     {retry ? <Row>

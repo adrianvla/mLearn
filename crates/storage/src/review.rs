@@ -83,6 +83,35 @@ impl ProfileStore {
                     "Finite Review limit must be 1..128".into(),
                 ));
             }
+            ReviewMode::AuthoredPractice {
+                material_id,
+                material_revision,
+                package_revision,
+                fingerprint,
+            } => {
+                let material = review_admission::practice_material(&tx, material_id)?;
+                let probes: Vec<_> = admissions.iter().map(|value| value.probe.clone()).collect();
+                if material.revision != *material_revision
+                    || admissions.is_empty()
+                    || admissions.len() > 8
+                    || fingerprint.len() != 64
+                    || admissions.iter().any(|value| {
+                        value.subject.material() != Some((material_id, *material_revision))
+                            || value.package_id != material.content.package_id
+                            || value.package_revision != *package_revision
+                            || value.source != material.content.source
+                            || value.task.is_some()
+                    })
+                    || mlearn_core::authored_probe_fingerprint(&probes)
+                        .map_err(|error| StorageError::Invalid(error.to_string()))?
+                        != *fingerprint
+                {
+                    return Err(StorageError::Invalid(
+                        "Authored probe preview changed; preview again".into(),
+                    ));
+                }
+                admissions.len() as u32
+            }
             ReviewMode::Practice { items } => {
                 review_admission::practice_items(items)?;
                 // Package admission supplies at most eight compatible probes per Material.
@@ -200,7 +229,8 @@ impl ProfileStore {
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
             | ReviewMode::TargetPractice { .. }
-            | ReviewMode::Calibration { .. } => Some(count),
+            | ReviewMode::Calibration { .. }
+            | ReviewMode::AuthoredPractice { .. } => Some(count),
             ReviewMode::Continuous | ReviewMode::CollectionPractice { .. } => None,
         };
         review_admission::next(&tx, &mut session, None)?;

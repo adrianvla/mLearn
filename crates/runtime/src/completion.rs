@@ -187,6 +187,28 @@ impl Runtime {
                             items: std::mem::take(items),
                         }
                     }
+                    (
+                        LanguageAction::AuthoredPreview(material),
+                        GuestOutput::AuthoredPreview(preview),
+                    ) => {
+                        let current = self
+                            .store
+                            .review_practice_materials(&[mlearn_core::PracticeItem {
+                                material_id: material.id.clone(),
+                                source: None,
+                            }])
+                            .map_err(crate::review::storage_failure)?
+                            .pop()
+                            .ok_or_else(|| Failure::Operation("Material is unavailable".into()))?;
+                        if current.revision != material.revision {
+                            return Err(Failure::Operation(
+                                "Material changed during probe preview".into(),
+                            ));
+                        }
+                        Response::AuthoredPracticePreview {
+                            preview: preview.as_ref().clone(),
+                        }
+                    }
                     (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {
                         Response::Dictionary {
                             batch: mlearn_core::DictionaryBatch {

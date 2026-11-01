@@ -3197,6 +3197,7 @@ version = "3.0.0-dev.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.21",
  "ts-rs",
 ]

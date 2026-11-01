@@ -104,9 +104,10 @@ impl ProfileStore {
                 let admission: ReviewAdmission = serde_json::from_str(&row.get::<_, String>(9)?)?;
                 let purpose = match row.get::<_, String>(10)?.as_str() {
                     "continuous" | "finite" => ReviewPurpose::Review,
-                    "practice" | "target_practice" | "collection_practice" => {
-                        ReviewPurpose::Practice
-                    }
+                    "practice"
+                    | "target_practice"
+                    | "collection_practice"
+                    | "authored_practice" => ReviewPurpose::Practice,
                     "calibration" => ReviewPurpose::Calibration,
                     _ => {
                         return Err(StorageError::Invalid(

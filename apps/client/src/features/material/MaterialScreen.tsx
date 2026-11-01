@@ -326,6 +326,7 @@ export function MaterialScreen() {
         onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
       {opening?.trigger === null && !editor ? openStatus(opening.id) : null}
       {editor ? <MaterialEditor key={editor.key} ref={editorActions} client={host.client}
+        onAuthor={material => router.push({ pathname: '/review', params: { activity: 'authoring', materialId: material.id } })}
           authoredMedia={host.authoredMedia} initial={editor.content} material={editor.material}
           navigationPending={!!opening?.pending}
           renderFrame={(body, blocked) => <Dialog open={focused} title={editor.material ? 'Edit Material' : 'Add Material'}

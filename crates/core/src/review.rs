@@ -69,6 +69,21 @@ record!(ReviewProbe {
     required_media: Option<AuthoredMediaId>
 });
 
+record!(AuthoredPracticePreview {
+    material_id: MaterialId,
+    material_revision: u32,
+    package_revision: String,
+    fingerprint: String,
+    probes: Vec<ReviewProbe>
+});
+
+/// Bind authoring admission to the package's exact private probe projection.
+/// Only the digest, never these answers, belongs in an active session's mode.
+pub fn authored_probe_fingerprint(probes: &[ReviewProbe]) -> Result<String, serde_json::Error> {
+    use sha2::{Digest, Sha256};
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(probes)?)))
+}
+
 /// An authored revision and a canonical package target have different identities.
 /// Flattening retains the existing Material wire shape and persisted admissions.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -192,6 +207,15 @@ pub enum ReviewMode {
         query: CalibrationQuery,
         items: Vec<TargetPracticeItem>,
     },
+    AuthoredPractice {
+        #[serde(rename = "materialId")]
+        material_id: MaterialId,
+        #[serde(rename = "materialRevision")]
+        material_revision: u32,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        fingerprint: String,
+    },
 }
 
 impl ReviewMode {
@@ -202,7 +226,8 @@ impl ReviewMode {
             Self::Practice { .. }
             | Self::TargetPractice { .. }
             | Self::CollectionPractice { .. }
-            | Self::Calibration { .. } => false,
+            | Self::Calibration { .. }
+            | Self::AuthoredPractice { .. } => false,
         }
     }
 }

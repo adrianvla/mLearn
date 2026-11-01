@@ -220,6 +220,9 @@ pub enum Response {
     Calibration {
         items: Vec<crate::TargetPracticeItem>,
     },
+    AuthoredPracticePreview {
+        preview: crate::AuthoredPracticePreview,
+    },
     Knowledge {
         projections: Vec<KnowledgeProjection>,
     },

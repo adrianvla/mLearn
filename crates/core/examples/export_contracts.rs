@@ -104,6 +104,7 @@ fn main() {
         ReviewDirection::decl(),
         ReviewTarget::decl(),
         ReviewProbe::decl(),
+        AuthoredPracticePreview::decl(),
         ChoiceOption::decl(),
         ResponseSpec::decl(),
         TaskResponse::decl(),

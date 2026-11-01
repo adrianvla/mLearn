@@ -29,6 +29,15 @@ export function createReviewClient(request: (command: Request, signal?: AbortSig
     return structuredClone(command);
   }
   return {
+    async authoredPracticePreview(materialId: string, materialRevision: number, signal?: AbortSignal) {
+      if (!materialId || materialId.length > 512 || !Number.isInteger(materialRevision) || materialRevision < 1)
+        throw new RuntimeError('invalid_review', 'A saved Material revision is required.');
+      const value = await request({ type: 'preview_authored_practice', materialId, materialRevision }, signal);
+      if (!isReviewResponse(value) || value.type !== 'authored_practice_preview'
+        || value.preview.materialId !== materialId || value.preview.materialRevision !== materialRevision)
+        throw new RuntimeError('protocol', 'Malformed authored probe preview.');
+      return value.preview;
+    },
     async calibrationCandidates(query: CalibrationQuery, signal?: AbortSignal) {
       const scope = structuredClone(query);
       if (!isCalibrationQuery(scope))

@@ -59,6 +59,45 @@ const calibrationItems: TargetPracticeItem[] = ['target', 'second'].map(targetId
   capabilities: ['package:meaning'], source: null,
 }));
 
+test('authored preview binds saved revisions and admits only assisted self-report sessions', async () => {
+  const preview = {
+    materialId: 'material', materialRevision: 1, packageRevision: 'revision',
+    fingerprint: 'a'.repeat(64), probes: [{
+      id: 'written', contractVersion: 1, direction: 'written',
+      cue: 'authored cue', answer: 'authored answer', targets: encounter.targets,
+      supplied: [], requiredMedia: null,
+    }],
+  };
+  let response: unknown = { type: 'authored_practice_preview', preview };
+  const client = createReviewClient(async request => {
+    assert.deepEqual(request, { type: 'preview_authored_practice', materialId: 'material', materialRevision: 1 });
+    return response;
+  }, () => { throw new Error('Preview cannot allocate a write identity'); });
+  assert.deepEqual(await client.authoredPracticePreview('material', 1), preview);
+  for (const malformed of [
+    { ...preview, materialRevision: 2 },
+    { ...preview, fingerprint: 'unbound' },
+    { ...preview, probes: [preview.probes[0], preview.probes[0]] },
+    { ...preview, probes: [{ ...preview.probes[0], contractVersion: 2 }] },
+    { ...preview, probes: [{ ...preview.probes[0], targets: [] }] },
+  ]) {
+    response = { type: 'authored_practice_preview', preview: malformed };
+    await assert.rejects(client.authoredPracticePreview('material', 1), protocol);
+  }
+  const authored = {
+    ...session, total: 1,
+    mode: { kind: 'authored_practice', materialId: 'material', materialRevision: 1,
+      packageRevision: 'revision', fingerprint: preview.fingerprint },
+    encounter: { ...encounter, conditions: { ...encounter.conditions, assistance: ['source'] } },
+  };
+  assert.equal(isReviewResponse({ type: 'review_session', session: authored }), true);
+  for (const invalid of [
+    { ...authored, encounter },
+    { ...authored, encounter: { ...authored.encounter, materialRevision: 2 } },
+    { ...authored, encounter: { ...authored.encounter, task: typedEncounter.task } },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+});
+
 test('calibration preparation freezes its query and rejects broadened native membership', { timeout: 5000 }, async () => {
   // Given a requested scope held at its real client/transport boundary.
   const entered = gate<void>(), released = gate<void>();

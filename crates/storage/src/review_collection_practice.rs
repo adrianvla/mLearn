@@ -1,11 +1,11 @@
 //! Lazy canonical Practice over immutable Knowledge selection membership.
 //! Writes participate in the caller's Review transaction and receipt.
 use crate::{
-    ProfileStore, StorageError, collection_selection, material_validation::bounded,
-    review_admission, review_read, review_target_practice,
+    collection_selection, material_validation::bounded, review_admission, review_read,
+    review_target_practice, ProfileStore, StorageError,
 };
 use mlearn_core::*;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::BTreeSet;
 
 pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
@@ -30,7 +30,8 @@ fn mode(mode: &ReviewMode) -> Result<(&CollectionSelectionId, &[String]), Storag
         | ReviewMode::Finite { .. }
         | ReviewMode::Practice { .. }
         | ReviewMode::TargetPractice { .. }
-        | ReviewMode::Calibration { .. } => {
+        | ReviewMode::Calibration { .. }
+        | ReviewMode::AuthoredPractice { .. } => {
             Err(StorageError::Invalid("Expected collection Practice".into()))
         }
     }

@@ -172,7 +172,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     await inspector.getByRole('button', { name: 'Inspect evidence', exact: true }).click();
     const evidence = inspector.getByTestId('knowledge-evidence');
     await expect(evidence.getByText('Explicit claim: unknown', { exact: false })).toBeVisible();
-    await expect(evidence.getByText('Assessed self-report: remembered', { exact: true })).toBeVisible();
+    await expect(evidence.getByText('Assessed state: known', { exact: true })).toBeVisible();
     await expect(evidence.getByRole('button', { name: /^Attempt \d+ details$/ })).toHaveCount(16);
     await evidence.getByRole('button', { name: `Attempt ${physical.sequence} details`, exact: true }).click();
     await expect(evidence.getByText(`Target: ${key.targetId}`, { exact: true })).toBeVisible();

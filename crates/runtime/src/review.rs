@@ -87,6 +87,20 @@ impl Runtime {
                     self.validate_practice(items)?;
                     items.len() * 8
                 }
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    self.validate_authored_practice(
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    )?;
+                    8
+                }
                 ReviewMode::TargetPractice { items, assistance } => {
                     self.validate_target_practice(
                         items,
@@ -104,7 +118,9 @@ impl Runtime {
                     8
                 }
                 ReviewMode::Calibration { query, items } => {
-                    self.store.validate_calibration(query, items).map_err(storage_failure)?;
+                    self.store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
                     self.validate_target_practice(items, &[])?;
                     items.len() * 8
                 }
@@ -148,7 +164,8 @@ impl Runtime {
                     ReviewMode::Finite { .. }
                     | ReviewMode::Practice { .. }
                     | ReviewMode::TargetPractice { .. }
-                    | ReviewMode::Calibration { .. } => {
+                    | ReviewMode::Calibration { .. }
+                    | ReviewMode::AuthoredPractice { .. } => {
                         let commit = self
                             .store
                             .review_next(mutation, None, now)
@@ -199,6 +216,19 @@ impl Runtime {
         if let ReviewCommand::Start { start } = &work.command {
             match &start.mode {
                 ReviewMode::Practice { items } => self.validate_practice(items)?,
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    self.validate_authored_practice(
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    )?;
+                }
                 ReviewMode::TargetPractice { items, assistance } => {
                     self.validate_target_practice(items, assistance.as_deref().unwrap_or_default())?
                 }
@@ -211,7 +241,9 @@ impl Runtime {
                         .map_err(storage_failure)?;
                 }
                 ReviewMode::Calibration { query, items } => {
-                    self.store.validate_calibration(query, items).map_err(storage_failure)?;
+                    self.store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
                     self.validate_target_practice(items, &[])?;
                 }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
@@ -269,6 +301,20 @@ impl ReviewWork {
         if let ReviewCommand::Start { start } = &self.command {
             match &start.mode {
                 ReviewMode::Practice { items } => return self.run_practice(&store, items),
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    return self.run_authored_practice(
+                        &store,
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    );
+                }
                 ReviewMode::TargetPractice { items, assistance } => {
                     return self.run_target_practice(
                         &store,
@@ -290,7 +336,9 @@ impl ReviewWork {
                     );
                 }
                 ReviewMode::Calibration { query, items } => {
-                    store.validate_calibration(query, items).map_err(storage_failure)?;
+                    store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
                     return self.run_target_practice(&store, items, &[]);
                 }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
@@ -414,8 +462,48 @@ struct ProbeOutput {
     probes: Vec<ReviewProbe>,
 }
 
+impl Runtime {
+    fn validate_authored_practice(
+        &self,
+        material_id: &mlearn_core::MaterialId,
+        material_revision: u32,
+        package_revision: &str,
+        fingerprint: &str,
+    ) -> Result<(), Failure> {
+        let material = self
+            .store
+            .review_practice_materials(&[mlearn_core::PracticeItem {
+                material_id: material_id.clone(),
+                source: None,
+            }])
+            .map_err(storage_failure)?
+            .pop()
+            .ok_or_else(|| Failure::Operation("Material is unavailable".into()))?;
+        let package = self
+            .installed
+            .get(&material.content.package_id)
+            .ok_or_else(|| Failure::Operation("Authoring package is unavailable".into()))?;
+        if material.revision != material_revision
+            || package.revision()? != package_revision
+            || fingerprint.len() != 64
+            || !fingerprint.bytes().all(|value| value.is_ascii_hexdigit())
+            || !package
+                .manifest
+                .capabilities
+                .iter()
+                .any(|value| value == "learning.probes.v1")
+        {
+            return Err(Failure::Protocol(
+                "stale_authored_preview",
+                "Authored preview changed; preview again".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl LanguageWork {
-    fn review_probes(
+    pub(super) fn review_probes(
         &self,
         material: &Material,
         revision: &str,
@@ -456,6 +544,27 @@ impl LanguageWork {
             .map_err(|e| Failure::Operation(format!("Invalid package Review probes: {e}")))?;
         validate_probes(material, entry.as_ref(), &output)?;
         Ok(output.probes)
+    }
+
+    pub(super) fn authored_preview(
+        &self,
+        material: &Material,
+    ) -> Result<mlearn_core::AuthoredPracticePreview, Failure> {
+        let revision = self.package.revision()?;
+        let probes = self.review_probes(material, &revision)?;
+        if probes.is_empty() {
+            return Err(Failure::Operation(
+                "Package does not support authored recall for this Material".into(),
+            ));
+        }
+        Ok(mlearn_core::AuthoredPracticePreview {
+            material_id: material.id.clone(),
+            material_revision: material.revision,
+            package_revision: revision,
+            fingerprint: mlearn_core::authored_probe_fingerprint(&probes)
+                .map_err(|error| Failure::Operation(error.to_string()))?,
+            probes,
+        })
     }
 }
 

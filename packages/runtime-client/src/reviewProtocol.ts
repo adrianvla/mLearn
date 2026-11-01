@@ -1,4 +1,4 @@
-import type { CalibrationQuery, ChoiceOption, PracticeItem, Response, ResponseSpec, ReviewCapture, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewSession, ReviewSubject, ReviewTask, TargetPracticeItem, TaskResponse, ValidationOutput } from '@mlearn/contracts';
+import type { AuthoredPracticePreview, CalibrationQuery, ChoiceOption, PracticeItem, Response, ResponseSpec, ReviewCapture, ReviewCommand, ReviewConditions, ReviewEncounter, ReviewGrade, ReviewMode, ReviewProbe, ReviewSession, ReviewSubject, ReviewTask, TargetPracticeItem, TaskResponse, ValidationOutput } from '@mlearn/contracts';
 import { encodedBytes, isSourceAnchor } from './materialProtocol';
 import { isCollectionFilter } from './collectionProtocol';
 
@@ -55,6 +55,21 @@ function target(value: unknown): value is ReviewEncounter['targets'][number] {
   return record(value, ['id', 'label', 'mnemonic', 'key']) && text(value.id, 256) && text(value.label, 256)
     && nullable(value.mnemonic, item => typeof item === 'string' && encoder.encode(item).length <= 16384)
     && nullable(value.key, key);
+}
+function authoredProbe(value: unknown): value is ReviewProbe {
+  return record(value, ['id', 'contractVersion', 'direction', 'cue', 'answer', 'targets', 'supplied', 'requiredMedia'])
+    && text(value.id, 256) && value.contractVersion === 1
+    && member(value.direction, ['written', 'focused', 'audio']) && text(value.cue, 16384)
+    && text(value.answer, 16384) && list(value.targets, 32, target) && value.targets.length > 0
+    && new Set(value.targets.map(item => item.id)).size === value.targets.length
+    && list(value.supplied, 64, key) && nullable(value.requiredMedia, text);
+}
+export function isAuthoredPracticePreview(value: unknown): value is AuthoredPracticePreview {
+  return record(value, ['materialId', 'materialRevision', 'packageRevision', 'fingerprint', 'probes'])
+    && text(value.materialId) && positive(value.materialRevision) && text(value.packageRevision)
+    && text(value.fingerprint, 64) && /^[a-f0-9]{64}$/.test(value.fingerprint)
+    && list(value.probes, 8, authoredProbe) && value.probes.length > 0
+    && new Set(value.probes.map(item => item.id)).size === value.probes.length;
 }
 function practiceItem(value: unknown): value is PracticeItem {
   return record(value, ['materialId', 'source']) && text(value.materialId)
@@ -131,6 +146,9 @@ function mode(value: unknown): value is ReviewMode {
   switch (value.kind) {
     case 'continuous': return record(value, ['kind']);
     case 'finite': return record(value, ['kind', 'limit']) && positive(value.limit) && value.limit <= 128;
+    case 'authored_practice': return record(value, ['kind', 'materialId', 'materialRevision', 'packageRevision', 'fingerprint'])
+      && text(value.materialId) && !value.materialId.includes('\0') && positive(value.materialRevision)
+      && text(value.packageRevision) && text(value.fingerprint, 64) && /^[a-f0-9]{64}$/.test(value.fingerprint);
     case 'practice': return record(value, ['kind', 'items']) && list(value.items, 128, practiceItem)
       && value.items.length > 0 && new Set(value.items.map(item => item.materialId)).size === value.items.length;
     case 'target_practice': return record(value,
@@ -220,6 +238,13 @@ export function isReviewSession(value: unknown): value is ReviewSession {
   switch (value.mode.kind) {
     case 'continuous': return value.total === null;
     case 'finite': return uint(value.total) && value.total <= value.mode.limit;
+    case 'authored_practice': return positive(value.total) && value.total <= 8
+      && (currentEncounter === null || 'materialId' in currentEncounter
+        && currentEncounter.materialId === value.mode.materialId
+        && currentEncounter.materialRevision === value.mode.materialRevision
+        && currentEncounter.packageRevision === value.mode.packageRevision
+        && currentEncounter.task === undefined && currentEncounter.capture === undefined
+        && currentEncounter.conditions.assistance.includes('source'));
     case 'practice': return uint(value.total) && value.total >= value.mode.items.length
       && value.total <= value.mode.items.length * 8
       && (currentEncounter === null || 'materialId' in currentEncounter
@@ -290,10 +315,11 @@ export function isReviewCommand(value: unknown): value is ReviewCommand {
     default: return false;
   }
 }
-export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' | 'source_practice' | 'calibration' }>;
+export type ReviewWireResponse = Extract<Response, { type: 'review' | 'review_session' | 'review_sessions' | 'source_practice' | 'calibration' | 'authored_practice_preview' }>;
 export function isReviewResponse(value: unknown): value is ReviewWireResponse {
   if (!object(value) || encodedBytes(value) > 524288) return false;
   switch (value.type) {
+    case 'authored_practice_preview': return record(value, ['type', 'preview']) && isAuthoredPracticePreview(value.preview);
     case 'source_practice': return record(value, ['type', 'items'])
       && list(value.items, 128, targetPracticeItem) && value.items.length > 0
       && value.items.every(item => item.source !== null)

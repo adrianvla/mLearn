@@ -1,5 +1,38 @@
 # Current implementation checkpoint
 
+## Verified expert-authoring candidate - 2026-11-01
+
+Continues the pushed Word Sync checkpoint `9131d5e8` on `agent/m10-m11`.
+Saved Material is the sole authored-input owner. Its existing editor now opens
+an actual installed-package `learning.probes.v1` preview with declared targets,
+cue, expected answer, supplied information and explicit self-report limitations.
+Native Start binds Material revision, installed package revision and SHA256 of
+the private probes; changed inputs fail without creating a session. Fixed v2
+grammar tasks cannot silently replace authored answers. Sessions use existing
+Review persistence/receipts/Undo and remain source-assisted after preview, so
+custom answers do not manufacture independent assessment or objective grading.
+
+Codegen, native QA build, typecheck, scenario compiler check, ownership lint and
+single-worker export pass. Focused client boundary suites pass; SQLite Review
+passes 3/3 and collection Practice 8/8. Four actual Rust-backed browser scenarios
+pass in 2.4 minutes: expert edit/save/preview/cancel/drain/stale-edit/re-preview/
+start/restart/evidence, Word Sync capture/correction/Undo, and Knowledge evidence.
+Correction retains accepted captured validation independently of Missed subjective
+quality; Worked out restores unmeasured eligibility without duplicating evidence.
+Inspector now labels its mixed captured/self-report projection as assessed state.
+
+Evidence is `.mlearn/m11/authored-9131d5e8-20261101/candidate/`.
+Desktop/narrow authoring captures in both themes were inspected. Native QA SHA256:
+`022f8297d89f2f08658942db133a241af9b2ae5fca79aef2a7f905331321a567`.
+The adjacent run passes setup and all three actual grammar task/validation
+scenarios. Its new cross-session source scenario timed out preparing the cold
+catalog under the old 120-second budget; its trace is retained, and its existing
+300-second calibration-equivalent budget rerun remains pending. No product
+assertion was weakened. Final repository regressions, personal manual QA,
+independent M11 review and affected-platform gates remain open. This is not M11
+completion or maintainer acceptance. Preserve all inherited gaps and both draft
+PRs; no historical platform diagnostic campaign was resumed.
+
 ## Verified Word Sync checkpoint candidate - 2026-11-01
 
 Work continues from `86f88940` on `agent/m10-m11`, draft PR #45 based on

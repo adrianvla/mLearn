@@ -54,13 +54,13 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
             <Text tone="media" selectable>Displayed status: {page.projection.status.replaceAll('_', ' ')}</Text>
             <Text tone="media" selectable>Explicit claim: {page.projection.claim === null ? 'none' : page.projection.claim ? 'known' : 'unknown'}
                 {page.claimRevision !== null ? ` · revision ${page.claimRevision}` : ''}</Text>
-            <Text tone="media" selectable>Assessed self-report: {page.projection.assessed === null ? 'unmeasured'
-                : page.projection.assessed ? 'remembered' : 'missed'}</Text>
+            <Text tone="media" selectable>Assessed state: {page.projection.assessed === null ? 'unmeasured'
+                : page.projection.assessed ? 'known' : 'unknown'}</Text>
             <Text tone="media" selectable>Prediction: {page.projection.prediction === null ? 'unavailable'
                 : String(page.projection.prediction)}</Text>
             <Text tone="media" muted variant="caption">
                 Explicit claims take precedence without changing observations. Assessment uses the latest active qualifying
-                independent retrieval self-report, not a success rate or externally validated performance.
+                independent self-report or captured package validation, with its method retained in the observation.
                 Worked-out, assisted and untested responses do not establish that assessment.
                 No predictive model is available. Claim timestamps and a lifetime claim history are not recorded.
             </Text>

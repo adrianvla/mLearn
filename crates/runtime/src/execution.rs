@@ -276,6 +276,7 @@ impl RuntimeExecutor {
                     request,
                     Request::GraphNeighborhood { .. }
                         | Request::PrepareSourcePractice { .. }
+                        | Request::PreviewAuthoredPractice { .. }
                         | Request::PrepareCalibration { .. }
                         | Request::KnowledgeEvidence { .. }
                         | Request::SearchDocument { .. }
@@ -515,6 +516,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::DescribeLanguage { .. }
         | Request::InspectTarget { .. }
         | Request::PrepareSourcePractice { .. }
+        | Request::PreviewAuthoredPractice { .. }
         | Request::GraphNeighborhood { .. }
         | Request::InspectTargets { .. }
         | Request::ChangeClaim { .. }

@@ -25,6 +25,40 @@ impl Runtime {
 }
 
 impl ReviewWork {
+    pub(super) fn run_authored_practice(
+        &self,
+        store: &ProfileStore,
+        material_id: &mlearn_core::MaterialId,
+        material_revision: u32,
+        package_revision: &str,
+        fingerprint: &str,
+    ) -> Result<Vec<ReviewAdmission>, Failure> {
+        let admissions = self.run_practice(
+            store,
+            &[PracticeItem {
+                material_id: material_id.clone(),
+                source: None,
+            }],
+        )?;
+        let probes: Vec<_> = admissions.iter().map(|value| value.probe.clone()).collect();
+        if admissions.is_empty()
+            || admissions.iter().any(|value| {
+                value.subject.material() != Some((material_id, material_revision))
+                    || value.package_revision != package_revision
+                    || value.task.is_some()
+            })
+            || mlearn_core::authored_probe_fingerprint(&probes)
+                .map_err(|error| Failure::Operation(error.to_string()))?
+                != fingerprint
+        {
+            return Err(Failure::Protocol(
+                "stale_authored_preview",
+                "Authored preview changed or is unsupported; preview again".into(),
+            ));
+        }
+        Ok(admissions)
+    }
+
     pub(super) fn run_practice(
         &self,
         store: &ProfileStore,

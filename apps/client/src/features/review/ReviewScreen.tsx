@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { StyleSheet } from 'react-native-unistyles';
-import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewMode, ReviewSession, TaskResponse } from '@mlearn/contracts';
+import type { AuthoredMediaId, AuthoredPracticePreview, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewMode, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { AppShell, Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
@@ -14,6 +14,7 @@ import { ReviewAudio } from '../review-media';
 import { RatingMatrix } from './RatingMatrix';
 import { useReviewKeys } from './useReviewKeys';
 import { CalibrationSetup } from './CalibrationSetup';
+import { ExpertProbeSetup } from './ExpertProbeSetup';
 
 type MutationAction = Parameters<RuntimeClient['prepareReviewMutation']>[1];
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -21,6 +22,7 @@ const messageOf = (error: unknown) => error instanceof Error ? error.message : S
 function practiceScope(mode: ReviewMode): string | null {
   switch (mode.kind) {
     case 'practice': return `${mode.items.length} selected Materials`;
+    case 'authored_practice': return '1 authored Material';
     case 'target_practice':
       return `${mode.items.length} selected ${mode.items.length === 1 ? 'target' : 'targets'}`;
     case 'collection_practice': return 'Frozen collection selection';
@@ -45,7 +47,7 @@ function ReviewWorkspace({ client, media }: {
   readonly media: { readonly uri: (id: AuthoredMediaId) => Promise<string> };
 }) {
   const router = useRouter();
-  const params = useLocalSearchParams<{ sessionId?: string; activity?: string; packageId?: string }>();
+  const params = useLocalSearchParams<{ sessionId?: string; activity?: string; packageId?: string; materialId?: string }>();
   const navigation = useNavigation();
   const [sessions, setSessions] = useState<ReviewSession[]>([]);
   const [session, setSession] = useState<ReviewSession | null>(null);
@@ -139,8 +141,12 @@ function ReviewWorkspace({ client, media }: {
           return restored;
         } catch (refreshFailure) { failure = refreshFailure; }
       }
-      failedCommand.current = command;
-      if (scope.current === active && active) { setFailed(command); setError(messageOf(failure)); }
+      const rejectedAuthored = failure instanceof RuntimeError && failure.code === 'stale_authored_preview'
+        && command.kind === 'start' && command.start.mode.kind === 'authored_practice';
+      failedCommand.current = rejectedAuthored ? null : command;
+      if (scope.current === active && active) {
+        setFailed(rejectedAuthored ? null : command); setError(messageOf(failure));
+      }
       return null;
     }).finally(() => {
       flight.current = null;
@@ -261,6 +267,19 @@ function ReviewWorkspace({ client, media }: {
     const value = await execute(client.prepareReviewStart(finite ? { kind: 'finite', limit: Number(limit) } : { kind: 'continuous' }));
     if (value && scope.current) router.setParams({ sessionId: value.id });
   }
+  async function startAuthored(preview: AuthoredPracticePreview): Promise<boolean> {
+    const active = scope.current;
+    if (!active || flight.current || failedCommand.current || loading || returnLock.current) return false;
+    const value = await execute(client.prepareReviewStart({
+      kind: 'authored_practice', materialId: preview.materialId, materialRevision: preview.materialRevision,
+      packageRevision: preview.packageRevision, fingerprint: preview.fingerprint,
+    }));
+    if (value && scope.current === active) {
+      router.setParams({ sessionId: value.id });
+      return true;
+    }
+    return false;
+  }
   async function startCalibration(mode: Extract<ReviewMode, { kind: 'calibration' }>) {
     const active = scope.current;
     if (!active || flight.current || failedCommand.current || loading || returnLock.current) return;
@@ -346,8 +365,9 @@ function ReviewWorkspace({ client, media }: {
   const finiteValid = /^[1-9]\d{0,2}$/.test(limit) && Number(limit) <= 128;
   const selectedScope = session ? practiceScope(session.mode) : null;
   const calibrationSetup = params.activity === 'calibration';
+  const authoringSetup = params.activity === 'authoring';
   const purpose = session?.mode.kind === 'calibration' || !session && calibrationSetup
-    ? 'Word Sync' : selectedScope ? 'Word Practice' : 'Review';
+    ? 'Word Sync' : !session && authoringSetup ? 'Author probes' : selectedScope ? 'Word Practice' : 'Review';
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
     <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
@@ -362,7 +382,12 @@ function ReviewWorkspace({ client, media }: {
         {calibrationSetup ? <CalibrationSetup client={client}
           initialPackageId={typeof params.packageId === 'string' ? params.packageId : ''}
           disabled={blocked} onStart={startCalibration}
-          onOpenKnowledge={packageId => router.push({ pathname: '/knowledge', params: { packageId } })} /> : <>
+          onOpenKnowledge={packageId => router.push({ pathname: '/knowledge', params: { packageId } })} />
+          : authoringSetup ? <ExpertProbeSetup client={client}
+            materialId={typeof params.materialId === 'string' ? params.materialId : ''}
+            disabled={blocked} onStart={startAuthored}
+            onEdit={() => router.canGoBack() ? router.back()
+              : router.push({ pathname: '/materials', params: { id: typeof params.materialId === 'string' ? params.materialId : '' } })} /> : <>
         <Button label="Start Review" disabled={blocked} onPress={() => void start(false)} />
         <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
           <Button label="Start finite Review" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>

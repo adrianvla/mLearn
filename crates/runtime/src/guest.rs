@@ -64,6 +64,7 @@ pub(super) enum LanguageAction {
         target_id: String,
     },
     SourcePractice(Vec<mlearn_core::SourcePracticeTarget>),
+    AuthoredPreview(Box<mlearn_core::Material>),
     Graph(mlearn_core::GraphQuery),
     Summaries {
         source: SourceRecord,
@@ -86,6 +87,7 @@ pub(super) enum GuestOutput {
     Description(LanguageDescription),
     Entry(LexicalEntry),
     SourcePractice(Vec<mlearn_core::TargetPracticeItem>),
+    AuthoredPreview(Box<mlearn_core::AuthoredPracticePreview>),
     Graph(mlearn_core::GraphNeighborhood),
     Dictionary(Vec<DictionaryResult>),
     Analysis {
@@ -167,6 +169,9 @@ impl GuestWork {
                     }
                     LanguageAction::SourcePractice(targets) => {
                         GuestOutput::SourcePractice(work.source_practice(targets)?)
+                    }
+                    LanguageAction::AuthoredPreview(material) => {
+                        GuestOutput::AuthoredPreview(Box::new(work.authored_preview(material)?))
                     }
                     LanguageAction::Graph(query) => GuestOutput::Graph(work.graph(query)?),
                     LanguageAction::Summaries { targets, .. } => {
@@ -261,6 +266,7 @@ impl GuestWork {
             Self::Review(_) => "learning.probes.v1",
             Self::Language(work) => match &work.action {
                 LanguageAction::ReviewCapture { .. } => "learning.validate.v1",
+                LanguageAction::AuthoredPreview(_) => "learning.probes.v1",
                 LanguageAction::Analyze(_) => "text.analyze.v1",
                 LanguageAction::Graph(_) => "graph.neighborhood.v1",
                 LanguageAction::Inspect { .. }

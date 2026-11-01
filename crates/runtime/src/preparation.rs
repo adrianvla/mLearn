@@ -166,6 +166,42 @@ impl Runtime {
                 )
             }
             Request::Review { command } => self.prepare_review(command, cancellation),
+            Request::PreviewAuthoredPractice {
+                material_id,
+                material_revision,
+            } => {
+                let material = self
+                    .store
+                    .review_practice_materials(&[mlearn_core::PracticeItem {
+                        material_id,
+                        source: None,
+                    }])
+                    .map_err(crate::review::storage_failure)?
+                    .pop()
+                    .ok_or_else(|| Failure::Operation("Saved Material is unavailable".into()))?;
+                if material.revision != material_revision {
+                    return Err(Failure::Operation(
+                        "Material changed; reload before authoring".into(),
+                    ));
+                }
+                let package_id = material.content.package_id.clone();
+                if !self.installed.get(&package_id).is_some_and(|package| {
+                    package
+                        .manifest
+                        .capabilities
+                        .iter()
+                        .any(|id| id == "learning.probes.v1")
+                }) {
+                    return Err(Failure::Operation(
+                        "Package does not support authored recall probes".into(),
+                    ));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::AuthoredPreview(Box::new(material)),
+                    cancellation,
+                )
+            }
             Request::PrepareCalibration { query } => {
                 cancellation.check()?;
                 let package = self
