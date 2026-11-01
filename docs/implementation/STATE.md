@@ -1,5 +1,122 @@
 # Current implementation checkpoint
 
+## M10 and M11 verified_for_continuation - 2026-11-01
+
+The authorized Material/M10/M11 engineering batch is complete. M10 remains
+independently approved at `5fa83f47cddf78a9c0e47dff5c4112fd80926100`.
+The same independent M11 reviewer `st_01a19893` now returns **APPROVE**, blockers
+empty, for product source `bd26d592fac9400900255fc7677a442bae5dacbf`.
+Its sole M11-NATIVE-01 blocker is closed by exact-source native builds and actual
+Expo cancellation/retry/validator/persistence/submission/resume evidence.
+The verdict and its evidence limits are retained at
+`.mlearn/m11/m11-independent-gate-bd26d592.md`; it is engineering continuation,
+not maintainer acceptance, merge or release.
+
+The verified QA-only checkpoint
+`69f32a62a0cab484a6fa31d869301b1dd352ec11` is committed and pushed. It adds the
+isolated public-owner seed/inspect example and native capture/restart recipe.
+No product/native binding/module bytes changed after the reviewed bd26d592
+candidate. The reviewer independently accepted the composed native evidence;
+its report does not count the later complete recipe as passed. Root separately
+verified that recipe's terminal1/1 pass in68.425s and its public-owner readback.
+
+### Completion audit and retained limits
+
+- Original recovery: source3ae38153 and the two pre-edit dirty modal files'
+  binary-diff SHA25625e1ce027c1c17d68d9b535093adc54cf979c4ad6ef98fd1662d647a44854671
+  were verified before edits. The historical modal section below retains exact
+  commands,22 passing connected scenarios, personal desktop1080/narrow390
+  captures, cross-window navigation, dirty Cancel/Save, Add/Previous repair,
+  retry/stale-focus, frozen membership, restart and exact origin restoration.
+- Resource admission: original2560MiB workload and4294967296B reserve retained.
+  Three post-release samples710165632/710170643/710175653ms pass with physical
+  1359172216/1350636152/1351094904B and available
+  8218443776/8215379968/8214872064B; pressure1 and swap unchanged.
+  The preceding held admission is recorded, not erased. Heavy work stayed serial.
+- M10: independent approval and source-bound native graph/evidence/search
+  cancellation/drain/reuse plus both-platform Material continuity are retained
+  in its verified section. No earlier gate or modal workflow was rerun needlessly.
+- M11 LRN-12/13/14/15/18: exact Practice scope/shared-session continuity,
+  bounded unmeasured calibration, actual package grammar content/typed and
+  choice validators, honest retrospective self-report and revision/fingerprint
+  bound expert authoring use existing Rust/package/session authorities.
+  Final runtime92/92, repository312 tests, actual browser5/5 and separate
+  source-continuity scenario pass. Typecheck, lint, contracts and single-worker
+  export pass. Desktop/narrow and both built-in themes were directly inspected.
+- Native proof: source-bound Android job passes; iOS release/Swift build passes.
+  Actual Expo nonempty response, deterministic Stop/drain, real validator retry,
+  restart, Reveal, one submission and next-encounter Resume are proved below.
+  This is iOS simulator interaction, not physical-device or identical Android
+  interaction certification. The seed helper has no Rust LSP errors; YAML LSP
+  is unavailable, while actual Maestro parse/execution succeeds.
+- Teardown: owned app stopped, debugger detached, simulator
+  5D516907-FEBB-423F-8040-BA31D0A08DF5 verified Shutdown. Owned browser/backend/
+  preview sessions are stopped, port4173 has no listener, desktop session closed.
+  Known sprint native-driver, node-compile, Playwright-transform, Metro and tsx
+  caches were removed with absence receipts; unknown files, profiles, app/build
+  artifacts, evidence and PR-relevant worktrees remain. Owned diagnostic analyzer
+  was stopped. Final physical1596396152B/available8904032256B, pressure1,
+  swap2961899520B and swapOut314122223616B unchanged; disk5896028KiB available.
+- PR44 and PR45 remain OPEN/draft, PR45 based on agent/m01; no merge/release,
+  M12 work or maintainer self-acceptance. Unrelated reports, Watch fixtures,
+  tmp and Python cache are preserved. M03-M07 remain provisional, including
+  hosted iOS Watch, Windows theme/input, native focus and visual discrepancies.
+  Targeted passing evidence does not make those broader suites green.
+
+Final native evidence and QA matrix are retained under
+`.mlearn/m11/native-bd26d592-20261101/` and
+`.mlearn/m11/m11-qa-bd26d592.md`. The append-only notepad is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261031-132257.XXXXXX.md.06C8Nn8liQ`.
+The next action is maintainer review of the preserved batch, not more autonomous
+implementation or another verification campaign.
+
+## M11 actual native evidence obtained - 2026-11-01
+
+Product source remains `bd26d592fac9400900255fc7677a442bae5dacbf`; subsequent
+checkpoint eeb722c7 changes documentation only. M10 remains independently
+engineering-approved at5fa83f47, not maintainer-accepted.
+
+Exact-source CI Foundation41341597443, Desktop41341597372 and Mobile41341597380
+is terminal: Rust/web/OCR/macOS/Linux and whole Android pass. iOS release app
+and Swift bindings compile successfully, then existing Watch automation cannot
+find Open local video. Windows retains the existing Quartz theme-input mismatch.
+Neither retained failure is waived or passed; no hosted diagnostic rerun occurred.
+
+Actual Expo interaction now exercises the exact compiled iOS artifact on one
+deliberately owned iPhone16/iOS26.5 simulator. Nonempty DID NOT FOLD -> actual
+claimed validator worker -> Stop -> observed Rust Lease::join through UniFFI/
+Swift/Expo -> worker release and drainage creates no capture/attempt. Retained
+draft -> actual package retry -> restart -> retained raw capture -> accepted
+finite_match Reveal -> All Fluent -> Pause -> restart -> exact saved-session
+Resume reaches the second encounter. Debugger use is explicitly only a
+deterministic worker barrier; it detaches before normal retry/restart.
+
+The copied final native profile read through public Runtime reports one
+assessed grammar-form observation, claim=null, purpose=practice, original raw
+DID NOT FOLD and actual finite_match feedback. SQLite counts are captures1,
+attempts1, encounters2, sessions1. The final session is active revision7,
+completed1/total3. Evidence:
+`.mlearn/m11/native-bd26d592-20261101/{README.md,post-native-receipt.json}`.
+App SHA256 is a46bf3ec929d7aaa1a679e93eb2facb1ed96afcb7f664fd7103b73708beeea46;
+actual native package revision is
+7aa90acdb07d152823f318e758ddfbc7dd63cb1a9016193de1d44c22052a74e0.
+No local-module identity was substituted for the compiled app's package.
+
+The corrected permanent native recipe passes1/1 in68.425s against a fresh matching
+fixture. Its independent public-owner readback again confirms one accepted raw
+DID NOT FOLD observation, claim=null and active revision7, completed1/total3.
+The isolated public-owner seed helper has no LSP errors and its actual CLI passes;
+YAML LSP is unavailable, but Maestro parses and executes the complete recipe.
+These QA-only changes are now pushed as69f32a62. Admission initially
+held with the simulator running; shutting down only the owned simulator restored
+original2560MiB admission (projected5530517504B >4294967296B reserve, pressure1,
+unchanged swap). The completed cancellation profile is preserved separately;
+the normal-speed recipe used an immutable matching seed copy. Both resulting
+native profiles and pristine fixtures are retained; the owned simulator is shut
+down, app stopped and debugger detached. The diagnostic-owned analyzer was stopped.
+The same reviewer st_01a19893 approved the bounded native-evidence delta.
+This closes the M11 engineering gate, not maintainer acceptance.
+
 ## M11 independent gate: native evidence outstanding - 2026-11-01
 
 Pushed product/test checkpoint is `bd26d592fac9400900255fc7677a442bae5dacbf`.
