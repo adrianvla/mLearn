@@ -1,9 +1,9 @@
 //! Test-only JSON-lines host for the real native owner, not an application backend.
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{catalog::CatalogTrust, BoundedReadError, Runtime, RuntimeExecutor};
+use mlearn_runtime::{BoundedReadError, Runtime, RuntimeExecutor, catalog::CatalogTrust};
 use serde::Deserialize;
 use std::io::{BufRead, Read, Write};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,6 +45,17 @@ fn invoke(
         )),
         "cancel_bounded_read" => runtime
             .cancel_bounded_read(id()?)
+            .map(|_| serde_json::Value::Null)
+            .map_err(read_error),
+        "begin_review_validation" => runtime
+            .begin_review_validation(request()?)
+            .map(serde_json::Value::String)
+            .map_err(read_error),
+        "execute_review_validation" => Ok(serde_json::Value::String(
+            runtime.execute_review_validation(id()?, request()?),
+        )),
+        "cancel_review_validation" => runtime
+            .cancel_review_validation(id()?)
             .map(|_| serde_json::Value::Null)
             .map_err(read_error),
         "cancel_source_open" => {
@@ -149,12 +160,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let invocation: Invocation = serde_json::from_slice(&line)?;
             if matches!(
                 invocation.command.as_str(),
-                "begin_bounded_read" | "cancel_source_open"
+                "begin_bounded_read" | "begin_review_validation" | "cancel_source_open"
             ) {
                 reply(&stdout, invocation.id, invoke(&runtime, &invocation))?;
                 continue;
             }
-            let destination = if invocation.command == "cancel_bounded_read" {
+            let destination = if matches!(
+                invocation.command.as_str(),
+                "cancel_bounded_read" | "cancel_review_validation"
+            ) {
                 &controls
             } else {
                 &sender
@@ -173,6 +187,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 reply(&stdout, invocation.id, Err(error))?;
             }
         }
+        runtime
+            .cancel_scoped_operations()
+            .map_err(|error| error.to_string())?;
         drop(sender);
         drop(controls);
         for worker in workers {

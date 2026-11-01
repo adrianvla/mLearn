@@ -1,5 +1,5 @@
 use super::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{cell::RefCell, sync::mpsc, thread, time::Duration};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -32,12 +32,16 @@ pub(super) fn hold(point: Point) {
         }
     });
 }
-pub(super) fn cancel_signalled() {
+pub(crate) fn cancel_signalled() {
     CANCEL.with(|slot| {
         if let Some(sender) = slot.take() {
             sender.send(()).unwrap();
         }
     });
+}
+
+pub(crate) fn observe_cancel_join(sender: mpsc::SyncSender<()>) {
+    CANCEL.with(|slot| *slot.borrow_mut() = Some(sender));
 }
 
 fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>) {
@@ -69,16 +73,14 @@ fn decoded(raw: &str) -> Value {
 }
 
 /// Releases and joins even if an assertion or bounded receive fails.
-struct HeldRead {
-    reached: mpsc::Receiver<()>,
+pub(crate) struct HeldOperation {
+    pub(crate) reached: mpsc::Receiver<()>,
     release: Option<mpsc::SyncSender<()>>,
     worker: Option<thread::JoinHandle<Value>>,
 }
-impl HeldRead {
+impl HeldOperation {
     fn start(executor: Arc<RuntimeExecutor>, id: String, request: String, point: Point) -> Self {
-        let (ready, reached) = mpsc::sync_channel(1);
-        let (release, resume) = mpsc::sync_channel(1);
-        let worker = thread::spawn(move || {
+        Self::spawn(move |ready, resume| {
             BARRIER.with(|slot| {
                 *slot.borrow_mut() = Some(Barrier {
                     point,
@@ -87,19 +89,42 @@ impl HeldRead {
                 })
             });
             decoded(&executor.execute_bounded_read(&id, &request))
-        });
+        })
+    }
+
+    pub(crate) fn start_validation(
+        executor: Arc<RuntimeExecutor>,
+        id: String,
+        request: String,
+    ) -> Self {
+        Self::spawn(move |ready, resume| {
+            crate::watch::source_execution_tests::observe_guest_result(
+                "learning.validate.v1",
+                ready,
+                resume,
+            );
+            decoded(&executor.execute_review_validation(&id, &request))
+        })
+    }
+
+    fn spawn(
+        run: impl FnOnce(mpsc::SyncSender<()>, mpsc::Receiver<()>) -> Value + Send + 'static,
+    ) -> Self {
+        let (ready, reached) = mpsc::sync_channel(1);
+        let (release, resume) = mpsc::sync_channel(1);
+        let worker = thread::spawn(move || run(ready, resume));
         Self {
             reached,
             release: Some(release),
             worker: Some(worker),
         }
     }
-    fn finish(&mut self) -> Value {
+    pub(crate) fn finish(&mut self) -> Value {
         self.release.take().unwrap().send(()).unwrap();
         self.worker.take().unwrap().join().unwrap()
     }
 }
-impl Drop for HeldRead {
+impl Drop for HeldOperation {
     fn drop(&mut self) {
         if let Some(release) = self.release.take() {
             let _ = release.send(());
@@ -154,7 +179,8 @@ fn bounded_read_cancellation_retains_lease_permit_and_both_control_slots_until_e
     thread::scope(|scope| {
         let id = executor.begin_bounded_read().unwrap();
         let other = executor.begin_bounded_read().unwrap();
-        let mut held = HeldRead::start(Arc::clone(&executor), id.clone(), graph(), Point::Claimed);
+        let mut held =
+            HeldOperation::start(Arc::clone(&executor), id.clone(), graph(), Point::Claimed);
         held.reached.recv_timeout(Duration::from_secs(10)).unwrap();
         let permits = [executor.admit().unwrap(), executor.admit().unwrap()];
         let (accepted, signals) = mpsc::sync_channel(2);
@@ -293,7 +319,7 @@ fn bounded_read_heavy_admission_failure_releases_only_the_claimed_lease() {
 #[test]
 fn bounded_read_expiry_and_epoch_cleanup_apply_only_to_unclaimed_leases() {
     // Given one claimed lease and one reserved lease at a deterministic instant.
-    let reads = BoundedReads::default();
+    let reads = OperationLeases::default();
     let source = AtomicU64::new(7);
     let now = Instant::now();
     let active = reads.begin(&source, now).unwrap();
@@ -331,6 +357,44 @@ fn bounded_read_expiry_and_epoch_cleanup_apply_only_to_unclaimed_leases() {
 }
 
 #[test]
+fn host_teardown_cancels_both_scopes_without_retiring_claimed_work() {
+    // Given one claimed validation and an unclaimed source reservation.
+    let operations = OperationLeases::default();
+    let source = Arc::new(AtomicU64::new(7));
+    let now = Instant::now();
+    let validation = operations.begin_validation([9; 32], &source, now).unwrap();
+    let claimed = operations
+        .claim_validation(&validation, [9; 32], &source, now)
+        .unwrap();
+    let read = operations.begin(&source, now).unwrap();
+    // When the host signals its lifetime boundary without a drainage claim.
+    let cancelled = operations.cancel_all().unwrap();
+    // Then all flags are cancelled, but live work still owns its original slot.
+    assert!(
+        cancelled
+            .iter()
+            .flatten()
+            .all(|lease| lease.cancelled.load(Ordering::Acquire))
+    );
+    assert!(matches!(
+        claimed.lease.cancellation(Arc::clone(&source)).check(),
+        Err(Failure::Cancelled)
+    ));
+    assert!(matches!(
+        operations.claim(&read, &source, now),
+        Err(BoundedReadError::InvalidHandle)
+    ));
+    let replacement = operations.begin(&source, now).unwrap();
+    assert!(matches!(
+        operations.begin(&source, now),
+        Err(BoundedReadError::Busy)
+    ));
+    drop(claimed);
+    assert!(operations.begin_validation([10; 32], &source, now).is_ok());
+    operations.cancel(&replacement).unwrap();
+}
+
+#[test]
 fn bounded_read_source_epoch_change_wakes_a_queued_read() {
     // Given a scoped read already waiting at the real guest gate.
     let (_directory, executor) = fixture();
@@ -361,7 +425,7 @@ fn bounded_read_immediate_evidence_rejects_cancelled_publication_after_quantum()
     let (_directory, executor) = fixture();
     thread::scope(|scope| {
         let id = executor.begin_bounded_read().unwrap();
-        let mut held = HeldRead::start(
+        let mut held = HeldOperation::start(
             Arc::clone(&executor),
             id.clone(),
             evidence(),

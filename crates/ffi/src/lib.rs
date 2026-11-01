@@ -55,6 +55,22 @@ impl RuntimeBridge {
     pub fn cancel_bounded_read(&self, id: String) -> Result<(), BridgeError> {
         self.runtime.cancel_bounded_read(&id).map_err(Into::into)
     }
+    pub fn begin_review_validation(&self, request: String) -> Result<String, BridgeError> {
+        self.runtime
+            .begin_review_validation(&request)
+            .map_err(Into::into)
+    }
+    pub fn execute_review_validation(&self, id: String, request: String) -> String {
+        self.runtime.execute_review_validation(&id, &request)
+    }
+    pub fn cancel_review_validation(&self, id: String) -> Result<(), BridgeError> {
+        self.runtime
+            .cancel_review_validation(&id)
+            .map_err(Into::into)
+    }
+    pub fn cancel_scoped_operations(&self) -> Result<(), BridgeError> {
+        self.runtime.cancel_scoped_operations().map_err(Into::into)
+    }
     /// Native host invokes on a background queue. A busy request never creates an unbounded queue.
     pub fn execute(&self, request: String) -> String {
         self.runtime.execute(&request)

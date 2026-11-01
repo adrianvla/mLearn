@@ -24,7 +24,7 @@ import kotlinx.coroutines.ensureActive
 
 class MlearnNativeModule : Module() {
   private val cancellationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
-  private val boundedReadControls = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
+  private val operationControls = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
   // Leave capacity for raw cues and checkpoints while Rust admits one guest call.
   private val executionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(3))
   private var bridgeInstance: RuntimeBridge? = null
@@ -64,7 +64,7 @@ class MlearnNativeModule : Module() {
     return RuntimeBridge(directory.absolutePath).also { bridgeInstance = it }
   }
 
-  private fun boundedReadControl(promise: Promise, operation: () -> String?) {
+  private fun operationControl(promise: Promise, operation: () -> String?) {
     try { promise.resolve(operation()) }
     catch (error: BridgeException.BoundedRead) { promise.reject(error.code, error.reason, error) }
     catch (error: Exception) { promise.reject("ERR_NATIVE_RUNTIME", error.message, error) }
@@ -92,11 +92,14 @@ class MlearnNativeModule : Module() {
       // its single slot/bitmap until real completion after module teardown.
       cancellationScope.launch {
         try {
-          synchronized(this@MlearnNativeModule) { bridgeInstance }?.cancelSourceOpen()
+          synchronized(this@MlearnNativeModule) { bridgeInstance }?.let {
+            it.cancelSourceOpen()
+            it.cancelScopedOperations()
+          }
           if (cancelledOcr != null) ocr.cancelRuntime(cancelledOcr)
         } catch (error: Exception) {
-          android.util.Log.e("MlearnNative", "Cannot cancel runtime OCR on destruction", error)
-        } finally { boundedReadControls.cancel(); cancellationScope.cancel() }
+          android.util.Log.e("MlearnNative", "Cannot cancel runtime work on destruction", error)
+        } finally { operationControls.cancel(); cancellationScope.cancel() }
       }
       mediaClosed.set(true)
       mediaCaptures.close()
@@ -285,14 +288,23 @@ class MlearnNativeModule : Module() {
     }
     AsyncFunction("cancelSourceOpen") { bridge().cancelSourceOpen() }.runOnQueue(cancellationScope)
     AsyncFunction("beginBoundedRead") { promise: Promise ->
-      boundedReadControl(promise) { bridge().beginBoundedRead() }
+      operationControl(promise) { bridge().beginBoundedRead() }
     }.runOnQueue(cancellationScope)
     AsyncFunction("executeBoundedRead") { id: String, request: String ->
       bridge().executeBoundedRead(id, request)
     }.runOnQueue(executionScope)
     AsyncFunction("cancelBoundedRead") { id: String, promise: Promise ->
-      boundedReadControl(promise) { bridge().cancelBoundedRead(id); null }
-    }.runOnQueue(boundedReadControls)
+      operationControl(promise) { bridge().cancelBoundedRead(id); null }
+    }.runOnQueue(operationControls)
+    AsyncFunction("beginReviewValidation") { request: String, promise: Promise ->
+      operationControl(promise) { bridge().beginReviewValidation(request) }
+    }.runOnQueue(cancellationScope)
+    AsyncFunction("executeReviewValidation") { id: String, request: String ->
+      bridge().executeReviewValidation(id, request)
+    }.runOnQueue(executionScope)
+    AsyncFunction("cancelReviewValidation") { id: String, promise: Promise ->
+      operationControl(promise) { bridge().cancelReviewValidation(id); null }
+    }.runOnQueue(operationControls)
     AsyncFunction("execute") { request: String -> bridge().execute(request) }.runOnQueue(executionScope)
   }
 }

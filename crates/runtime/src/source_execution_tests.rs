@@ -38,6 +38,20 @@ pub(crate) fn hold_guest_result(capability: &str) {
         }
     });
 }
+pub(crate) fn observe_guest_result(
+    capability: &'static str,
+    returned: mpsc::SyncSender<()>,
+    release: mpsc::Receiver<()>,
+) {
+    GUEST_RETURN.with(|slot| {
+        *slot.borrow_mut() = Some(GuestReturnBarrier {
+            capability,
+            returned,
+            release,
+        });
+    });
+}
+
 pub(crate) fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
     let directory = tempfile::tempdir().unwrap();
     let profile = directory.path().join("profile");
@@ -663,16 +677,26 @@ fn bounded_read_cancel_preserves_unrelated_real_source_analysis_and_checkpoint()
     // When an independent operation reservation is cancelled.
     let (cancelled, completed) = with_held_guest(
         &executor,
-        Request::AnalyzeSource { source_id: source.id.clone(), position_ms: 0 },
+        Request::AnalyzeSource {
+            source_id: source.id.clone(),
+            position_ms: 0,
+        },
         || executor.cancel_bounded_read(&id),
     );
     // Then real annotations and ordinary checkpoint work still complete.
     cancelled.unwrap();
-    assert_eq!(executor.cancellation_handle().load(Ordering::Relaxed), epoch);
+    assert_eq!(
+        executor.cancellation_handle().load(Ordering::Relaxed),
+        epoch
+    );
     assert_eq!(completed["type"], "analysis");
-    let checkpoint: Value = serde_json::from_str(&executor.execute(
-        &json!({"type":"save_position","sourceId":source.id,
-            "positionMs":1234,"durationMs":40_000}).to_string(),
-    )).unwrap();
+    let checkpoint: Value = serde_json::from_str(
+        &executor.execute(
+            &json!({"type":"save_position","sourceId":source.id,
+            "positionMs":1234,"durationMs":40_000})
+            .to_string(),
+        ),
+    )
+    .unwrap();
     assert_eq!(checkpoint["type"], "position_saved");
 }

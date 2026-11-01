@@ -25,15 +25,22 @@ export interface BoundedReadTransport {
   cancel(id: string): Promise<void>;
 }
 
+export interface ReviewValidationTransport {
+  begin(request: string): Promise<string>;
+  execute(id: string, request: string): Promise<string>;
+  cancel(id: string): Promise<void>;
+}
+
 export interface Transport {
   execute(request: string): Promise<string>;
   commandId(): string;
   cancelSourceOpen?():Promise<void>;
   readonly boundedReads?: BoundedReadTransport;
+  readonly reviewValidation?: ReviewValidationTransport;
 }
 
 export function createRuntimeClient(transport: Transport) {
-  let tail:Promise<void>=Promise.resolve();let pending=0;let boundedReads=0;let uncertainBoundedReads=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
+  let tail:Promise<void>=Promise.resolve();let pending=0;let scopedOperations=0;let uncertainOperations=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
   type DisplayRead={readonly command:Request;readonly epoch:number;readonly queuedAt:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
   const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
@@ -69,13 +76,19 @@ export function createRuntimeClient(transport: Transport) {
       else void runDisplay(lane,read);
     });
   }
-  async function boundedRead(command:Request,signal?:AbortSignal):Promise<Response>{
-    const capability=transport.boundedReads;
-    if(!capability)throw new RuntimeError('transport','This host does not support cancellable bounded reads.');
-    if(signal?.aborted)throw cancelled();
-    if(uncertainBoundedReads===2)throw new RuntimeError('transport','Native read completion is unknown; restart the app before retrying.');
-    if(boundedReads>=2)throw new RuntimeError('busy','Bounded source reads are still pending; retry the action.');
-    const epoch=sourceEpoch;boundedReads++;
+  async function scopedRequest(
+    command:Request,
+    capability:Pick<BoundedReadTransport,'execute'|'cancel'>,
+    register:(request:string)=>Promise<string>,
+    sourceBound:boolean,
+    signal?:AbortSignal,
+  ):Promise<Response>{
+    const stopped=()=>new RuntimeError('cancelled',sourceBound?'Source work cancelled.':'Response validation cancelled.');
+    if(signal?.aborted)throw stopped();
+    if(uncertainOperations===2)throw new RuntimeError('transport','Native operation completion is unknown; restart the app before retrying.');
+    if(scopedOperations>=2)throw new RuntimeError('busy','Scoped native operations are still pending; retry the action.');
+    const rawRequest=JSON.stringify(command);
+    const epoch=sourceEpoch;scopedOperations++;
     let terminal=true;
     let ticket:string|undefined;
     let cancellation:Promise<void>|undefined;
@@ -91,11 +104,11 @@ export function createRuntimeClient(transport: Transport) {
     // Registration is itself asynchronous: remember aborts before its ticket arrives.
     signal?.addEventListener('abort',abort,{once:true});
     try{
-      if(cancelInFlight)await cancelInFlight;
-      if(signal?.aborted||epoch!==sourceEpoch)throw cancelled();
+      if(sourceBound&&cancelInFlight)await cancelInFlight;
+      if(signal?.aborted||sourceBound&&epoch!==sourceEpoch)throw stopped();
       let id:unknown;
       terminal=false;
-      try{id=await capability.begin();}
+      try{id=await register(rawRequest);}
       catch(error){
         if(error instanceof RuntimeError&&error.code==='busy'){terminal=true;throw error;}
         throw new RuntimeError('transport',error instanceof Error?error.message:String(error));
@@ -105,32 +118,42 @@ export function createRuntimeClient(transport: Transport) {
         throw new RuntimeError('protocol','Malformed bounded read handle.');
       const handle=id;
       ticket=handle;
-      if(signal?.aborted){abort();throw cancelled();}
-      if(epoch!==sourceEpoch){abort();throw cancelled();}
+      if(signal?.aborted){abort();throw stopped();}
+      if(sourceBound&&epoch!==sourceEpoch){abort();throw stopped();}
       const value=await execute(command,async raw=>{
         try{const result=await capability.execute(handle,raw);terminal=true;return result;}
         catch(error){
           if(error instanceof RuntimeError)throw error;
           throw new RuntimeError('transport',error instanceof Error?error.message:String(error));
         }
-      });
-      if(signal?.aborted||epoch!==sourceEpoch)throw cancelled();
+      },rawRequest);
+      if(signal?.aborted||sourceBound&&epoch!==sourceEpoch)throw stopped();
       return value;
     }catch(error){
       if(!terminal)abort();
-      if(signal?.aborted)throw cancelled();
+      // A lost registration receipt has no ticket to cancel. An abort alone
+      // cannot certify drainage or let the caller retire its uncertain intent.
+      if(signal?.aborted&&terminal)throw stopped();
       throw error;
     }finally{
       signal?.removeEventListener('abort',abort);
       // Settlement is not proof of native drainage when both receipts were lost.
       // Keep that slot charged; only a native terminal receipt permits reuse.
       try{await cancellation;if(cancelFailure)throw cancelFailure;}
-      finally{if(terminal)boundedReads--;else uncertainBoundedReads++;}
+      finally{if(terminal)scopedOperations--;else uncertainOperations++;}
     }
   }
   async function request(command:Request,signal?:AbortSignal):Promise<Response>{
-    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood')
-      return boundedRead(command,signal);
+    if(command.type==='search_document'||command.type==='knowledge_evidence'||command.type==='graph_neighborhood'){
+      const capability=transport.boundedReads;
+      if(!capability)throw new RuntimeError('transport','This host does not support cancellable bounded reads.');
+      return scopedRequest(command,capability,()=>capability.begin(),true,signal);
+    }
+    if(command.type==='review'&&command.command.kind==='capture_response'){
+      const capability=transport.reviewValidation;
+      if(!capability)throw new RuntimeError('transport','This host does not support cancellable response validation.');
+      return scopedRequest(command,capability,raw=>capability.begin(raw),false,signal);
+    }
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window'
       ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source'))return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
@@ -144,9 +167,9 @@ export function createRuntimeClient(transport: Transport) {
       console.info(`runtime-queue operation=${command.type} elapsed_ms=${(performance.now()-queuedAt).toFixed(3)}`);
     try{if(sourceAction&&cancelInFlight)await cancelInFlight;if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');const value=await execute(command);if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');return value;}finally{pending--;release();}
   }
-  async function execute(command: Request,send:(request:string)=>Promise<string>=raw=>transport.execute(raw)): Promise<Response> {
+  async function execute(command: Request,send:(request:string)=>Promise<string>=raw=>transport.execute(raw),encoded?:string): Promise<Response> {
     const started = performance.now();
-    const raw = await send(JSON.stringify(command));
+    const raw = await send(encoded??JSON.stringify(command));
     if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
       console.info(`runtime-transport operation=${command.type} elapsed_ms=${(performance.now() - started).toFixed(3)}`);
     if (raw.length > 524_288) throw new RuntimeError('protocol', 'Native response exceeds the message limit.');

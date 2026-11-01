@@ -91,6 +91,11 @@ export function createHost(): Host {
         execute:(id,request)=>invoke<string>('execute_bounded_read',{id,request}).catch(nativeControlFailure),
         cancel:id=>invoke<void>('cancel_bounded_read',{id}).catch(nativeControlFailure),
       },
+      reviewValidation: {
+        begin:request=>invoke<string>('begin_review_validation',{request}).catch(nativeControlFailure),
+        execute:(id,request)=>invoke<string>('execute_review_validation',{id,request}).catch(nativeControlFailure),
+        cancel:id=>invoke<void>('cancel_review_validation',{id}).catch(nativeControlFailure),
+      },
       cancelSourceOpen:()=>invoke<void>('cancel_source_open'),commandId: () => crypto.randomUUID() }),
   };
 }

@@ -17,7 +17,7 @@ struct NativeState {
     media_base: String,
     runtime: Arc<RuntimeExecutor>,
     permits: Arc<tokio::sync::Semaphore>,
-    read_controls: Arc<tokio::sync::Semaphore>,
+    operation_controls: Arc<tokio::sync::Semaphore>,
     material: Arc<Mutex<window_material::WindowMaterial>>,
     documents: media::DocumentResolver,
     ocr: Arc<ocr::OcrJobs>,
@@ -144,47 +144,137 @@ fn cancel_source_open(state: tauri::State<'_, NativeState>) {
 }
 
 fn bounded_read_failure(error: BoundedReadError) -> mlearn_core::Response {
-    mlearn_core::Response::Error { code: error.code().into(), message: error.to_string() }
+    mlearn_core::Response::Error {
+        code: error.code().into(),
+        message: error.to_string(),
+    }
 }
 
 #[tauri::command]
-fn begin_bounded_read(state: tauri::State<'_, NativeState>) -> Result<String, mlearn_core::Response> {
-    state.runtime.begin_bounded_read().map_err(bounded_read_failure)
+fn begin_bounded_read(
+    state: tauri::State<'_, NativeState>,
+) -> Result<String, mlearn_core::Response> {
+    state
+        .runtime
+        .begin_bounded_read()
+        .map_err(bounded_read_failure)
 }
 
 #[tauri::command]
 async fn execute_bounded_read(
-    state: tauri::State<'_, NativeState>, id: String, request: String,
+    state: tauri::State<'_, NativeState>,
+    id: String,
+    request: String,
 ) -> Result<String, mlearn_core::Response> {
     if request.len() > 262_144 {
         return Err(mlearn_core::Response::Error {
-            code: "invalid_request".into(), message: "Request exceeds 256 KiB".into(),
+            code: "invalid_request".into(),
+            message: "Request exceeds 256 KiB".into(),
         });
     }
-    let permit = state.permits.clone().try_acquire_owned()
+    let permit = state
+        .permits
+        .clone()
+        .try_acquire_owned()
         .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
     let runtime = state.runtime.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
         runtime.execute_bounded_read(&id, &request)
-    }).await.map_err(|_| mlearn_core::Response::Error {
-        code: "operation_failed".into(), message: "Native bounded read worker failed".into(),
+    })
+    .await
+    .map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(),
+        message: "Native bounded read worker failed".into(),
     })
 }
 
 #[tauri::command]
 async fn cancel_bounded_read(
-    state: tauri::State<'_, NativeState>, id: String,
+    state: tauri::State<'_, NativeState>,
+    id: String,
 ) -> Result<(), mlearn_core::Response> {
     // Reserve before spawning; no guest/ordinary permit or unbounded worker queue.
-    let permit = state.read_controls.clone().try_acquire_owned()
+    let permit = state
+        .operation_controls
+        .clone()
+        .try_acquire_owned()
         .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
     let runtime = state.runtime.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
-        runtime.cancel_bounded_read(&id).map_err(bounded_read_failure)
-    }).await.map_err(|_| mlearn_core::Response::Error {
-        code: "operation_failed".into(), message: "Native read cancellation worker failed".into(),
+        runtime
+            .cancel_bounded_read(&id)
+            .map_err(bounded_read_failure)
+    })
+    .await
+    .map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(),
+        message: "Native read cancellation worker failed".into(),
+    })?
+}
+
+#[tauri::command]
+fn begin_review_validation(
+    state: tauri::State<'_, NativeState>,
+    request: String,
+) -> Result<String, mlearn_core::Response> {
+    state
+        .runtime
+        .begin_review_validation(&request)
+        .map_err(bounded_read_failure)
+}
+
+#[tauri::command]
+async fn execute_review_validation(
+    state: tauri::State<'_, NativeState>,
+    id: String,
+    request: String,
+) -> Result<String, mlearn_core::Response> {
+    if request.len() > 262_144 {
+        return Err(mlearn_core::Response::Error {
+            code: "invalid_request".into(),
+            message: "Request exceeds 256 KiB".into(),
+        });
+    }
+    let permit = state
+        .permits
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
+    let runtime = state.runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        runtime.execute_review_validation(&id, &request)
+    })
+    .await
+    .map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(),
+        message: "Native validation worker failed".into(),
+    })
+}
+
+#[tauri::command]
+async fn cancel_review_validation(
+    state: tauri::State<'_, NativeState>,
+    id: String,
+) -> Result<(), mlearn_core::Response> {
+    let permit = state
+        .operation_controls
+        .clone()
+        .try_acquire_owned()
+        .map_err(|_| bounded_read_failure(BoundedReadError::Busy))?;
+    let runtime = state.runtime.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        runtime
+            .cancel_review_validation(&id)
+            .map_err(bounded_read_failure)
+    })
+    .await
+    .map_err(|_| mlearn_core::Response::Error {
+        code: "operation_failed".into(),
+        message: "Native validation cancellation worker failed".into(),
     })?
 }
 
@@ -244,7 +334,7 @@ pub fn run() {
                 media_base: media_listener.base_url(),
                 runtime: Arc::new(RuntimeExecutor::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
-                read_controls: Arc::new(tokio::sync::Semaphore::new(2)),
+                operation_controls: Arc::new(tokio::sync::Semaphore::new(2)),
                 material: material.clone(),
                 documents,
                 ocr: Arc::new(ocr::OcrJobs::new()),
@@ -281,6 +371,9 @@ pub fn run() {
             begin_bounded_read,
             execute_bounded_read,
             cancel_bounded_read,
+            begin_review_validation,
+            execute_review_validation,
+            cancel_review_validation,
             window_material_active,
             pick_local_file,
             media_capture::pick_document,

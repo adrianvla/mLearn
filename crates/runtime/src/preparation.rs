@@ -165,7 +165,7 @@ impl Runtime {
                     cancellation,
                 )
             }
-            Request::Review { command } => self.prepare_review(command),
+            Request::Review { command } => self.prepare_review(command, cancellation),
             Request::ReviewSession { session_id } => {
                 Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
                     session: self

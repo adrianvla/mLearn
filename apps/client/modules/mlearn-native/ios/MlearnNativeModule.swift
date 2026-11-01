@@ -12,7 +12,7 @@ public class MlearnNativeModule: Module {
   private var mediaExportPending = false
   private var mediaClosed = false
 
-  private func boundedReadControl(_ promise: Promise, _ operation: () throws -> String?) {
+  private func operationControl(_ promise: Promise, _ operation: () throws -> String?) {
     do { promise.resolve(try operation()) }
     catch let BridgeError.BoundedRead(code, reason) { promise.reject(code, reason) }
     catch { promise.reject(error) }
@@ -57,6 +57,10 @@ public class MlearnNativeModule: Module {
       let runtime = self.bridgeInstance
       self.initializationLock.unlock()
       runtime?.cancelSourceOpen()
+      if let runtime {
+        do { try runtime.cancelScopedOperations() }
+        catch { NSLog("Scoped runtime teardown cancellation failed: %@", error.localizedDescription) }
+      }
       if let runtime, !cancelledOcr.isEmpty {
         DispatchQueue.global(qos: .userInitiated).async {
           for id in cancelledOcr {
@@ -183,14 +187,26 @@ public class MlearnNativeModule: Module {
       try self.bridge().cancelSourceOpen()
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("beginBoundedRead") { (promise: Promise) in
-      self.boundedReadControl(promise) { try self.bridge().beginBoundedRead() }
+      self.operationControl(promise) { try self.bridge().beginBoundedRead() }
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("executeBoundedRead") { (id: String, request: String) throws -> String in
       try self.bridge().executeBoundedRead(id: id, request: request)
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("cancelBoundedRead") { (id: String, promise: Promise) in
-      self.boundedReadControl(promise) {
+      self.operationControl(promise) {
         try self.bridge().cancelBoundedRead(id: id)
+        return nil
+      }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("beginReviewValidation") { (request: String, promise: Promise) in
+      self.operationControl(promise) { try self.bridge().beginReviewValidation(request: request) }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("executeReviewValidation") { (id: String, request: String) throws -> String in
+      try self.bridge().executeReviewValidation(id: id, request: request)
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("cancelReviewValidation") { (id: String, promise: Promise) in
+      self.operationControl(promise) {
+        try self.bridge().cancelReviewValidation(id: id)
         return nil
       }
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))

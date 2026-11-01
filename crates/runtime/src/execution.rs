@@ -1,15 +1,13 @@
+use crate::Runtime;
 use crate::{
-    Runtime,
-    bounded_reads::{BoundedReadError, BoundedReads},
     guest::{GuestOutput, GuestWork, Prepared},
     guest_gate::GuestGate,
+    operation_leases::{BoundedReadError, OperationLeases},
 };
 use mlearn_core::{Request, Response};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::{
-    sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-    },
+    sync::{Arc, Condvar, Mutex},
     time::Instant,
 };
 
@@ -33,7 +31,7 @@ impl From<String> for Failure {
 pub(super) struct Cancellation {
     pub(super) value: Arc<AtomicU64>,
     pub epoch: u64,
-    operation: Option<Arc<AtomicBool>>,
+    pub(super) operation: Option<Arc<AtomicBool>>,
 }
 impl Cancellation {
     pub fn source(value: Arc<AtomicU64>, epoch: u64) -> Self {
@@ -111,7 +109,7 @@ pub struct RuntimeExecutor {
     collections: crate::collection::CollectionOwner,
     bulk: crate::material_bulk::MaterialBulkOwner,
     pub(super) guest: GuestGate,
-    bounded_reads: BoundedReads,
+    operations: OperationLeases,
     admitted: AtomicUsize,
     cancellation: Arc<AtomicU64>,
 }
@@ -154,7 +152,7 @@ impl RuntimeExecutor {
             collections: crate::collection::CollectionOwner::default(),
             bulk: crate::material_bulk::MaterialBulkOwner::default(),
             guest: GuestGate::default(),
-            bounded_reads: BoundedReads::default(),
+            operations: OperationLeases::default(),
             admitted: AtomicUsize::new(0),
             cancellation,
         }
@@ -169,32 +167,102 @@ impl RuntimeExecutor {
     }
     /// Register a fresh native identity without taking a heavy call permit.
     pub fn begin_bounded_read(&self) -> Result<String, BoundedReadError> {
-        self.bounded_reads.begin(&self.cancellation, Instant::now())
+        self.operations.begin(&self.cancellation, Instant::now())
+    }
+    /// Signal host teardown without claiming drainage; running leases remain charged.
+    ///
+    /// # Errors
+    /// Returns a poisoned operation-registry error.
+    pub fn cancel_scoped_operations(&self) -> Result<(), BoundedReadError> {
+        for lease in self.operations.cancel_all()?.into_iter().flatten() {
+            self.guest.notify_operation(&lease.wake);
+        }
+        Ok(())
     }
     /// Signal one read and join its real cleanup, independently of heavy permits.
     pub fn cancel_bounded_read(&self, id: &str) -> Result<(), BoundedReadError> {
-        let _control = self.bounded_reads.control()?;
-        if let Some(lease) = self.bounded_reads.cancel(id)? {
+        let _control = self.operations.control()?;
+        if let Some(lease) = self.operations.cancel(id)? {
             self.guest.notify_operation(&lease.wake);
-            #[cfg(test)]
-            bounded_read_tests::cancel_signalled();
             lease.join()?;
         }
         Ok(())
     }
     pub fn execute_bounded_read(&self, id: &str, request: &str) -> String {
         let claimed = match self
-            .bounded_reads
+            .operations
             .claim(id, &self.cancellation, Instant::now())
         {
             Ok(claimed) => claimed,
             Err(error) => return encode(Err(error.into())),
         };
-        let cancellation = Cancellation {
-            value: Arc::clone(&self.cancellation),
-            epoch: claimed.lease.epoch,
-            operation: Some(Arc::clone(&claimed.lease.cancelled)),
+        self.execute_claimed(claimed, request, false)
+    }
+
+    /// Register only this immutable captured response, independently of source epochs.
+    ///
+    /// # Errors
+    /// Rejects invalid commands and exhausted operation reservations.
+    pub fn begin_review_validation(&self, request: &str) -> Result<String, BoundedReadError> {
+        self.operations.begin_validation(
+            Self::validation_identity(request)?,
+            &self.cancellation,
+            Instant::now(),
+        )
+    }
+
+    /// Cancels only a validation reservation and acknowledges actual worker drainage.
+    ///
+    /// # Errors
+    /// Rejects a foreign operation scope, invalid handle, or busy control admission.
+    pub fn cancel_review_validation(&self, id: &str) -> Result<(), BoundedReadError> {
+        let _control = self.operations.control()?;
+        if let Some(lease) = self.operations.cancel_validation(id)? {
+            self.guest.notify_operation(&lease.wake);
+            lease.join()?;
+        }
+        Ok(())
+    }
+
+    pub fn execute_review_validation(&self, id: &str, request: &str) -> String {
+        let identity = match Self::validation_identity(request) {
+            Ok(identity) => identity,
+            Err(error) => return encode(Err(error.into())),
         };
+        let claimed =
+            match self
+                .operations
+                .claim_validation(id, identity, &self.cancellation, Instant::now())
+            {
+                Ok(claimed) => claimed,
+                Err(error) => return encode(Err(error.into())),
+            };
+        self.execute_claimed(claimed, request, true)
+    }
+
+    fn validation_identity(request: &str) -> Result<[u8; 32], BoundedReadError> {
+        use sha2::{Digest, Sha256};
+        let request = parse(request).map_err(|_| BoundedReadError::InvalidValidation)?;
+        if !matches!(
+            request,
+            Request::Review {
+                command: mlearn_core::ReviewCommand::CaptureResponse { .. }
+            }
+        ) {
+            return Err(BoundedReadError::InvalidValidation);
+        }
+        let bytes =
+            serde_json::to_vec(&request).map_err(|_| BoundedReadError::InvalidValidation)?;
+        Ok(Sha256::digest(bytes).into())
+    }
+
+    fn execute_claimed(
+        &self,
+        claimed: crate::operation_leases::Claimed<'_>,
+        request: &str,
+        validation: bool,
+    ) -> String {
+        let cancellation = claimed.lease.cancellation(Arc::clone(&self.cancellation));
         // This inner scope drops the heavy permit and every execution owner
         // before Claimed removes the lease and acknowledges its cancellation.
         let result = (|| {
@@ -203,12 +271,14 @@ impl RuntimeExecutor {
             bounded_read_tests::hold(bounded_read_tests::Point::Claimed);
             cancellation.check()?;
             let request = parse(request)?;
-            if !matches!(
-                request,
-                Request::GraphNeighborhood { .. }
-                    | Request::KnowledgeEvidence { .. }
-                    | Request::SearchDocument { .. }
-            ) {
+            if !validation
+                && !matches!(
+                    request,
+                    Request::GraphNeighborhood { .. }
+                        | Request::KnowledgeEvidence { .. }
+                        | Request::SearchDocument { .. }
+                )
+            {
                 return Err(Failure::Protocol(
                     "invalid_bounded_read",
                     "Request is not an operation-scoped bounded read".into(),
@@ -555,4 +625,4 @@ pub(super) fn error_response(error: &Failure) -> Response {
 
 #[cfg(test)]
 #[path = "bounded_read_tests.rs"]
-mod bounded_read_tests;
+pub(crate) mod bounded_read_tests;

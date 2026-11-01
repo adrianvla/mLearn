@@ -65,8 +65,9 @@ function nativeHost(binary, profile, trust) {
   return {
     child, ready,
     invoke(command, args) {
-      const lane = ['begin_bounded_read', 'cancel_bounded_read', 'cancel_source_open'].includes(command)
-        ? command : 'ordinary';
+      const lane = ['begin_bounded_read', 'begin_review_validation'].includes(command) ? 'operation_begin'
+        : ['cancel_bounded_read', 'cancel_review_validation'].includes(command) ? 'operation_cancel'
+        : command === 'cancel_source_open' ? command : 'ordinary';
       const limit = lane === 'ordinary' ? 32 : lane === 'cancel_source_open' ? 1 : 2;
       if ([...pending.values()].filter(waiter => waiter.lane === lane).length >= limit)
         return Promise.reject({ code: 'busy', message: 'Native QA transport lane is full' });

@@ -85,7 +85,7 @@ record!(ReviewAdmission {
     task: Option<crate::TaskContract>
 });
 
-/// The question projection never contains validator rules or results.
+// The question projection never contains validator rules or results.
 record!(ReviewTask {
     revision: u32,
     response_spec: crate::ResponseSpec,

@@ -7,6 +7,7 @@ impl Runtime {
     pub(super) fn prepare_review_capture(
         &mut self,
         command: ReviewCommand,
+        cancellation: Cancellation,
     ) -> Result<Prepared, Failure> {
         let admission = self
             .store
@@ -53,7 +54,11 @@ impl Runtime {
         Ok(Prepared::Work(GuestWork::Language(Box::new(
             LanguageWork {
                 package,
-                cancellation: Cancellation::source(token, epoch),
+                cancellation: Cancellation {
+                    value: token,
+                    epoch,
+                    operation: cancellation.operation,
+                },
                 action: LanguageAction::ReviewCapture {
                     command: Box::new(command),
                     admission: Box::new(admission),

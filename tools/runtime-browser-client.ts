@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { randomUUID } from 'node:crypto';
 import { createRuntimeClient, RuntimeError } from '@mlearn/runtime-client';
 import { nativeControlFailure } from '../apps/client/src/host/nativeControlFailure';
@@ -23,6 +24,11 @@ export function createRuntimeBrowserClient(backend: {
       begin: () => stringCommand('begin_bounded_read', {}),
       execute: (id, request) => stringCommand('execute_bounded_read', { id, request }),
       cancel: id => control('cancel_bounded_read', { id }),
+    },
+    reviewValidation: {
+      begin: request => stringCommand('begin_review_validation', { request }),
+      execute: (id, request) => stringCommand('execute_review_validation', { id, request }),
+      cancel: id => control('cancel_review_validation', { id }),
     },
   });
 }

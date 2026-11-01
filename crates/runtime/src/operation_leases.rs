@@ -1,10 +1,8 @@
-//! Two native read leases; cancellation acknowledgement is execution drainage.
-use crate::execution::Failure;
+//! Two scoped native operations; cancellation acknowledgement is execution drainage.
+use crate::execution::{Cancellation, Failure};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::{
-    sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Condvar, Mutex,
-    },
+    sync::{Arc, Condvar, Mutex},
     time::{Duration, Instant},
 };
 
@@ -17,6 +15,8 @@ pub enum BoundedReadError {
     Busy,
     #[error("Bounded read handle is missing, expired, or already claimed")]
     InvalidHandle,
+    #[error("Choose a valid captured Review response")]
+    InvalidValidation,
     #[error("Native bounded read identities exhausted")]
     IdExhausted,
     #[error("Native bounded read lock poisoned")]
@@ -28,6 +28,7 @@ impl BoundedReadError {
         match self {
             Self::Busy => "busy",
             Self::InvalidHandle => "invalid_bounded_read",
+            Self::InvalidValidation => "invalid_review",
             Self::IdExhausted | Self::Poisoned => "operation_failed",
         }
     }
@@ -37,7 +38,9 @@ impl From<BoundedReadError> for Failure {
     fn from(error: BoundedReadError) -> Self {
         match error {
             BoundedReadError::Busy => Self::Busy,
-            BoundedReadError::InvalidHandle => Self::Protocol(error.code(), error.to_string()),
+            BoundedReadError::InvalidHandle | BoundedReadError::InvalidValidation => {
+                Self::Protocol(error.code(), error.to_string())
+            }
             BoundedReadError::IdExhausted | BoundedReadError::Poisoned => {
                 Self::Operation(error.to_string())
             }
@@ -45,9 +48,15 @@ impl From<BoundedReadError> for Failure {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scope {
+    Source(u64),
+    Validation([u8; 32]),
+}
+
 pub(super) struct Lease {
     id: String,
-    pub epoch: u64,
+    scope: Scope,
     pub cancelled: Arc<AtomicBool>,
     pub wake: Arc<Condvar>,
     done: Mutex<bool>,
@@ -61,17 +70,17 @@ struct Entry {
 }
 
 #[derive(Default)]
-pub(super) struct BoundedReads {
+pub(super) struct OperationLeases {
     entries: Mutex<[Option<Entry>; 2]>,
     controls: Mutex<usize>,
 }
 
-impl BoundedReads {
+impl OperationLeases {
     fn expire(entries: &mut [Option<Entry>; 2], epoch: u64, now: Instant) {
         for slot in entries {
             if slot.as_ref().is_some_and(|entry| {
                 !entry.claimed
-                    && (entry.lease.epoch != epoch
+                    && (matches!(entry.lease.scope, Scope::Source(value) if value != epoch)
                         || now.saturating_duration_since(entry.registered) >= RESERVATION_TTL)
             }) {
                 *slot = None;
@@ -80,11 +89,28 @@ impl BoundedReads {
     }
 
     pub fn begin(&self, source: &AtomicU64, now: Instant) -> Result<String, BoundedReadError> {
+        let epoch = source.load(Ordering::Relaxed);
+        self.register(Scope::Source(epoch), epoch, now)
+    }
+
+    pub fn begin_validation(
+        &self,
+        identity: [u8; 32],
+        source: &AtomicU64,
+        now: Instant,
+    ) -> Result<String, BoundedReadError> {
+        self.register(
+            Scope::Validation(identity),
+            source.load(Ordering::Relaxed),
+            now,
+        )
+    }
+
+    fn register(&self, scope: Scope, epoch: u64, now: Instant) -> Result<String, BoundedReadError> {
         let mut entries = self
             .entries
             .lock()
             .map_err(|_| BoundedReadError::Poisoned)?;
-        let epoch = source.load(Ordering::Relaxed);
         Self::expire(&mut entries, epoch, now);
         let slot = entries
             .iter_mut()
@@ -102,7 +128,7 @@ impl BoundedReads {
         *slot = Some(Entry {
             lease: Arc::new(Lease {
                 id: id.clone(),
-                epoch,
+                scope,
                 cancelled: Arc::new(AtomicBool::new(false)),
                 wake: Arc::new(Condvar::new()),
                 done: Mutex::new(false),
@@ -120,6 +146,31 @@ impl BoundedReads {
         source: &AtomicU64,
         now: Instant,
     ) -> Result<Claimed<'_>, BoundedReadError> {
+        self.claim_scope(
+            id,
+            Scope::Source(source.load(Ordering::Relaxed)),
+            source,
+            now,
+        )
+    }
+
+    pub fn claim_validation(
+        &self,
+        id: &str,
+        identity: [u8; 32],
+        source: &AtomicU64,
+        now: Instant,
+    ) -> Result<Claimed<'_>, BoundedReadError> {
+        self.claim_scope(id, Scope::Validation(identity), source, now)
+    }
+
+    fn claim_scope(
+        &self,
+        id: &str,
+        scope: Scope,
+        source: &AtomicU64,
+        now: Instant,
+    ) -> Result<Claimed<'_>, BoundedReadError> {
         let mut entries = self
             .entries
             .lock()
@@ -131,7 +182,7 @@ impl BoundedReads {
             .flatten()
             .find(|entry| entry.lease.id == id)
             .ok_or(BoundedReadError::InvalidHandle)?;
-        if entry.claimed {
+        if entry.claimed || entry.lease.scope != scope {
             return Err(BoundedReadError::InvalidHandle);
         }
         entry.claimed = true;
@@ -153,8 +204,38 @@ impl BoundedReads {
         Ok(Control(&self.controls))
     }
 
+    pub fn cancel_all(&self) -> Result<[Option<Arc<Lease>>; 2], BoundedReadError> {
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| BoundedReadError::Poisoned)?;
+        let mut cancelled = [None, None];
+        for (slot, result) in entries.iter_mut().zip(&mut cancelled) {
+            if let Some(entry) = slot {
+                entry.lease.cancelled.store(true, Ordering::Release);
+                *result = Some(Arc::clone(&entry.lease));
+                if !entry.claimed {
+                    *slot = None;
+                }
+            }
+        }
+        Ok(cancelled)
+    }
+
     /// Removes only unclaimed reservations. Claimed leases remain charged.
     pub fn cancel(&self, id: &str) -> Result<Option<Arc<Lease>>, BoundedReadError> {
+        self.cancel_scope(id, false)
+    }
+
+    pub fn cancel_validation(&self, id: &str) -> Result<Option<Arc<Lease>>, BoundedReadError> {
+        self.cancel_scope(id, true)
+    }
+
+    fn cancel_scope(
+        &self,
+        id: &str,
+        validation: bool,
+    ) -> Result<Option<Arc<Lease>>, BoundedReadError> {
         if id.len() != 19
             || !id.starts_with("br-")
             || !id[3..].bytes().all(|byte| byte.is_ascii_hexdigit())
@@ -174,6 +255,9 @@ impl BoundedReads {
         let Some(entry) = slot.as_ref() else {
             return Ok(None);
         };
+        if matches!(entry.lease.scope, Scope::Validation(_)) != validation {
+            return Err(BoundedReadError::InvalidHandle);
+        }
         entry.lease.cancelled.store(true, Ordering::Release);
         if entry.claimed {
             Ok(Some(Arc::clone(&entry.lease)))
@@ -185,9 +269,24 @@ impl BoundedReads {
 }
 
 impl Lease {
+    pub fn cancellation(&self, source: Arc<AtomicU64>) -> Cancellation {
+        let (value, epoch) = match self.scope {
+            Scope::Source(epoch) => (source, epoch),
+            Scope::Validation(_) => (Arc::new(AtomicU64::new(0)), 0),
+        };
+        Cancellation {
+            value,
+            epoch,
+            operation: Some(Arc::clone(&self.cancelled)),
+        }
+    }
+
     pub fn join(&self) -> Result<(), BoundedReadError> {
         let mut done = self.done.lock().map_err(|_| BoundedReadError::Poisoned)?;
         while !*done {
+            // Observe the actual wait state, not a racy "about to join" signal.
+            #[cfg(test)]
+            crate::execution::bounded_read_tests::cancel_signalled();
             done = self
                 .completed
                 .wait(done)
@@ -198,7 +297,7 @@ impl Lease {
 }
 
 pub(super) struct Claimed<'a> {
-    owner: &'a BoundedReads,
+    owner: &'a OperationLeases,
     pub lease: Arc<Lease>,
 }
 

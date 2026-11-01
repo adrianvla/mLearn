@@ -18,6 +18,9 @@ export function createHost(): Host {
     beginBoundedRead():Promise<string>;
     executeBoundedRead(id:string,request:string):Promise<string>;
     cancelBoundedRead(id:string):Promise<void>;
+    beginReviewValidation(request:string):Promise<string>;
+    executeReviewValidation(id:string,request:string):Promise<string>;
+    cancelReviewValidation(id:string):Promise<void>;
     reserveMediaCapture(id:string):Promise<void>;
     importPickedMedia(uri:string,name:string):Promise<string>;
     importPickedDocument(uri:string,name:string):Promise<string>;
@@ -126,6 +129,11 @@ export function createHost(): Host {
       begin:()=>module.beginBoundedRead().catch(nativeControlFailure),
       execute:(id,request)=>module.executeBoundedRead(id,request).catch(nativeControlFailure),
       cancel:id=>module.cancelBoundedRead(id).catch(nativeControlFailure),
+    },
+    reviewValidation: {
+      begin:request=>module.beginReviewValidation(request).catch(nativeControlFailure),
+      execute:(id,request)=>module.executeReviewValidation(id,request).catch(nativeControlFailure),
+      cancel:id=>module.cancelReviewValidation(id).catch(nativeControlFailure),
     },
     cancelSourceOpen:()=>module.cancelSourceOpen(),commandId: randomUUID }) };
 }

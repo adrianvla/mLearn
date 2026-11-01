@@ -50,7 +50,11 @@ fn now() -> Result<i64, Failure> {
 }
 
 impl Runtime {
-    pub(super) fn prepare_review(&mut self, command: ReviewCommand) -> Result<Prepared, Failure> {
+    pub(super) fn prepare_review(
+        &mut self,
+        command: ReviewCommand,
+        cancellation: Cancellation,
+    ) -> Result<Prepared, Failure> {
         // A committed retry does not depend on today's package, due queue or revision.
         if let Some(commit) = self
             .store
@@ -61,7 +65,9 @@ impl Runtime {
         }
         let now = now()?;
         let limit = match &command {
-            ReviewCommand::CaptureResponse { .. } => return self.prepare_review_capture(command),
+            ReviewCommand::CaptureResponse { .. } => {
+                return self.prepare_review_capture(command, cancellation);
+            }
             ReviewCommand::Start { start } => match &start.mode {
                 ReviewMode::Continuous => 1,
                 ReviewMode::Finite { limit } if (1..=128).contains(limit) => {
@@ -503,7 +509,9 @@ mod tests {
         };
         start.mode = ReviewMode::Finite { limit: 128 };
         // When the real due owner scans the whole finite candidate set and commits it.
-        let Prepared::Work(GuestWork::Review(work)) = runtime.prepare_review(command).unwrap()
+        let Prepared::Work(GuestWork::Review(work)) = runtime
+            .prepare_review(command, Cancellation::durable())
+            .unwrap()
         else {
             unreachable!()
         };
@@ -632,7 +640,10 @@ mod tests {
                     }],
                 };
             }
-            let Prepared::Work(work) = runtime.prepare_review(command).unwrap() else {
+            let Prepared::Work(work) = runtime
+                .prepare_review(command, Cancellation::durable())
+                .unwrap()
+            else {
                 panic!("Expected real package work");
             };
             let mut output = work.run().unwrap();
@@ -656,7 +667,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut runtime = runtime_with_package(directory.path());
         let command = start_command();
-        let Prepared::Work(work) = runtime.prepare_review(command.clone()).unwrap() else {
+        let Prepared::Work(work) = runtime
+            .prepare_review(command.clone(), Cancellation::durable())
+            .unwrap()
+        else {
             panic!("Expected real package work");
         };
         let mut output = work.run().unwrap();

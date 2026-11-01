@@ -7,7 +7,7 @@ type Mutation = Exclude<ReviewCommand, { kind: 'start' }>;
 export type ReviewAction = Mutation extends infer Command
   ? Command extends Mutation ? Omit<Command, 'mutation'> : never : never;
 
-export function createReviewClient(request: (command: Request) => Promise<unknown>, commandId: () => string) {
+export function createReviewClient(request: (command: Request, signal?: AbortSignal) => Promise<unknown>, commandId: () => string) {
   // Only revision fences are retained, never encounter content or learner history.
   const revisions = new Map<string, number>();
   const malformed = () => new RuntimeError('protocol', 'Malformed or mismatched Review response.');
@@ -37,10 +37,12 @@ export function createReviewClient(request: (command: Request) => Promise<unknow
         commandId: commandId(), sessionId: session.id, expectedRevision: session.revision,
       } });
     },
-    async review(command: ReviewCommand) {
+    async review(command: ReviewCommand, signal?: AbortSignal) {
       const snapshot = prepared(command);
+      if(signal&&snapshot.kind!=='capture_response')
+        throw new RuntimeError('invalid_request','Only response validation supports operation cancellation.');
       const identity = snapshot.kind === 'start' ? snapshot.start : snapshot.mutation;
-      const value = await request({ type: 'review', command: snapshot });
+      const value = await request({ type: 'review', command: snapshot },signal);
       if (!isReviewResponse(value) || value.type !== 'review' || value.commit.commandId !== identity.commandId
         || value.commit.session.id !== identity.sessionId
         || value.commit.committedRevision !== (snapshot.kind === 'start' ? 1 : snapshot.mutation.expectedRevision + 1))

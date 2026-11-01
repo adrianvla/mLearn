@@ -7,18 +7,18 @@ storage Review tests pass afterward. The independently checkpointed repair
 treats an active capture as an answered attempt even when retrospective quality
 is null, matching existing canonical-key admission. It preserves real exposure,
 same-session, inactive and undone semantics. The cancellation work described
-below is a separate uncommitted increment, not part of this repair's verification.
+below is a separate increment, not part of this repair's verification.
 
 ## M11 validation cancellation boundary in progress - 2026-11-01
 
-On committed base `1db7a09e84b0d7c77bc51a7201ac743c079b1584`,
-uncommitted validation control now shares the existing two-operation lease and
+After disclosure repair `4192e69d` and generator correction `024c1006`,
+this control checkpoint shares the existing two-operation lease and
 two-control waiter owner with bounded source reads. A validation lease binds
 the immutable native CaptureResponse command, survives unrelated source changes,
 and acknowledges cancellation only after its actual worker drains. Existing
 three-heavy-call admission is unchanged. Desktop, mobile and browser QA adapters
-and the typed client are wired; Review presentation and its Stop control are
-not implemented yet.
+and the typed client are wired. Review presentation and its Stop control remain
+a separate uncommitted increment, not part of this native/client checkpoint.
 
 Current native owner checks pass20 Review and8 bounded/teardown tests, including
 actual authenticated English validation cancellation before claim, while queued,
@@ -31,6 +31,34 @@ not certify Expo module compilation, linked mobile apps, Kotlin compilation or
 device workflows. Desktop handler `cargo check --locked -p mlearn-desktop --lib`
 passes in27.27s. Final platform flows remain open.
 
+The real-native UI regression first fails precisely because the typed task has
+no response field. Its1080/390 before captures are preserved under
+`test-results/review-task-native-core-ty-c741f-ough-restart-and-submission-chromium/`.
+The first UI increment then executes actual capture, backend restart and Reveal,
+with raw-input/private-feedback and actual accepted-outcome assertions reached.
+It is not a passing run: projected headroom4234051584B falls below the unchanged
+4294967296B reserve, so the owned test is interrupted (exit130). Its teardown
+reports an interrupted native owner, and the server is absent afterward.
+Question/revealed captures at both widths remain in
+`.mlearn/m11/review-response-first-render/` and were directly inspected.
+Package detail prose pushed ratings down; the next source change moves it behind
+a post-Reveal disclosure. The revised real typed Practice run passes1/1 in1.9s,
+including actual capture, restart, Reveal and capture-aware All Fluent submission.
+All four revised question/revealed1080/390 captures in
+`.mlearn/m11/review-response-disclosure-render/` were directly inspected.
+The existing expanded focused matrix stays intact. However this run's guard
+also stops70 at projected4122345472B; the test is already finished when Stop is
+attempted. This is a functional pass, not clean resource acceptance throughout.
+The server is absent afterward. The new exact-ticket Stop/recovery UI scenario
+and shared signed-package fixture are source-only and unrun.
+
+Before the first render, typecheck, ownership lint and draft guard pass.
+A new cancellation regression separately fails because abort plus a lost native
+registration receipt incorrectly reports confirmed cancellation. The client now
+preserves that transport uncertainty and keeps both unknown slots charged;
+all38 focused Review/source-read/Knowledge client tests pass. Neither a local
+abort nor a read snapshot certifies unknown native drainage.
+
 A separate captured-response disclosure regression failed before the repair:
 an answered machine-graded capture with null retrospective quality incorrectly
 left prior-disclosure debt when reopening the same Material in a new session.
@@ -38,13 +66,19 @@ The Material predicate now matches the existing canonical-key predicate
 (capture identity or non-null quality). All24 storage Review tests pass after
 the repair; no exposure or inactive/undone conditions were removed.
 
-Latest unchanged admission passes three samples at physical footprint
-629394552/629378168/629099640B, pressure1, swap3020619776B and unchanged
-swapOut314122223616B. Final projected headroom5864947712B exceeds the unchanged
-4294967296B reserve with2684354560B workload allowance. The generated Swift
-guard was stopped after both successful ABI checks. No devices, persistent
-servers, model work or downloads were started. M11 remains incomplete and
-maintainer acceptance, merge and release remain out of scope.
+Post-render resource observation passes three samples at physical footprint
+632507584/632360128/632261824B, pressure1, swap3020619776B and unchanged
+swapOut314122223616B. Final projected headroom4298457088B is only3489792B above
+the unchanged4294967296B reserve with2684354560B workload allowance. Substantial
+local verification is held on that marginal state. OmO RSS rises to about2.59GB
+around compaction; a bounded vmmap summary independently reports601.8MiB
+physical footprint (historical peak1000MiB), not a demonstrated matching rise
+in physical ownership. No heap dump or device/model workload was launched.
+Source-only work continues; no allowance or reserve was lowered.
+Existing disclosure-checkpoint foundation41263884147 passes completely,
+including Rust, detector, macOS, Windows and the full web suite.
+M11 remains27/39 tasks done and incomplete; maintainer acceptance, merge and
+release remain out of scope.
 
 ## Material native selection verification synchronization - 2026-11-01
 

@@ -68,6 +68,232 @@ fn capture(session: &ReviewSession, id: &str) -> ReviewCommand {
 }
 
 #[test]
+fn validation_lease_binds_raw_response_and_rejects_foreign_scope() {
+    // Given an actual typed task and both kinds of scoped reservation.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let session = grammar_session(&mut runtime);
+    let command = capture(&session, "fenced-capture");
+    let raw = json!({"type":"review","command":command}).to_string();
+    let executor = crate::RuntimeExecutor::new(runtime);
+    let id = executor.begin_review_validation(&raw).unwrap();
+    let read = executor.begin_bounded_read().unwrap();
+    let mut changed = command.clone();
+    let ReviewCommand::CaptureResponse { response, .. } = &mut changed else {
+        panic!("Expected the captured response fixture");
+    };
+    *response = TaskResponse::TypedText {
+        text: "did not fold".into(),
+    };
+    let changed = json!({"type":"review","command":changed}).to_string();
+    // When raw input changes or a reservation is used through the other scope.
+    for result in [
+        executor.execute_review_validation(&id, &changed),
+        executor.execute_bounded_read(&id, &raw),
+        executor.execute_review_validation(&read, &raw),
+    ] {
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(value["code"], "invalid_bounded_read");
+    }
+    assert!(matches!(
+        executor.cancel_bounded_read(&id),
+        Err(crate::BoundedReadError::InvalidHandle)
+    ));
+    assert!(matches!(
+        executor.cancel_review_validation(&read),
+        Err(crate::BoundedReadError::InvalidHandle)
+    ));
+    // Then neither reservation was consumed, and the original raw intent commits.
+    let result: Response =
+        serde_json::from_str(&executor.execute_review_validation(&id, &raw)).unwrap();
+    let Response::Review { commit } = result else {
+        panic!("Expected the original fenced response, received {result:?}");
+    };
+    assert_eq!(commit.session.revision, session.revision + 1);
+    assert_eq!(
+        commit.session.encounter.unwrap().capture.unwrap().response,
+        TaskResponse::TypedText {
+            text: " DID NOT FOLD ".into()
+        }
+    );
+    executor.cancel_bounded_read(&read).unwrap();
+}
+
+#[test]
+fn validation_lease_survives_source_epoch_change() {
+    // Given a durable Practice response registered before unrelated source work.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let session = grammar_session(&mut runtime);
+    let raw = json!({"type":"review","command":capture(&session,"durable-capture")}).to_string();
+    let executor = crate::RuntimeExecutor::new(runtime);
+    let id = executor.begin_review_validation(&raw).unwrap();
+    // When the source owner advances its independent cancellation epoch.
+    executor.cancel_source_open();
+    let result: Response =
+        serde_json::from_str(&executor.execute_review_validation(&id, &raw)).unwrap();
+    // Then the original response still executes its real validator and commits.
+    let Response::Review { commit } = result else {
+        panic!("Expected a source-independent response, received {result:?}");
+    };
+    let saved = commit.session.encounter.unwrap().capture.unwrap();
+    assert_eq!(saved.feedback, None);
+    assert_eq!(commit.session.revision, session.revision + 1);
+}
+
+#[test]
+fn validation_cancel_before_claim_rejects_late_execution_without_a_capture() {
+    // Given an actual response whose native reservation has not executed.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let session = grammar_session(&mut runtime);
+    let raw = json!({"type":"review","command":capture(&session,"unclaimed-capture")}).to_string();
+    let executor = crate::RuntimeExecutor::new(runtime);
+    let id = executor.begin_review_validation(&raw).unwrap();
+    // When cancellation acknowledges before a delayed execute arrives.
+    executor.cancel_review_validation(&id).unwrap();
+    let result: serde_json::Value =
+        serde_json::from_str(&executor.execute_review_validation(&id, &raw)).unwrap();
+    // Then the old identity cannot commit and a fresh reservation safely recovers.
+    assert_eq!(result["code"], "invalid_bounded_read");
+    let unsupported = json!({"type":"review_session","sessionId":session.id}).to_string();
+    assert!(matches!(
+        executor.begin_review_validation(&unsupported),
+        Err(crate::BoundedReadError::InvalidValidation)
+    ));
+    let snapshot: Response = serde_json::from_str(&executor.execute(&unsupported)).unwrap();
+    let Response::ReviewSession { session: saved } = snapshot else {
+        panic!("Expected the unmodified session, received {snapshot:?}");
+    };
+    assert_eq!(saved.revision, session.revision);
+    assert_eq!(saved.encounter.unwrap().capture, None);
+    let retry = executor.begin_review_validation(&raw).unwrap();
+    assert_ne!(retry, id);
+    let result: Response =
+        serde_json::from_str(&executor.execute_review_validation(&retry, &raw)).unwrap();
+    assert!(matches!(result, Response::Review { .. }));
+}
+
+#[test]
+fn validation_cancel_wakes_queued_work_without_unlocking_unrelated_guest() {
+    use std::{
+        sync::{Arc, mpsc},
+        thread,
+        time::Duration,
+    };
+    // Given a real validator request queued behind unrelated guest admission.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let session = grammar_session(&mut runtime);
+    let raw = json!({"type":"review","command":capture(&session,"queued-capture")}).to_string();
+    let executor = Arc::new(crate::RuntimeExecutor::new(runtime));
+    let id = executor.begin_review_validation(&raw).unwrap();
+    thread::scope(|scope| {
+        let admission = executor.guest.lock().unwrap();
+        let waiting = executor.guest.observe_waiter();
+        let running = Arc::clone(&executor);
+        let handle = id.clone();
+        let worker = scope.spawn(move || running.execute_review_validation(&handle, &raw));
+        waiting.recv_timeout(Duration::from_secs(10)).unwrap();
+        let (finished, receipt) = mpsc::sync_channel(1);
+        let cancelling = Arc::clone(&executor);
+        // When the operation-specific control cancels without guest capacity.
+        let control = scope.spawn(move || {
+            finished
+                .send(cancelling.cancel_review_validation(&id))
+                .unwrap();
+        });
+        let before_unlock = receipt.recv_timeout(Duration::from_secs(10));
+        drop(admission);
+        control.join().unwrap();
+        let raw = worker.join().unwrap();
+        // Then actual drainage acknowledges before the unrelated owner unlocks.
+        before_unlock.unwrap().unwrap();
+        let result: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(result["code"], "cancelled");
+    });
+}
+
+#[test]
+fn validation_cancel_drains_actual_guest_result_before_capacity_and_retry() {
+    use crate::execution::bounded_read_tests::{HeldOperation, observe_cancel_join};
+    use std::{
+        sync::{Arc, mpsc},
+        thread,
+        time::Duration,
+    };
+    // Given actual package output held before publication, with both slots charged.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let session = grammar_session(&mut runtime);
+    let raw = json!({"type":"review","command":capture(&session,"drained-capture")}).to_string();
+    let executor = Arc::new(crate::RuntimeExecutor::new(runtime));
+    let id = executor.begin_review_validation(&raw).unwrap();
+    let read = executor.begin_bounded_read().unwrap();
+    thread::scope(|scope| {
+        let mut held =
+            HeldOperation::start_validation(Arc::clone(&executor), id.clone(), raw.clone());
+        held.reached.recv_timeout(Duration::from_secs(10)).unwrap();
+        let permits = [executor.admit().unwrap(), executor.admit().unwrap()];
+        assert!(matches!(executor.admit(), Err(Failure::Busy)));
+        let (joining, waiters) = mpsc::sync_channel(2);
+        let (finished, receipts) = mpsc::sync_channel(2);
+        // When two controls await this real worker's drainage.
+        for _ in 0..2 {
+            let executor = Arc::clone(&executor);
+            let id = id.clone();
+            let joining = joining.clone();
+            let finished = finished.clone();
+            scope.spawn(move || {
+                observe_cancel_join(joining);
+                finished
+                    .send(executor.cancel_review_validation(&id))
+                    .unwrap();
+            });
+        }
+        // This signal comes from inside the pending join, not before the join call.
+        for _ in 0..2 {
+            waiters.recv_timeout(Duration::from_secs(10)).unwrap();
+        }
+        assert!(matches!(
+            executor.begin_bounded_read(),
+            Err(crate::BoundedReadError::Busy)
+        ));
+        assert!(matches!(
+            executor.cancel_bounded_read(&read),
+            Err(crate::BoundedReadError::Busy)
+        ));
+        assert_eq!(held.finish()["code"], "cancelled");
+        for _ in 0..2 {
+            receipts
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap()
+                .unwrap();
+        }
+        drop(permits);
+    });
+    // Then no response committed; released capacity accepts the same exact intent.
+    let snapshot: Response = serde_json::from_str(
+        &executor.execute(&json!({"type":"review_session","sessionId":session.id}).to_string()),
+    )
+    .unwrap();
+    let Response::ReviewSession { session: saved } = snapshot else {
+        panic!("Expected the unchanged session, received {snapshot:?}");
+    };
+    assert_eq!(saved.revision, session.revision);
+    assert_eq!(saved.encounter.unwrap().capture, None);
+    executor.cancel_bounded_read(&read).unwrap();
+    let retry = executor.begin_review_validation(&raw).unwrap();
+    let result: Response =
+        serde_json::from_str(&executor.execute_review_validation(&retry, &raw)).unwrap();
+    let Response::Review { commit } = result else {
+        panic!("Expected recoverable original response, received {result:?}");
+    };
+    assert_eq!(commit.session.revision, session.revision + 1);
+    assert!(commit.session.encounter.unwrap().capture.is_some());
+}
+
+#[test]
 fn actual_package_capture_restarts_reveals_and_submits_exactly_once() {
     // Given the real authenticated grammar package and its admitted typed task.
     let directory = tempfile::tempdir().unwrap();
@@ -206,7 +432,7 @@ fn actual_contrast_and_recall_keep_validation_and_disclosure_distinct() {
                     },
                 };
                 assert!(matches!(
-                    runtime.prepare_review(invalid.clone()),
+                    runtime.prepare_review(invalid.clone(), Cancellation::durable()),
                     Err(Failure::Protocol("invalid_review", _))
                 ));
                 assert!(runtime.store.review_receipt(&invalid).unwrap().is_none());
@@ -239,7 +465,7 @@ fn actual_contrast_and_recall_keep_validation_and_disclosure_distinct() {
             ));
             let invalid = capture(&session, "recall-cannot-validate");
             assert!(matches!(
-                runtime.prepare_review(invalid),
+                runtime.prepare_review(invalid, Cancellation::durable()),
                 Err(Failure::Protocol("invalid_review", _))
             ));
         }
@@ -310,7 +536,10 @@ fn pause_cancels_prepared_validation_and_drops_its_owned_token() {
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
-    let Prepared::Work(work) = runtime.prepare_review(command.clone()).unwrap() else {
+    let Prepared::Work(work) = runtime
+        .prepare_review(command.clone(), Cancellation::durable())
+        .unwrap()
+    else {
         unreachable!()
     };
     let weak = runtime
@@ -343,7 +572,10 @@ fn pause_after_real_validation_rejects_late_publication_then_resume_retries() {
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
-    let Prepared::Work(work) = runtime.prepare_review(command.clone()).unwrap() else {
+    let Prepared::Work(work) = runtime
+        .prepare_review(command.clone(), Cancellation::durable())
+        .unwrap()
+    else {
         unreachable!()
     };
     let mut output = work.run().unwrap();
@@ -384,7 +616,10 @@ fn pausing_a_peer_session_does_not_cancel_this_validation() {
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
-    let Prepared::Work(work) = runtime.prepare_review(command).unwrap() else {
+    let Prepared::Work(work) = runtime
+        .prepare_review(command, Cancellation::durable())
+        .unwrap()
+    else {
         unreachable!()
     };
     let peer = execute(
@@ -433,14 +668,17 @@ fn unavailable_admitted_package_prevents_commit_and_remains_recoverable() {
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
-    let Prepared::Work(work) = runtime.prepare_review(command.clone()).unwrap() else {
+    let Prepared::Work(work) = runtime
+        .prepare_review(command.clone(), Cancellation::durable())
+        .unwrap()
+    else {
         unreachable!()
     };
     let mut output = work.run().unwrap();
     let package = runtime.installed.remove(PACKAGE).unwrap();
     // When completion and another capture both recheck current package authority.
     let completed = runtime.complete(&work, &mut output);
-    let retried = runtime.prepare_review(command.clone());
+    let retried = runtime.prepare_review(command.clone(), Cancellation::durable());
     // Then no stale result or receipt commits; restoring the exact package permits retry.
     assert!(matches!(completed, Err(Failure::Cancelled)));
     assert!(matches!(retried, Err(Failure::Operation(_))));

@@ -1,5 +1,4 @@
 mod analysis;
-mod bounded_reads;
 mod capture;
 pub mod catalog;
 mod collection;
@@ -31,16 +30,17 @@ pub mod native_ocr;
 mod ocr;
 pub mod ocr_package;
 mod ocr_source;
+mod operation_leases;
 mod packages;
 mod review;
 mod source_file;
 mod watch;
-pub use bounded_reads::BoundedReadError;
 use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
 pub use execution::RuntimeExecutor;
 use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
+pub use operation_leases::BoundedReadError;
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},

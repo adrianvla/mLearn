@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { createReviewClient, type ReviewAction } from '../src/reviewClient';
+import { createRuntimeClient } from '../src/client';
 import { RuntimeError } from '../src/errors';
 import { isReviewCommand, isReviewResponse } from '../src/reviewProtocol';
 
@@ -43,6 +44,182 @@ const capturedEncounter: ReviewEncounter = {
   capture: { id: 'native-capture', response: { kind: 'typed_text', text: '  RAW  ' },
     conditions: { ...encounter.conditions }, feedback: null },
 };
+
+const captureReceipt = JSON.stringify({ type: 'review', commit: {
+  commandId: 'capture', committedRevision: 2,
+  session: { ...typedSession, revision: 2, encounter: capturedEncounter },
+} });
+
+test('validation preserves its frozen request outside ordinary and source cancellation queues', { timeout: 5000 }, async () => {
+  // Given ordinary transport and source cancellation whose receipts remain pending.
+  const ordinaryEntered = gate<void>(), ordinary = gate<string>();
+  const sourceEntered = gate<void>(), source = gate<void>();
+  const begun = gate<string>(), registration = gate<string>();
+  const sent: string[] = [];
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { ordinaryEntered.release(); return ordinary.promise; },
+    cancelSourceOpen: async () => { sourceEntered.release(); await source.promise; },
+    reviewValidation: {
+      begin: async raw => { begun.release(raw); return registration.promise; },
+      execute: async (id, raw) => { assert.equal(id, 'validation-1'); sent.push(raw); return captureReceipt; },
+      cancel: async () => { assert.fail('Source cancellation must not cancel this response.'); },
+    },
+  });
+  const knowledge = client.knowledge([{ packageId: 'package', targetId: 'target', capability: 'package:meaning' }]);
+  await ordinaryEntered.promise;
+  const cancellingSource = client.cancelSourceOpen();
+  await sourceEntered.promise;
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  // When the durable response registers and executes while both other lanes wait.
+  const saving = client.review(command);
+  const registered = await begun.promise;
+  if (command.kind !== 'capture_response' || command.response.kind !== 'typed_text')
+    throw new Error('Expected the typed response fixture');
+  command.response.text = 'edited while registration was pending';
+  registration.release('validation-1');
+  const result = await saving;
+  // Then native registration and execution receive the same original raw intent.
+  assert.equal(sent[0], registered);
+  assert.equal(JSON.parse(registered).command.response.text, '  RAW  ');
+  assert.equal(result.session.revision, 2);
+  ordinary.release(JSON.stringify({ type: 'knowledge', projections: [] }));
+  source.release();
+  await Promise.all([knowledge, cancellingSource]);
+});
+
+test('registration abort retains its shared operation slot until native acknowledgment', { timeout: 5000 }, async () => {
+  // Given a delayed validation registration and an independent source read.
+  const begun = gate<void>(), registration = gate<string>();
+  const cancelEntered = gate<string>(), acknowledgement = gate<void>();
+  const readEntered = gate<void>(), read = gate<string>();
+  const key = { packageId: 'package', targetId: 'target', capability: 'package:meaning' };
+  let registrations = 0, executions = 0, cancellations = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Scoped work must not use ordinary transport.'); },
+    reviewValidation: {
+      begin: async () => {
+        if (++registrations === 1) { begun.release(); return registration.promise; }
+        return 'validation-2';
+      },
+      execute: async id => { executions++; assert.equal(id, 'validation-2'); return captureReceipt; },
+      cancel: async id => { cancellations++; cancelEntered.release(id); await acknowledgement.promise; },
+    },
+    boundedReads: {
+      begin: async () => 'source-read',
+      execute: async () => { readEntered.release(); return read.promise; },
+      cancel: async () => { assert.fail('Stopping a response must not stop the source read.'); },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'cancelled' });
+  await begun.promise;
+  // When Stop precedes ticket delivery, native cancellation still owns that slot.
+  controller.abort();
+  registration.release('validation-1');
+  assert.equal(await cancelEntered.promise, 'validation-1');
+  controller.abort();
+  const reading = client.knowledgeEvidence({ key, after: null });
+  await readEntered.promise;
+  await assert.rejects(client.review(command), { code: 'busy' });
+  assert.equal(registrations, 1);
+  assert.equal(executions, 0);
+  assert.equal(cancellations, 1);
+  // Then acknowledgment releases only this operation; the source completes separately.
+  acknowledgement.release();
+  await stopped;
+  read.release(JSON.stringify({ type: 'knowledge_evidence', page: {
+    projection: { key, claim: null, assessed: null, prediction: null, status: 'untracked', revision: 0 },
+    claimRevision: null, assessedAttempt: null, observations: [], next: null,
+  } }));
+  await reading;
+  assert.equal((await client.review(command)).session.revision, 2);
+});
+
+test('active validation discards late success until execution and cancellation both terminate', { timeout: 5000 }, async () => {
+  // Given a native response whose work is complete but transport delivery is held.
+  const entered = gate<void>(), execution = gate<string>();
+  const cancelEntered = gate<void>(), acknowledgement = gate<void>();
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Validation must use its dedicated transport.'); },
+    reviewValidation: {
+      begin: async () => 'validation-1',
+      execute: async () => { entered.release(); return execution.promise; },
+      cancel: async () => { cancelEntered.release(); await acknowledgement.promise; },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'cancelled' });
+  await entered.promise;
+  // When Stop races an already-committed result whose delivery arrives late.
+  controller.abort();
+  await cancelEntered.promise;
+  execution.release(captureReceipt);
+  await execution.promise;
+  acknowledgement.release();
+  // Then no late success is published as a new Review state.
+  await stopped;
+});
+
+test('stopped validation preserves uncertain registration failures instead of acknowledging drainage', { timeout: 5000 }, async () => {
+  // Given registration whose native ticket receipt will be lost.
+  const entered = gate<void>(), release = gate<void>();
+  let registrations = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Validation must use its dedicated transport.'); },
+    reviewValidation: {
+      begin: async () => {
+        registrations++;
+        entered.release();
+        await release.promise;
+        throw new Error('Registration receipt lost');
+      },
+      execute: async () => { assert.fail('No usable ticket was delivered.'); },
+      cancel: async () => { assert.fail('An unknown native ticket cannot be cancelled.'); },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'transport' });
+  await entered.promise;
+  // When Stop races loss of registration identity, no drainage receipt exists.
+  controller.abort();
+  release.release();
+  await stopped;
+  // Then both uncertain slots remain charged and no third registration starts.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  await assert.rejects(client.review(command), { code: 'transport' });
+  assert.equal(registrations, 2);
+});
+
+test('captured responses require the cancellable host capability without ordinary fallback', async () => {
+  // Given a host that has no scoped validation API.
+  let ordinary = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { ordinary++; return captureReceipt; },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  // When a response is submitted without an AbortSignal.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  // Then an uncancellable path cannot masquerade as the supported operation.
+  assert.equal(ordinary, 0);
+});
 
 test('captured questions reject feedback leaks and foreign validator rows', () => {
   // Given valid hidden and Revealed projections of one immutable capture.
