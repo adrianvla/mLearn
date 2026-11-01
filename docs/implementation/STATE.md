@@ -2,6 +2,9 @@
 
 ## Review task response UI candidate - 2026-11-01
 
+Candidate `e796de1d` is committed locally. Foundation `198ddfe4` failed one
+parallel native test with a guest-owner Busy result; the test-only fixture
+repair below passes the normal local harness and will accompany the candidate.
 The separate Review increment adds package-declared typed input and choice
 selection, immutable native capture, capture-aware Submit, hidden feedback until
 Reveal, a post-Reveal provenance/limitations disclosure and acknowledged Stop.
@@ -10,14 +13,27 @@ learning store. A lost registration receipt remains uncertain, never a
 successful Stop. The unchanged self-report and expanded granular rating flows
 remain available.
 
-Typecheck, ownership lint, draft guard and export pass. The actual typed
-capture/restart/Reveal/Submit workflow passes1/1 and both question/revealed
-desktop/narrow image pairs were inspected, with the resource-limit qualification
-below. The subsequently added exact-ticket Stop/Pause/Resume/retry and actual
-contrast-to-self-report scenarios are not executed yet. Test discovery is only
-syntax/loading evidence, not functional verification. New candidate CI must
-execute them before this unit's engineering gate can close. Native app/platform
-and final independent M11 gates remain open.
+Typecheck, ownership lint, draft guard and export pass. All three actual
+Rust-backed task scenarios now pass in one 4.7s run: raw typed capture with
+private feedback and crash/restart; exact-ticket Stop with late-execute rejection,
+draft retention, Pause/Resume and explicit retry; actual declared choice
+validation followed by validator-free self-report and three physical completions.
+New Stop/choice desktop1080/narrow390 captures in
+`.mlearn/m11/review-task-candidate-verified/` were directly inspected.
+The current QA executable SHA256 is
+`2e1a986dd5c3e167a8150c3ab606d520f4857c2b6e635147e6cb894fa62663b2`.
+The guard stays safe, with observed minimum projected headroom4771454285B;
+afterward the server is absent and the owned guard is stopped.
+This supersedes the earlier local functional/resource gap for these scenarios,
+not the historical guard holds below. Hosted candidate, native app/platform and
+final independent M11 gates remain open.
+
+Practice scope default after the unanswered scope question: preserve both the
+selected entries and matching capability constraints, including partial
+Knowledge, rather than silently testing every capability. This is the agent's
+implementation assumption, not maintainer approval. Existing frozen selections
+retain membership but not per-member filter provenance; extend that native owner
+before adding the canonical Knowledge/calibration consumer.
 
 ## Desktop CI dependency acquisition repair - 2026-11-01
 
@@ -32,8 +48,9 @@ The workflow changes only that package name. It retains `ubuntu-latest`,
 the40-minute job limit, bounded acquisition, signed metadata, Japanese glyph and
 decoder assertions, actual app build and native IPC/restart suite. The existing
 YAML parser accepts all17 steps; YAML LSP is unavailable and was not installed.
-Actual repaired-run acquisition/build/tests remain pending. No diagnostic
-workflow variant, runner downgrade or local native workload was launched.
+Exact-source repaired run41266099347 on `5676ae4b` passes the unchanged
+dependency, build and real native integration gate. No diagnostic workflow
+variant, runner downgrade or local native workload was launched.
 Foundation41265680615 and mobile41265680668 remain subscribed on `198ddfe4`.
 
 ## M11 captured-answer disclosure repair - 2026-11-01
@@ -53,19 +70,30 @@ two-control waiter owner with bounded source reads. A validation lease binds
 the immutable native CaptureResponse command, survives unrelated source changes,
 and acknowledges cancellation only after its actual worker drains. Existing
 three-heavy-call admission is unchanged. Desktop, mobile and browser QA adapters
-and the typed client are wired. Review presentation and its Stop control remain
-a separate uncommitted increment, not part of this native/client checkpoint.
+and the typed client are wired. Review presentation and its Stop control are
+the separate `e796de1d` candidate, not part of this native/client checkpoint.
 
-Current native owner checks pass20 Review and8 bounded/teardown tests, including
-actual authenticated English validation cancellation before claim, while queued,
-and after the real guest result. Focused client Review/source-read/Knowledge
-checks, typecheck and ownership lint pass. The bundled FFI build passes; generated
+All 86 runtime tests now pass with the normal parallel harness in 13.50s:
+`env -u RUST_TEST_THREADS CARGO_BUILD_JOBS=1 cargo test --locked --color never -p mlearn-runtime --lib`.
+The failed CI run had 85 passes and one failure because independent fixtures
+contended for the language host's deliberate process-wide nonwaiting guest slot.
+A test-only NativeTestProfile retains isolated storage and shared guest-fixture
+admission for each fixture lifetime. Tests' internal worker concurrency,
+production limits and every original commit/drainage assertion remain intact;
+no serial harness flag, retry or sleep was added. Hosted workspace verification
+remains open. Focused client Review/source-read/Knowledge checks, typecheck and
+ownership lint pass. The bundled FFI build passes; generated
 Swift and Kotlin bindings regenerate cleanly. The build script now relies on the
 existing crate-local UniFFI config rather than its obsolete global override.
 Generated Swift typechecks for arm64 and x86_64 simulator ABIs. These checks do
 not certify Expo module compilation, linked mobile apps, Kotlin compilation or
 device workflows. Desktop handler `cargo check --locked -p mlearn-desktop --lib`
 passes in27.27s. Final platform flows remain open.
+
+Mobile `198ddfe4` run41265680668 passes Android's actual workflow and iOS
+compilation. Its iOS consuming flow fails at step13: Watch cannot find enabled
+`Open local video`. That binary does not contain the later response UI candidate;
+no M11 native response-form pass is inferred, and the Watch assertion is retained.
 
 The real-native UI regression first fails precisely because the typed task has
 no response field. Its1080/390 before captures are preserved under
@@ -85,8 +113,8 @@ All four revised question/revealed1080/390 captures in
 The existing expanded focused matrix stays intact. However this run's guard
 also stops70 at projected4122345472B; the test is already finished when Stop is
 attempted. This is a functional pass, not clean resource acceptance throughout.
-The server is absent afterward. The new exact-ticket Stop/recovery UI scenario
-and shared signed-package fixture are source-only and unrun.
+The server is absent afterward. The later current-source three-scenario run
+above passes under the unchanged guard, including exact-ticket Stop/recovery.
 
 Before the first render, typecheck, ownership lint and draft guard pass.
 A new cancellation regression separately fails because abort plus a lost native
@@ -102,18 +130,19 @@ The Material predicate now matches the existing canonical-key predicate
 (capture identity or non-null quality). All24 storage Review tests pass after
 the repair; no exposure or inactive/undone conditions were removed.
 
-Post-render resource observation passes three samples at physical footprint
-632507584/632360128/632261824B, pressure1, swap3020619776B and unchanged
-swapOut314122223616B. Final projected headroom4298457088B is only3489792B above
-the unchanged4294967296B reserve with2684354560B workload allowance. Substantial
-local verification is held on that marginal state. OmO RSS rises to about2.59GB
-around compaction; a bounded vmmap summary independently reports601.8MiB
-physical footprint (historical peak1000MiB), not a demonstrated matching rise
-in physical ownership. No heap dump or device/model workload was launched.
-Source-only work continues; no allowance or reserve was lowered.
+After verified teardown of automatically launched workspace analyzers, fresh
+admission passes at physical footprint680758488/674729176/674598104B,
+pressure1, swap3003842560B and unchanged swapOut314122223616B. Final projected
+headroom6083231744B exceeds the unchanged4294967296B reserve with2684354560B
+workload allowance. The 86-test run's guard stays safe, with observed minimum
+projected headroom5364498432B, and is stopped after success. An ineffective
+temporary project LSP-disable config was removed with absence/readback receipts;
+no persistent diagnostic configuration, heap dump or device/model work remains.
+Earlier UI guard holds and the compaction-era RSS/footprint discrepancy remain
+recorded above and in the append-only notepad; no limit was lowered.
 Existing disclosure-checkpoint foundation41263884147 passes completely,
 including Rust, detector, macOS, Windows and the full web suite.
-M11 remains28/41 tasks done and incomplete; maintainer acceptance, merge and
+M11 remains31/43 tasks done and incomplete; maintainer acceptance, merge and
 release remain out of scope.
 
 ## Material native selection verification synchronization - 2026-11-01

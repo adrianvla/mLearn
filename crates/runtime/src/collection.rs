@@ -1,18 +1,16 @@
 //! Collection preparation uses the host's existing blocking call and admission.
 //! Only one command is active; each page releases guest and Runtime ownership.
 use crate::{
-    Installed, Runtime,
     execution::{Cancellation, Failure},
     guest_gate::GuestGate,
 };
+use crate::{Installed, Runtime};
 use mlearn_core::{
     CollectionCatalogPage, CollectionCatalogRequest, CollectionPreparationCommand,
     CollectionPreparationPhase, CollectionPreparationStatus, Response,
 };
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 pub(super) struct CollectionOwner {
@@ -443,7 +441,9 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BundledPlugin, RuntimeExecutor, catalog::Manifest};
+    use crate::catalog::Manifest;
+    use crate::native_test_profile::NativeTestProfile;
+    use crate::{BundledPlugin, RuntimeExecutor};
     use mlearn_core::{
         CollectionFilter, CollectionQuery, CollectionResult, CollectionSort, CollectionSurface,
         Request,
@@ -505,7 +505,7 @@ mod tests {
 
     #[test]
     fn material_bookmark_refresh_is_a_material_only_metadata_read() {
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let executor = RuntimeExecutor::new(
             Runtime::open(
                 &directory.path().join("profile"),
@@ -540,7 +540,7 @@ mod tests {
         use mlearn_core::*;
         // Given real package metadata cached with a linked authored Material
         // and an independent learner claim under the original package revision.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let profile = directory.path().join("profile");
         let executor = open(&profile);
         let package_id = "org.mlearn.english";
@@ -700,7 +700,7 @@ mod tests {
         use mlearn_core::*;
         // Given one authentic package-produced target as a bounded test fixture.
         // This does not stand in for full-corpus preparation or real management QA.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let profile = directory.path().join("profile");
         let executor = open(&profile);
         let package_id = "org.mlearn.english";
@@ -936,7 +936,7 @@ mod tests {
     fn frozen_selection_transport_retains_receipts_and_releases_after_reopen() {
         use mlearn_core::{CollectionSelectionCreate, CollectionSelectionSource};
         // Given the real metadata transport without an installed language package.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let profile = directory.path().join("profile");
         let open_empty = || {
             RuntimeExecutor::new(
@@ -1026,7 +1026,7 @@ mod tests {
     fn native_preparation_cancels_and_resumes_its_committed_package_cursor() {
         // Given the actual compiled package and a subscription to a committed
         // native page, not a timer or a mocked SQLite transition.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let profile = directory.path().join("profile");
         let executor = open(&profile);
         let command = CollectionPreparationCommand {
@@ -1113,7 +1113,8 @@ mod tests {
                         command_id: command.command_id.clone()
                     },
                 ))
-                .is_none()
+                .is_none(),
+                "Cancelled preparation must no longer own an active page"
             );
             call(
                 &executor,

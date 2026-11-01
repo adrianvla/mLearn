@@ -410,6 +410,7 @@ fn validate_probes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_test_profile::NativeTestProfile;
     use mlearn_core::AuthoredMediaId;
     use serde_json::json;
 
@@ -474,7 +475,7 @@ mod tests {
     #[test]
     fn due_queue_omits_v2_grammar_and_preserves_lexical_work() {
         // Given ordinary saved vocabulary and a real package-owned grammar target.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let mut runtime = runtime_with_package(directory.path());
         let mut content = material().content;
         content.package_id = "org.mlearn.english".into();
@@ -534,7 +535,7 @@ mod tests {
     #[test]
     fn authenticated_grammar_tasks_execute_the_declared_finite_validator() {
         // Given the real bundled package, authenticated resources and Wasmi owner.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let runtime = runtime_with_package(directory.path());
         let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
         let revision = package.revision().unwrap();
@@ -592,7 +593,7 @@ mod tests {
     #[test]
     fn authenticated_grammar_generation_does_not_substitute_an_unsupported_target() {
         // Given a valid envelope naming a genuinely unsupported grammar target.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let runtime = runtime_with_package(directory.path());
         let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
         let revision = package.revision().unwrap();
@@ -620,7 +621,7 @@ mod tests {
     fn admitted_review_commit_is_independent_of_source_navigation_cancellation() {
         for practice in [false, true] {
             // Given genuine package output already admitted for durable Review work.
-            let directory = tempfile::tempdir().unwrap();
+            let directory = NativeTestProfile::new();
             let mut runtime = runtime_with_package(directory.path());
             let mut command = start_command();
             if practice {
@@ -664,7 +665,7 @@ mod tests {
     #[test]
     fn authored_edit_during_package_work_rejects_stale_admission_without_receipt() {
         // Given package-generated content computed before an authored revision changes.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let mut runtime = runtime_with_package(directory.path());
         let command = start_command();
         let Prepared::Work(work) = runtime

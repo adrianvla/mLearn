@@ -1,5 +1,6 @@
 use super::*;
 use crate::guest::GuestOutput;
+use crate::native_test_profile::NativeTestProfile;
 use mlearn_core::*;
 use serde_json::json;
 
@@ -70,7 +71,7 @@ fn capture(session: &ReviewSession, id: &str) -> ReviewCommand {
 #[test]
 fn validation_lease_binds_raw_response_and_rejects_foreign_scope() {
     // Given an actual typed task and both kinds of scoped reservation.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "fenced-capture");
@@ -122,7 +123,7 @@ fn validation_lease_binds_raw_response_and_rejects_foreign_scope() {
 #[test]
 fn validation_lease_survives_source_epoch_change() {
     // Given a durable Practice response registered before unrelated source work.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let raw = json!({"type":"review","command":capture(&session,"durable-capture")}).to_string();
@@ -144,7 +145,7 @@ fn validation_lease_survives_source_epoch_change() {
 #[test]
 fn validation_cancel_before_claim_rejects_late_execution_without_a_capture() {
     // Given an actual response whose native reservation has not executed.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let raw = json!({"type":"review","command":capture(&session,"unclaimed-capture")}).to_string();
@@ -176,13 +177,10 @@ fn validation_cancel_before_claim_rejects_late_execution_without_a_capture() {
 
 #[test]
 fn validation_cancel_wakes_queued_work_without_unlocking_unrelated_guest() {
-    use std::{
-        sync::{Arc, mpsc},
-        thread,
-        time::Duration,
-    };
+    use std::sync::Arc;
+    use std::{sync::mpsc, thread, time::Duration};
     // Given a real validator request queued behind unrelated guest admission.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let raw = json!({"type":"review","command":capture(&session,"queued-capture")}).to_string();
@@ -216,14 +214,12 @@ fn validation_cancel_wakes_queued_work_without_unlocking_unrelated_guest() {
 
 #[test]
 fn validation_cancel_drains_actual_guest_result_before_capacity_and_retry() {
-    use crate::execution::bounded_read_tests::{HeldOperation, observe_cancel_join};
-    use std::{
-        sync::{Arc, mpsc},
-        thread,
-        time::Duration,
-    };
+    use crate::execution::bounded_read_tests::observe_cancel_join;
+    use crate::execution::bounded_read_tests::HeldOperation;
+    use std::sync::Arc;
+    use std::{sync::mpsc, thread, time::Duration};
     // Given actual package output held before publication, with both slots charged.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let raw = json!({"type":"review","command":capture(&session,"drained-capture")}).to_string();
@@ -296,7 +292,7 @@ fn validation_cancel_drains_actual_guest_result_before_capacity_and_retry() {
 #[test]
 fn actual_package_capture_restarts_reveals_and_submits_exactly_once() {
     // Given the real authenticated grammar package and its admitted typed task.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     assert_eq!(session.total, Some(3));
@@ -395,7 +391,7 @@ fn actual_package_capture_restarts_reveals_and_submits_exactly_once() {
 #[test]
 fn actual_contrast_and_recall_keep_validation_and_disclosure_distinct() {
     // Given all three real package task directions in one deliberate session.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let mut session = grammar_session(&mut runtime);
     let cases = [
@@ -532,7 +528,7 @@ fn actual_contrast_and_recall_keep_validation_and_disclosure_distinct() {
 #[test]
 fn pause_cancels_prepared_validation_and_drops_its_owned_token() {
     // Given actual package validation prepared but not yet invoked.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
@@ -568,7 +564,7 @@ fn pause_cancels_prepared_validation_and_drops_its_owned_token() {
 #[test]
 fn pause_after_real_validation_rejects_late_publication_then_resume_retries() {
     // Given a completed real validator result held before its native commit.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
@@ -612,7 +608,7 @@ fn pause_after_real_validation_rejects_late_publication_then_resume_retries() {
 #[test]
 fn pausing_a_peer_session_does_not_cancel_this_validation() {
     // Given one actual validation and a separate admitted session.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");
@@ -664,7 +660,7 @@ fn pausing_a_peer_session_does_not_cancel_this_validation() {
 #[test]
 fn unavailable_admitted_package_prevents_commit_and_remains_recoverable() {
     // Given a real validator result whose authenticated package becomes unavailable.
-    let directory = tempfile::tempdir().unwrap();
+    let directory = NativeTestProfile::new();
     let mut runtime = super::tests::runtime_with_package(directory.path());
     let session = grammar_session(&mut runtime);
     let command = capture(&session, "capture");

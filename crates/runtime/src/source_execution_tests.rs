@@ -1,3 +1,4 @@
+use crate::native_test_profile::NativeTestProfile;
 use crate::{BundledPlugin, Runtime, RuntimeExecutor, catalog::Manifest};
 use mlearn_core::{Cue, Request, SourceRecord};
 use mlearn_language_host::CodePolicy;
@@ -52,8 +53,8 @@ pub(crate) fn observe_guest_result(
     });
 }
 
-pub(crate) fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
-    let directory = tempfile::tempdir().unwrap();
+pub(crate) fn fixture() -> (NativeTestProfile, Arc<RuntimeExecutor>, SourceRecord) {
+    let directory = NativeTestProfile::new();
     let profile = directory.path().join("profile");
     let cdn = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
     let manifests: Vec<Manifest> = serde_json::from_slice(
