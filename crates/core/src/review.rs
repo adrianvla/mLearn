@@ -69,11 +69,43 @@ record!(ReviewProbe {
     required_media: Option<AuthoredMediaId>
 });
 
+/// An authored revision and a canonical package target have different identities.
+/// Flattening retains the existing Material wire shape and persisted admissions.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum ReviewSubject {
+    Material {
+        #[serde(rename = "materialId")]
+        material_id: MaterialId,
+        #[serde(rename = "materialRevision")]
+        material_revision: u32,
+    },
+    Target {
+        #[serde(rename = "targetId")]
+        target_id: String,
+    },
+}
+
+impl ReviewSubject {
+    #[must_use]
+    pub fn material(&self) -> Option<(&MaterialId, u32)> {
+        match self {
+            Self::Material {
+                material_id,
+                material_revision,
+            } => Some((material_id, *material_revision)),
+            Self::Target { .. } => None,
+        }
+    }
+}
+
 // Private resumable content. Never returned as the question projection.
 record!(ReviewAdmission {
     work_id: ReviewWorkId,
-    material_id: MaterialId,
-    material_revision: u32,
+    #[serde(flatten)]
+    #[cfg_attr(feature = "typescript", ts(flatten))]
+    subject: ReviewSubject,
     package_id: String,
     package_version: String,
     package_revision: String,
@@ -105,6 +137,14 @@ record!(PracticeItem {
     source: Option<SourceAnchor>
 });
 
+record!(TargetPracticeItem {
+    package_id: String,
+    package_revision: String,
+    target_id: String,
+    capabilities: Vec<String>,
+    source: Option<SourceAnchor>
+});
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -112,6 +152,17 @@ pub enum ReviewMode {
     Continuous,
     Finite { limit: u32 },
     Practice { items: Vec<PracticeItem> },
+    TargetPractice { items: Vec<TargetPracticeItem> },
+}
+
+impl ReviewMode {
+    #[must_use]
+    pub const fn is_scheduled(&self) -> bool {
+        match self {
+            Self::Continuous | Self::Finite { .. } => true,
+            Self::Practice { .. } | Self::TargetPractice { .. } => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -157,8 +208,9 @@ record!(ReviewConditions {
 record!(ReviewEncounter {
     id: ReviewEncounterId,
     work_id: ReviewWorkId,
-    material_id: MaterialId,
-    material_revision: u32,
+    #[serde(flatten)]
+    #[cfg_attr(feature = "typescript", ts(flatten))]
+    subject: ReviewSubject,
     package_id: String,
     package_version: String,
     package_revision: String,

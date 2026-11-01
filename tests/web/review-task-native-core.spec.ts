@@ -2,11 +2,25 @@
 import { test, expect } from '@playwright/test';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
+import { builtInThemes } from '../../packages/theme/src/theme';
 
-async function startGrammarPractice(client: ReturnType<typeof createRuntimeBrowserClient>) {
+async function startGrammarPractice(
+  client: ReturnType<typeof createRuntimeBrowserClient>,
+  subject: 'material' | 'target' = 'material',
+) {
   await client.availablePackages();
   await client.installPackage(client.prepareInstall('org.mlearn.english'));
   const inspected = await client.inspectTarget('org.mlearn.english', 'org.mlearn.english:grammar/past-simple-negative');
+  if (subject === 'target') {
+    return (await client.review(client.prepareReviewStart({
+      kind: 'target_practice', items: [{
+        packageId: 'org.mlearn.english', targetId: inspected.entry.targetId,
+        packageRevision: inspected.packageRevision,
+        capabilities: inspected.entry.capabilities.map(capability => capability.id),
+        source: null,
+      }],
+    }))).session;
+  }
   const saved = await client.createMaterial(client.prepareMaterial({
     packageId: 'org.mlearn.english', targetId: inspected.entry.targetId,
     packageRevision: inspected.packageRevision, sense: null,
@@ -26,13 +40,32 @@ test('typed Practice preserves the actual package-validated response through res
   try {
     // Given an authenticated package and its actual grammar task, not a renderer fixture.
     await attachRuntimeBrowserQa(page, backend.url);
-    const started = await startGrammarPractice(client);
+    const started = await startGrammarPractice(client, 'target');
+    expect((await client.materials({ query: '', after: null, sourceId: null, includeExcluded: true })).items).toHaveLength(0);
+    expect(started.encounter).not.toHaveProperty('materialId');
     expect(started.encounter?.task?.responseSpec.kind).toBe('typed_text');
     await page.goto(`/review?sessionId=${started.id}`);
     await expect(page.getByTestId('review-cue')).toBeVisible();
-    for (const width of [1080, 390]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.screenshot({ path: info.outputPath(`typed-question-${width}.png`) });
+    await expect(page.getByRole('heading', { name: 'Word Practice', exact: true })).toBeVisible();
+    await expect(page.getByText('1 selected target', { exact: true })).toBeVisible();
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      await page.reload();
+      await expect(page.getByTestId('review-cue')).toBeVisible();
+      await page.getByRole('button', { name: 'Sessions', exact: true }).click();
+      const reopen = page.getByRole('button', { name: `Open Word Practice ${started.id}`, exact: true });
+      await expect(reopen).toBeVisible();
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: info.outputPath(`canonical-sessions-${theme.id}-${width}.png`) });
+      }
+      await reopen.click();
+      await expect(page.getByTestId('review-cue')).toBeVisible();
+      expect((await client.reviewSession(started.id)).encounter).toEqual(started.encounter);
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: info.outputPath(`typed-question-${theme.id}-${width}.png`) });
+      }
     }
 
     // When the learner captures raw input, then restarts before revealing it.
@@ -58,9 +91,15 @@ test('typed Practice preserves the actual package-validated response through res
     const revealed = await client.reviewSession(started.id);
     expect(revealed.encounter?.capture?.id).toBe(captured.encounter?.capture?.id);
     expect(revealed.encounter?.capture?.feedback?.outcomes.map(value => value.result)).toEqual(['accepted']);
-    for (const width of [1080, 390]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.screenshot({ path: info.outputPath(`typed-revealed-${width}.png`) });
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      await page.reload();
+      await expect(page.getByTestId('review-answer')).toBeVisible();
+      expect((await client.reviewSession(started.id)).encounter).toEqual(revealed.encounter);
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: info.outputPath(`typed-revealed-${theme.id}-${width}.png`) });
+      }
     }
     await page.getByRole('button', { name: 'All Fluent', exact: true }).click();
     await expect(page.getByTestId('review-rating')).toHaveCount(0);

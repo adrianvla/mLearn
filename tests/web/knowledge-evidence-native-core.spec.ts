@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
-import type { KnowledgeKey, ReviewSession } from '@mlearn/contracts';
+import type { KnowledgeKey, ReviewMode, ReviewSession } from '@mlearn/contracts';
 import { builtInThemes } from '../../packages/theme/src/theme';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
@@ -112,9 +112,19 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     let key: KnowledgeKey | null = null;
     let latest: ReviewSession | null = null;
     for (let index = 0; index < 17; index++) {
-      let session = (await client.review(client.prepareReviewStart({
+      let mode: ReviewMode = {
         kind: 'practice', items: [{ materialId: material.id, source: null }],
-      }))).session;
+      };
+      // Mix genuine canonical evidence with the existing authored attempts.
+      if (index === 16) {
+        const { packageId, packageRevision, targetId, source } = material.content;
+        if (!key || !packageRevision || !targetId || !source)
+          throw new Error('The real captured word must retain its canonical source identity');
+        mode = { kind: 'target_practice', items: [{
+          packageId, packageRevision, targetId, capabilities: [key.capability], source,
+        }] };
+      }
+      let session: ReviewSession = (await client.review(client.prepareReviewStart(mode))).session;
       const encounter = session.encounter;
       if (!encounter) throw new Error('Actual package did not admit the captured Material');
       const targetKey = encounter.targets.find(target => target.key)?.key;
@@ -165,7 +175,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     await expect(evidence.getByText('Assessed self-report: remembered', { exact: true })).toBeVisible();
     await expect(evidence.getByRole('button', { name: /^Attempt \d+ details$/ })).toHaveCount(16);
     await evidence.getByRole('button', { name: `Attempt ${physical.sequence} details`, exact: true }).click();
-    await expect(evidence.getByText(`Material: ${material.id} · revision 1`, { exact: true })).toBeVisible();
+    await expect(evidence.getByText(`Target: ${key.targetId}`, { exact: true })).toBeVisible();
     await expect(evidence.getByText(/^Source: document/)).toContainText(document.source.id);
     await page.screenshot({ path: info.outputPath('evidence-expanded-source-desktop.png') });
     await evidence.getByRole('button', { name: 'Older observations', exact: true }).click();
@@ -201,10 +211,24 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
         await page.screenshot({ path: info.outputPath(`evidence-${theme.id}-${width}-top.png`) });
         const details = evidence.getByRole('button', { name: `Attempt ${physical.sequence} details`, exact: true });
         await details.click();
+        const targetIdentity = evidence.getByText(`Target: ${key.targetId}`, { exact: true });
+        await targetIdentity.scrollIntoViewIfNeeded();
+        await expect(targetIdentity).toBeInViewport();
+        await page.screenshot({ path: info.outputPath(`evidence-${theme.id}-${width}-target.png`) });
         const source = evidence.getByText(/^Source: document/);
         await source.scrollIntoViewIfNeeded();
         await page.screenshot({ path: info.outputPath(`evidence-${theme.id}-${width}-provenance.png`) });
         await details.click();
+        const authored = initial.observations[1];
+        if (!authored || !('materialId' in authored)) throw new Error('Expected retained authored evidence');
+        const authoredDetails = evidence.getByRole('button', { name: `Attempt ${authored.sequence} details`, exact: true });
+        await authoredDetails.scrollIntoViewIfNeeded();
+        await authoredDetails.click();
+        const identity = evidence.getByText(`Material: ${material.id} · revision 1`, { exact: true });
+        await identity.scrollIntoViewIfNeeded();
+        await expect(identity).toBeInViewport();
+        await page.screenshot({ path: info.outputPath(`evidence-${theme.id}-${width}-material.png`) });
+        await authoredDetails.click();
         await evidence.getByRole('button', { name: 'Older observations', exact: true }).scrollIntoViewIfNeeded();
         await expect(evidence.getByRole('button', { name: 'Older observations', exact: true })).toBeInViewport();
         const bounds = await inspector.boundingBox();

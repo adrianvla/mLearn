@@ -19,7 +19,8 @@ fn removed_material_does_not_retire_admitted_audio_or_source_continuity() {
     };
     store.register_authored_media(&asset).unwrap();
     let mut item = admission(&mut store, "audio-card");
-    let material = store.material(&item.material_id).unwrap();
+    let id = material_id(&item);
+    let material = store.material(&id).unwrap();
     let mut content = material.content;
     content.attachments.push(MaterialAttachment {
         media_id: asset.id.clone(),
@@ -29,14 +30,17 @@ fn removed_material_does_not_retire_admitted_audio_or_source_continuity() {
     store
         .update_material(&MaterialEdit {
             command_id: "attach-audio".into(),
-            id: item.material_id.clone(),
+            id: id.clone(),
             expected_revision: material.revision,
             content,
             excluded: false,
             media_imports: vec![],
         })
         .unwrap();
-    item.material_revision += 1;
+    item.subject = ReviewSubject::Material {
+        material_id: id.clone(),
+        material_revision: material.revision.checked_add(1).unwrap(),
+    };
     item.probe.direction = ReviewDirection::Audio;
     item.probe.required_media = Some(asset.id.clone());
     let session = start(
@@ -50,8 +54,8 @@ fn removed_material_does_not_retire_admitted_audio_or_source_continuity() {
     store
         .remove_material(&MaterialRemove {
             command_id: "remove-audio-card".into(),
-            id: item.material_id.clone(),
-            expected_revision: item.material_revision,
+            id: id.clone(),
+            expected_revision: item.subject.material().unwrap().1,
         })
         .unwrap();
     drop(store);
@@ -65,7 +69,7 @@ fn removed_material_does_not_retire_admitted_audio_or_source_continuity() {
         store.forget_authored_media(&asset.id),
         Err(mlearn_storage::StorageError::Conflict)
     ));
-    assert!(store.material(&item.material_id).is_err());
+    assert!(store.material(&id).is_err());
 }
 
 #[test]

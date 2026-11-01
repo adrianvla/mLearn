@@ -1,5 +1,68 @@
 # Current implementation checkpoint
 
+## Native canonical Practice admission and projection - 2026-11-01
+
+On package base `a9c6f677`, the shared Review owner now admits explicit canonical
+targets without manufacturing saved Materials. `ReviewSubject` distinguishes
+authored revision from canonical identity while retaining the old flat Material
+wire/storage shape. The existing session, capture, disclosure, correction and
+Knowledge evidence owners remain authoritative. Canonical Practice does not
+enter the scheduled Material queue or write a Material schedule.
+
+The direct finite action freezes package revision, target, explicit capabilities
+and optional source. It admits 1..128 unique targets, 1..32 unique capabilities
+per target and at most eight package tasks per target. Native inspection checks
+actual supported keys; storage rejects omissions, duplicated/broadened keys,
+foreign identity/revision/origin and duplicate work atomically. Existing source
+shape and package-token alignment validators are shared with Material Practice.
+These are explicit finite API bounds, not completion of continuous/all-filtered
+collection Practice. Source/list presets and ordinary canonical launch actions
+still need integration; calibration and expert authoring remain unimplemented.
+
+Passing: 20 affected storage tests, including old flat-admission migration and
+failed-plan rollback/retry; all 89 runtime tests in the normal parallel harness
+(20.01 seconds); 24 client boundary tests; typecheck, ownership lint, generated
+contract conformance, production native QA build and normal web export.
+Actual English/Japanese WASM tasks complete canonical recall, pause/profile
+reopen, reveal, submit, Undo and Correct without saved Materials. Actual English
+canonical grammar captures raw input and executes its finite validator.
+The new typed test initially selected retrospective `grammar-recall`; the
+package declares typing as `grammar-form`. Its fixture now requests that real
+direction, retaining the original raw-input and accepted-result assertions.
+Existing transparent-ID generator and unused shared-fixture warnings remain
+unsuppressed.
+
+Four real-Rust browser scenarios pass: mixed authored/canonical evidence through
+paging/correction/process restart; canonical typed capture/restart/submission;
+native Stop/drain/recovery; actual contrast choices and honest recall. The
+shared Review screen correctly labels canonical work and saved sessions as Word
+Practice. Twenty identity/question/session/revealed captures were inspected at
+1080x900 and 390x900 in both built-in themes. Metadata wraps within its existing
+shared controls. Evidence is under
+`.mlearn/m11/canonical-review-a9c6f677-20261101/{identity-captures,task-screen}/`.
+This browser/native-core adapter is not native-window or mobile device proof.
+Native QA binary SHA256 is
+`86ec4cfaf35ed98e49031226d952668968b03e702fd56efb14a142c37def273d`;
+normal UI artifact is `index-be01b092f8a5a0c4a09b43d941bcbd7a.js`.
+
+Initial code generation completed, but its guard stopped below projected
+headroom reserve. The identified task-owned analyzer had 2505052000 bytes
+physical footprint; it and owned editor children were released. Subsequent
+verification retained the unchanged 2 GiB workload budget and 4 GiB reserve;
+minimum projected headroom was 4802641998 bytes. Guards and QA hosts are stopped.
+Post-run OmO footprint is 775802024 bytes, pressure 1, swapOut unchanged at
+314122223616 and disk available 2894628 KiB. No device or reference app launched.
+
+Package checkpoint `a9c6f677` passes foundation41275861339,
+desktop41275861354 and mobile Android124763554148. Hosted iOS124763554336
+fails in Apple Files at `id: m01-watch, mp4 is not visible`, as did prior
+run41273923207. Its original assertion and artifacts remain; no diagnostic
+variant or acceptance waiver was introduced. This increment's native platform
+gates await its committed source. M11 remains 35/47, incomplete and not
+maintainer accepted. Next: connect real scoped launch actions, then frozen
+collection scope, Word Sync and accountable authoring before independent M11
+review. Unrelated untracked reports, fixtures, temporary files and profiles stay.
+
 ## Canonical lexical task package prerequisite - 2026-11-01
 
 English and Japanese now generate bounded `learning.probes.v2` recall tasks from

@@ -24,6 +24,10 @@ mod capture;
 mod capture_tests;
 #[path = "review_practice.rs"]
 mod practice;
+#[path = "review_source.rs"]
+mod source;
+#[path = "review_target_practice.rs"]
+mod target_practice;
 
 pub(super) struct ReviewWork {
     command: ReviewCommand,
@@ -83,6 +87,10 @@ impl Runtime {
                     self.validate_practice(items)?;
                     items.len() * 8
                 }
+                ReviewMode::TargetPractice { items } => {
+                    self.validate_target_practice(items)?;
+                    items.len() * 8
+                }
             },
             ReviewCommand::Next { mutation } => {
                 let session = self
@@ -105,7 +113,9 @@ impl Runtime {
                 }
                 match session.mode {
                     ReviewMode::Continuous => 1,
-                    ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => {
+                    ReviewMode::Finite { .. }
+                    | ReviewMode::Practice { .. }
+                    | ReviewMode::TargetPractice { .. } => {
                         let commit = self
                             .store
                             .review_next(mutation, None, now)
@@ -152,10 +162,12 @@ impl Runtime {
         {
             return Ok(Response::Review { commit });
         }
-        if let ReviewCommand::Start { start } = &work.command
-            && let ReviewMode::Practice { items } = &start.mode
-        {
-            self.validate_practice(items)?;
+        if let ReviewCommand::Start { start } = &work.command {
+            match &start.mode {
+                ReviewMode::Practice { items } => self.validate_practice(items)?,
+                ReviewMode::TargetPractice { items } => self.validate_target_practice(items)?,
+                ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
+            }
         }
         for admission in admissions {
             let package = self.installed.get(&admission.package_id).ok_or_else(|| {
@@ -165,14 +177,16 @@ impl Runtime {
                 .packages
                 .get(&admission.package_id)
                 .ok_or_else(|| Failure::Operation("Missing admitted Review package".into()))?;
-            let current = self
-                .store
-                .material(&admission.material_id)
-                .map_err(storage_failure)?;
+            let changed = match admission.subject.material() {
+                Some((material_id, material_revision)) => {
+                    let current = self.store.material(material_id).map_err(storage_failure)?;
+                    current.revision != material_revision || current.excluded
+                }
+                None => false,
+            };
             if !Arc::ptr_eq(&package.compiled, &prepared.compiled)
                 || package.revision()? != admission.package_revision
-                || current.revision != admission.material_revision
-                || current.excluded
+                || changed
             {
                 return Err(Failure::Protocol(
                     "conflict",
@@ -195,10 +209,14 @@ impl Runtime {
 impl ReviewWork {
     pub(super) fn run(&self) -> Result<Vec<ReviewAdmission>, Failure> {
         let store = ProfileStore::open(&self.profile).map_err(storage_failure)?;
-        if let ReviewCommand::Start { start } = &self.command
-            && let ReviewMode::Practice { items } = &start.mode
-        {
-            return self.run_practice(&store, items);
+        if let ReviewCommand::Start { start } = &self.command {
+            match &start.mode {
+                ReviewMode::Practice { items } => return self.run_practice(&store, items),
+                ReviewMode::TargetPractice { items } => {
+                    return self.run_target_practice(&store, items);
+                }
+                ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
+            }
         }
         let session_id = match &self.command {
             ReviewCommand::Start { start } => &start.session_id,
@@ -274,8 +292,10 @@ impl ReviewWork {
                     }
                     admissions.push(ReviewAdmission {
                         work_id,
-                        material_id: due.material.id.clone(),
-                        material_revision: due.material.revision,
+                        subject: mlearn_core::ReviewSubject::Material {
+                            material_id: due.material.id.clone(),
+                            material_revision: due.material.revision,
+                        },
                         package_id: package_id.clone(),
                         package_version: package.manifest.version.clone(),
                         package_revision: revision.clone(),
@@ -678,7 +698,10 @@ mod tests {
         let crate::guest::GuestOutput::Review(admissions) = &output else {
             panic!("Expected probes")
         };
-        let current = runtime.store.material(&admissions[0].material_id).unwrap();
+        let current = runtime
+            .store
+            .material(admissions[0].subject.material().unwrap().0)
+            .unwrap();
         let mut content = current.content;
         content.phrase = "changed phrase".into();
         let updated: serde_json::Value = serde_json::from_str(

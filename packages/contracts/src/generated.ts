@@ -219,6 +219,8 @@ export type TaskContract = { revision: number, responseSpec: ResponseSpec, valid
  */
 answerSupplied: Array<KnowledgeKey>, attribution: string, limitations: string, };
 
+export type ReviewSubject = { materialId: MaterialId, materialRevision: number, } | { targetId: string, };
+
 export type ReviewTask = { revision: number, responseSpec: ResponseSpec, attribution: string, limitations: string, };
 
 export type ReviewCapture = { id: ReviewCaptureId, response: TaskResponse, conditions: ReviewConditions, feedback: ValidationOutput | null, };
@@ -235,7 +237,9 @@ export type ValidationOutput = { contractVersion: number, taskId: string, taskRe
 
 export type PracticeItem = { materialId: MaterialId, source: SourceAnchor | null, };
 
-export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, };
+export type TargetPracticeItem = { packageId: string, packageRevision: string, targetId: string, capabilities: Array<string>, source: SourceAnchor | null, };
+
+export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, } | { "kind": "target_practice", items: Array<TargetPracticeItem>, };
 
 export type ReviewSessionState = "active" | "paused" | "complete" | "unavailable";
 
@@ -245,7 +249,7 @@ export type ReviewAssistance = "inspector" | "source" | "prior_disclosure" | "re
 
 export type ReviewConditions = { revealed: boolean, exposureCount: number, assistance: Array<ReviewAssistance>, delivery: ReviewDelivery, };
 
-export type ReviewEncounter = { id: ReviewEncounterId, workId: ReviewWorkId, materialId: MaterialId, materialRevision: number, packageId: string, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, cue: string, answer: string | null, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, source: SourceAnchor | null, conditions: ReviewConditions, correction: boolean, task?: ReviewTask, capture?: ReviewCapture, };
+export type ReviewEncounter = { id: ReviewEncounterId, workId: ReviewWorkId, packageId: string, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, cue: string, answer: string | null, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, source: SourceAnchor | null, conditions: ReviewConditions, correction: boolean, task?: ReviewTask, capture?: ReviewCapture, } & ({ materialId: MaterialId, materialRevision: number, } | { targetId: string, });
 
 export type ReviewSession = { id: ReviewSessionId, revision: number, mode: ReviewMode, state: ReviewSessionState, completed: number, total: number | null, encounter: ReviewEncounter | null, canUndo: boolean, message: string | null, };
 
@@ -531,7 +535,7 @@ export type KnowledgeEvidenceCursor = { identity: string, before: number, revisi
 
 export type KnowledgeEvidenceQuery = { key: KnowledgeKey, after: KnowledgeEvidenceCursor | null, };
 
-export type KnowledgeObservation = { sequence: number, attemptId: ReviewAttemptId, sessionId: ReviewSessionId, encounterId: ReviewEncounterId, active: boolean, createdAt: number, materialId: MaterialId, materialRevision: number, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, conditions: ReviewConditions, grade: ReviewGrade, assessed: boolean | null, practice: boolean, source: SourceAnchor | null, capture?: ReviewCapture, };
+export type KnowledgeObservation = { sequence: number, attemptId: ReviewAttemptId, sessionId: ReviewSessionId, encounterId: ReviewEncounterId, active: boolean, createdAt: number, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, conditions: ReviewConditions, grade: ReviewGrade, assessed: boolean | null, practice: boolean, source: SourceAnchor | null, capture?: ReviewCapture, } & ({ materialId: MaterialId, materialRevision: number, } | { targetId: string, });
 
 export type KnowledgeEvidencePage = { projection: KnowledgeProjection, claimRevision: number | null, assessedAttempt: ReviewAttemptId | null, observations: Array<KnowledgeObservation>, next: KnowledgeEvidenceCursor | null, };
 

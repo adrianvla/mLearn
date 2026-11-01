@@ -172,8 +172,7 @@ fn correction_uses_original_conditions_and_claims_remain_separate() {
     assert_eq!(observation.grade.quality, Some(AttemptQuality::Missed));
     assert_eq!(observation.grade.method, ResponseMethod::Remembered);
     assert_eq!(observation.assessed, Some(false));
-    assert_eq!(observation.material_id, item.material_id);
-    assert_eq!(observation.material_revision, item.material_revision);
+    assert_eq!(observation.subject, item.subject);
     assert_eq!(observation.package_version, item.package_version);
     assert_eq!(observation.package_revision, item.package_revision);
     assert_eq!(observation.source, item.source);

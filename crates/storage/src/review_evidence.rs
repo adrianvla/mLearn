@@ -148,15 +148,19 @@ pub(crate) fn write_schedule(
     admission: &ReviewAdmission,
     value: Option<&ReviewSchedule>,
 ) -> Result<(), StorageError> {
+    let (material_id, _) = admission
+        .subject
+        .material()
+        .ok_or_else(|| StorageError::Invalid("Canonical tasks have no Material schedule".into()))?;
     match value {
         Some(schedule) => {
             db.execute("INSERT INTO review_schedules VALUES(?1,?2,?3) ON CONFLICT(material_id,probe_id) DO UPDATE SET document=excluded.document",
-                params![admission.material_id.0, admission.probe.id, serde_json::to_string(schedule)?])?;
+                params![material_id.0, admission.probe.id, serde_json::to_string(schedule)?])?;
         }
         None => {
             db.execute(
                 "DELETE FROM review_schedules WHERE material_id=?1 AND probe_id=?2",
-                params![admission.material_id.0, admission.probe.id],
+                params![material_id.0, admission.probe.id],
             )?;
         }
     }

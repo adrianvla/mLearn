@@ -66,10 +66,7 @@ fn selected_non_due_practice_preserves_scheduler_and_native_purpose_across_resta
         std::slice::from_ref(&unrelated),
         ReviewMode::Continuous,
     );
-    assert_eq!(
-        ordinary.encounter.unwrap().material_id,
-        unrelated.material_id
-    );
+    assert_eq!(ordinary.encounter.unwrap().subject, unrelated.subject);
 }
 
 #[test]
@@ -158,7 +155,7 @@ fn practice_admission_rejects_missing_duplicate_excluded_or_broadened_membership
     let selected = admission(&mut store, "selected");
     let other = admission(&mut store, "other");
     let excluded = admission(&mut store, "excluded");
-    let material = store.material(&excluded.material_id).unwrap();
+    let material = store.material(&material_id(&excluded)).unwrap();
     store
         .update_material(&MaterialEdit {
             command_id: "exclude".into(),

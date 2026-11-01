@@ -1,6 +1,6 @@
-use crate::{material_read::read_material, ProfileStore, StorageError};
+use crate::{ProfileStore, StorageError, material_read::read_material};
 use mlearn_core::*;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 
 pub(crate) fn session(
     db: &Connection,
@@ -18,10 +18,13 @@ pub(crate) fn schedule(
     db: &Connection,
     admission: &ReviewAdmission,
 ) -> Result<Option<ReviewSchedule>, StorageError> {
+    let Some((material_id, _)) = admission.subject.material() else {
+        return Ok(None);
+    };
     let json: Option<String> = db
         .query_row(
             "SELECT document FROM review_schedules WHERE material_id=?1 AND probe_id=?2",
-            params![admission.material_id.0, admission.probe.id],
+            params![material_id.0, admission.probe.id],
             |r| r.get(0),
         )
         .optional()?;

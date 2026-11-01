@@ -85,7 +85,9 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
                         : item.assessed ? 'remembered' : 'missed'}{item.grade.easy ? ' · marked easy' : ''}</Text>
                     <Text tone="media" muted variant="caption">Corrections replace this physical attempt's response,
                         retaining its original time and conditions; they are not additional retrievals.</Text>
-                    <Text tone="media" selectable variant="caption">Material: {item.materialId} · revision {item.materialRevision}</Text>
+                    <Text tone="media" selectable variant="caption">{'targetId' in item
+                        ? `Target: ${item.targetId}`
+                        : `Material: ${item.materialId} · revision ${item.materialRevision}`}</Text>
                     <Text tone="media" selectable variant="caption">Package: {knowledgeKey.packageId} · {item.packageVersion}
                         {'\n'}Revision: {item.packageRevision}</Text>
                     <Text tone="media" selectable variant="caption">Probe: {item.probeId} · contract {item.probeContractVersion}

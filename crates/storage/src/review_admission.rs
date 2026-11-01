@@ -21,12 +21,36 @@ pub(crate) fn validate_admission(value: &ReviewAdmission) -> Result<(), StorageE
     }
     for id in [
         &value.work_id.0,
-        &value.material_id.0,
         &value.package_id,
         &value.package_version,
         &value.package_revision,
     ] {
         bounded(id, 512)?;
+    }
+    match &value.subject {
+        ReviewSubject::Material {
+            material_id,
+            material_revision,
+        } => {
+            bounded(&material_id.0, 512)?;
+            if *material_revision == 0 {
+                return Err(StorageError::Invalid("Invalid Material revision".into()));
+            }
+        }
+        ReviewSubject::Target { target_id } => {
+            bounded(target_id, 512)?;
+            if value.task.is_none()
+                || value.probe.targets.iter().any(|row| {
+                    row.key
+                        .as_ref()
+                        .is_none_or(|key| key.target_id != *target_id)
+                })
+            {
+                return Err(StorageError::Invalid(
+                    "Invalid canonical Review subject".into(),
+                ));
+            }
+        }
     }
     if !review_compatible(&value.probe)
         || value.scheduler_version != REVIEW_POLICY_VERSION
@@ -96,6 +120,11 @@ pub(crate) fn practice_material(
 }
 
 pub(crate) fn due(db: &Connection, value: &ReviewAdmission, now: i64) -> Result<(), StorageError> {
+    if matches!(value.subject, ReviewSubject::Target { .. }) {
+        return Err(StorageError::Invalid(
+            "Canonical tasks cannot enter scheduled Material Review".into(),
+        ));
+    }
     if review_read::schedule(db, value)?.is_some_and(|schedule| schedule.due_at > now) {
         return Err(StorageError::Conflict);
     }
@@ -113,7 +142,9 @@ pub(crate) fn next(
         ));
     }
     let admission = match &session.mode {
-        ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => {
+        ReviewMode::Finite { .. }
+        | ReviewMode::Practice { .. }
+        | ReviewMode::TargetPractice { .. } => {
             let json: Option<String> = db.query_row(
                 "SELECT admission FROM review_work WHERE session_id=?1 AND admitted=0 ORDER BY position LIMIT 1",
                 [&session.id.0], |r| r.get(0),
@@ -163,10 +194,13 @@ pub(crate) fn next(
                 ReviewDelivery::NotRequired
             },
         };
-        let disclosed: bool = db.query_row(
+        let disclosed: bool = match value.subject.material() {
+            Some((material_id, _)) => db.query_row(
             "SELECT EXISTS(SELECT 1 FROM review_encounters e JOIN review_work w ON w.session_id=e.session_id AND w.work_id=e.work_id WHERE (e.session_id=?1 OR NOT EXISTS(SELECT 1 FROM review_attempts a WHERE a.encounter_id=e.id AND a.active=1 AND (json_extract(a.response,'$.captureId') IS NOT NULL OR EXISTS(SELECT 1 FROM json_each(a.response,'$.grades') g WHERE json_extract(g.value,'$.quality') IS NOT NULL)))) AND json_extract(w.admission,'$.materialId')=?2 AND json_extract(e.projection,'$.conditions.revealed')=1)",
-            params![session.id.0, value.material_id.0], |r| r.get(0),
-        )?;
+                params![session.id.0, material_id.0], |r| r.get(0),
+            )?,
+            None => false,
+        };
         let tested: Vec<_> = value
             .probe
             .targets
@@ -197,8 +231,7 @@ pub(crate) fn next(
         let encounter = ReviewEncounter {
             id: id.clone(),
             work_id: value.work_id.clone(),
-            material_id: value.material_id.clone(),
-            material_revision: value.material_revision,
+            subject: value.subject.clone(),
             package_id: value.package_id.clone(),
             package_version: value.package_version.clone(),
             package_revision: value.package_revision.clone(),
@@ -239,12 +272,16 @@ pub(crate) fn next(
         session.state = ReviewSessionState::Active;
     } else {
         session.state = match &session.mode {
-            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => ReviewSessionState::Complete,
+            ReviewMode::Finite { .. }
+            | ReviewMode::Practice { .. }
+            | ReviewMode::TargetPractice { .. } => ReviewSessionState::Complete,
             ReviewMode::Continuous => ReviewSessionState::Unavailable,
         };
         session.message = match &session.mode {
             ReviewMode::Continuous => Some("No due Review work is available".into()),
-            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => None,
+            ReviewMode::Finite { .. }
+            | ReviewMode::Practice { .. }
+            | ReviewMode::TargetPractice { .. } => None,
         };
     }
     Ok(())

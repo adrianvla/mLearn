@@ -93,12 +93,15 @@ impl ProfileStore {
                 }
                 for item in items {
                     let material = review_admission::practice_material(&tx, &item.material_id)?;
-                    if !admissions
-                        .iter()
-                        .any(|value| value.material_id == item.material_id)
-                        || admissions.iter().any(|value| {
-                            value.material_id == item.material_id
-                                && (value.material_revision != material.revision
+                    if !admissions.iter().any(|value| {
+                        value
+                            .subject
+                            .material()
+                            .is_some_and(|(id, _)| id == &item.material_id)
+                    }) || admissions.iter().any(|value| {
+                        value.subject.material().is_some_and(|(id, revision)| {
+                            id == &item.material_id
+                                && (revision != material.revision
                                     || value.package_id != material.content.package_id
                                     || value.source
                                         != item
@@ -106,16 +109,19 @@ impl ProfileStore {
                                             .clone()
                                             .or_else(|| material.content.source.clone()))
                         })
-                    {
+                    }) {
                         return Err(StorageError::Invalid(
                             "Selected Word Practice membership changed or is unavailable".into(),
                         ));
                     }
                 }
                 if admissions.iter().any(|value| {
-                    !items
-                        .iter()
-                        .any(|item| item.material_id == value.material_id)
+                    !items.iter().any(|item| {
+                        value
+                            .subject
+                            .material()
+                            .is_some_and(|(id, _)| id == &item.material_id)
+                    })
                 }) {
                     return Err(StorageError::Invalid(
                         "Word Practice cannot broaden selected membership".into(),
@@ -123,6 +129,9 @@ impl ProfileStore {
                 }
                 u32::try_from(admissions.len())
                     .map_err(|error| StorageError::Invalid(error.to_string()))?
+            }
+            ReviewMode::TargetPractice { items } => {
+                crate::review_target_practice::admit(&tx, items, admissions)?
             }
         };
         let exists: bool = tx.query_row(
@@ -156,12 +165,12 @@ impl ProfileStore {
                 break;
             }
             review_admission::validate_admission(admission)?;
-            if admission.task.is_some() && !matches!(&start.mode, ReviewMode::Practice { .. }) {
+            if admission.task.is_some() && start.mode.is_scheduled() {
                 return Err(StorageError::Invalid(
                     "Package response tasks require deliberate Word Practice".into(),
                 ));
             }
-            if !matches!(&start.mode, ReviewMode::Practice { .. }) {
+            if start.mode.is_scheduled() {
                 review_admission::due(&tx, admission, now)?;
             }
             let inserted = tx.execute("INSERT OR IGNORE INTO review_work(session_id,work_id,position,admission) VALUES(?1,?2,?3,?4)",
@@ -170,11 +179,13 @@ impl ProfileStore {
                 count += 1;
             }
         }
-        if matches!(&start.mode, ReviewMode::Practice { .. }) && count != maximum {
+        if !start.mode.is_scheduled() && count != maximum {
             return Err(StorageError::Invalid("Duplicate Word Practice work".into()));
         }
         session.total = match &start.mode {
-            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => Some(count),
+            ReviewMode::Finite { .. }
+            | ReviewMode::Practice { .. }
+            | ReviewMode::TargetPractice { .. } => Some(count),
             ReviewMode::Continuous => None,
         };
         review_admission::next(&tx, &mut session, None)?;

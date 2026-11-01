@@ -1,6 +1,6 @@
 //! Explicit selected work, using the Review package/admission owner without due selection.
 use super::*;
-use mlearn_core::{AnalyzedToken, PracticeItem, SourceAnchor, SourceLocator};
+use mlearn_core::PracticeItem;
 
 impl Runtime {
     pub(super) fn validate_practice(&self, items: &[PracticeItem]) -> Result<(), Failure> {
@@ -107,8 +107,10 @@ impl ReviewWork {
                 .map_err(|e| Failure::Operation(e.to_string()))?;
                 admissions.push(ReviewAdmission {
                     work_id: ReviewWorkId(format!("{:x}", Sha256::digest(identity))),
-                    material_id: material.id.clone(),
-                    material_revision: material.revision,
+                    subject: mlearn_core::ReviewSubject::Material {
+                        material_id: material.id.clone(),
+                        material_revision: material.revision,
+                    },
                     package_id: package_id.clone(),
                     package_version: package.manifest.version.clone(),
                     package_revision: revision.clone(),
@@ -225,72 +227,5 @@ impl LanguageWork {
             ));
         }
         Ok(output.tasks)
-    }
-
-    fn validate_practice_target(
-        &self,
-        material: &Material,
-        anchor: &SourceAnchor,
-    ) -> Result<(), Failure> {
-        let (selection_start, selection_end) = match &anchor.locator {
-            SourceLocator::Message {
-                selection_start,
-                selection_end,
-                ..
-            }
-            | SourceLocator::Video {
-                selection_start,
-                selection_end,
-                ..
-            }
-            | SourceLocator::Document {
-                selection_start,
-                selection_end,
-                ..
-            }
-            | SourceLocator::Image {
-                selection_start,
-                selection_end,
-                ..
-            } => (*selection_start, *selection_end),
-        };
-        let start =
-            usize::try_from(selection_start).map_err(|e| Failure::Operation(e.to_string()))?;
-        let end = usize::try_from(selection_end).map_err(|e| Failure::Operation(e.to_string()))?;
-        let selected = anchor
-            .text
-            .get(start..end)
-            .filter(|text| !text.is_empty())
-            .ok_or_else(|| {
-                Failure::Protocol(
-                    "invalid_review",
-                    "Word Practice requires a valid source selection".into(),
-                )
-            })?;
-        let matches = match &material.content.target_id {
-            None => selected == material.content.phrase,
-            Some(target) => {
-                let output = self.invoke(
-                    "text.analyze.v1",
-                    serde_json::json!({"texts":[anchor.text]}),
-                )?;
-                let tokens: Vec<Vec<AnalyzedToken>> = serde_json::from_value(output)
-                    .map_err(|e| Failure::Operation(e.to_string()))?;
-                tokens.len() == 1
-                    && tokens[0].iter().any(|token| {
-                        token.start == selection_start
-                            && token.end == selection_end
-                            && token.text == selected
-                            && token.targets.contains(target)
-                    })
-            }
-        };
-        if !matches {
-            return Err(Failure::Protocol(
-                "invalid_review",
-                "Word Practice source selection does not match the saved Material target".into(),
-            ));
-        }
-        Ok(())
     }
 }

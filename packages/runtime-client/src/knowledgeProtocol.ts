@@ -1,6 +1,6 @@
 import type { KnowledgeEvidencePage, KnowledgeObservation } from '@mlearn/contracts';
 import { isKnowledgeProjection } from './watchProtocol';
-import { isReviewCapture, isReviewConditions, isReviewGrade } from './reviewProtocol';
+import { isReviewCapture, isReviewConditions, isReviewGrade, isReviewSubject } from './reviewProtocol';
 import { isSourceAnchor } from './sourceProtocol';
 
 const encoder = new TextEncoder();
@@ -18,7 +18,7 @@ function observation(value: unknown): value is KnowledgeObservation {
   return positive(value.sequence) && text(value.attemptId) && text(value.sessionId)
     && text(value.encounterId) && typeof value.active === 'boolean'
     && typeof value.createdAt === 'number' && Number.isSafeInteger(value.createdAt) && value.createdAt >= 0
-    && text(value.materialId) && positive(value.materialRevision) && text(value.packageVersion)
+    && isReviewSubject(value) && text(value.packageVersion)
     && text(value.packageRevision) && text(value.probeId, 256) && positive(value.probeContractVersion)
     && typeof value.direction === 'string' && ['written', 'focused', 'audio'].includes(value.direction)
     && isReviewConditions(value.conditions) && value.conditions.revealed
@@ -44,6 +44,7 @@ export function isKnowledgeEvidencePage(value: unknown): value is KnowledgeEvide
     || encoder.encode(JSON.stringify(value)).length > 196608) return false;
   const observations = value.observations;
   if (new Set(observations.map(item => item.attemptId)).size !== observations.length
+    || observations.some(item => 'targetId' in item && item.targetId !== key.targetId)
     || observations.some((item, index) => index > 0 && item.sequence >= observations[index - 1].sequence)) return false;
   const assessed = observations.find(item => item.attemptId === value.assessedAttempt);
   if (assessed && (!assessed.active || assessed.assessed !== value.projection.assessed)) return false;

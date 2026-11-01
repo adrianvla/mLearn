@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { StyleSheet } from 'react-native-unistyles';
-import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewSession, TaskResponse } from '@mlearn/contracts';
+import type { AuthoredMediaId, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewMode, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { AppShell, Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
@@ -16,6 +16,16 @@ import { useReviewKeys } from './useReviewKeys';
 
 type MutationAction = Parameters<RuntimeClient['prepareReviewMutation']>[1];
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+function practiceScope(mode: ReviewMode): string | null {
+  switch (mode.kind) {
+    case 'practice': return `${mode.items.length} selected Materials`;
+    case 'target_practice':
+      return `${mode.items.length} selected ${mode.items.length === 1 ? 'target' : 'targets'}`;
+    case 'continuous':
+    case 'finite': return null;
+  }
+}
 
 export function ReviewScreen() {
   const host = useRuntime();
@@ -296,7 +306,8 @@ function ReviewWorkspace({ client, media }: {
     } }));
   }
   const finiteValid = /^[1-9]\d{0,2}$/.test(limit) && Number(limit) <= 128;
-  const purpose = session?.mode.kind === 'practice' ? 'Word Practice' : 'Review';
+  const selectedScope = session ? practiceScope(session.mode) : null;
+  const purpose = selectedScope ? 'Word Practice' : 'Review';
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
     <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
@@ -312,9 +323,7 @@ function ReviewWorkspace({ client, media }: {
         <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
           <Button label="Start finite Review" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
       </Panel> : session ? <>
-        {session.mode.kind === 'practice' ? <Text variant="caption" muted>
-          {session.mode.items.length} selected Materials
-        </Text> : null}
+        {selectedScope ? <Text variant="caption" muted>{selectedScope}</Text> : null}
         <Row>
           {session.state === 'active' ? <Button label="Pause" disabled={blocked} onPress={() => void mutate({ kind: 'pause' })} />
             : session.state === 'paused' ? <Button label="Resume" disabled={blocked} onPress={() => void mutate({ kind: 'resume' })} /> : null}
@@ -384,11 +393,14 @@ function ReviewWorkspace({ client, media }: {
           void execute(failed).then(value => failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined);
         }} /> : null}</Panel> : null}
       {!session && sessions.length ? <Stack><Text variant="section">Recent sessions</Text>
-        {sessions.map(value => <Panel key={value.id}>
-          <Text>{value.mode.kind === 'practice' ? 'Word Practice' : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
-          {value.mode.kind === 'practice' ? <Text variant="caption" muted>{value.mode.items.length} selected Materials</Text> : null}
-          <Button label={`Open ${value.mode.kind === 'practice' ? 'Word Practice' : 'Review'} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
-        </Panel>)}</Stack> : null}
+        {sessions.map(value => {
+          const selected = practiceScope(value.mode);
+          return <Panel key={value.id}>
+            <Text>{selected ? 'Word Practice' : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
+            {selected ? <Text variant="caption" muted>{selected}</Text> : null}
+            <Button label={`Open ${selected ? 'Word Practice' : 'Review'} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
+          </Panel>;
+        })}</Stack> : null}
     </View>
   </AppShell>;
 }

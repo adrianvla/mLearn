@@ -334,6 +334,32 @@ test('Word Practice validates explicit membership and preserves a prepared selec
   }
 });
 
+test('canonical Practice confines target identity revision and tested capabilities', () => {
+  // Given one explicit canonical scope, with no authored identity.
+  const item = { packageId: 'package', packageRevision: 'revision', targetId: 'target',
+    capabilities: ['package:meaning'], source: null };
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: {
+    revision: 1, responseSpec: { kind: 'self_report' },
+    attribution: 'Package content', limitations: 'Recall only',
+  } };
+  const practice = { ...session, mode: { kind: 'target_practice', items: [item] },
+    total: 1, encounter: current };
+  // When the native projection crosses its ordinary response boundary.
+  assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  // Then a different subject, revision, key or authored identity cannot broaden it.
+  for (const invalid of [
+    { ...current, targetId: 'other-target' },
+    { ...current, packageRevision: 'other-revision' },
+    { ...current, materialId: 'invented', materialRevision: 1 },
+    { ...current, targets: [{ ...encounter.targets[0],
+      key: { packageId: 'package', targetId: 'target', capability: 'package:reading' } }] },
+  ]) assert.equal(isReviewResponse({
+    type: 'review_session', session: { ...practice, encounter: invalid },
+  }), false);
+});
+
 test('Review rejects leaked answers malformed rows and incompatible delivery at the wire boundary', () => {
   // Given an admitted hidden-answer encounter.
   assert.equal(isReviewResponse({ type: 'review_session', session }), true);

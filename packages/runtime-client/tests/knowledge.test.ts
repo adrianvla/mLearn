@@ -50,6 +50,31 @@ test('captured validation permits an unrated row without fabricating retrospecti
   assert.equal(privateResult, false);
 });
 
+test('canonical evidence retains target identity and rejects mixed or foreign subjects', async () => {
+  // Given a canonical observation, without an invented Material identity.
+  const { query, page } = fixture();
+  const canonical = Object.fromEntries(Object.entries(page.observations[0])
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  canonical.targetId = query.key.targetId;
+  let packet: unknown = { ...page, observations: [canonical] };
+  const client = createRuntimeClient({
+    commandId: () => 'unused',
+    execute: async () => JSON.stringify({ type: 'knowledge_evidence', page: packet }),
+  });
+  // When native evidence crosses the existing bounded read boundary.
+  assert.deepEqual((await client.knowledgeEvidence(query)).observations, [canonical]);
+  // Then foreign targets and simultaneous authored/canonical identities are rejected.
+  for (const invalid of [
+    { ...canonical, targetId: 'other-target' },
+    { ...canonical, targetId: '' },
+    { ...canonical, targetId: '\0' },
+    { ...canonical, materialId: 'invented', materialRevision: 1 },
+  ]) {
+    packet = { ...page, observations: [invalid] };
+    await assert.rejects(client.knowledgeEvidence(query), { code: 'protocol' });
+  }
+});
+
 test('Knowledge evidence rejects foreign scope, fabricated provenance and unbounded or inconsistent pages', async () => {
   const { query, page } = fixture();
   let packet: unknown = page;
@@ -67,6 +92,7 @@ test('Knowledge evidence rejects foreign scope, fabricated provenance and unboun
     { ...page, observations: [{ ...observation, active: false }] },
     { ...page, observations: [{ ...observation, assessed: true }] },
     { ...page, observations: [{ ...observation, sequence: 0 }] },
+    { ...page, observations: [{ ...observation, materialId: '\0' }] },
     { ...page, observations: [{ ...observation, source: { sourceId: 'invented' } }] },
     { ...page, observations: [{ ...observation, grade: { ...observation.grade, quality: null } }] },
     { ...page, observations: [{ ...observation, grade: { ...observation.grade, method: 'validated' } }] },

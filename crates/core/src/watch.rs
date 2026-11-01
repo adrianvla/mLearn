@@ -100,8 +100,9 @@ model!(KnowledgeObservation {
     active:bool,
     #[cfg_attr(feature="typescript",ts(type="number"))]
     created_at:i64,
-    material_id:crate::MaterialId,
-    material_revision:u32,
+    #[serde(flatten)]
+    #[cfg_attr(feature="typescript",ts(flatten))]
+    subject:crate::ReviewSubject,
     package_version:String,
     package_revision:String,
     probe_id:String,

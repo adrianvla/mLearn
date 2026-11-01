@@ -81,7 +81,7 @@ fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
             .find(|manifest| manifest.id == package_id)
             .unwrap()
             .clone();
-        let bundle = crate::BundledPlugin {
+        let bundle = || crate::BundledPlugin {
             code: std::fs::read(artifacts.join(&manifest.code.path)).unwrap(),
             assets: manifest
                 .assets
@@ -95,16 +95,18 @@ fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
                     )
                 })
                 .collect(),
-            manifest,
+            manifest: manifest.clone(),
         };
-        let runtime = Runtime::open(
-            &directory.path().join(package_id),
+        let profile = directory.path().join(package_id);
+        let mut runtime = Runtime::open(
+            &profile,
             mlearn_language_host::CodePolicy::MobileBundled,
             None,
-            vec![bundle],
+            vec![bundle()],
         )
         .unwrap();
         let package = runtime.installed.get(package_id).unwrap();
+        let revision = package.revision().unwrap();
         assert!(package
             .manifest
             .capabilities
@@ -132,9 +134,7 @@ fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
             target_id: target.clone(),
             capability: format!("{package_id}:meaning"),
         }];
-        let tasks = work
-            .review_tasks(target, &package.revision().unwrap(), Some(&keys))
-            .unwrap();
+        let tasks = work.review_tasks(target, &revision, Some(&keys)).unwrap();
         // Then the real native owner receives exact, honest recall without hidden saves.
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].probe.targets.len(), 1);
@@ -143,6 +143,127 @@ fn real_bundled_lexical_tasks_keep_requested_keys_without_materials() {
         assert!(tasks[0].task.answer_supplied.contains(&keys[0]));
         assert_eq!(tasks[0].task.response_spec, ResponseSpec::SelfReport);
         assert!(tasks[0].task.validator_id.is_none());
+        let command = ReviewCommand::Start {
+            start: ReviewStart {
+                command_id: "canonical-start".into(),
+                session_id: ReviewSessionId("canonical-practice".into()),
+                mode: ReviewMode::TargetPractice {
+                    items: vec![TargetPracticeItem {
+                        package_id: package_id.into(),
+                        package_revision: revision,
+                        target_id: target.clone(),
+                        capabilities: vec![keys[0].capability.clone()],
+                        source: None,
+                    }],
+                },
+            },
+        };
+        let session = execute(&mut runtime, &command);
+        let current = session.encounter.as_ref().unwrap();
+        assert_eq!(
+            current.subject,
+            ReviewSubject::Target {
+                target_id: target.clone()
+            }
+        );
+        assert_eq!(current.targets[0].key.as_ref(), Some(&keys[0]));
+        assert_eq!(
+            current.task.as_ref().unwrap().response_spec,
+            ResponseSpec::SelfReport
+        );
+        let paused = execute(
+            &mut runtime,
+            &ReviewCommand::Pause {
+                mutation: mutation(&session, "pause"),
+            },
+        );
+        drop(work);
+        drop(runtime);
+        // The native profile reopens with the exact admitted, unrevealed task.
+        runtime = Runtime::open(
+            &profile,
+            mlearn_language_host::CodePolicy::MobileBundled,
+            None,
+            vec![bundle()],
+        )
+        .unwrap();
+        assert_eq!(runtime.store.review_session(&paused.id).unwrap(), paused);
+        let resumed = execute(
+            &mut runtime,
+            &ReviewCommand::Resume {
+                mutation: mutation(&paused, "resume"),
+            },
+        );
+        let shown = execute(
+            &mut runtime,
+            &ReviewCommand::Reveal {
+                mutation: mutation(&resumed, "reveal"),
+                encounter_id: resumed.encounter.as_ref().unwrap().id.clone(),
+            },
+        );
+        let current = shown.encounter.as_ref().unwrap();
+        let response = ReviewResponse {
+            encounter_id: current.id.clone(),
+            grades: vec![ReviewGrade {
+                target_id: current.targets[0].id.clone(),
+                quality: Some(AttemptQuality::Fluent),
+                method: ResponseMethod::Remembered,
+                easy: false,
+            }],
+            capture_id: None,
+        };
+        let completed = execute(
+            &mut runtime,
+            &ReviewCommand::Submit {
+                mutation: mutation(&shown, "submit"),
+                response: response.clone(),
+            },
+        );
+        assert_eq!(completed.state, ReviewSessionState::Complete);
+        let query = KnowledgeEvidenceQuery {
+            key: keys[0].clone(),
+            after: None,
+        };
+        let evidence = runtime.store.knowledge_evidence(&query).unwrap();
+        assert_eq!(evidence.projection.assessed, Some(true));
+        assert!(evidence.observations[0].practice);
+        assert!(matches!(
+            evidence.observations[0].subject,
+            ReviewSubject::Target { .. }
+        ));
+        let undone = execute(
+            &mut runtime,
+            &ReviewCommand::Undo {
+                mutation: mutation(&completed, "undo"),
+            },
+        );
+        let mut corrected = response;
+        corrected.grades[0].quality = Some(AttemptQuality::Missed);
+        execute(
+            &mut runtime,
+            &ReviewCommand::Correct {
+                mutation: mutation(&undone, "correct"),
+                response: corrected,
+            },
+        );
+        let corrected = runtime.store.knowledge_evidence(&query).unwrap();
+        assert_eq!(corrected.projection.assessed, Some(false));
+        assert_eq!(corrected.observations.len(), 1);
+        assert_eq!(
+            corrected.observations[0].attempt_id,
+            evidence.observations[0].attempt_id
+        );
+        assert!(runtime
+            .store
+            .materials(&MaterialQuery {
+                query: String::new(),
+                source_id: None,
+                after: None,
+                include_excluded: true,
+            })
+            .unwrap()
+            .items
+            .is_empty());
         assert!(runtime
             .store
             .review_due_materials(None, 0, 1)
@@ -190,6 +311,128 @@ fn partial_task_scope_retains_real_disclosures_without_testing_sibling_capabilit
         }];
         assert!(work.review_tasks(TARGET, &revision, Some(&keys)).is_err());
     }
+}
+
+#[test]
+fn canonical_grammar_executes_captured_validation_without_authored_identity() {
+    // Given the real package and a canonical, single-capability grammar session.
+    let directory = NativeTestProfile::new();
+    let mut runtime = super::tests::runtime_with_package(directory.path());
+    let revision = runtime.installed.get(PACKAGE).unwrap().revision().unwrap();
+    let session = execute(
+        &mut runtime,
+        &ReviewCommand::Start {
+            start: ReviewStart {
+                command_id: "canonical-grammar-start".into(),
+                session_id: ReviewSessionId("canonical-grammar".into()),
+                mode: ReviewMode::TargetPractice {
+                    items: vec![TargetPracticeItem {
+                        package_id: PACKAGE.into(),
+                        package_revision: revision,
+                        target_id: TARGET.into(),
+                        capabilities: vec![format!("{PACKAGE}:grammar-form")],
+                        source: None,
+                    }],
+                },
+            },
+        },
+    );
+    let executor = crate::RuntimeExecutor::new(runtime);
+    let raw = json!({"type":"review","command":capture(&session, "canonical-capture")}).to_string();
+    // When the actual validator captures raw input, reveals and commits its result.
+    let ticket = executor.begin_review_validation(&raw).unwrap();
+    let result: Response =
+        serde_json::from_str(&executor.execute_review_validation(&ticket, &raw)).unwrap();
+    let Response::Review { commit } = result else {
+        panic!("Expected captured validation, received {result:?}")
+    };
+    assert!(commit
+        .session
+        .encounter
+        .as_ref()
+        .unwrap()
+        .capture
+        .as_ref()
+        .unwrap()
+        .feedback
+        .is_none());
+    let result: Response = serde_json::from_str(
+        &executor.execute(
+            &json!({
+                "type":"review","command":ReviewCommand::Reveal {
+                    mutation: mutation(&commit.session, "canonical-reveal"),
+                    encounter_id: commit.session.encounter.as_ref().unwrap().id.clone(),
+                }
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    let Response::Review { commit } = result else {
+        panic!("Expected revealed validation, received {result:?}")
+    };
+    let current = commit.session.encounter.as_ref().unwrap();
+    let saved = current.capture.as_ref().unwrap();
+    assert_eq!(
+        current.subject,
+        ReviewSubject::Target {
+            target_id: TARGET.into()
+        }
+    );
+    assert_eq!(
+        saved.response,
+        TaskResponse::TypedText {
+            text: " DID NOT FOLD ".into()
+        }
+    );
+    assert_eq!(
+        saved.feedback.as_ref().unwrap().outcomes[0].result,
+        ValidationResult::Accepted
+    );
+    let result: Response = serde_json::from_str(
+        &executor.execute(
+            &json!({
+                "type":"review","command":ReviewCommand::Submit {
+                    mutation: mutation(&commit.session, "canonical-submit"),
+                    response: ReviewResponse {
+                        encounter_id: current.id.clone(), capture_id: Some(saved.id.clone()),
+                        grades: vec![ReviewGrade {
+                            target_id: current.targets[0].id.clone(), quality: None,
+                            method: ResponseMethod::Remembered, easy: false,
+                        }],
+                    },
+                }
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert!(matches!(result, Response::Review { .. }));
+    let ticket = executor.begin_bounded_read().unwrap();
+    let result: Response = serde_json::from_str(
+        &executor.execute_bounded_read(
+            &ticket,
+            &json!({
+                "type":"knowledge_evidence","query":KnowledgeEvidenceQuery {
+                    key: KnowledgeKey { package_id: PACKAGE.into(), target_id: TARGET.into(),
+                capability: format!("{PACKAGE}:grammar-form") }, after: None,
+                }
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    // Then the canonical key has one actual assessed validation, not a fake Material.
+    let Response::KnowledgeEvidence { page } = result else {
+        panic!("Expected native evidence")
+    };
+    assert_eq!(page.projection.assessed, Some(true));
+    assert_eq!(page.observations.len(), 1);
+    assert!(matches!(
+        page.observations[0].subject,
+        ReviewSubject::Target { .. }
+    ));
+    assert!(page.observations[0].grade.quality.is_none());
 }
 
 #[test]

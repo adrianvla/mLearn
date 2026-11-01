@@ -288,6 +288,8 @@ fn legacy_exposures_migrate_once_without_changing_receipts_or_material_identity(
     let path = directory.path().join("profile");
     let mut store = ProfileStore::open(&path).unwrap();
     let first = admission(&mut store, "first");
+    let original_id = material_id(&first);
+    let original_revision = first.subject.material().unwrap().1;
     let session = start(
         &mut store,
         "first-session",
@@ -301,6 +303,18 @@ fn legacy_exposures_migrate_once_without_changing_receipts_or_material_identity(
     let session = store.review_apply(&reveal_command, 110).unwrap().session;
     drop(store);
     let old = rusqlite::Connection::open(&path).unwrap();
+    let document: String = old
+        .query_row("SELECT admission FROM review_work LIMIT 1", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    let document: serde_json::Value = serde_json::from_str(&document).unwrap();
+    assert!(document.get("subject").is_none());
+    assert_eq!(
+        document["materialId"],
+        serde_json::to_value(original_id).unwrap()
+    );
+    assert_eq!(document["materialRevision"], original_revision);
     old.execute_batch(
         "DROP TABLE review_disclosures; DROP TABLE review_captures; PRAGMA user_version=19;",
     )

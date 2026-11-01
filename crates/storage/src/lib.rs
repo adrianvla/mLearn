@@ -29,6 +29,7 @@ mod review_evidence;
 mod review_read;
 mod review_receipts;
 mod review_state;
+mod review_target_practice;
 mod view_preferences;
 mod watch;
 pub use material_media::PreparedAuthoredMedia;

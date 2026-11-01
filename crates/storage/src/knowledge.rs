@@ -81,7 +81,7 @@ impl ProfileStore {
             let mut statement = tx.prepare(
                 "SELECT a.sequence,a.id,a.session_id,a.encounter_id,a.active,a.created_at,
                         o.grade,o.assessed,a.conditions,w.admission,
-                        json_extract(s.projection,'$.mode.kind')='practice'
+                        json_extract(s.projection,'$.mode.kind') IN ('practice','target_practice')
                  FROM review_observations o
                  JOIN review_attempts a ON a.id=o.attempt_id
                  JOIN review_encounters e ON e.id=a.encounter_id
@@ -109,8 +109,7 @@ impl ProfileStore {
                     encounter_id: ReviewEncounterId(row.get(3)?),
                     active: row.get(4)?,
                     created_at: row.get(5)?,
-                    material_id: admission.material_id,
-                    material_revision: admission.material_revision,
+                    subject: admission.subject,
                     package_version: admission.package_version,
                     package_revision: admission.package_revision,
                     probe_id: admission.probe.id,
