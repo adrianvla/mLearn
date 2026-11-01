@@ -1,0 +1,18 @@
+appId: net.kikan.mlearn.v3dev
+name: Reopen exact seeded Practice from native Home
+---
+- extendedWaitUntil:
+    visible:
+      id: source-language-select
+      enabled: true
+    timeout: 60000
+- scrollUntilVisible:
+    element: Word Sync
+    direction: DOWN
+    timeout: 30000
+- tapOn: Word Sync
+- scrollUntilVisible:
+    element: Open Word Practice m11-native-grammar
+    direction: DOWN
+    timeout: 30000
+- tapOn: Open Word Practice m11-native-grammar

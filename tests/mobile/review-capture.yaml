@@ -1,0 +1,73 @@
+appId: net.kikan.mlearn.v3dev
+name: Actual package validation and native encounter persistence
+---
+# Requires mobile_review_seed in an isolated app profile with matching bundle
+# identity. This flow does not replace the separate active-cancellation proof.
+- launchApp:
+    clearState: false
+    permissions: {}
+- runFlow: review/open-seeded.yaml
+- extendedWaitUntil:
+    visible: Your response
+    timeout: 60000
+- tapOn:
+    text: Your response
+    below: Your response
+- inputText: DID NOT FOLD
+- assertVisible: DID NOT FOLD
+- hideKeyboard
+- assertVisible: DID NOT FOLD
+- tapOn: Check response
+- extendedWaitUntil:
+    notVisible: Check response
+    timeout: 30000
+- assertVisible: DID NOT FOLD
+- takeScreenshot: native-response-before-restart
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- runFlow: review/open-seeded.yaml
+- extendedWaitUntil:
+    visible: DID NOT FOLD
+    timeout: 60000
+- assertNotVisible: Check response
+- tapOn: Reveal
+- extendedWaitUntil:
+    visible: ".*accepted.*finite_match.*"
+    timeout: 15000
+- takeScreenshot: native-validated-response
+- scrollUntilVisible:
+    element: All Fluent
+    direction: DOWN
+    timeout: 30000
+- tapOn: All Fluent
+- extendedWaitUntil:
+    visible:
+      text: Pause
+      enabled: true
+    timeout: 15000
+- tapOn: Pause
+- extendedWaitUntil:
+    visible:
+      text: Resume
+      enabled: true
+    timeout: 15000
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- runFlow: review/open-seeded.yaml
+- extendedWaitUntil:
+    visible:
+      text: Resume
+      enabled: true
+    timeout: 60000
+- tapOn: Resume
+- extendedWaitUntil:
+    visible:
+      text: Pause
+      enabled: true
+    timeout: 15000
+- takeScreenshot: native-next-encounter-resumed
+- stopApp
