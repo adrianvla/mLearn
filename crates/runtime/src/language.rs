@@ -92,7 +92,7 @@ impl LanguageWork {
         if target.len() > 512 {
             return Err(Failure::Operation("Target id exceeds limit".into()));
         }
-        let entry: LexicalEntry = serde_json::from_value(
+        let mut entry: LexicalEntry = serde_json::from_value(
             self.invoke("target.inspect.v1", serde_json::json!({"targetId":target}))?,
         )
         .map_err(|e| Failure::Operation(e.to_string()))?;
@@ -155,18 +155,22 @@ impl LanguageWork {
                 || canonical
                     .iter()
                     .any(|id| !entry.capabilities.iter().any(|cap| cap.id == *id))
-                || !canonical.is_empty()
-                    && !self
-                        .package
-                        .manifest
-                        .capabilities
-                        .iter()
-                        .any(|capability| capability == "learning.probes.v2")
             {
                 return Err(Failure::Operation(
                     "Entry declares unavailable canonical practice".into(),
                 ));
             }
+        }
+        // Retained ABI1 manifests still own ordinary dictionary inspection.
+        // Optional task metadata cannot grant an undeclared execution capability.
+        if !self
+            .package
+            .manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability == "learning.probes.v2")
+        {
+            entry.canonical_practice_capabilities = None;
         }
         Ok(entry)
     }
@@ -257,12 +261,10 @@ mod tests {
                 .unwrap();
             let knowledge = runtime.target_knowledge("org.example", &entry).unwrap();
             assert_eq!(knowledge.claim, expected);
-            assert!(
-                knowledge
-                    .projections
-                    .iter()
-                    .all(|p| p.assessed.is_none() && p.prediction.is_none())
-            );
+            assert!(knowledge
+                .projections
+                .iter()
+                .all(|p| p.assessed.is_none() && p.prediction.is_none()));
         }
         drop(runtime);
         let runtime = Runtime::open(&path, CodePolicy::MobileBundled, None, vec![]).unwrap();

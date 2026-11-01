@@ -1,5 +1,36 @@
 # Current implementation checkpoint
 
+## Active continuation after Inspector checkpoint - 2026-11-01
+
+Committed/pushed source is `a1aef63c5b842801b2e1b6bff1833a2f07266938`.
+Desktop41287699967 passes. Foundation41287700049 fails Rust job124792257770
+in `abi1_offline`: a retained manifest without `learning.probes.v2` cannot
+inspect a dictionary entry because optional canonical metadata is rejected.
+The exact response is `Entry declares unavailable canonical practice`.
+This is a product regression, not the preceding Windows theme gate.
+The repair validates optional metadata normally but does not expose executable
+Practice support unless the manifest declares v2; retained inspection stays
+available and undeclared task execution stays denied. Its original integration
+test is strengthened, not weakened. The original offline ABI1 integration now
+passes locally (0.66 seconds), including saved-source restart/claims and denied
+undeclared task execution. This repair is checkpointed separately from the
+collection draft. The local worktree also contains that uncommitted draft;
+repair-only committed-source CI remains a separate gate.
+
+The separate uncommitted collection increment reuses frozen native selection
+membership with a one-target/eight-task lazy Review cursor, native lifetime
+pins and explicit Stop, without a 128-target scope cap or a renderer queue.
+Collection entry is source-assisted because Knowledge displays answers.
+One source-only storage child delivered its module and five real-storage tests;
+root owns integration and execution. Its initial build exposed a work-ID
+ordering bound, repaired by comparing the underlying string. All five new
+storage tests now pass (0.38 seconds), including 129 frozen targets, queued
+tasks, rollback, restart, pin release and honest partial Stop. Core/generated
+contracts and the first Knowledge/Review composition are drafted; real-package
+and rendered collection verification remain open. Do not call the feature
+delivered. M11 is 37/49, incomplete. Next: push the ABI repair, then verify the
+real collection surface before checkpointing that separate unit.
+
 ## Canonical Inspector Practice launch and honest assistance - 2026-11-01
 
 On admission base `72cf03c5`, actual English/Japanese inspection now declares
