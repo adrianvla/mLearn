@@ -82,6 +82,8 @@ function ReviewWorkspace({ client, media }: {
       if (scope.current === active && readOwner.current === read) setLoading(false);
     }
   }, [client, params.sessionId]);
+  const latestRefresh = useRef(refresh);
+  latestRefresh.current = refresh;
   useFocusEffect(useCallback(() => {
     const active = {}; scope.current = active; setFocused(true);
     setPending(flight.current !== null); setFailed(failedCommand.current);
@@ -131,7 +133,7 @@ function ReviewWorkspace({ client, media }: {
       // Updating the saved-session route can renew focus during this write.
       // Pending belongs to the shared flight, not its previous focus scope.
       if (scope.current) setPending(false);
-      if (scope.current && scope.current !== active) void refresh();
+      if (scope.current && scope.current !== active) void latestRefresh.current();
     });
     flight.current = result;
     return result;

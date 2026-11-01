@@ -1,5 +1,46 @@
 # Current implementation checkpoint
 
+## Review audio focus renewal repair - 2026-11-01
+
+Local checkpoint `6be70652` preserves the partial-capability admission repair.
+Foundation41270663045 passes Rust and detector jobs but fails web audio
+interactions and both desktop all-features compilations. The constructor in
+`ocr_probe.rs` still named `read_controls` after the shared owner was renamed;
+it now uses `operation_controls` with the unchanged two-control semaphore.
+The exact local all-features command now passes:30 passed,0 failed,1 existing
+ignored ffmpeg integration test (requires the optional local codecs/tools),
+compiler/test exit0 after1m09s compilation. The guard stays safe, observed
+minimum projected4648419328B, and is stopped afterward. Windows verification
+remains the automatically triggered hosted gate, not a local claim.
+
+The unchanged ready-audio Back/retry scenario reproduces the web failure.
+Diagnostic command history shows the initial pending delivery committed native
+revision2, followed by interruption and its identical retry prepared against
+revision1. A retained audio callback's execute closure refreshed the pre-session
+route after focus renewal, superseding the current route's restoration read.
+The existing Review owner now reloads through the latest refresh callback.
+Temporary diagnostic logging has been removed; original assertions are intact.
+
+Typecheck, ownership lint and the normal web export pass. All18 adjacent Review
+and actual native-backed response scenarios pass in one11.5s run, including
+ready/started Home and Back departure, uncertain-save retry, Pause/Resume,
+ratings, restart and typed/choice/Stop flows. Desktop1080/narrow390 recovery
+captures in `.mlearn/m11/review-flight-repaired/` were directly inspected.
+The resource guard stays safe, observed minimum projected5221957632B, and is
+stopped after success; server4173 is absent. Earlier diagnostic runs that
+coincided with resource holds remain recorded, not counted as resource passes.
+
+Mobile41270663044 passes Android and iOS compilation. Its unchanged iOS Watch
+flow fails at step13 after5min, missing enabled `Open local video`. This remains
+an unresolved platform gate; no diagnostic campaign is restarted or M11 native
+response-form pass inferred. Both PRs remain draft and unmerged.
+
+A returned canonical lexical package increment remains unverified and
+incomplete: Japanese v2 dispatch and exact tested-key multiplicity still need
+integration before package execution and artifact regeneration. No canonical
+Review subject/session protocol or calibration workflow has been added.
+M11 remains35/47 tasks done, not complete or maintainer accepted.
+
 ## Partial-capability task admission - 2026-11-01
 
 Pushed base `f0871283f2a40099c875dcbaeadfeae23fa43e9e` passes real desktop
