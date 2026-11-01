@@ -1,5 +1,34 @@
 # Current implementation checkpoint
 
+## Partial-capability task admission - 2026-11-01
+
+Pushed base `f0871283f2a40099c875dcbaeadfeae23fa43e9e` passes real desktop
+run41270663060. Foundation41270663045 and mobile41270663044 remain subscribed.
+PR44 and45 read back open drafts; PR45 points to that exact source.
+
+The next scoped Practice consumer exposed a native task-admission defect:
+requested tested capabilities were also used to restrict disclosures. The actual
+grammar package honestly discloses sibling capabilities even for a one-key
+request. A real-guest regression fails with the old predicate, reporting
+`Package task widened or duplicated the admitted scope`.
+
+The shared admission owner now accepts explicit eligible keys, rejects unsupported
+or foreign keys, requires exact unique tested coverage, and separately checks cue
+and answer disclosures against the inspected target's supported capabilities.
+Existing Material Practice still requests all its target's capabilities.
+All87 runtime tests pass with the normal parallel harness in14.47s, without
+retries or a test-thread override. Current Rust2024 formatting and whitespace
+checks pass; diagnostics on the changed owner are clean. This is a native
+prerequisite, not delivery of canonical Knowledge Practice or calibration.
+
+The unchanged resource gate first held while automatic diagnostics owned about
+4GiB. Only confirmed workspace-owned diagnostic supervisors and descendants were
+stopped. After the final Rust edit, admission passes three samples with final
+physical681250008B/projected6068191232B, pressure1 and unchanged swapOut.
+The green run's guard remains safe, observed minimum projected5682937856B,
+and is stopped after success. No device/server/model workload or persistent
+diagnostic configuration was added. M11 remains31/43 tasks done and incomplete.
+
 ## Review task response UI candidate - 2026-11-01
 
 Candidate `e796de1d` is committed locally. Foundation `198ddfe4` failed one

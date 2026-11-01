@@ -69,6 +69,47 @@ fn capture(session: &ReviewSession, id: &str) -> ReviewCommand {
 }
 
 #[test]
+fn partial_task_scope_retains_real_disclosures_without_testing_sibling_capabilities() {
+    // Given a real package target with only one requested capability.
+    let directory = NativeTestProfile::new();
+    let runtime = super::tests::runtime_with_package(directory.path());
+    let package = runtime.installed.get(PACKAGE).unwrap();
+    let revision = package.revision().unwrap();
+    let work = LanguageWork {
+        package: package.clone(),
+        cancellation: Cancellation::durable(),
+        action: LanguageAction::Describe,
+    };
+    for capability in ["grammar-form", "grammar-meaning", "grammar-recall"] {
+        let keys = [KnowledgeKey {
+            package_id: PACKAGE.into(),
+            target_id: TARGET.into(),
+            capability: format!("{PACKAGE}:{capability}"),
+        }];
+        // When the real guest generates exactly the requested direction.
+        let tasks = work.review_tasks(TARGET, &revision, Some(&keys)).unwrap();
+        // Then tested scope stays narrow while honest sibling disclosure survives.
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].probe.targets.len(), 1);
+        assert_eq!(tasks[0].probe.targets[0].key.as_ref(), Some(&keys[0]));
+        assert_eq!(tasks[0].task.answer_supplied.len(), 3);
+        assert!(tasks[0].probe.supplied.iter().all(|key| key != &keys[0]));
+    }
+    // Unsupported and foreign keys cannot become admitted work.
+    for (target, capability) in [
+        (TARGET, "meaning"),
+        ("org.mlearn.english:grammar/unregistered", "grammar-form"),
+    ] {
+        let keys = [KnowledgeKey {
+            package_id: PACKAGE.into(),
+            target_id: target.into(),
+            capability: format!("{PACKAGE}:{capability}"),
+        }];
+        assert!(work.review_tasks(TARGET, &revision, Some(&keys)).is_err());
+    }
+}
+
+#[test]
 fn validation_lease_binds_raw_response_and_rejects_foreign_scope() {
     // Given an actual typed task and both kinds of scoped reservation.
     let directory = NativeTestProfile::new();
@@ -214,8 +255,8 @@ fn validation_cancel_wakes_queued_work_without_unlocking_unrelated_guest() {
 
 #[test]
 fn validation_cancel_drains_actual_guest_result_before_capacity_and_retry() {
-    use crate::execution::bounded_read_tests::observe_cancel_join;
     use crate::execution::bounded_read_tests::HeldOperation;
+    use crate::execution::bounded_read_tests::observe_cancel_join;
     use std::sync::Arc;
     use std::{sync::mpsc, thread, time::Duration};
     // Given actual package output held before publication, with both slots charged.

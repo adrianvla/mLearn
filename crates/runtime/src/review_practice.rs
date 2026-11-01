@@ -84,7 +84,7 @@ impl ReviewWork {
                 && let Some(target) = material.content.target_id.as_deref()
             {
                 tasks = work
-                    .review_tasks(target, &revision)?
+                    .review_tasks(target, &revision, None)?
                     .into_iter()
                     .map(|task| (task.probe, Some(task.task)))
                     .collect();
@@ -127,28 +127,37 @@ impl ReviewWork {
 }
 
 impl LanguageWork {
-    fn review_tasks(
+    pub(super) fn review_tasks(
         &self,
         target: &str,
         revision: &str,
+        eligible_keys: Option<&[mlearn_core::KnowledgeKey]>,
     ) -> Result<Vec<mlearn_core::PackageTask>, Failure> {
         use mlearn_core::{KnowledgeKey, ResponseSpec, TaskInput, TaskOutput};
         let entry = self.entry(target)?;
         let package = &self.package.manifest.id;
+        let supported: Vec<_> = entry
+            .capabilities
+            .iter()
+            .map(|capability| KnowledgeKey {
+                package_id: package.clone(),
+                target_id: target.into(),
+                capability: capability.id.clone(),
+            })
+            .collect();
+        let eligible_keys = eligible_keys.unwrap_or(&supported);
+        if eligible_keys.iter().any(|key| !supported.contains(key)) {
+            return Err(Failure::Protocol(
+                "invalid_review",
+                "Requested practice capability is not supported by this target".into(),
+            ));
+        }
         let input = TaskInput {
             contract_version: 2,
             package_id: package.clone(),
             package_revision: revision.into(),
             target_id: target.into(),
-            eligible_keys: entry
-                .capabilities
-                .iter()
-                .map(|capability| KnowledgeKey {
-                    package_id: package.clone(),
-                    target_id: target.into(),
-                    capability: capability.id.clone(),
-                })
-                .collect(),
+            eligible_keys: eligible_keys.to_vec(),
         };
         input
             .validate(package)
@@ -179,17 +188,24 @@ impl LanguageWork {
             task.task
                 .validate()
                 .map_err(|error| Failure::Operation(error.to_string()))?;
-            let valid_key = |key: &KnowledgeKey| input.eligible_keys.contains(key);
+            let tested_key = |key: &KnowledgeKey| input.eligible_keys.contains(key);
+            // Disclosures describe visible information, not additional tested work.
+            // A narrowly scoped task can honestly disclose a sibling capability.
+            let disclosed_key = |key: &KnowledgeKey| supported.contains(key);
             if !mlearn_core::review_compatible(&task.probe)
                 || !ids.insert(&task.probe.id)
                 || task.probe.required_media.is_some()
                 || task.probe.targets.iter().any(|row| {
                     row.key.as_ref().is_none_or(|key| {
-                        !valid_key(key) || !tested.insert(key.capability.as_str())
+                        !tested_key(key) || !tested.insert(key.capability.as_str())
                     })
                 })
-                || task.probe.supplied.iter().any(|key| !valid_key(key))
-                || task.task.answer_supplied.iter().any(|key| !valid_key(key))
+                || task.probe.supplied.iter().any(|key| !disclosed_key(key))
+                || task
+                    .task
+                    .answer_supplied
+                    .iter()
+                    .any(|key| !disclosed_key(key))
                 || (!matches!(task.task.response_spec, ResponseSpec::SelfReport)
                     && !self
                         .package
