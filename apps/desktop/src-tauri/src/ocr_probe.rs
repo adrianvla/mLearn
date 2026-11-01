@@ -111,7 +111,7 @@ pub async fn run(
         media_base: String::new(),
         runtime: runtime.clone(),
         permits: Arc::new(tokio::sync::Semaphore::new(3)),
-        read_controls: Arc::new(tokio::sync::Semaphore::new(2)),
+        operation_controls: Arc::new(tokio::sync::Semaphore::new(2)),
         material: Arc::new(Mutex::new(crate::window_material::WindowMaterial::default())),
         documents,
         ocr: Arc::new(ocr::OcrJobs::new()),
