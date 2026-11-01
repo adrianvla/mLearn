@@ -1,6 +1,47 @@
 # Current implementation checkpoint
 
-## Active source Practice continuation - 2026-11-01
+## Active calibration source draft and disk wait - 2026-11-01
+
+Verified/pushed product source remains `e556d37f`; Desktop41295444008 passes.
+Collection Foundation41293714859 fails Rust job124810076944 only at the final
+schema assertion in
+`schema_twelve_catalog_rebuild_preserves_material_claims_and_receipts`:
+actual 21, expected 20. All preceding preservation/replay assertions and the
+other 23 collection tests passed. Update that machine-consumed expectation to
+21 without removing any assertion. Its separate CI repair checkpoint must not
+include the unverified calibration draft or formatter-only changes.
+
+The worktree contains an uncommitted, unexecuted calibration draft. It adds a
+native 1..32-key selection over existing package filters, independent of claims,
+requiring unmeasured active evidence and package-declared per-target calibration
+support. The existing finite Review queue freezes selection and package revision,
+rechecks before durable admission, and owns response/restart/Undo semantics.
+English lexical headword cues cannot identify one WordNet sense: only its
+definition-to-written-form direction is declared for cold lexical calibration;
+grammar declares its actual task directions. Japanese declares supported reading
+and written-form cues. These are package decisions, not language branches in core.
+Proposed package versions end in `calibration1`; WASM has not been rebuilt.
+
+Source review also found that Knowledge evidence's old Practice predicate omitted
+`collection_practice`. The draft repairs that projection and adds optional native
+Review/Practice/Calibration purpose provenance, with storage and wire regressions.
+The schema expectation, purpose repair, calibration storage/package tests and new
+metadata wire tests have NOT run locally. Generated TypeScript contracts have NOT
+been regenerated, and Word Sync UI/client admission integration is still unwritten.
+Do not call this draft buildable, delivered or accepted.
+
+Disk remains about 600 MB free. A nonpersistent disk monitor waits for 5 GiB before
+fresh resource admission; no native build/test, model or device is running. The
+maintainer did not answer the nonblocking space question within 30 minutes; do not
+ask it again. Preserve artifacts/profiles and continue only work not requiring
+additional execution space. Once admitted: regenerate contracts, run the original
+collection migration test and scoped/calibration storage tests, repair failures,
+then integrate and render the shared Word Sync setup/session/evidence surfaces.
+M11 is 39/53 tasks, incomplete. Existing Windows and iOS acceptance gaps below,
+full grammar/expert authoring, native verification and independent M11 review
+remain open. No merge, release or maintainer acceptance.
+
+## Source Practice checkpoint - 2026-11-01
 
 Committed/pushed collection checkpoint is `5ded3635`; its Desktop41293714855
 passes, with Foundation/mobile still separately monitored. The uncommitted next
