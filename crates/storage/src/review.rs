@@ -138,6 +138,9 @@ impl ProfileStore {
                     admissions,
                 )?
             }
+            ReviewMode::CollectionPractice { .. } => {
+                crate::review_collection_practice::admit_start(&tx, &start.mode, admissions)?
+            }
         };
         let exists: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM review_sessions WHERE id=?1)",
@@ -164,6 +167,9 @@ impl ProfileStore {
             "INSERT INTO review_sessions(id,projection,touched) VALUES(?1,?2,?3)",
             params![session.id.0, serde_json::to_string(&session)?, now],
         )?;
+        if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+            crate::review_collection_practice::start(&tx, &session)?;
+        }
         let mut count = 0_u32;
         for admission in admissions {
             if count == maximum {
@@ -191,7 +197,7 @@ impl ProfileStore {
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
             | ReviewMode::TargetPractice { .. } => Some(count),
-            ReviewMode::Continuous => None,
+            ReviewMode::Continuous | ReviewMode::CollectionPractice { .. } => None,
         };
         review_admission::next(&tx, &mut session, None)?;
         let result = commit(&tx, &command, &session, now)?;
@@ -209,7 +215,22 @@ impl ProfileStore {
             &ReviewCommand::Next {
                 mutation: mutation.clone(),
             },
-            admission,
+            admission.map_or(&[], std::slice::from_ref),
+            now,
+        )
+    }
+
+    pub fn review_collection_next(
+        &mut self,
+        mutation: &ReviewMutation,
+        admissions: &[ReviewAdmission],
+        now: i64,
+    ) -> Result<ReviewCommit, StorageError> {
+        self.review_mutate(
+            &ReviewCommand::Next {
+                mutation: mutation.clone(),
+            },
+            admissions,
             now,
         )
     }
@@ -232,14 +253,15 @@ impl ProfileStore {
             | ReviewCommand::Undo { .. }
             | ReviewCommand::Correct { .. }
             | ReviewCommand::Pause { .. }
-            | ReviewCommand::Resume { .. } => self.review_mutate(command, None, now),
+            | ReviewCommand::Stop { .. }
+            | ReviewCommand::Resume { .. } => self.review_mutate(command, &[], now),
         }
     }
 
     fn review_mutate(
         &mut self,
         command: &ReviewCommand,
-        admission: Option<&ReviewAdmission>,
+        admissions: &[ReviewAdmission],
         now: i64,
     ) -> Result<ReviewCommit, StorageError> {
         let tx = self
@@ -263,11 +285,22 @@ impl ProfileStore {
             | ReviewCommand::Undo { mutation }
             | ReviewCommand::Correct { mutation, .. }
             | ReviewCommand::Pause { mutation }
+            | ReviewCommand::Stop { mutation }
             | ReviewCommand::Resume { mutation } => mutation,
         };
         if session.revision != mutation.expected_revision {
             return Err(StorageError::Conflict);
         }
+        if matches!(session.mode, ReviewMode::CollectionPractice { .. })
+            && matches!(command, ReviewCommand::Next { .. })
+        {
+            crate::review_collection_practice::append(&tx, &session, admissions)?;
+        } else if admissions.len() > 1 {
+            return Err(StorageError::Invalid(
+                "Unexpected Review admission batch".into(),
+            ));
+        }
+        let admission = admissions.first();
         if matches!(session.mode, ReviewMode::Continuous)
             && let Some(value) = admission
         {

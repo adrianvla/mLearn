@@ -239,9 +239,9 @@ export type PracticeItem = { materialId: MaterialId, source: SourceAnchor | null
 
 export type TargetPracticeItem = { packageId: string, packageRevision: string, targetId: string, capabilities: Array<string>, source: SourceAnchor | null, };
 
-export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, } | { "kind": "target_practice", items: Array<TargetPracticeItem>, assistance?: Array<ReviewAssistance>, };
+export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, } | { "kind": "practice", items: Array<PracticeItem>, } | { "kind": "target_practice", items: Array<TargetPracticeItem>, assistance?: Array<ReviewAssistance>, } | { "kind": "collection_practice", selectionId: CollectionSelectionId, capabilities: Array<string>, };
 
-export type ReviewSessionState = "active" | "paused" | "complete" | "unavailable";
+export type ReviewSessionState = "active" | "paused" | "complete" | "unavailable" | "stopped";
 
 export type ReviewDelivery = "not_required" | "pending" | "started" | "completed" | "interrupted" | "failed";
 
@@ -261,7 +261,7 @@ export type ReviewGrade = { targetId: string, quality: AttemptQuality | null, me
 
 export type ReviewResponse = { encounterId: ReviewEncounterId, grades: Array<ReviewGrade>, captureId?: ReviewCaptureId, };
 
-export type ReviewCommand = { "kind": "start", start: ReviewStart, } | { "kind": "next", mutation: ReviewMutation, } | { "kind": "reveal", mutation: ReviewMutation, encounterId: ReviewEncounterId, } | { "kind": "delivery", mutation: ReviewMutation, encounterId: ReviewEncounterId, delivery: ReviewDelivery, } | { "kind": "assistance", mutation: ReviewMutation, encounterId: ReviewEncounterId, assistance: ReviewAssistance, } | { "kind": "capture_response", mutation: ReviewMutation, encounterId: ReviewEncounterId, response: TaskResponse, } | { "kind": "submit", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "undo", mutation: ReviewMutation, } | { "kind": "correct", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "pause", mutation: ReviewMutation, } | { "kind": "resume", mutation: ReviewMutation, };
+export type ReviewCommand = { "kind": "start", start: ReviewStart, } | { "kind": "next", mutation: ReviewMutation, } | { "kind": "stop", mutation: ReviewMutation, } | { "kind": "reveal", mutation: ReviewMutation, encounterId: ReviewEncounterId, } | { "kind": "delivery", mutation: ReviewMutation, encounterId: ReviewEncounterId, delivery: ReviewDelivery, } | { "kind": "assistance", mutation: ReviewMutation, encounterId: ReviewEncounterId, assistance: ReviewAssistance, } | { "kind": "capture_response", mutation: ReviewMutation, encounterId: ReviewEncounterId, response: TaskResponse, } | { "kind": "submit", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "undo", mutation: ReviewMutation, } | { "kind": "correct", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "pause", mutation: ReviewMutation, } | { "kind": "resume", mutation: ReviewMutation, };
 
 export type ReviewCommit = { commandId: string, committedRevision: number, session: ReviewSession, };
 
@@ -507,7 +507,7 @@ export type CollectionSelectionSource = { "kind": "matching", query: CollectionQ
 
 export type CollectionSelectionCreate = { commandId: string, source: CollectionSelectionSource, };
 
-export type CollectionSelection = { id: CollectionSelectionId, packageId: string | null, packageRevision: string | null, targetCount: number, materialCount: number, };
+export type CollectionSelection = { id: CollectionSelectionId, packageId: string | null, packageRevision: string | null, targetCount: number, materialCount: number, inUse?: boolean, };
 
 export type CollectionSelectionEntry = { item: CollectionItemId, packageId: string, packageRevision: string | null, materialRevision: number | null, };
 

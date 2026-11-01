@@ -353,6 +353,9 @@ pub struct CollectionSelection {
     pub package_revision: Option<String>,
     pub target_count: u32,
     pub material_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub in_use: Option<bool>,
 }
 
 /// Frozen identity and edit preconditions, not a live query projection.

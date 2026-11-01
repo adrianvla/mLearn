@@ -1,6 +1,50 @@
 # Current implementation checkpoint
 
-## Active continuation after Inspector checkpoint - 2026-11-01
+## Active collection Practice continuation - 2026-11-01
+
+Committed/pushed source is `e201fad5af583fde719d14b78d396e8ccaddec49`.
+Its Desktop41290145418 and Foundation Rust job124799521154 pass. Foundation
+41290145436 fails Windows job124800797310 at actual native theme input:
+`Incomplete native theme input`, expected Quartz JSON. The ABI1 regression
+below is repaired; this independent Windows gate remains unresolved. Mobile
+41290145478 is monitored separately; an API rate-limit error is not a CI verdict.
+
+The uncommitted collection increment now passes all five new real-storage tests,
+89 runtime tests, 40 affected client tests, typecheck, ownership lint, native QA
+build and normal web export. Real Rust/SQLite/WASM verification freezes 206,978
+targets, changes the live filter/claim, rejects unsupported tasks without due
+substitution, retries byte-identical lost admission receipts, resumes after
+restart and advances lazily through the frozen scope. No Materials are created.
+Source assistance survives capture and does not become independent assessment.
+All 16 initial desktop/narrow captures were inspected.
+
+That workflow exposed a real recovery defect: losing a Next receipt disabled
+End Practice. The extended test fails against the old UI. End now reads the
+authoritative session revision before Stop, without displaying a newly admitted
+cue. Only uncertain Next admission can take this route; uncertain response writes
+retain their exact retry intent. The repaired real workflow passes in 14.3 seconds
+after typecheck, lint and web export. Desktop/narrow receipt-error, ending-pending
+and stopped captures show accessible controls, no clipped content and no hidden
+cue publication. Completed responses remain; the unused scope pin is released.
+Evidence: `.mlearn/m11/collection-practice-e201fad5-20261101/`, including
+`first-render/`, `cancel-red/` and `cancel-repair/`.
+
+The replay reuses only its own isolated profile, retaining prior sessions and
+catalog data rather than recreating the large catalog. Port 4173 has no surviving
+listener. The resource guard ended at its timer deadline after verification,
+not on an unsafe sample. Fresh admission retains 5.30 GB projected headroom
+with the unchanged 2 GiB workload and 4 GiB reserve; disk has only about 1.1 GB
+free. Do not recreate profiles or launch broad native builds. All 30 related
+storage Review regressions pass in one invocation; diff whitespace checks pass.
+The native QA binary SHA256 is
+`bd90aaa8dfadd559c467d50cfb3ca6d6d98dfe39f3a5aa26930deef30dcc97da`;
+the rendered UI is `index-1924b4d29a52d6e8c393a816ec513358.js`.
+This connected collection increment is ready for its source checkpoint, not
+milestone acceptance. M11 is 38/50 tasks, incomplete: visible-source canonical Practice,
+Word Sync, full grammar and expert authoring still require implementation,
+milestone verification and independent review. No acceptance or release.
+
+## Retained ABI1 inspection repair - 2026-11-01
 
 Committed/pushed source is `a1aef63c5b842801b2e1b6bff1833a2f07266938`.
 Desktop41287699967 passes. Foundation41287700049 fails Rust job124792257770

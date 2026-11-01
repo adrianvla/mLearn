@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { CollectionItemId, CollectionQuery, CollectionSelectionSource } from '@mlearn/contracts';
 import { createRuntimeClient } from '../src/client.ts';
+import { isCollectionResponse } from '../src/collectionProtocol';
 
 const query: CollectionQuery = {
   packageId: 'org.example',
@@ -11,6 +12,17 @@ const query: CollectionQuery = {
   sort: 'default',
   after: null,
 };
+
+test('frozen selection lifetime pins are native booleans rather than renderer guesses', () => {
+  // Given frozen identity and counts from the native selection owner.
+  const selection = { id: 'scope', packageId: 'package', packageRevision: 'revision',
+    targetCount: 129, materialCount: 0, inUse: true };
+  // When a bounded selection crosses its transport boundary.
+  assert.equal(isCollectionResponse({ type: 'collection_selection', selection }), true);
+  // Then a malformed pin cannot be treated as permission to release the scope.
+  assert.equal(isCollectionResponse({ type: 'collection_selection',
+    selection: { ...selection, inUse: 'false' } }), false);
+});
 
 test('Material bookmark refresh is explicit and validates the bounded native projection', async () => {
   const materialQuery: CollectionQuery = { ...query, surface: 'material', after: 'native-bookmark' };

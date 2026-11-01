@@ -1,10 +1,10 @@
 use crate::{
-    collection::{compile_collection, read_collection, CollectionSql},
-    material_validation::bounded,
     ProfileStore, StorageError,
+    collection::{CollectionSql, compile_collection, read_collection},
+    material_validation::bounded,
 };
 use mlearn_core::*;
-use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -40,7 +40,14 @@ pub(crate) fn selection(
         .flatten();
     let document =
         document.ok_or_else(|| StorageError::Invalid("Selection is missing or released".into()))?;
-    Ok(serde_json::from_str(&document)?)
+    let mut selected: CollectionSelection = serde_json::from_str(&document)?;
+    let bulk: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM material_bulk_jobs WHERE selection_id=?1 AND retained=1)",
+        [&id.0],
+        |row| row.get(0),
+    )?;
+    selected.in_use = Some(bulk || crate::review_collection_practice::selection_pinned(db, id)?);
+    Ok(selected)
 }
 
 fn identity(
@@ -299,6 +306,7 @@ fn amend(
     }
     let selected = CollectionSelection {
         id: id.clone(),
+        in_use: None,
         package_id,
         package_revision,
         target_count: if query.surface == CollectionSurface::Knowledge {
@@ -316,7 +324,7 @@ fn amend(
         "UPDATE collection_selections SET document=?2 WHERE id=?1",
         params![id.0, serde_json::to_string(&selected)?],
     )?;
-    Ok(selected)
+    selection(db, id)
 }
 
 impl ProfileStore {
@@ -382,11 +390,10 @@ impl ProfileStore {
 
     pub fn collection_selections(&self) -> Result<Vec<CollectionSelection>, StorageError> {
         let mut statement = self.connection.prepare(
-            "SELECT document FROM collection_selections WHERE document IS NOT NULL ORDER BY id LIMIT 8",
+            "SELECT id FROM collection_selections WHERE document IS NOT NULL ORDER BY id LIMIT 8",
         )?;
-        let documents = statement.query_map([], |row| row.get::<_, String>(0))?;
-        documents
-            .map(|document| Ok(serde_json::from_str(&document?)?))
+        let ids = statement.query_map([], |row| row.get::<_, String>(0))?;
+        ids.map(|id| selection(&self.connection, &CollectionSelectionId(id?)))
             .collect()
     }
 
@@ -459,6 +466,7 @@ impl ProfileStore {
             .map_err(|_| StorageError::Invalid("Selection count exceeds bounds".into()))?;
         let selected = CollectionSelection {
             id,
+            in_use: None,
             package_id: query.package_id.clone(),
             package_revision,
             target_count: if query.surface == CollectionSurface::Knowledge {
@@ -477,7 +485,7 @@ impl ProfileStore {
             params![selected.id.0, serde_json::to_string(&selected)?],
         )?;
         tx.commit()?;
-        Ok(selected)
+        self.collection_selection(&selected.id)
     }
 
     pub fn collection_selection(
@@ -567,9 +575,9 @@ impl ProfileStore {
             [&id.0],
             |row| row.get(0),
         )?;
-        if pinned {
+        if pinned || crate::review_collection_practice::selection_pinned(&tx, id)? {
             return Err(StorageError::Invalid(
-                "Release the bulk results before their frozen selection".into(),
+                "End active Practice or release bulk results before their frozen selection".into(),
             ));
         }
         tx.execute(

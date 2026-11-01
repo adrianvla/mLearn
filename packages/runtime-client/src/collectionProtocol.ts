@@ -37,6 +37,7 @@ function selection(value: unknown): boolean {
     && (value.packageId === null || text(value.packageId, 512))
     && (value.packageRevision === null || text(value.packageRevision, 512))
     && uint(value.targetCount, 1000000) && uint(value.materialCount, 1000000)
+    && (value.inUse === undefined || value.inUse === null || typeof value.inUse === 'boolean')
     && (value.targetCount === 0 || value.materialCount === 0);
 }
 function selectionItem(value: unknown): boolean {

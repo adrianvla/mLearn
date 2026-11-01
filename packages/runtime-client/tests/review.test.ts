@@ -371,6 +371,47 @@ test('canonical Practice confines target identity revision and tested capabiliti
   }), false);
 });
 
+test('collection Practice keeps a frozen native scope distinct from due work and cold evidence', () => {
+  // Given a frozen selection and one source-assisted canonical encounter.
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: {
+    revision: 1, responseSpec: { kind: 'self_report' },
+    attribution: 'Package content', limitations: 'Recall only',
+  }, conditions: { ...encounter.conditions, assistance: ['source'] } };
+  const practice = { ...session, total: null, mode: {
+    kind: 'collection_practice', selectionId: 'frozen', capabilities: ['package:meaning'],
+  }, encounter: current };
+  // When the bounded wire projection is admitted without enumerating the selection.
+  assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  assert.equal(isReviewCommand({ kind: 'start', start: {
+    commandId: 'once', sessionId: 'scope', mode: practice.mode,
+  } }), true);
+  const captured = { ...current, task: typedEncounter.task, capture: {
+    id: 'capture', response: { kind: 'typed_text', text: 'raw' },
+    conditions: current.conditions, feedback: null,
+  } };
+  assert.equal(isReviewResponse({ type: 'review_session',
+    session: { ...practice, encounter: captured } }), true);
+  assert.equal(isReviewResponse({ type: 'review_session',
+    session: { ...practice, encounter: { ...captured, capture: {
+      ...captured.capture, conditions: encounter.conditions,
+    } } } }), false);
+  // Then stripped assistance, broadened keys and false terminal states fail closed.
+  for (const invalid of [
+    { ...practice, encounter: { ...current, conditions: encounter.conditions } },
+    { ...practice, mode: { ...practice.mode, capabilities: ['package:reading'] } },
+    { ...practice, state: 'stopped' },
+    { ...practice, state: 'complete' },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...practice, state: 'stopped', encounter: null, canUndo: false,
+  } }), true);
+  assert.equal(isReviewCommand({ kind: 'stop', mutation: {
+    commandId: 'stop-once', sessionId: 'scope', expectedRevision: 1,
+  } }), true);
+});
+
 test('Review rejects leaked answers malformed rows and incompatible delivery at the wire boundary', () => {
   // Given an admitted hidden-answer encounter.
   assert.equal(isReviewResponse({ type: 'review_session', session }), true);

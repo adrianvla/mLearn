@@ -144,7 +144,8 @@ pub(crate) fn next(
     let admission = match &session.mode {
         ReviewMode::Finite { .. }
         | ReviewMode::Practice { .. }
-        | ReviewMode::TargetPractice { .. } => {
+        | ReviewMode::TargetPractice { .. }
+        | ReviewMode::CollectionPractice { .. } => {
             let json: Option<String> = db.query_row(
                 "SELECT admission FROM review_work WHERE session_id=?1 AND admitted=0 ORDER BY position LIMIT 1",
                 [&session.id.0], |r| r.get(0),
@@ -191,6 +192,7 @@ pub(crate) fn next(
                 ReviewMode::TargetPractice { assistance, .. } => {
                     assistance.clone().unwrap_or_default()
                 }
+                ReviewMode::CollectionPractice { .. } => vec![ReviewAssistance::Source],
                 ReviewMode::Continuous
                 | ReviewMode::Finite { .. }
                 | ReviewMode::Practice { .. } => vec![],
@@ -279,12 +281,23 @@ pub(crate) fn next(
         session.state = ReviewSessionState::Active;
     } else {
         session.state = match &session.mode {
+            ReviewMode::CollectionPractice { .. } => {
+                if crate::review_collection_practice::exhausted(db, &session.id)? {
+                    session.total = Some(session.completed);
+                    ReviewSessionState::Complete
+                } else {
+                    ReviewSessionState::Unavailable
+                }
+            }
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }
             | ReviewMode::TargetPractice { .. } => ReviewSessionState::Complete,
             ReviewMode::Continuous => ReviewSessionState::Unavailable,
         };
         session.message = match &session.mode {
+            ReviewMode::CollectionPractice { .. } => (session.state
+                != ReviewSessionState::Complete)
+                .then(|| "Selected Practice work requires preparation".into()),
             ReviewMode::Continuous => Some("No due Review work is available".into()),
             ReviewMode::Finite { .. }
             | ReviewMode::Practice { .. }

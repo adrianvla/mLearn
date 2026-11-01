@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Platform, View, useWindowDimensions, type Text as NativeText } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native-unistyles';
-import type { CollectionFilter, CollectionItemId, CollectionPreparationCommand, CollectionPreparationStatus, CollectionQuery, CollectionResult, CollectionSort, LanguageDescription, PluginSummary } from '@mlearn/contracts';
+import type { CollectionFilter, CollectionItemId, CollectionPreparationCommand, CollectionPreparationStatus, CollectionQuery, CollectionResult, CollectionSort, LanguageDescription, PluginSummary, ReviewCommand } from '@mlearn/contracts';
 import { AppShell, Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -36,6 +36,11 @@ export function KnowledgeScreen() {
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
   const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [practiceCapability, setPracticeCapability] = useState('');
+  const [practicePending, setPracticePending] = useState(false);
+  const [practiceError, setPracticeError] = useState('');
+  const practiceCommand = useRef<ReviewCommand | null>(null);
+  const practiceFlight = useRef(false);
   const [preparation, setPreparation] = useState<CollectionPreparationStatus | null>(null);
   const preparing = useRef<CollectionPreparationCommand | null>(null);
   const owner = useRef<object | null>(null);
@@ -104,6 +109,33 @@ export function KnowledgeScreen() {
     return () => { active = false; };
   }, [host, packageId, collectionQuery, after, queryKey, reload]));
   useEffect(() => { setInspection(null); }, [packageId, query, filter, entityKind, sort, after]);
+  useEffect(() => { setPracticeCapability(''); }, [packageId]);
+  async function practice() {
+    if (!host.available || !owner.current || practiceFlight.current) return;
+    const scope = owner.current;
+    practiceFlight.current = true;
+    try {
+      let command = practiceCommand.current;
+      if (command === null) {
+        const selected = selection.selection;
+        if (!selected || selected.targetCount === 0 || selected.materialCount !== 0 || !practiceCapability) return;
+        command = host.client.prepareReviewStart({
+          kind: 'collection_practice', selectionId: selected.id, capabilities: [practiceCapability],
+        });
+        practiceCommand.current = command;
+      }
+      setPracticePending(true); setPracticeError('');
+      const committed = await host.client.review(command);
+      if (owner.current !== scope) return;
+      practiceCommand.current = null;
+      router.navigate({ pathname: '/review', params: { sessionId: committed.session.id } });
+    } catch (cause) {
+      if (owner.current === scope) setPracticeError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      practiceFlight.current = false;
+      setPracticePending(false);
+    }
+  }
   async function prepare() {
     if (!host.available || preparing.current || !packageId) return;
     const scope = owner.current;
@@ -179,6 +211,25 @@ export function KnowledgeScreen() {
         <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
           ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
           onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
+        {selection.enabled && selection.selection?.targetCount ? <View style={styles.notice}>
+          <Row>
+            <Select label="Practice capability" value={practiceCapability}
+              disabled={practicePending || practiceCommand.current !== null}
+              options={[{ value: '', label: 'Choose a capability' },
+                ...(description?.capabilities.map(capability => ({ value: capability.id, label: capability.label })) ?? [])]}
+              onValueChange={setPracticeCapability} />
+            <Button label="Practice selected targets" size="compact"
+              disabled={selection.blocked || practicePending || practiceCommand.current !== null || !practiceCapability}
+              onPress={() => void practice()} />
+          </Row>
+          {practicePending ? <Text accessibilityLiveRegion="polite">Starting selected Practice…</Text> : null}
+          {practiceError ? <Text accessibilityRole="alert">{practiceError}</Text> : null}
+          {practiceCommand.current && !practicePending ? <Row>
+            <Button label="Retry selected Practice" size="compact" onPress={() => void practice()} />
+            <Button label="Dismiss Practice retry" size="compact" variant="quiet"
+              onPress={() => { practiceCommand.current = null; setPracticeError(''); }} />
+          </Row> : null}
+        </View> : null}
         {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
         {error ? <View style={styles.notice}><Text accessibilityRole="alert">{error}</Text>
           <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></View> : null}

@@ -38,6 +38,16 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: frozen Knowledge selection Practice extends the existing selection
+toolbar with a package-declared capability selector and an explicit start
+action. The native selection remains the scope; filters do not become another
+renderer-owned queue. Pending/error/exact-retry feedback stays in that toolbar.
+Review uses its existing shared shell and session controls, identifies the
+frozen collection purpose, and offers End Practice without labeling unvisited
+targets complete. Existing Row wrapping and AppShell scrolling own both widths.
+The new flow requires real native-core render and recovery evidence before its
+unit can be checkpointed.
+
 Layout: Inspector Knowledge keeps its existing bounded ContextPanel popover.
 Inspect evidence and package-supported Practice share a wrapping Row rather
 than adding a hidden vertical action. While Practice admission is pending or

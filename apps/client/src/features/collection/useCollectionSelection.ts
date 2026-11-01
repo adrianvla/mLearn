@@ -68,8 +68,8 @@ export function useCollectionSelection(
       // A bulk job owns its original snapshot until its recovery results clear.
       // Do not silently release pinned snapshots when a row is toggled.
       if (previous && previous.id !== selected.id) {
-        const jobs = await client.materialBulkJobs();
-        if (!jobs.some(job => job.resultsAvailable && job.command.selectionId === previous.id))
+        const retained = await client.collectionSelections();
+        if (retained.find(value => value.id === previous.id)?.inUse === false)
           await client.releaseCollectionSelection(previous.id);
       }
       const values = await client.collectionSelections();

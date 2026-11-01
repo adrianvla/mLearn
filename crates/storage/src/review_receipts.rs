@@ -7,6 +7,7 @@ pub(crate) fn identity(command: &ReviewCommand) -> (&str, &ReviewSessionId) {
     match command {
         ReviewCommand::Start { start } => (&start.command_id, &start.session_id),
         ReviewCommand::Next { mutation }
+        | ReviewCommand::Stop { mutation }
         | ReviewCommand::CaptureResponse { mutation, .. }
         | ReviewCommand::Reveal { mutation, .. }
         | ReviewCommand::Delivery { mutation, .. }

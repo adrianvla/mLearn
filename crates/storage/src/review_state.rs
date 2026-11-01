@@ -9,10 +9,17 @@ pub(crate) fn apply(
     candidate: Option<&ReviewAdmission>,
     now: i64,
 ) -> Result<(), StorageError> {
+    if session.state == ReviewSessionState::Stopped
+        && !matches!(command, ReviewCommand::Stop { .. })
+    {
+        return Err(StorageError::Invalid(
+            "This Practice scope has ended".into(),
+        ));
+    }
     if session.state == ReviewSessionState::Paused
         && !matches!(
             command,
-            ReviewCommand::Resume { .. } | ReviewCommand::Pause { .. }
+            ReviewCommand::Resume { .. } | ReviewCommand::Pause { .. } | ReviewCommand::Stop { .. }
         )
     {
         return Err(StorageError::Invalid(
@@ -24,6 +31,18 @@ pub(crate) fn apply(
             StorageError::Invalid("Use the Review admission/capture entry point".into()),
         ),
         ReviewCommand::Next { .. } => next(db, session, candidate),
+        ReviewCommand::Stop { .. } => {
+            if !matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                return Err(StorageError::Invalid(
+                    "Only collection Practice can end its frozen scope".into(),
+                ));
+            }
+            session.state = ReviewSessionState::Stopped;
+            session.encounter = None;
+            session.can_undo = false;
+            session.message = Some("Practice ended; completed responses are retained".into());
+            Ok(())
+        }
         ReviewCommand::Pause { .. } => {
             if let Some(encounter) = session.encounter.as_mut()
                 && matches!(

@@ -22,6 +22,7 @@ function practiceScope(mode: ReviewMode): string | null {
     case 'practice': return `${mode.items.length} selected Materials`;
     case 'target_practice':
       return `${mode.items.length} selected ${mode.items.length === 1 ? 'target' : 'targets'}`;
+    case 'collection_practice': return 'Frozen collection selection';
     case 'continuous':
     case 'finite': return null;
   }
@@ -55,6 +56,7 @@ function ReviewWorkspace({ client, media }: {
   const [focused, setFocused] = useState(false);
   const scope = useRef<object | null>(null);
   const flight = useRef<Promise<ReviewSession | null> | null>(null);
+  const endingScope = useRef(false);
   const failedCommand = useRef<ReviewCommand | null>(null);
   const readOwner = useRef<object | null>(null);
   const [returning, setReturning] = useState(false);
@@ -107,6 +109,7 @@ function ReviewWorkspace({ client, media }: {
 
   /** One prepared durable operation is retained through uncertain writes. */
   function execute(command: ReviewCommand): Promise<ReviewSession | null> {
+    if (endingScope.current && command.kind !== 'stop') return Promise.resolve(null);
     if (flight.current) return flight.current;
     const active = scope.current;
     const controller = command.kind === 'capture_response' ? new AbortController() : null;
@@ -152,6 +155,32 @@ function ReviewWorkspace({ client, media }: {
     const value = current.current;
     if (!value || flight.current || failedCommand.current) return Promise.resolve(null);
     return execute(client.prepareReviewMutation(value, action));
+  }
+  async function endPractice() {
+    const value = current.current;
+    if (!value || value.mode.kind !== 'collection_practice' || flight.current || endingScope.current) return;
+    const failed = failedCommand.current;
+    if (failed === null) { await mutate({ kind: 'stop' }); return; }
+    if (failed.kind !== 'next' || !scope.current) return;
+    const active = scope.current;
+    endingScope.current = true;
+    setPending(true);
+    try {
+      // Next may already own a new encounter. End at the durable revision,
+      // without abandoning an uncertain capture, grade or correction.
+      const restored = await client.reviewSession(value.id);
+      if (scope.current !== active) return;
+      failedCommand.current = null;
+      setFailed(null); setError('');
+      if (restored.state === 'complete' || restored.state === 'stopped') publish(restored);
+      else
+        await execute(client.prepareReviewMutation(restored, { kind: 'stop' }));
+    } catch (cause) {
+      if (scope.current === active) setError(messageOf(cause));
+    } finally {
+      endingScope.current = false;
+      if (scope.current === active) setPending(false);
+    }
   }
   const delivery = useCallback(async (encounterId: ReviewEncounterId, value: ReviewDelivery) => {
     // Playback owns at most one awaited transition. Prepare only after the
@@ -313,7 +342,7 @@ function ReviewWorkspace({ client, media }: {
     <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
       onPress={() => router.dismissTo('/')} />
     <Text variant="heading" accessibilityRole="header">{purpose}</Text>
-    {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} reviewed` : `${session.completed} / ${session.total}`}</Text> : null}
+    {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} ${selectedScope ? 'completed' : 'reviewed'}` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>
       {readError ? <Panel><Text accessibilityRole="alert">{readError}</Text><Button label="Retry Review sessions" onPress={() => void refresh()} /></Panel> : null}
@@ -333,9 +362,14 @@ function ReviewWorkspace({ client, media }: {
             onPress={() => void mutate({ kind: 'next' })} /> : null}
           <Button label="Sessions" variant="quiet" disabled={blocked || !!audioPlaying}
             onPress={() => { current.current = null; setSession(null); router.setParams({ sessionId: '' }); }} />
+          {session.mode.kind === 'collection_practice' && session.state !== 'complete' && session.state !== 'stopped'
+            ? <Button label="End Practice" variant="quiet"
+              disabled={pending || loading || returning || failed !== null && failed.kind !== 'next' || !!audioPlaying}
+              onPress={() => void endPractice()} /> : null}
         </Row>
         {session.message ? <Text accessibilityLiveRegion="polite">{session.message}</Text> : null}
         {session.state === 'paused' ? <Panel><Text>{purpose} paused</Text></Panel>
+          : session.state === 'stopped' ? <Panel><Text>{purpose} ended</Text></Panel>
           : session.state === 'complete' ? <Panel><Text>{purpose} complete</Text></Panel>
           : session.state === 'unavailable' ? <Panel><Text>{purpose} unavailable</Text></Panel>
           : encounter ? <>

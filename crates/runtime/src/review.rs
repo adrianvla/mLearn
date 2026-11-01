@@ -94,6 +94,15 @@ impl Runtime {
                     )?;
                     items.len() * 8
                 }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    self.store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                    8
+                }
             },
             ReviewCommand::Next { mutation } => {
                 let session = self
@@ -116,6 +125,21 @@ impl Runtime {
                 }
                 match session.mode {
                     ReviewMode::Continuous => 1,
+                    ReviewMode::CollectionPractice { .. } => {
+                        if self
+                            .store
+                            .review_collection_pending(&session.id)
+                            .map_err(storage_failure)?
+                        {
+                            let commit = self
+                                .store
+                                .review_next(mutation, None, now)
+                                .map_err(storage_failure)?;
+                            self.cancel_review_validation(&commit.session.id);
+                            return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
+                        }
+                        8
+                    }
                     ReviewMode::Finite { .. }
                     | ReviewMode::Practice { .. }
                     | ReviewMode::TargetPractice { .. } => {
@@ -135,6 +159,7 @@ impl Runtime {
             | ReviewCommand::Undo { .. }
             | ReviewCommand::Correct { .. }
             | ReviewCommand::Pause { .. }
+            | ReviewCommand::Stop { .. }
             | ReviewCommand::Resume { .. } => {
                 let commit = self
                     .store
@@ -168,10 +193,17 @@ impl Runtime {
         if let ReviewCommand::Start { start } = &work.command {
             match &start.mode {
                 ReviewMode::Practice { items } => self.validate_practice(items)?,
-                ReviewMode::TargetPractice { items, assistance } => self.validate_target_practice(
-                    items,
-                    assistance.as_deref().unwrap_or_default(),
-                )?,
+                ReviewMode::TargetPractice { items, assistance } => {
+                    self.validate_target_practice(items, assistance.as_deref().unwrap_or_default())?
+                }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    self.store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }
         }
@@ -203,7 +235,16 @@ impl Runtime {
         let commit = match &work.command {
             ReviewCommand::Start { start } => self.store.review_start(start, admissions, now()?),
             ReviewCommand::Next { mutation } => {
-                self.store.review_next(mutation, admissions.first(), now()?)
+                let session = self
+                    .store
+                    .review_session(&mutation.session_id)
+                    .map_err(storage_failure)?;
+                if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                    self.store
+                        .review_collection_next(mutation, admissions, now()?)
+                } else {
+                    self.store.review_next(mutation, admissions.first(), now()?)
+                }
             }
             _ => return Err(Failure::Operation("Invalid Review admission action".into())),
         }
@@ -225,6 +266,19 @@ impl ReviewWork {
                         assistance.as_deref().unwrap_or_default(),
                     );
                 }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    let item = store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                    return self.run_target_practice(
+                        &store,
+                        &[item],
+                        &[mlearn_core::ReviewAssistance::Source],
+                    );
+                }
                 ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
             }
         }
@@ -233,6 +287,22 @@ impl ReviewWork {
             ReviewCommand::Next { mutation } => &mutation.session_id,
             _ => return Err(Failure::Operation("Invalid Review admission action".into())),
         };
+        if let ReviewCommand::Next { .. } = &self.command {
+            let session = store.review_session(session_id).map_err(storage_failure)?;
+            if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                return match store
+                    .review_collection_candidate(session_id)
+                    .map_err(storage_failure)?
+                {
+                    Some(item) => self.run_target_practice(
+                        &store,
+                        &[item],
+                        &[mlearn_core::ReviewAssistance::Source],
+                    ),
+                    None => Ok(Vec::new()),
+                };
+            }
+        }
         let mut admissions = Vec::new();
         let mut after = None;
         let mut unavailable = None;

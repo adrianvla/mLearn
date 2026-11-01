@@ -132,6 +132,9 @@ function mode(value: unknown): value is ReviewMode {
         && new Set(value.assistance).size === value.assistance.length)
       && list(value.items, 128, targetPracticeItem) && value.items.length > 0
       && new Set(value.items.map(item => JSON.stringify([item.packageId, item.targetId]))).size === value.items.length;
+    case 'collection_practice': return record(value, ['kind', 'selectionId', 'capabilities'])
+      && text(value.selectionId, 128) && list(value.capabilities, 32, item => text(item))
+      && value.capabilities.length > 0 && new Set(value.capabilities).size === value.capabilities.length;
     default: return false;
   }
 }
@@ -185,14 +188,17 @@ function encounter(value: unknown): value is ReviewEncounter {
 export function isReviewSession(value: unknown): value is ReviewSession {
   if (!record(value, ['id', 'revision', 'mode', 'state', 'completed', 'total', 'encounter', 'canUndo', 'message'])
     || !text(value.id) || !positive(value.revision) || !mode(value.mode)
-    || !member(value.state, ['active', 'paused', 'complete', 'unavailable']) || !uint(value.completed)
+    || !member(value.state, ['active', 'paused', 'complete', 'unavailable', 'stopped']) || !uint(value.completed)
     || !nullable(value.total, uint) || typeof value.canUndo !== 'boolean'
     || !nullable(value.message, item => text(item, 32768))) return false;
   if (typeof value.total === 'number' && value.completed > value.total) return false;
   const currentEncounter = value.encounter;
   if (currentEncounter !== null && !encounter(currentEncounter)) return false;
   if (currentEncounter !== null && currentEncounter.task !== undefined
-    && value.mode.kind !== 'practice' && value.mode.kind !== 'target_practice') return false;
+    && value.mode.kind !== 'practice' && value.mode.kind !== 'target_practice'
+    && value.mode.kind !== 'collection_practice') return false;
+  if (value.state === 'stopped' && (value.mode.kind !== 'collection_practice'
+    || currentEncounter !== null || value.canUndo)) return false;
   switch (value.mode.kind) {
     case 'continuous': return value.total === null;
     case 'finite': return uint(value.total) && value.total <= value.mode.limit;
@@ -203,12 +209,24 @@ export function isReviewSession(value: unknown): value is ReviewSession {
     case 'target_practice': return uint(value.total) && value.total >= value.mode.items.length
       && value.total <= value.mode.items.length * 8
       && (currentEncounter === null || 'targetId' in currentEncounter
-        && (value.mode.assistance ?? []).every(item => currentEncounter.conditions.assistance.includes(item))
+        && (value.mode.assistance ?? []).every(item => currentEncounter.conditions.assistance.includes(item)
+          && (currentEncounter.capture === undefined || currentEncounter.capture.conditions.assistance.includes(item)))
         && value.mode.items.some(item => item.targetId === currentEncounter.targetId
           && item.packageId === currentEncounter.packageId
           && item.packageRevision === currentEncounter.packageRevision
           && currentEncounter.targets.every(row => row.key !== null
             && item.capabilities.includes(row.key.capability))));
+    case 'collection_practice': {
+      const capabilities = value.mode.capabilities;
+      return (value.total === null
+      || uint(value.total) && value.total >= value.completed)
+      && (value.state !== 'complete' || value.total === value.completed)
+      && (currentEncounter === null || 'targetId' in currentEncounter
+        && currentEncounter.conditions.assistance.includes('source')
+        && (currentEncounter.capture === undefined || currentEncounter.capture.conditions.assistance.includes('source'))
+        && currentEncounter.targets.every(row => row.key !== null
+          && capabilities.includes(row.key.capability)));
+    }
   }
 }
 function mutation(value: unknown) {
@@ -229,7 +247,7 @@ export function isReviewCommand(value: unknown): value is ReviewCommand {
     case 'start': return record(value, ['kind', 'start'])
       && record(value.start, ['commandId', 'sessionId', 'mode']) && text(value.start.commandId, 128)
       && text(value.start.sessionId) && mode(value.start.mode);
-    case 'next': case 'undo': case 'pause': case 'resume':
+    case 'next': case 'undo': case 'pause': case 'resume': case 'stop':
       return record(value, ['kind', 'mutation']) && mutation(value.mutation);
     case 'reveal': return record(value, ['kind', 'mutation', 'encounterId'])
       && mutation(value.mutation) && text(value.encounterId);

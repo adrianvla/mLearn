@@ -1,5 +1,5 @@
 //! Native-owned Review admission, exposure and retrospective self-report.
-use crate::{AuthoredMediaId, KnowledgeKey, MaterialId, SourceAnchor};
+use crate::{AuthoredMediaId, CollectionSelectionId, KnowledgeKey, MaterialId, SourceAnchor};
 use serde::{Deserialize, Serialize};
 
 macro_rules! identity {
@@ -162,6 +162,11 @@ pub enum ReviewMode {
         #[cfg_attr(feature = "typescript", ts(optional))]
         assistance: Option<Vec<ReviewAssistance>>,
     },
+    CollectionPractice {
+        #[serde(rename = "selectionId")]
+        selection_id: CollectionSelectionId,
+        capabilities: Vec<String>,
+    },
 }
 
 impl ReviewMode {
@@ -169,7 +174,9 @@ impl ReviewMode {
     pub const fn is_scheduled(&self) -> bool {
         match self {
             Self::Continuous | Self::Finite { .. } => true,
-            Self::Practice { .. } | Self::TargetPractice { .. } => false,
+            Self::Practice { .. }
+            | Self::TargetPractice { .. }
+            | Self::CollectionPractice { .. } => false,
         }
     }
 }
@@ -182,6 +189,7 @@ pub enum ReviewSessionState {
     Paused,
     Complete,
     Unavailable,
+    Stopped,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -290,6 +298,9 @@ pub enum ReviewCommand {
         start: ReviewStart,
     },
     Next {
+        mutation: ReviewMutation,
+    },
+    Stop {
         mutation: ReviewMutation,
     },
     Reveal {

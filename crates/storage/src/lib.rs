@@ -25,6 +25,7 @@ mod review;
 mod review_admission;
 mod review_attempt;
 mod review_capture;
+mod review_collection_practice;
 mod review_evidence;
 mod review_read;
 mod review_receipts;
@@ -67,7 +68,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 20 {
+        if version > 21 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -135,6 +136,9 @@ impl ProfileStore {
         }
         if version < 20 {
             review_capture::migrate(&transaction)?;
+        }
+        if version < 21 {
+            review_collection_practice::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;
