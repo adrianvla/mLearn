@@ -42,6 +42,15 @@ name: Actual package validation and native encounter persistence
     direction: DOWN
     timeout: 30000
 - tapOn: All Fluent
+# The next encounter can be taller than the revealed card. Expose its actual
+# control before tapping; the old footer coordinates can be below the viewport.
+- scrollUntilVisible:
+    element:
+      text: Pause
+      enabled: true
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
 - extendedWaitUntil:
     visible:
       text: Pause
@@ -64,6 +73,13 @@ name: Actual package validation and native encounter persistence
       enabled: true
     timeout: 60000
 - tapOn: Resume
+- scrollUntilVisible:
+    element:
+      text: Pause
+      enabled: true
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
 - extendedWaitUntil:
     visible:
       text: Pause
