@@ -12,10 +12,11 @@ concurrency:
 jobs:
   web:
     runs-on: ubuntu-latest
-    # Includes full cold preparation of the pinned 232031-target Japanese
-    # package, followed by the existing suite and native interruption checks.
-    # Keep the fixture/setup and assertion deadlines bounded independently.
-    timeout-minutes: 40
+    # Run41971932567 completed 160/182 serial browser cases before the old
+    # 40-minute job budget expired, with no assertion failure. Allow the full
+    # cold package preparation, remaining cases and evidence upload to finish.
+    # Fixture/setup and individual assertion deadlines remain unchanged.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under test
@@ -62,7 +63,7 @@ jobs:
           npm run build:plugin
           npm run build:documents
           cargo build --locked -p mlearn-runtime --example runtime_browser_qa
-      - run: npm run test:web
+      - run: npm run test:web -- --reporter=line
       - name: Ensure checks did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
