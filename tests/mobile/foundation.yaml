@@ -26,11 +26,11 @@ name: Native foundation persists Rust state across process restart
 - scrollUntilVisible:
     element: 'Select theme.*'
     direction: DOWN
-- assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
+- assertVisible: 'Current: Quartz\.'
 - tapOn: 'Select theme.*'
 - tapOn: 'Dark Quartz'
 - extendedWaitUntil:
-    visible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
+    visible: 'Current: Dark Quartz\.'
     timeout: 15000
 - scrollUntilVisible:
     element:
@@ -56,8 +56,8 @@ name: Native foundation persists Rust state across process restart
 - scrollUntilVisible:
     element: 'Edit theme JSON'
     direction: DOWN
-- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
-- assertNotVisible: 'Unsaved visual preview.*'
+- assertVisible: 'Current: Dark Quartz\.'
+- assertNotVisible: 'Preview only.*'
 - scrollUntilVisible:
     element: 'Edit theme JSON'
     direction: DOWN
@@ -137,7 +137,7 @@ name: Native foundation persists Rust state across process restart
 - tapOn: 'Close'
 - assertNotVisible:
     id: dialog-surface
-- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
+- assertVisible: 'Current: Dark Quartz\.'
 - tapOn: 'Runtime'
 - scrollUntilVisible:
     element: 'world'

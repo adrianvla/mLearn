@@ -6,10 +6,10 @@ name: Source Material captures real media and returns after restart
     clearState: false
     permissions: {}
 - scrollUntilVisible:
-    element: Resume m01-watch.mp4
+    element: Continue m01-watch.mp4
     direction: DOWN
     timeout: 60000
-- tapOn: Resume m01-watch.mp4
+- tapOn: Continue m01-watch.mp4
 - extendedWaitUntil:
     visible: 'Children: .*'
     timeout: 60000
