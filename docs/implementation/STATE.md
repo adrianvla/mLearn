@@ -7,8 +7,10 @@ watching, conversation, learning and retained context. It authorizes presentatio
 and interaction changes, not another domain milestone, merge, release or
 maintainer acceptance. Main presentation checkpoint `a7260104` is committed and
 pushed on `agent/m10-m11`, based on `2528134d`. Subsequent acceptance-driver and
-CI checkpoints reach `78ce30ee`; the latest collection-field repair is being
-integrated. The M10/M11 and provisional M03-M07 evidence below is preserved.
+CI checkpoints reach `c4a367d8`, tree
+`5980e7f5dcb60d2761f259fe2a66e6f4af6c25b0`. Collection-field repair
+`6c41ad34` is committed, pushed and verified on the actual current macOS host.
+The M10/M11 and provisional M03-M07 evidence below is preserved.
 
 - Reference authority: all 21 edited images were inspected. The available legacy
   checkout is `39c83e89` with package version 2.9.11, not verified v2.10.
@@ -24,9 +26,12 @@ integrated. The M10/M11 and provisional M03-M07 evidence below is preserved.
   pause and both themes. Captures/logs are under
   `.mlearn/experience-20261105/`; native window/media claims remain separate.
 - Checks: repository 89 tooling + 223 client tests pass; current typecheck,
-  ownership lint and web export pass. Browser regressions are being completed
-  in scoped serial batches, not reported as a whole-suite pass. The latest
-  collection repair passes 12 affected desktop/390/320 browser cases.
+  ownership lint and web export pass. The full foundation browser run at
+  `78ce30ee` passes all 182 cases in 36.8 minutes using one worker. The later
+  collection repair passes 12 affected desktop/390/320 browser cases and
+  actual native checks. Current foundation `41984865304` completes with 181
+  browser cases passing and one Messenger analysis-enablement failure under
+  investigation; the earlier whole-suite pass does not erase this failure.
 - Repaired regressions: activity departures now dismiss into retained management
   state (three red/green routes, six manual width/route checks); shared web
   viewport anchoring no longer shifts Material's original scroll during modal
@@ -40,7 +45,8 @@ integrated. The M10/M11 and provisional M03-M07 evidence below is preserved.
   identity fixtures are not decoding evidence.
 - Real Linux Tauri acceptance passes run `41975595016` at `8945ddce`, with
   product bytes unchanged from `a7260104`. Its full IPC, cancellation, claims,
-  restart/recovery and Japanese layout assertions pass. Corrected Android Watch
+  restart/recovery and Japanese layout assertions pass. Exact collection source
+  `6c41ad34` also passes Linux desktop run `41983383100`. Corrected Android Watch
   acceptance passes at `3af77aeb` in run `41975875004`, including original
   restart/player/Japanese assertions. Artifact checksums/source identities are
   retained; these results do not certify later collection-field geometry.
@@ -69,17 +75,38 @@ integrated. The M10/M11 and provisional M03-M07 evidence below is preserved.
   build allowance. The distinct 2 GiB iOS UI stage passed admission and ran
   serially under a live guard. The retained original profile was preserved
   before installs and restored with all seven file hashes identical afterward.
-  The owned simulator/app/guard are stopped. A cached current-source desktop
-  build remains held, with a readiness subscription only; no queued automatic
-  build or device restart exists.
+  The owned simulator/app/guard are stopped. Local desktop build admission
+  remained held; its readiness subscription expired without starting a build.
+  Instead, the executable already built by the existing macOS CI job was
+  retained and consumed. No allowance was lowered, new build variant added,
+  or automatic build/device restart queued.
 - Normal verified Git push and HTTPS API access work; no trust override was
   made. Existing foundation CI hit its outer 40-minute deadline after 160/182
   browser completion markers with no recorded assertion failure. Rust/OCR/
   macOS/Windows jobs passed. CI-only `78ce30ee` gives the same serial suite a
   60-minute outer budget and line reporting; all test/setup deadlines remain.
-  That run is subscribed, not reported passing.
-- Remaining: source-current desktop host confirmation for the collection repair;
-  resolve one independent gate review; commit/push verified checkpoints; clean
+  Run `41976871914` at `78ce30ee` now passes all five foundation jobs (web,
+  Rust, OCR detector, macOS and Windows). Current `c4a367d8` run `41984865304`
+  completes with Rust, OCR, macOS and Windows passing. Its web job fails
+  `messenger-native-core.spec.ts:123`: the real assistant reply appears but
+  Show analysis stays disabled. Exact logs and the failing artifact are retained
+  for cause-based diagnosis before any repair or rerun.
+- Current macOS confirmation: artifact `13396561006` is bound to exact
+  `c4a367d8` source/tree and its executable SHA256. The supported HOME directory
+  contract isolated a clone of the stopped QA profile, confirmed by native
+  open-file inspection. Actual Knowledge and Material searches returned real
+  filtered rows; readable fields, retained queries and wrapped scopes were
+  inspected at 1080/420. App and guard stopped, profiles retained. Receipt:
+  `.mlearn/experience-20261105/macos-current/README.md`.
+- Current mobile `41983383010`: Android passes the full original Watch flow
+  in 379.718 seconds. iOS repeats the preserved original FileProvider picker
+  failure before Watch; no diagnostic variant or weakened assertion was used.
+- Remaining: repair the demonstrated current Messenger check and resolve the
+  single independent gate review `st_01a1aaa3` on the locked exact-source
+  checkout. That reviewer stopped at the subscription quota without a verdict;
+  its report is absent and no independent approval is claimed. A readiness-only
+  subscription covers the reported reset window; no provider switch is authorized.
+  Record final results and checkpoints; clean
   owned temporary resources and deliver exact-source evidence. PRs stay
   draft/unmerged. Hosted iOS Watch,
   Windows theme/input and earlier native focus/visual limits are not closed.
