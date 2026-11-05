@@ -179,6 +179,24 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
+      - name: Retain source-bound macOS app for resource-bounded UI verification
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD 'HEAD^{tree}' > verification/macos-desktop-source.txt
+          shasum -a 256 target/debug/mlearn-desktop > verification/macos-desktop-executable.sha256
+          tar -czf verification/macos-desktop-app.tar.gz -C target/debug mlearn-desktop
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: macos-desktop-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            verification/macos-desktop-source.txt
+            verification/macos-desktop-executable.sha256
+            verification/macos-desktop-app.tar.gz
       - run: cargo test --locked -p mlearn-desktop --lib --all-features
       - name: Verify portable offline PDF rasterization
         run: cargo test --locked -p mlearn-desktop-ocr --all-targets
