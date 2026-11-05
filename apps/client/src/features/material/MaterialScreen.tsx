@@ -434,7 +434,7 @@ export function MaterialScreen() {
 }
 
 const styles = StyleSheet.create(theme => ({
-  search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  search: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 220, maxWidth: '100%' },
   headerSpace: { flexGrow: 1 },
   collectionTools: { paddingHorizontal: theme.spacing.large, paddingVertical: theme.spacing.small, gap: theme.spacing.small },
   hidden: { display: 'none' },

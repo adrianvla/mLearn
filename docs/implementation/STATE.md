@@ -5,8 +5,10 @@
 The current user goal reconstructs the implemented frontend around reading,
 watching, conversation, learning and retained context. It authorizes presentation
 and interaction changes, not another domain milestone, merge, release or
-maintainer acceptance. Work remains uncommitted on `agent/m10-m11`, based on
-`2528134d`; the M10/M11 and provisional M03-M07 evidence below is preserved.
+maintainer acceptance. Main presentation checkpoint `a7260104` is committed and
+pushed on `agent/m10-m11`, based on `2528134d`. Subsequent acceptance-driver and
+CI checkpoints reach `78ce30ee`; the latest collection-field repair is being
+integrated. The M10/M11 and provisional M03-M07 evidence below is preserved.
 
 - Reference authority: all 21 edited images were inspected. The available legacy
   checkout is `39c83e89` with package version 2.9.11, not verified v2.10.
@@ -23,7 +25,8 @@ maintainer acceptance. Work remains uncommitted on `agent/m10-m11`, based on
   `.mlearn/experience-20261105/`; native window/media claims remain separate.
 - Checks: repository 89 tooling + 223 client tests pass; current typecheck,
   ownership lint and web export pass. Browser regressions are being completed
-  in scoped serial batches, not reported as a whole-suite pass.
+  in scoped serial batches, not reported as a whole-suite pass. The latest
+  collection repair passes 12 affected desktop/390/320 browser cases.
 - Repaired regressions: activity departures now dismiss into retained management
   state (three red/green routes, six manual width/route checks); shared web
   viewport anchoring no longer shifts Material's original scroll during modal
@@ -35,6 +38,26 @@ maintainer acceptance. Work remains uncommitted on `agent/m10-m11`, based on
   playback/subtitle recovery all have actual native evidence. The source-bound
   receipt is `.mlearn/experience-20261105/native-desktop/README.md`; browser media
   identity fixtures are not decoding evidence.
+- Real Linux Tauri acceptance passes run `41975595016` at `8945ddce`, with
+  product bytes unchanged from `a7260104`. Its full IPC, cancellation, claims,
+  restart/recovery and Japanese layout assertions pass. Corrected Android Watch
+  acceptance passes at `3af77aeb` in run `41975875004`, including original
+  restart/player/Japanese assertions. Artifact checksums/source identities are
+  retained; these results do not certify later collection-field geometry.
+- Source-bound iOS/Android consuming apps were compiled by CI. The actual iOS
+  response/restart/validator/rating/pause/resume flow passes; public Rust readback
+  proves one accepted response/attempt and the exact next encounter. Supported
+  themes/navigation and native Material Cancel/Save/Discard/restart pass.
+  Hosted iOS still fails its original picker assertion before Watch; no
+  diagnostic variant or weaker assertion was added.
+- Native capture review found collection search fields compressed below usable
+  width. Both feature toolbar owners now preserve their existing 220-point
+  basis as a minimum. Current JS/assets were rebuilt through normal Expo/Hermes
+  packaging into an isolated copy of the unchanged source-bound iOS host.
+  Actual field typing/filtering/retention and wrapped header scope interactions
+  pass; before/after images are inspected. This is a consuming frontend repack,
+  not a new Xcode/native compilation claim. Current-source browser captures
+  also pass at desktop/390/320. Receipt: `toolbar-fix/` under the evidence root.
 - Repaired shared media controls: the 40/44-pixel wrapper mismatch reproduced
   a 0.909 intersection ratio. Native QA then exposed missing narrow disclosure
   before hover/focus. Both repairs pass all three desktop/narrow owner cases;
@@ -42,22 +65,23 @@ maintainer acceptance. Work remains uncommitted on `agent/m10-m11`, based on
   against both gradient endpoints in both themes; the owner test failed before
   correction. Current unit/typecheck/lint/export and 56 affected Reader/Review
   cases pass, with native light/dark renders inspected.
-- Resource admission retains the 4 GiB reserve. A 2 GiB batch hold was preserved;
-  the small model-free Watch probe was independently admitted at 1.5 GiB.
-  Native's unchanged 2.5 GiB allowance passed for the desktop build. Later mobile
-  preparation admission remained held at about 6.7 GB available. Its waiting
-  subscription was cancelled before any native preparation started, to move
-  broad consuming builds to the existing CI workflow. The owned app, completed
-  diagnostic server and desktop capture session are stopped. No simulator,
-  emulator or native application has been automatically restarted.
-- Source checkpoint: the final Messenger/source-entry test passes after removing
-  a duplicated continuation step; `git diff --check` passes. GitHub CLI reads
-  currently fail certificate verification, so no new remote build or push is
-  claimed. Local source checkpointing proceeds with mobile/review gates open.
-- Remaining: source-current consuming mobile builds and targeted actual native
-  interaction; resolve one independent gate
-  review; commit/push verified checkpoints; clean owned temporary resources and
-  deliver exact-source evidence. PRs stay draft/unmerged. Hosted iOS Watch,
+- Resource admission retains the 4 GiB reserve and unchanged 2.5 GiB native
+  build allowance. The distinct 2 GiB iOS UI stage passed admission and ran
+  serially under a live guard. The retained original profile was preserved
+  before installs and restored with all seven file hashes identical afterward.
+  The owned simulator/app/guard are stopped. A cached current-source desktop
+  build remains held, with a readiness subscription only; no queued automatic
+  build or device restart exists.
+- Normal verified Git push and HTTPS API access work; no trust override was
+  made. Existing foundation CI hit its outer 40-minute deadline after 160/182
+  browser completion markers with no recorded assertion failure. Rust/OCR/
+  macOS/Windows jobs passed. CI-only `78ce30ee` gives the same serial suite a
+  60-minute outer budget and line reporting; all test/setup deadlines remain.
+  That run is subscribed, not reported passing.
+- Remaining: source-current desktop host confirmation for the collection repair;
+  resolve one independent gate review; commit/push verified checkpoints; clean
+  owned temporary resources and deliver exact-source evidence. PRs stay
+  draft/unmerged. Hosted iOS Watch,
   Windows theme/input and earlier native focus/visual limits are not closed.
 
 ## M10 and M11 verified_for_continuation - 2026-11-01

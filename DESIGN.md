@@ -69,6 +69,9 @@ Layout: collections use a clear heading, language scope, search and creation
 action, then results. Related display controls are grouped and advanced tools
 are disclosed deliberately. Selection mode adds the existing bounded actions
 without replacing the collection or losing query, page or focus state.
+Collection search retains its existing 220-point field width as a minimum,
+bounded by the container; adjacent actions and language scope wrap instead of
+squeezing the native input to its leading icon.
 
 Layout: Material authoring gives phrase and meaning priority, arranges related
 fields together at desktop widths, and keeps Save and recovery discoverable.

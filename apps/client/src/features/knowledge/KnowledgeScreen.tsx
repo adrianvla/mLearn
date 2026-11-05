@@ -330,7 +330,7 @@ export function KnowledgeScreen() {
 }
 
 const styles = StyleSheet.create(theme => ({
-  search: { flexGrow: 1, flexShrink: 1, minWidth: 0, flexBasis: 220 },
+  search: { flexGrow: 1, flexShrink: 1, minWidth: 220, maxWidth: '100%', flexBasis: 220 },
   viewOptions: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small },
   hidden: { display: 'none' },
   results: { gap: 0 },

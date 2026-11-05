@@ -104,6 +104,16 @@ test('Material collections preserve exact counts and native order through paging
       [saved[1].id, saved[40].id].sort().map(id => ({ kind: 'material', id })),
     );
     const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
+    for (const width of [1080, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(search).toBeInViewport();
+      const bounds = await search.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.width, 'Keep room to read and edit a collection query').toBeGreaterThanOrEqual(160);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: info.outputPath(`material-search-width-${width}.png`) });
+    }
+    await page.setViewportSize({ width: 1080, height: 900 });
     await search.fill('Unsubmitted collection query');
     const origin = page.getByRole('button', { name: 'Edit entry-40', exact: true });
     await origin.scrollIntoViewIfNeeded();

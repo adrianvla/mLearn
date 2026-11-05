@@ -98,11 +98,16 @@ test('Home exposes the native boundary without fabricated recents',async({page})
 for (const destination of ['Home', 'Knowledge', 'Material']) {
 test(`unavailable Review ${destination} preserves the retained Knowledge search`, async ({ page }, info) => {
   await page.goto('/');
-  for (const width of [1080, 390]) {
+  for (const width of [1080, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const draft = `Unsubmitted Knowledge search at ${width}`;
     await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
     const search = page.getByRole('textbox', { name: 'Search Knowledge', exact: true });
+    await expect(search).toBeInViewport();
+    const bounds = await search.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width, 'Keep room to read and edit a collection query').toBeGreaterThanOrEqual(160);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
     await search.fill(draft);
     await page.getByRole('button', { name: 'Home', exact: true }).click();
 
