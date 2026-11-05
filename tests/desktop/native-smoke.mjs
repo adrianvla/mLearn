@@ -245,7 +245,7 @@ try {
   async function resumeWatch() {
     // At 2x, recents can sit below the viewport during a route return.
     // Use the shared scroll/hit-target readiness before real WebDriver input.
-    await click('Resume watch-fixture.mp4');
+    await click('Continue watch-fixture.mp4');
   }
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.english'})).type,'installed');
   const fixture=path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.mp4');
@@ -925,7 +925,7 @@ try {
   assert.equal((await native({type:'attach_subtitles',sourceId:japaneseSource.window.source.id,path:japaneseSubtitles})).type,'source');
   await click('Settings');await click('Home');
   await observeSourceView('!!document.querySelector(\'button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
-  await click('Resume japanese-watch.mp4');
+  await click('Continue japanese-watch.mp4');
   await observedSourceView('Real Japanese source must render its package-owned contour');
   await observeSourceView('!!document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
   await click('Transcript');await click('Transcript');
@@ -951,7 +951,7 @@ try {
   await click('Reload native state');await click('Home');
   await observeSourceView(`Array.from(document.querySelectorAll('button[aria-label^="銀河("]')).some(node=>
     node.getClientRects().length&&!node.closest('[aria-hidden="true"]')&&getComputedStyle(node).fontSize==='80px')`);
-  await click('Resume japanese-watch.mp4');
+  await click('Continue japanese-watch.mp4');
   await observedSourceView('Saved enlarged typography must reach actual Japanese source words');
   const japaneseWindowPath = `/session/${session}/window/rect`;
   const japaneseRect = await rpc('GET',japaneseWindowPath);
