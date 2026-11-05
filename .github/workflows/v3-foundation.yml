@@ -4,10 +4,16 @@ on:
     branches: ['agent/**', rewrite/v3]
     paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', '!tests/mobile/ocr/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
   workflow_dispatch:
+    inputs:
+      web_check:
+        description: Browser verification scope
+        type: choice
+        options: [full, messenger]
+        default: full
 permissions:
   contents: read
 concurrency:
-  group: v3-foundation-${{ github.ref }}
+  group: v3-foundation-${{ github.ref }}${{ inputs.web_check == 'messenger' && '-messenger' || '' }}
   cancel-in-progress: false
 jobs:
   web:
@@ -64,6 +70,10 @@ jobs:
           npm run build:documents
           cargo build --locked -p mlearn-runtime --example runtime_browser_qa
       - run: npm run test:web -- --reporter=line
+        if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
+      - name: Reproduce native-backed Messenger analysis
+        if: github.event_name == 'workflow_dispatch' && inputs.web_check == 'messenger'
+        run: npm run test:web -- tests/web/messenger-native-core.spec.ts --workers=1 --reporter=line --trace=on
       - name: Ensure checks did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
@@ -81,6 +91,7 @@ jobs:
             package-lock.json
             verification
   rust:
+    if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -118,6 +129,7 @@ jobs:
             packages/contracts/src/generated.ts
             verification
   ocr-detector:
+    if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
