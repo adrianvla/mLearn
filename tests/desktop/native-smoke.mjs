@@ -459,7 +459,7 @@ try {
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
       if (leave === 'blur') {
         await rpc('POST',`/session/${session}/back`,{});
-        await text('Recent sources');
+        await text('Watching');
         await resumeWatch();
       }
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
