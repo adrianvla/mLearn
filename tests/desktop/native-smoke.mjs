@@ -803,10 +803,9 @@ try {
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
   const homeSources=(await native({type:'recent_sources'})).sources;
+  // Home renders each persisted source once, with its real progress.
   const expectedProgress=homeSources.filter(source=>source.durationMs>0)
     .map(source=>Math.max(0,Math.min(100,source.positionMs/source.durationMs*100)));
-  if(homeSources[0]?.durationMs>0)
-    expectedProgress.push(Math.max(0,Math.min(100,homeSources[0].positionMs/homeSources[0].durationMs*100)));
   assert.ok(expectedProgress.length>0,'Decoded and checkpointed media must expose real source progress');
   expectedProgress.sort((a,b)=>a-b);
   const homeProgress=await rpc('POST',`/session/${session}/execute/async`,{script:`
