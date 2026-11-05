@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import type { ConversationGeneration, ConversationRetry, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
+import { Menu } from '@mlearn/ui/menu';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
@@ -25,12 +26,13 @@ const running = (generation: ConversationGeneration | null) =>
   generation?.status === 'pending' || generation?.status === 'streaming';
 
 /** Presentation lifetime only; the shared native generation owner owns the job. */
-export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, onReturnToSource, onOpenMaterial }: {
+export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, secondaryActionsMenuLabel, onReturnToSource, onOpenMaterial }: {
   readonly client: RuntimeClient;
   readonly source: SourceAnchor;
   readonly tone?: 'content' | 'media';
   readonly explanationDisabledReason?: string;
   readonly disabled?: boolean;
+  readonly secondaryActionsMenuLabel?: string;
   readonly onReturnToSource?: () => void;
   readonly onOpenMaterial?: (id: string) => void;
 }) {
@@ -296,12 +298,22 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
           }} />
         </Row>
       </Dialog>
+      {secondaryActionsMenuLabel ? <Menu ref={proposalTrigger} label={secondaryActionsMenuLabel} icon="more"
+        disabled={disabled} actions={[
+          { id: 'copy-selected-text', label: 'Copy selected text', disabled: !selected,
+            onPress: () => void copy(selected) },
+          { id: 'copy-context', label: 'Copy context', disabled: !source.text,
+            onPress: () => void copy(source.text) },
+          { id: 'propose-material', label: 'Propose Material', disabled: !selected,
+            onPress: () => setProposalsOpen(true) },
+        ]} /> : <>
       <Button label="Copy selected text" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => void copy(selected)} />
       <Button label="Copy context" variant={variant} size="compact" disabled={disabled || !source.text}
         onPress={() => void copy(source.text)} />
       <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => setProposalsOpen(true)} />
+      </>}
     </Row>
     <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}
       focusTarget={() => proposalTrigger.current} seed={null} source={source}

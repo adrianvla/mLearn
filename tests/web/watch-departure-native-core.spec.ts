@@ -88,7 +88,8 @@ test('Watch proposal Return restores its exact captured subtitle selection', asy
     });
     await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
     await page.getByTestId('subtitle-window').getByText('cat', { exact: true }).click();
-    await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+    await page.getByTestId('inspector-panel').getByRole('button', { name: 'Inspector actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
     const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
     await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('A small feline.');
     await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();

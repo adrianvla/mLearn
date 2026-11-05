@@ -284,7 +284,8 @@ test('opening accepted source proposals checkpoints the conversation and preserv
   await composer.fill(unsent);
   await analysis.click();
   await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
-  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Inspector actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
   const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
   await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Accepted source meaning.');
   await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();
@@ -320,7 +321,8 @@ test('message proposal Return restores the captured original instead of only ope
   await composer.fill(unsent);
   await analysis.click();
   await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
-  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Propose Material', exact: true }).click();
+  await page.getByTestId('inspector-panel').getByRole('button', { name: 'Inspector actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
   const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
   await proposals.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Young people.');
   await proposals.getByRole('button', { name: 'Save proposal', exact: true }).click();

@@ -35,6 +35,7 @@ test('Material item switching retains its draft through cancelled departure and 
     }
     await page.goto('/materials');
     await page.setViewportSize({ width: 390, height: 900 });
+    await page.getByRole('button', { name: 'View options', exact: true }).click();
     await page.getByRole('combobox', { name: /^Material order:/ }).click();
     await page.getByRole('option', { name: 'Text A–Z', exact: true }).click();
     const search = page.getByRole('textbox', { name: 'Search Material', exact: true });
@@ -103,8 +104,8 @@ test('Material item switching retains its draft through cancelled departure and 
     await page.screenshot({ path: info.outputPath('material-switch-origin-restored-390.png') });
   } finally {
     events.emit('released');
-    await page.unroute(`${backend.url}/invoke`);
-    await backend.close();
+    try { await page.unroute(`${backend.url}/invoke`); }
+    finally { await backend.close(); }
   }
 });
 
@@ -274,9 +275,18 @@ test('source proposals retain edits and atomically recover acceptance after a lo
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
     await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
-    await page.getByRole('button', { name: 'Propose Material', exact: true }).click();
+    await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Material proposals', exact: true });
     await expect(dialog.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue('Children');
+    const provenance = dialog.getByText(`Source reference · ${document.source.id}`, { exact: false });
+    await expect(provenance).toBeHidden();
+    const sourceDetails = dialog.getByRole('button', { name: 'Source details', exact: true });
+    await sourceDetails.focus();
+    await sourceDetails.press('Enter');
+    await expect(provenance).toBeVisible();
+    await sourceDetails.click();
+    await expect(provenance).toBeHidden();
     await dialog.getByRole('textbox', { name: 'Meaning', exact: true }).fill('Young people.');
     await dialog.getByRole('textbox', { name: 'Notes', exact: true }).fill('An authored source note.');
     await dialog.getByRole('button', { name: 'Add example', exact: true }).click();

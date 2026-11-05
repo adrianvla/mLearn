@@ -37,6 +37,7 @@ test('package kind scopes both bounded pages and selection while grid/list retai
                   export const useWindowDimensions = () => ({ width: 1440, height: 900 });
                   export const View = React.forwardRef(({ children, testID }, ref) =>
                     <div ref={ref} data-testid={testID}>{children}</div>);
+                  export const Image = ({ accessibilityLabel }) => <img alt={accessibilityLabel} />;
                 `; break;
               case 'react-native-unistyles':
                 contents = `export const StyleSheet = { create: fn => fn({
@@ -148,6 +149,8 @@ test('package kind scopes both bounded pages and selection while grid/list retai
                       }}>Close</button>
                     </section>;
                 `; break;
+              case '@mlearn/ui/brand':
+                contents = `export const logoSource = { uri: 'fixture-logo' };`; break;
               default:
                 contents = `${common}
                   export const AppShell = ({ header, children }) => <main>{header}{children}</main>;

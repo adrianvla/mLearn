@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { ReviewCommand, ReviewEncounter, ReviewSession } from '@mlearn/contracts';
 import { builtInThemes, initialTheme } from '../../packages/theme/src/theme';
 
-const encounter: ReviewEncounter = {
+const encounter = {
   id: 'encounter-1', workId: 'work-1', materialId: 'material-1', materialRevision: 1,
   packageId: 'package', packageVersion: '1', packageRevision: 'revision',
   probeId: 'written', probeContractVersion: 1, direction: 'written', cue: '勇気',
@@ -17,7 +17,7 @@ const encounter: ReviewEncounter = {
     { id: 'pitch', label: 'Pitch', mnemonic: 'p', key: null },
   ],
   conditions: { revealed: false, exposureCount: 1, assistance: [], delivery: 'not_required' },
-};
+} satisfies ReviewEncounter;
 declare global {
   interface Window {
     __reviewTest: {
@@ -173,6 +173,8 @@ async function start(page: Page, dark: boolean, finite = false, audio = false, p
   } else if (finite) {
     const field = page.getByRole('textbox', { name: 'Finite Review limit', exact: true });
     const button = page.getByRole('button', { name: 'Start finite Review', exact: true });
+    await expect(field).toBeHidden();
+    await page.getByRole('button', { name: 'Session size', exact: true }).click();
     await field.fill('0'); await expect(button).toBeDisabled();
     await field.fill('129'); await expect(button).toBeDisabled();
     await field.fill('3'); await button.click();

@@ -134,7 +134,7 @@ export function SettingsScreen() {
       <View style={styles.content}>
       {section === 'appearance' ? <Section title="Appearance">
         <SettingRow label="Theme" description={
-          <Text variant="detail" muted>{snapshot ? `Current: ${displayedTheme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
+          <Text variant="detail" muted>{snapshot ? `Current: ${displayedTheme.name}.` : 'Preview only. Changes are not saved.'}</Text>
         }>
           <Select label="Select theme" value={selectedPreset?.id ?? 'custom'}
             options={themeOptions}
@@ -142,14 +142,14 @@ export function SettingsScreen() {
               const preset = builtInThemes.find(value => value.id === id);
               if (!preset) return;
               if (canSave) void perform('theme', () => saveTheme(preset));
-              else { setPreviewTheme(preset); applyTheme(preset); report('theme', 'Unsaved visual preview. No native data was written.'); }
+              else { setPreviewTheme(preset); applyTheme(preset); report('theme', 'Preview only. Changes have not been saved.'); }
             }} />
         </SettingRow>
         <SettingRow label="Custom theme" description={
           <Text variant="detail" muted>Palette, text size, spacing and corner radius.</Text>
         }>
           <Dialog open={editing} onOpenChange={setEditing} title="Custom theme"
-            description="Edit a versioned theme document. Rust validates and commits saved changes."
+            description="Edit a versioned theme document. Changes are checked before being saved."
             trigger={<Button label="Edit theme JSON" variant="secondary" />}>
             <TextField testID="theme-json-input" label="Theme JSON" value={themeJson} onChangeText={setThemeJson} multiline maxLength={24000} autoCapitalize="none" autoCorrect={false} />
             <Button label="Save custom theme" disabled={!canSave} onPress={() => void perform('theme', () => saveTheme(parseThemePreview(themeJson)))} />

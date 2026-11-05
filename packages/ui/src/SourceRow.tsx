@@ -20,7 +20,7 @@ export function SourceRow({ title, detail, icon, progress, disabled = false, onP
   const [focused, setFocused] = useState(false);
   // UIKit groups these descendants; its value keeps detail separate from the
   // action label. Android would append that value to the label instead.
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Resume ${title}`}
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Continue ${title}`}
     accessibilityValue={Platform.OS === 'ios' ? { text: detail } : undefined}
     disabled={disabled} onPress={onPress}
     onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
@@ -33,9 +33,9 @@ export function SourceRow({ title, detail, icon, progress, disabled = false, onP
     <View style={styles.info}>
       <Text variant="sourceTitle" numberOfLines={1}>{title}</Text>
       <Text variant="detail" muted numberOfLines={2}>{detail}</Text>
-      <Progress label={`${title} progress`} value={progress} />
+      {progress !== undefined ? <Progress label={`${title} progress`} value={progress} /> : null}
     </View>
-    {width > 600 ? <Text variant="caption">{progress === undefined ? '—' : `${Math.round(progress)}%`}</Text> : null}
+    {width > 600 && progress !== undefined ? <Text variant="caption">{Math.round(progress)}%</Text> : null}
   </Pressable>;
 }
 

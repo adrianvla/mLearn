@@ -1,5 +1,95 @@
 # mLearn visual specification — reference parity
 
+## Current reconstruction brief — November 5, 2026
+
+The current task reconstructs the whole implemented experience around the
+learner's activity, attention and continuity. Older layout notes below are
+historical evidence, not a requirement to preserve their compositions.
+Authority is the edited images, then compatible decisions in the available
+live legacy application, then inference. Inferred designs are candidates,
+not maintainer approval. The local legacy source is `39c83e89`; its package
+still identifies itself as 2.9.11, so it is not independently established as
+the requested v2.10 reference.
+
+### Experience and hierarchy
+
+- Home is a place to return to work. Actual recent reading and watching
+  comes before new-source actions. Do not manufacture progress or empty
+  preview rectangles. Opening another source is one deliberate action.
+- Knowledge and Material are two views of the learner's collection, with
+  stable navigation between them. Search and the collection itself lead.
+  Sorting, display options, compound filters and bulk actions remain
+  available in the collection context rather than defining the page.
+- Review is a focused learning activity. Its entrance makes continuing a
+  saved session and starting due Review understandable. Word Sync and
+  deliberate Practice keep their distinct purpose and existing authorities.
+  The encounter and response lead during a session; session management is
+  secondary. Do not expose implementation vocabulary as the main explanation.
+- Conversation remains a familiar chat list, conversation and composer.
+  People, thread creation, provider setup and execution inspection belong
+  beside the relevant conversation task. Empty states offer a real next
+  action instead of requiring the learner to assemble a workflow.
+- Reader and Watch keep compact activity chrome and give the source the
+  largest uninterrupted area. Source navigation, transcript, vocabulary,
+  display preferences and diagnostics appear where they are useful.
+  Inspector remains contextual and preserves the exact source on dismissal.
+- Settings uses named sections and divided setting rows. Routine appearance
+  and package setup lead; developer execution information stays in Runtime.
+  Explain consequences for the learner before storage or protocol details.
+
+### Reference grammar and shared owners
+
+The inspected references establish Helvetica-family application text, compact
+neutral controls, distinct content and chrome, selected navigation surfaces,
+quiet secondary actions, independently scrolling optional panels, linguistic
+color only where it conveys meaning, and contextual glass inspection with a
+stable footer. Keep those choices in the existing theme and semantic controls.
+Do not add a second style, a promotional dashboard or route-specific CSS.
+
+`packages/ui` owns control semantics and presentation. The feature navigation
+owner owns destinations and active state, without owning domain data.
+`AppShell` owns safe areas, desktop sidebar and compact navigation geometry.
+Feature owners compose content for their activity. Existing management tabs
+retain drafts and list position; media and inference lifetimes do not move
+into those tabs. Rust continues to own all persisted state and decisions.
+
+Layout: Home, Knowledge, Material and the Review entrance share a stable
+desktop navigation rail and a compact horizontally scrolling navigation row
+on phones. The main header contains identity and the immediate action; the
+body contains work. Compact navigation must not wrap into a second control
+panel. Reader, Watch and active Review keep their activity-specific chrome.
+Settings and Messenger retain their reference-specific sidebars.
+
+Layout: Home uses real recent source rows as its primary content, grouped by
+reading and watching, with compact open actions. With no sources it presents
+an intentional source-opening state, not empty media placeholders. Review,
+Conversation, Knowledge, Material and Settings remain directly reachable.
+
+Layout: collections use a clear heading, language scope, search and creation
+action, then results. Related display controls are grouped and advanced tools
+are disclosed deliberately. Selection mode adds the existing bounded actions
+without replacing the collection or losing query, page or focus state.
+
+Layout: Material authoring gives phrase and meaning priority, arranges related
+fields together at desktop widths, and keeps Save and recovery discoverable.
+The existing single draft, staged media, dirty Save/Discard/Cancel, window
+navigation and exact origin restoration remain authoritative.
+
+### Verification ledger
+
+Baseline source is `2528134d`. Before captures are retained in
+`.mlearn/experience-20261105/before/`. All 21 approved images were directly
+inspected. Current baseline shortcomings include duplicate Home entry points,
+large empty previews, collection controls preceding results, mobile header
+crowding, bare Review setup, and implementation-oriented explanatory copy.
+Those are open findings, not declarations that the redesign is already done.
+
+Every implementation increment requires actual desktop and narrow rendering
+before another visual pass. Final evidence must enumerate all implemented
+activities and meaningful states, retain native integration limits, and
+exercise real content, writes, recovery and continuity. Shared component
+reuse, a green test suite and source review do not substitute for that proof.
+
 The active work is the [visual-parity rewrite](docs/implementation/VISUAL-PARITY.md), authorized 2026-10-20. The previous version of this document described a v3 presentation the maintainer rejected. Its preset colors, numeric font choices, Home arrangement, titlebar and media controls are historical implementation details, not an approved design.
 
 ## Authority

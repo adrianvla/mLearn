@@ -217,6 +217,29 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
           }} />
       </Row>
     </Panel> : null}
+    <View style={styles.save}>
+      <Row><Button ref={saveTrigger} label={base ? 'Save changes' : 'Save Material'} testID="material-save" busy={pending}
+        disabled={!!retry || mediaPending || navigationPending} onPress={() => submit()} />
+        {dirty ? <Text variant="caption" muted>Unsaved changes</Text> : null}
+      </Row>
+      {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
+      {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
+      {retry ? <Row>
+        {conflict ? <Button label="Reload latest revision" disabled={pending} onPress={() => void reload()} />
+          : <Button label="Retry save" disabled={pending} onPress={() => void save(retry, stagedRef.current)} />}
+        <Button label="Continue editing" variant="secondary" disabled={pending} onPress={() => { setRetry(null); setError(''); }} />
+      </Row> : null}
+      {duplicates.length ? <View style={styles.reference} testID="material-duplicates">
+        <Text>Existing Material found. Choose an existing item or keep this context distinct.</Text>
+        {duplicates.map(item => <Button key={item.id} label={`Use existing: ${item.content.phrase}`}
+          detail={item.content.context || item.content.meaning} variant="secondary"
+          disabled={pending || mediaPending || navigationPending} onPress={() => {
+            // The abandoned draft's staged imports were never saved; release them.
+            replaceDraft(item, 'Existing Material selected.'); onSaved?.(item);
+          }} />)}
+        <Button label="Keep distinct" disabled={pending} onPress={() => submit(true)} />
+      </View> : null}
+    </View>
     <MaterialFields value={draft} disabled={pending || !!retry || navigationPending} onChange={(update, key) => {
       setDraft(update);
       if (key === 'phrase') setBoundStaged([]);
@@ -240,35 +263,17 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
     {base ? <Row><Button label={excluded ? 'Include Material' : 'Exclude Material'} variant="secondary"
       disabled={pending || !!retry || navigationPending} accessibilityState={{ selected: excluded }} onPress={() => setExcluded(value => !value)} />
       <Text variant="caption">{excluded ? 'Excluded from learning' : 'Included in learning'}</Text></Row> : null}
-    <Row><Button ref={saveTrigger} label={base ? 'Save changes' : 'Save Material'} testID="material-save" busy={pending}
-      disabled={!!retry || mediaPending || navigationPending} onPress={() => submit()} />
-      {base && onPropose ? <Button ref={proposeTrigger} label="Propose changes to saved Material" variant="secondary"
-        disabled={pending || !!retry || mediaPending || navigationPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}</Row>
+    {base && onPropose ? <Button ref={proposeTrigger} label="Propose changes to saved Material" variant="secondary"
+      disabled={pending || !!retry || mediaPending || navigationPending} onPress={() => onPropose(base, proposeTrigger.current)} /> : null}
     {base && onAuthor ? <Button label="Author probes" variant="secondary"
       disabled={dirty || pending || mediaPending || navigationPending || base.excluded}
       onPress={() => onAuthor(base)} /> : null}
-    {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
-    {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
-    {retry ? <Row>
-      {conflict ? <Button label="Reload latest revision" disabled={pending} onPress={() => void reload()} />
-        : <Button label="Retry save" disabled={pending} onPress={() => void save(retry, stagedRef.current)} />}
-      <Button label="Continue editing" variant="secondary" disabled={pending} onPress={() => { setRetry(null); setError(''); }} />
-    </Row> : null}
-    {duplicates.length ? <View style={styles.reference} testID="material-duplicates">
-      <Text>Existing Material found. Choose an existing item or keep this context distinct.</Text>
-      {duplicates.map(item => <Button key={item.id} label={`Use existing: ${item.content.phrase}`}
-        detail={item.content.context || item.content.meaning} variant="secondary"
-        disabled={pending || mediaPending || navigationPending} onPress={() => {
-          // The abandoned draft's staged imports were never saved; release them.
-          replaceDraft(item, 'Existing Material selected.'); onSaved?.(item);
-        }} />)}
-      <Button label="Keep distinct" disabled={pending} onPress={() => submit(true)} />
-    </View> : null}
   </View>;
   return renderFrame ? renderFrame(body, pending || mediaPending || navigationPending || departing) : body;
 });
 
 const styles = StyleSheet.create(theme => ({
   editor: { gap: theme.spacing.compact, minWidth: 0 },
+  save: { gap: theme.spacing.small, paddingBottom: theme.spacing.small },
   reference: { gap: theme.spacing.small, paddingVertical: theme.spacing.small },
 }));

@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { CollectionDescription, CollectionFilter } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
+import { Dialog } from '@mlearn/ui/dialog';
 import { Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
@@ -203,13 +204,14 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
       </> : null}
     </View>;
   }
-  return <View style={styles.root}>
-    <View style={styles.trigger}>
-      <Button label="Filters" variant="navigation" size="compact"
-        icon={expanded ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded }}
-        onPress={() => setExpanded(value => !value)} />
-    </View>
-    {expanded ? <>
+  return <Dialog title="Filters" description="Combine conditions to narrow the collection."
+    open={expanded} onOpenChange={setExpanded} trigger={
+      <Button label="Filters" variant="secondary" size="compact"
+        icon={expanded ? 'chevronDown' : 'chevronRight'}
+        accessibilityState={{ expanded, selected: value.kind !== 'all' || value.filters.length > 0 }}
+      />
+    }>
+    <View style={styles.root}>
       <Text variant="caption" muted>Also matches the current search and source/excluded controls. Source choices are recent saved sources.</Text>
       {loading ? <Text accessibilityLiveRegion="polite">Loading filter options…</Text> : null}
       {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry filter options" variant="secondary"
@@ -217,18 +219,19 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
       {!packageId ? <Text variant="caption" muted>Choose a collection language for package scope, level and Knowledge filters.</Text> : null}
       {render(draft)}
       {draftError ? <Text accessibilityRole="alert">{draftError}</Text> : null}
-      <Row><Button label="Apply filters" size="compact" disabled={loading || !!error} onPress={() => onApply(expression(draft))} />
+      <Row><Button label="Apply filters" size="compact" disabled={loading || !!error} onPress={() => {
+        onApply(expression(draft)); setExpanded(false);
+      }} />
         <Button label="Clear filters" variant="secondary" size="compact" onPress={() => {
           const empty: CollectionFilter = { kind: 'all', filters: [] };
-          sequence.current = 1; setDraft(draftFor(empty)); setDraftError(''); onApply(empty);
+          sequence.current = 1; setDraft(draftFor(empty)); setDraftError(''); onApply(empty); setExpanded(false);
         }} /></Row>
-    </> : null}
-  </View>;
+    </View>
+  </Dialog>;
 }
 
 const styles = StyleSheet.create(theme => ({
   root: { gap: theme.spacing.small, minWidth: 0 },
-  trigger: { alignItems: 'flex-end' },
   group: { gap: theme.spacing.small, paddingLeft: theme.spacing.compact, borderLeftWidth: 1, borderColor: theme.colors.border },
   field: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 },
 }));

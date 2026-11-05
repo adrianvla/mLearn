@@ -1,5 +1,65 @@
 # Current implementation checkpoint
 
+## Frontend reconstruction candidate in progress - 2026-11-05
+
+The current user goal reconstructs the implemented frontend around reading,
+watching, conversation, learning and retained context. It authorizes presentation
+and interaction changes, not another domain milestone, merge, release or
+maintainer acceptance. Work remains uncommitted on `agent/m10-m11`, based on
+`2528134d`; the M10/M11 and provisional M03-M07 evidence below is preserved.
+
+- Reference authority: all 21 edited images were inspected. The available legacy
+  checkout is `39c83e89` with package version 2.9.11, not verified v2.10.
+  `DESIGN.md` records the reference-derived candidate and explicit inference.
+- Integrated: shared workspace navigation, real Home continuation/import actions,
+  compact Knowledge/Material tools and Filters dialog, guarded Material modal,
+  focused Review/Practice/Sync/authoring, Inspector secondary actions, responsive
+  touch targets/footer, readable Reader chrome and inspectable source/probe
+  provenance. Existing Rust, storage, packages and protocol owners remain.
+- Actual native-backed browser journeys cover saved Material and guarded
+  Cancel/Save, retained conversation drafts and source proposals, real parsed
+  document/Inspector, bounded Knowledge preparation, Review/reveal/rating/Undo/
+  pause and both themes. Captures/logs are under
+  `.mlearn/experience-20261105/`; native window/media claims remain separate.
+- Checks: repository 89 tooling + 223 client tests pass; current typecheck,
+  ownership lint and web export pass. Browser regressions are being completed
+  in scoped serial batches, not reported as a whole-suite pass.
+- Repaired regressions: activity departures now dismiss into retained management
+  state (three red/green routes, six manual width/route checks); shared web
+  viewport anchoring no longer shifts Material's original scroll during modal
+  resize. Exact source, draft, selection, focus and command assertions remain.
+- Native desktop: the actual isolated Tauri app was rebuilt and exercised at
+  1080/420 logical widths. Capture, guarded Material Cancel/Save and process
+  restart, exact Review resume/rating/Undo, Reader Inspector/proposal/clipboard,
+  retained conversation draft/analysis, saved themes and real corpus video
+  playback/subtitle recovery all have actual native evidence. The source-bound
+  receipt is `.mlearn/experience-20261105/native-desktop/README.md`; browser media
+  identity fixtures are not decoding evidence.
+- Repaired shared media controls: the 40/44-pixel wrapper mismatch reproduced
+  a 0.909 intersection ratio. Native QA then exposed missing narrow disclosure
+  before hover/focus. Both repairs pass all three desktop/narrow owner cases;
+  actual native close actions work. Shared action foregrounds now meet 4.5:1
+  against both gradient endpoints in both themes; the owner test failed before
+  correction. Current unit/typecheck/lint/export and 56 affected Reader/Review
+  cases pass, with native light/dark renders inspected.
+- Resource admission retains the 4 GiB reserve. A 2 GiB batch hold was preserved;
+  the small model-free Watch probe was independently admitted at 1.5 GiB.
+  Native's unchanged 2.5 GiB allowance passed for the desktop build. Later mobile
+  preparation admission remained held at about 6.7 GB available. Its waiting
+  subscription was cancelled before any native preparation started, to move
+  broad consuming builds to the existing CI workflow. The owned app, completed
+  diagnostic server and desktop capture session are stopped. No simulator,
+  emulator or native application has been automatically restarted.
+- Source checkpoint: the final Messenger/source-entry test passes after removing
+  a duplicated continuation step; `git diff --check` passes. GitHub CLI reads
+  currently fail certificate verification, so no new remote build or push is
+  claimed. Local source checkpointing proceeds with mobile/review gates open.
+- Remaining: source-current consuming mobile builds and targeted actual native
+  interaction; resolve one independent gate
+  review; commit/push verified checkpoints; clean owned temporary resources and
+  deliver exact-source evidence. PRs stay draft/unmerged. Hosted iOS Watch,
+  Windows theme/input and earlier native focus/visual limits are not closed.
+
 ## M10 and M11 verified_for_continuation - 2026-11-01
 
 The authorized Material/M10/M11 engineering batch is complete. M10 remains

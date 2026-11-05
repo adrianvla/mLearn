@@ -23,6 +23,7 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [assessmentDetails, setAssessmentDetails] = useState(false);
   const owner = useRef<object | null>(null);
   const operation = useRef<AbortController | null>(null);
   const flight = useRef(false);
@@ -73,32 +74,45 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
   }
   return <Stack>
     <Text variant="section" accessibilityRole="header">Authored recall probes</Text>
-    <Text variant="caption" muted>Edit the cue and answer in saved Material, then preview the package's actual probes.
-      This authoring contract supports self-report, not automatic response grading or linguistic correctness certification.
-      Previewed answers make the session source-assisted and cannot establish independent assessment.</Text>
+    <Text muted>Check your saved cue and answer, then preview the recall tasks before practicing.</Text>
+    <Text variant="caption" muted>You rate your own recall. Seeing these answers makes this source-assisted practice.</Text>
     {loading ? <Text accessibilityLiveRegion="polite">Loading saved Material...</Text> : null}
     {material ? <>
       <Text selectable>{material.content.phrase}</Text>
       <Text selectable>{material.content.meaning}</Text>
-      <Text variant="caption" muted>Material revision {material.revision} · {material.content.packageId}</Text>
+      <Text variant="caption" muted>Material revision {material.revision}</Text>
     </> : null}
-    <Button label="Edit cue and answer" variant="secondary" disabled={disabled || pending} onPress={onEdit} />
+    <Button label="Edit cue and answer" variant="quiet" disabled={disabled || pending} onPress={onEdit} />
     <Button label="Preview authored probes" busy={pending} disabled={disabled || loading || !material || pending}
       onPress={() => void inspect()} />
     {pending ? <Button label="Cancel probe preview" variant="quiet" onPress={() => operation.current?.abort()} /> : null}
     {cancelled ? <Text testID="authored-preview-cancelled" accessibilityLiveRegion="polite">Probe preview cancelled.</Text> : null}
     {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+    <Button label="Assessment limits" variant="quiet" accessibilityState={{ expanded: assessmentDetails }}
+      onPress={() => setAssessmentDetails(value => !value)} />
+    {assessmentDetails ? <>
+      <Text variant="caption" muted>The package supplies these probes from saved Material.
+      They support self-report, not automatic response grading or linguistic correctness certification.
+      Previewed answers cannot establish independent assessment.</Text>
+      {material ? <Text variant="caption" muted selectable>Language package: {material.content.packageId}</Text> : null}
+    </> : null}
     {preview ? <View testID="authored-probe-preview"><Stack>
       {preview.probes.map(probe => <Panel key={probe.id}>
         <Text variant="section" accessibilityRole="header">{probe.direction} recall</Text>
         <Text variant="caption" muted>Cue</Text><Text selectable>{probe.cue}</Text>
         <Text variant="caption" muted>Expected answer</Text><Text selectable>{probe.answer}</Text>
-        <Text variant="caption" muted>Declared targets</Text>
+        <Text variant="caption" muted>Recall targets</Text>
         {probe.targets.map(target => <Text key={target.id} selectable>{target.label}
-          {target.key ? ` · ${target.key.targetId} · ${target.key.capability}` : ' · no Knowledge measurement'}</Text>)}
-        <Text variant="caption" muted>Supplied information: {probe.supplied.length
-          ? probe.supplied.map(key => `${key.targetId} · ${key.capability}`).join('; ') : 'none'}</Text>
-        <Text variant="caption" muted>Response: self-report · package contract {probe.contractVersion}</Text>
+          {!target.key ? ' · no Knowledge measurement' : ''}</Text>)}
+        <Text variant="caption" muted>Response: self-report</Text>
+        {assessmentDetails ? <>
+          <Text variant="caption" muted>Package contract {probe.contractVersion}</Text>
+          {probe.targets.map(target => target.key ? <Text key={target.id} variant="caption" muted selectable>
+            {target.label} · {target.key.targetId} · {target.key.capability}
+          </Text> : null)}
+          <Text variant="caption" muted selectable>Supplied information: {probe.supplied.length
+            ? probe.supplied.map(key => `${key.targetId} · ${key.capability}`).join('; ') : 'none'}</Text>
+        </> : null}
       </Panel>)}
       <Button label="Practice authored probes" disabled={disabled || pending} onPress={() => void start()} />
     </Stack></View> : null}

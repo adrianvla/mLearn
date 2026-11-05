@@ -34,6 +34,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, onStart, 
   const [selecting, setSelecting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [notice, setNotice] = useState<'empty' | 'cancelled' | null>(null);
+  const [assessmentDetails, setAssessmentDetails] = useState(false);
   const owner = useRef<object | null>(null);
   const operation = useRef<AbortController | null>(null);
   const flight = useRef(false);
@@ -97,6 +98,9 @@ export function CalibrationSetup({ client, initialPackageId, disabled, onStart, 
   </Stack>;
   if (disabled) return <Text accessibilityLiveRegion="polite">Saving Word Sync...</Text>;
   return <Stack>
+    <Text variant="section" accessibilityRole="header">Find your starting point</Text>
+    <Text muted>Choose a skill and a small set of words or topics you haven't measured yet.</Text>
+    <Text variant="caption">Language</Text>
     <Select label="Word Sync language" value={packageId} disabled={loading}
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
       onValueChange={value => {
@@ -108,17 +112,21 @@ export function CalibrationSetup({ client, initialPackageId, disabled, onStart, 
       <Button label="Retry Word Sync options" variant="secondary" onPress={() => setReload(value => value + 1)} /></> : null}
     {!loading && !metadataError && !capabilities.length
       ? <Text>This package does not declare supported Word Sync probes.</Text> : null}
+    <Text variant="caption">Skill to check</Text>
     <Select label="Word Sync capability" value={capability} disabled={loading}
       options={capabilities.map(item => ({ value: item.id, label: item.label }))}
       onValueChange={value => { changed(); setCapability(value); }} />
-    <TextField label="Scope text" value={text} maxLength={2048}
+    <TextField label="Scope text" placeholder="All words and topics, or search to narrow" value={text} maxLength={2048}
       onChangeText={value => { changed(); setText(value); }} />
     <CollectionFilters key={packageId} client={client} packageId={packageId || null} value={filter}
       onApply={value => { changed(); setFilter(value); }} />
     <TextField label="Maximum targets" value={limit} keyboardType="number-pad" maxLength={2}
       onChangeText={value => { changed(); setLimit(value); }} />
-    <Text variant="caption" muted>Only unmeasured supported targets in this scope are selected.
-      Claims remain separate. Recall is self-reported; typed and choice tasks use their declared validators.</Text>
+    <Text variant="caption" muted>Only supported, unmeasured items in this scope will be selected.</Text>
+    <Button label="How Word Sync is assessed" variant="quiet" accessibilityState={{ expanded: assessmentDetails }}
+      onPress={() => setAssessmentDetails(value => !value)} />
+    {assessmentDetails ? <Text variant="caption" muted>Claims remain separate from measured responses.
+      Recall is self-reported; typed and choice tasks use their declared validators.</Text> : null}
     <Button label="Start Word Sync" disabled={loading || !valid || !!metadataError} onPress={() => void select()} />
     {notice === 'empty' ? <Text testID="calibration-empty" accessibilityLiveRegion="polite">No unmeasured targets match this scope.</Text> : null}
     {notice === 'cancelled' ? <Text testID="calibration-cancelled" accessibilityLiveRegion="polite">Selection cancelled.</Text> : null}

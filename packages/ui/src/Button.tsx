@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react';
-import { Platform, Pressable, Text, View, type PressableProps } from 'react-native';
+import { Platform, Pressable, Text, View, useWindowDimensions, type PressableProps } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
 import styles, { buttonForeground, type ButtonVariant, type ButtonTone, type ButtonSize } from './Button.styles';
 import { Icon, type IconName } from './Icon';
@@ -20,6 +20,7 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 
 export const Button = forwardRef<View, ButtonProps>(function Button({ label, detail, description, meta, busy = false, disabled = false, variant = 'primary', size = 'default', tone = 'neutral', icon, iconOnly = false, iconPosition = 'leading', accessibilityValue, accessibilityRole = 'button', onHoverIn, onHoverOut, ...props }, ref) {
   const { theme } = useUnistyles();
+  const touchLayout = useWindowDimensions().width < 720;
   const [hovered, setHovered] = useState(false);
   const blocked = disabled || busy;
   const state = { ...props.accessibilityState, disabled: blocked, busy };
@@ -41,7 +42,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
       aria-expanded={props['aria-expanded'] ?? state.expanded}
       aria-selected={Platform.OS === 'web' && accessibilityRole === 'button' ? undefined : props['aria-selected'] ?? state.selected}
       disabled={blocked}
-      style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly),
+      style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly, touchLayout),
         hovered && !blocked && styles.hover(variant, tone), pressed && styles.pressed, blocked && styles.disabled]}>
       {icon && iconPosition === 'leading' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected)} /> : null}
       {row ? <View style={styles.rowCopy}>

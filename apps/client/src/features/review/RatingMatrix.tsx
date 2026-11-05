@@ -34,7 +34,8 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
   useReviewKeys(!disabled, (key, at, alt) => apply(ratingKey(targets, current.current, key, at, alt || workedOut)));
   const method = workedOut ? 'worked_out' : 'remembered';
   return <View style={styles.matrix} testID="review-rating">
-    <Row><Text variant="caption" muted>Recall</Text>{targets.map(target =>
+    <Text variant="groupTitle">How did you recall it?</Text>
+    <Row>{targets.map(target =>
       <Badge key={target.id} label={target.label} variant="label" />)}</Row>
     {!state.expanded ? <View style={styles.actions}>
       {ratingActions.map(action => <View key={action.key} style={styles.bulk}>
@@ -86,7 +87,7 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
 const styles = StyleSheet.create(theme => ({
   matrix: { gap: theme.spacing.small, width: '100%', minWidth: 0 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small, alignItems: 'stretch' },
-  bulk: { flexGrow: 1, flexBasis: '20%', minWidth: 0 },
+  bulk: { flexGrow: 1, flexBasis: '30%', minWidth: 120 },
   matrixRow: { flexDirection: 'row', gap: theme.spacing.small, alignItems: 'center' },
   rowLabel: { flex: 1.5, minWidth: 0 },
   cell: { flex: 1, minWidth: 0 },

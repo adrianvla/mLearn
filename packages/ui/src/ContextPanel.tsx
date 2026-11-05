@@ -109,11 +109,11 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
-                                    horizontal
+                                    horizontal={desktop}
                                     onFocus={revealScrollFocus}
                                     onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
-                                    contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
+                                    contentContainerStyle={[styles.footerContent, !desktop && styles.footerWrap]} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
                                 {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(opaque), { bottom: footerHeight,
@@ -157,6 +157,8 @@ const styles = StyleSheet.create(theme => ({
         backgroundColor: theme.media.footer
     }, footerContent: {
         padding: theme.spacing.compact, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small
+    }, footerWrap: {
+        flexWrap: 'wrap'
     }, popover: (opaque: boolean) => ({
         position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
         borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,

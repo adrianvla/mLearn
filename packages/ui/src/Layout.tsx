@@ -7,9 +7,10 @@ import { Text } from './Text';
 import { useWindowMaterial } from './Provider';
 
 /** Bounded application frame with independently scrolling compact controls and content. */
-export function AppShell({ header, navigation, contentInset = 'standard', children }: PropsWithChildren<{
+export function AppShell({ header, navigation, navigationMode = 'sections', contentInset = 'standard', children }: PropsWithChildren<{
   readonly header: ReactNode;
   readonly navigation?: ReactNode;
+  readonly navigationMode?: 'sections' | 'workspace';
   readonly contentInset?: 'standard' | 'none';
 }>) {
   const insets = useSafeAreaInsets();
@@ -21,8 +22,9 @@ export function AppShell({ header, navigation, contentInset = 'standard', childr
   const top = Platform.OS === 'web' && compact ? Math.max(insets.top, 28) : insets.top;
   return <View testID="app-shell" style={styles.shell(top, insets.bottom, compact, windowMaterial)}>
     {Platform.OS === 'web' ? <View pointerEvents="none" style={styles.material(windowMaterial)} /> : null}
-    {navigation ? <ScrollView style={styles.navigationViewport(compact)}
-      contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
+    {navigation ? <ScrollView horizontal={compact && navigationMode === 'workspace'}
+      style={styles.navigationViewport(compact)}
+      contentContainerStyle={styles.navigation(compact, navigationMode === 'workspace')} keyboardShouldPersistTaps="handled">
       {navigation}
     </ScrollView> : null}
     <View style={styles.main(!!navigation, windowMaterial)}>
@@ -81,11 +83,12 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: windowMaterial && theme.shell.windowTint ? theme.shell.windowTint : 'transparent',
     _web: windowMaterial ? { backdropFilter: theme.shell.windowFilter, WebkitBackdropFilter: theme.shell.windowFilter } : {},
   }),
-  navigation: (compact: boolean) => ({
-    width: compact ? '100%' : 200, paddingHorizontal: theme.spacing.compact,
+  navigation: (compact: boolean, workspace: boolean) => ({
+    width: compact && workspace ? undefined : compact ? '100%' : 200,
+    flexGrow: workspace ? 1 : undefined, paddingHorizontal: theme.spacing.compact,
     paddingTop: compact ? theme.spacing.small : theme.spacing.section + theme.spacing.small,
     paddingBottom: theme.spacing.small, gap: theme.spacing.tiny,
-    flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap',
+    flexDirection: compact ? 'row' : 'column', flexWrap: workspace ? 'nowrap' : 'wrap',
   }),
   main: (sidebar: boolean, windowMaterial: boolean) => ({
     flex: 1, minWidth: 0, minHeight: 0,
@@ -100,7 +103,8 @@ const styles = StyleSheet.create((theme) => ({
   headerViewport: (compact: boolean) => ({
     flexGrow: 0, flexShrink: compact ? 1 : 0, maxHeight: compact ? '35%' : undefined,
   }),
-  shellScroll: { flex: 1, minHeight: 0 },
+  // Retained viewports must keep their offset through responsive reflow and portal dialogs.
+  shellScroll: { flex: 1, minHeight: 0, _web: { overflowAnchor: 'none' } },
   shellBody: (sidebar: boolean, inset: 'standard' | 'none') => ({ flexGrow: 1,
     paddingLeft: inset === 'none' ? 0 : sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
     paddingRight: inset === 'none' ? 0 : sidebar ? theme.spacing.section : theme.spacing.large,

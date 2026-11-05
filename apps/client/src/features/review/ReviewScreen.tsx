@@ -11,6 +11,7 @@ import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { ReviewAudio } from '../review-media';
+import { WorkspaceNavigation } from '../navigation';
 import { RatingMatrix } from './RatingMatrix';
 import { useReviewKeys } from './useReviewKeys';
 import { CalibrationSetup } from './CalibrationSetup';
@@ -35,10 +36,9 @@ function practiceScope(mode: ReviewMode): string | null {
 
 export function ReviewScreen() {
   const host = useRuntime();
-  const router = useRouter();
   return host.available ? <ReviewWorkspace client={host.client} media={host.authoredMedia} />
-    : <AppShell header={<Row><Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
-      <Text variant="heading" accessibilityRole="header">Review</Text></Row>}>
+    : <AppShell navigationMode="workspace" navigation={<WorkspaceNavigation active="review" />}
+      header={<Text variant="heading" accessibilityRole="header">Review</Text>}>
       <Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
 }
 
@@ -58,6 +58,7 @@ function ReviewWorkspace({ client, media }: {
   const [readError, setReadError] = useState('');
   const [failed, setFailed] = useState<ReviewCommand | null>(null);
   const [limit, setLimit] = useState('20');
+  const [sessionOptions, setSessionOptions] = useState(false);
   const [focused, setFocused] = useState(false);
   const scope = useRef<object | null>(null);
   const flight = useRef<Promise<ReviewSession | null> | null>(null);
@@ -369,15 +370,42 @@ function ReviewWorkspace({ client, media }: {
   const purpose = session?.mode.kind === 'calibration' || !session && calibrationSetup
     ? 'Word Sync' : !session && authoringSetup ? 'Author probes' : selectedScope ? 'Word Practice' : 'Review';
   const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
-  return <AppShell header={<Row>
-    <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
+  const packageId = typeof params.packageId === 'string' ? params.packageId : undefined;
+  const continuation = sessions.find(value => value.state === 'active' || value.state === 'paused' || value.state === 'unavailable');
+  const recentSessions = !session && !requestedSession && sessions.length ? <Stack>
+    <Text variant="section" accessibilityRole="header">{continuation ? 'Continue learning' : 'Recent sessions'}</Text>
+    {[...(continuation ? [continuation] : []), ...sessions.filter(value => value.id !== continuation?.id)].map(value => {
+      const selected = practiceScope(value.mode);
+      const savedPurpose = value.mode.kind === 'calibration' ? 'Word Sync' : selected ? 'Word Practice' : 'Review';
+      const continuing = value.id === continuation?.id;
+      return <View key={value.id} style={styles.sessionRow}>
+        <View style={styles.sessionCopy}>
+          <Text variant="listTitle">{savedPurpose}</Text>
+          <Text variant="caption" muted>{value.state} · {value.total === null
+            ? `${value.completed} completed` : `${value.completed} / ${value.total}`}</Text>
+          {selected ? <Text variant="caption" muted>{selected}</Text> : null}
+        </View>
+        <Button label={continuing ? `Continue ${savedPurpose}` : 'Open session'}
+          accessibilityLabel={`Open ${savedPurpose} ${value.id}`}
+          variant={continuing ? 'primary' : 'quiet'} disabled={blocked} onPress={() => void open(value.id)} />
+      </View>;
+    })}
+  </Stack> : null;
+  return <AppShell {...(!session && !requestedSession ? {
+    navigationMode: 'workspace' as const,
+    navigation: <WorkspaceNavigation active="review" {...(packageId ? { packageId } : {})} />,
+  } : {})} header={<Row>
+    {session || requestedSession ? <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
       onPress={() => router.dismissTo('/')} />
+      : calibrationSetup || authoringSetup ? <Button label="Back to Review" variant="quiet" disabled={blocked}
+        onPress={() => router.setParams({ activity: '', materialId: '' })} /> : null}
     <Text variant="heading" accessibilityRole="header">{purpose}</Text>
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} ${selectedScope ? 'completed' : 'reviewed'}` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>
       {readError ? <Panel><Text accessibilityRole="alert">{readError}</Text><Button label="Retry Review sessions" onPress={() => void refresh()} /></Panel> : null}
       {loading ? <Text accessibilityLiveRegion="polite">Loading Review sessions…</Text> : null}
+      {!calibrationSetup && !authoringSetup ? recentSessions : null}
       {!session && !requestedSession ? <Panel>
         {calibrationSetup ? <CalibrationSetup client={client}
           initialPackageId={typeof params.packageId === 'string' ? params.packageId : ''}
@@ -388,26 +416,32 @@ function ReviewWorkspace({ client, media }: {
             disabled={blocked} onStart={startAuthored}
             onEdit={() => router.canGoBack() ? router.back()
               : router.push({ pathname: '/materials', params: { id: typeof params.materialId === 'string' ? params.materialId : '' } })} /> : <>
-        <Button label="Start Review" disabled={blocked} onPress={() => void start(false)} />
-        <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
-          <Button label="Start finite Review" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
+        <Text variant="section" accessibilityRole="header">Review what's due</Text>
+        <Text muted>Review saved material when it is due.</Text>
+        <Button label="Start Review" variant={continuation ? 'secondary' : 'primary'}
+          disabled={blocked} onPress={() => void start(false)} />
+        <View style={styles.optionGroup}>
+          <Button label="Session size" variant="quiet" size="compact"
+            icon={sessionOptions ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded: sessionOptions }}
+            onPress={() => setSessionOptions(value => !value)} />
+          {sessionOptions ? <>
+            <Text variant="caption" muted>Choose up to 128 items.</Text>
+            <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
+              <Button label="Start finite Review" variant="secondary" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
+          </> : null}
+        </View>
+        <View style={styles.optionGroup}>
+          <Text variant="caption" muted>Practice a selection, or check unmeasured words.</Text>
+          <Row><Button label="Word Practice" variant="secondary" disabled={blocked} onPress={() => router.push({
+            pathname: '/knowledge', ...(packageId ? { params: { packageId } } : {}),
+          })} />
+          <Button label="Word Sync" variant="secondary" disabled={blocked} onPress={() => router.push({
+            pathname: '/review', params: { activity: 'calibration', ...(packageId ? { packageId } : {}) },
+          })} /></Row>
+        </View>
         </>}
       </Panel> : session ? <>
         {selectedScope ? <Text variant="caption" muted>{selectedScope}</Text> : null}
-        <Row>
-          {session.state === 'active' ? <Button label="Pause" disabled={blocked} onPress={() => void mutate({ kind: 'pause' })} />
-            : session.state === 'paused' ? <Button label="Resume" disabled={blocked} onPress={() => void mutate({ kind: 'resume' })} /> : null}
-          <Button label="Undo" detail="Z" disabled={blocked || !session.canUndo || !!encounter?.correction || !!audioPlaying}
-            onPress={() => void mutate({ kind: 'undo' })} />
-          {!encounter && (session.state === 'active' || session.state === 'unavailable') ? <Button label={session.state === 'unavailable' ? 'Retry due Review' : 'Next'} disabled={blocked}
-            onPress={() => void mutate({ kind: 'next' })} /> : null}
-          <Button label="Sessions" variant="quiet" disabled={blocked || !!audioPlaying}
-            onPress={() => { current.current = null; setSession(null); router.setParams({ sessionId: '' }); }} />
-          {session.mode.kind === 'collection_practice' && session.state !== 'complete' && session.state !== 'stopped'
-            ? <Button label="End Practice" variant="quiet"
-              disabled={pending || loading || returning || failed !== null && failed.kind !== 'next' || !!audioPlaying}
-              onPress={() => void endPractice()} /> : null}
-        </Row>
         {session.message ? <Text accessibilityLiveRegion="polite">{session.message}</Text> : null}
         {session.state === 'paused' ? <Panel><Text>{purpose} paused</Text></Panel>
           : session.state === 'stopped' ? <Panel><Text>{purpose} ended</Text></Panel>
@@ -461,6 +495,22 @@ function ReviewWorkspace({ client, media }: {
               onPress={() => void returnSource()} /> : null}
             {returnError ? <Text accessibilityRole="alert">{returnError}</Text> : null}
           </> : null}
+        <View style={styles.optionGroup}>
+          <Row>
+            {session.state === 'active' ? <Button label="Pause" variant="quiet" disabled={blocked} onPress={() => void mutate({ kind: 'pause' })} />
+              : session.state === 'paused' ? <Button label="Resume" disabled={blocked} onPress={() => void mutate({ kind: 'resume' })} /> : null}
+            <Button label="Undo" detail="Z" variant="quiet" disabled={blocked || !session.canUndo || !!encounter?.correction || !!audioPlaying}
+              onPress={() => void mutate({ kind: 'undo' })} />
+            {!encounter && (session.state === 'active' || session.state === 'unavailable') ? <Button label={session.state === 'unavailable' ? 'Retry due Review' : 'Next'} disabled={blocked}
+              onPress={() => void mutate({ kind: 'next' })} /> : null}
+            <Button label="Sessions" variant="quiet" disabled={blocked || !!audioPlaying}
+              onPress={() => { current.current = null; setSession(null); router.setParams({ sessionId: '' }); }} />
+            {session.mode.kind === 'collection_practice' && session.state !== 'complete' && session.state !== 'stopped'
+              ? <Button label="End Practice" variant="quiet"
+                disabled={pending || loading || returning || failed !== null && failed.kind !== 'next' || !!audioPlaying}
+                onPress={() => void endPractice()} /> : null}
+          </Row>
+        </View>
       </> : null}
       {pending ? <Text accessibilityLiveRegion="polite">Saving {purpose}…</Text> : null}
       {error ? <Panel><Text accessibilityRole="alert">{error}</Text>
@@ -470,21 +520,16 @@ function ReviewWorkspace({ client, media }: {
             return failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined;
           });
         }} /> : null}</Panel> : null}
-      {!session && sessions.length ? <Stack><Text variant="section">Recent sessions</Text>
-        {sessions.map(value => {
-          const selected = practiceScope(value.mode);
-          const savedPurpose = value.mode.kind === 'calibration' ? 'Word Sync' : selected ? 'Word Practice' : 'Review';
-          return <Panel key={value.id}>
-            <Text>{selected ? savedPurpose : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
-            {selected ? <Text variant="caption" muted>{selected}</Text> : null}
-            <Button label={`Open ${savedPurpose} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
-          </Panel>;
-        })}</Stack> : null}
+      {calibrationSetup || authoringSetup ? recentSessions : null}
     </View>
   </AppShell>;
 }
 const styles = StyleSheet.create(theme => ({
   workspace: { width: '100%', maxWidth: 500, alignSelf: 'center', minWidth: 0, gap: theme.spacing.medium },
+  optionGroup: { gap: theme.spacing.small, paddingTop: theme.spacing.medium, borderTopWidth: 1, borderColor: theme.colors.border },
+  sessionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.small,
+    paddingVertical: theme.spacing.small, borderBottomWidth: 1, borderColor: theme.colors.border },
+  sessionCopy: { flexGrow: 1, flexBasis: '50%', minWidth: 0, gap: theme.spacing.tiny },
   face: {
     minHeight: 300, width: '100%', minWidth: 0, alignItems: 'center', justifyContent: 'center',
     padding: theme.spacing.large, gap: theme.spacing.medium, backgroundColor: theme.surfaces.glass,

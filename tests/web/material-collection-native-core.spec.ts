@@ -48,12 +48,15 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('combobox', { name: /^Group 1 matching:/ }).click();
     await page.getByRole('option', { name: 'Match any', exact: true }).click();
     await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Filters', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeFocused();
     await expect(page.getByText('19 of 19 items', { exact: true })).toBeVisible();
     for (let index = 0; index < 19; index++)
       await expect(page.getByRole('button', { name: `Edit entry-${String(index).padStart(2, '0')}`, exact: true })).toBeAttached();
     await expect(page.getByRole('button', { name: 'Edit entry-19', exact: true })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath('material-compound-filters-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('button', { name: 'Apply filters', exact: true }).scrollIntoViewIfNeeded();
     const applyBounds = await page.getByRole('button', { name: 'Apply filters', exact: true }).boundingBox();
     if (!applyBounds) throw new Error('Filter action has no visible bounds');
@@ -62,7 +65,7 @@ test('Material collections preserve exact counts and native order through paging
     await page.screenshot({ path: info.outputPath('material-compound-filters-phone.png') });
     await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
     await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Filters', exact: true })).toBeHidden();
     await page.setViewportSize({ width: 1080, height: 900 });
     await page.getByRole('combobox', { name: /^Material order:/ }).click();
     await page.getByRole('option', { name: 'Text A–Z', exact: true }).click();
@@ -237,6 +240,7 @@ test('Material collections preserve exact counts and native order through paging
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByRole('button', { name: /^Edit entry-/ }).first()).toBeInViewport();
     await page.screenshot({ path: info.outputPath('material-collection-phone.png') });
+    await page.getByRole('button', { name: 'View options', exact: true }).click();
     await page.getByRole('button', { name: 'Include excluded', exact: true }).click();
     await expect(page.getByText('24 of 52 items', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Filters', exact: true }).click();
@@ -248,10 +252,12 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
     await expect(page.getByText('1 of 1 items', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit entry-24', exact: true })).toBeAttached();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     await page.getByRole('button', { name: 'Condition 2 negated', exact: true }).click();
     await page.getByRole('button', { name: 'Apply filters', exact: true }).click();
     await expect(page.getByText('24 of 51 items', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Edit entry-24', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
     const remove = page.getByRole('button', { name: 'Remove condition 2', exact: true });
     await remove.focus();
     await remove.press('Enter');

@@ -84,6 +84,15 @@ test('expert authoring validates saved inputs and executes only its frozen packa
       await expect(page.getByTestId('authored-probe-preview')).toBeVisible();
       await expect(page.getByTestId('authored-probe-preview')
         .getByText('Revised authored answer', { exact: true }).first()).toBeVisible();
+      const details = page.getByRole('button', { name: 'Assessment limits', exact: true });
+      const packageIdentity = page.getByText(`Language package: ${packageId}`, { exact: true });
+      await expect(packageIdentity).toBeHidden();
+      await details.focus();
+      await details.press('Enter');
+      await expect(packageIdentity).toBeVisible();
+      await capture(`authoring-details-${theme.id}`);
+      await details.click();
+      await expect(packageIdentity).toBeHidden();
       await capture(`authoring-preview-${theme.id}`);
     }
     const preview = await client.authoredPracticePreview(edited.id, edited.revision);

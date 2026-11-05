@@ -27,6 +27,7 @@ test('active native Review survives management roundtrips without replacing its 
     await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByTestId('home-open-review').click();
+    await page.getByRole('button', { name: 'Session size', exact: true }).click();
     await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
     await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Sessions', exact: true })).toBeVisible();

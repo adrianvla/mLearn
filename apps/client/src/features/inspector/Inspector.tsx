@@ -322,6 +322,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
                 {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
+                    secondaryActionsMenuLabel="Inspector actions"
                     disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close}
                     onOpenMaterial={id => void openMaterial(id)} /> : null}
             </>}>

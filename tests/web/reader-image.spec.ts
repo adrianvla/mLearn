@@ -417,9 +417,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
   }, { theme: initialTheme, orientation, pdf, withSenses });
   await page.goto(home ? '/' : '/reader?id=scan-book');
   if (home) {
-    // The card's independent Continue preview covers its center. Activate the
-    // visible header, as a pointer user does when choosing a new source.
-    await page.getByRole('button', { name: 'Read', exact: true }).click({ position: { x: 24, y: 24 } });
+    await page.getByRole('button', { name: 'Open document', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Open images', exact: true })).toBeEnabled();
     return;
   }
@@ -433,18 +431,26 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
 }
 
 for (const width of [1500, 1080, 393]) {
-test(`Reader toolbar stays one row and retains overflow controls at ${width}px`, async ({ page }, testInfo) => {
+test(`Reader toolbar stays compact and retains accessible controls at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
   const home = await page.getByRole('button', { name: 'Home', exact: true }).boundingBox();
+  const toolbar = await page.getByTestId('reader-toolbar').boundingBox();
+  if (!home || !toolbar) throw new Error('Reader navigation geometry is unavailable');
+  const rows = new Set([home.y]);
   for (const name of ['Previous page', 'Next page', 'Search source', 'Contents', 'View options']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
-    if (!home || !box) throw new Error('Reader navigation geometry is unavailable');
-    expect(box.y).toBe(home.y);
+    if (!box) throw new Error('Reader navigation geometry is unavailable');
+    if (width >= 700) expect(box.y).toBe(home.y);
+    else expect(box.height).toBeGreaterThanOrEqual(44);
+    rows.add(box.y);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.y).toBeGreaterThanOrEqual(toolbar.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(toolbar.y + toolbar.height);
   }
-  const toolbar = await page.getByTestId('reader-toolbar').boundingBox();
+  expect(rows.size).toBeLessThanOrEqual(width >= 700 ? 1 : 2);
+  await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
   const footer = await page.getByTestId('reader-status').boundingBox();
   if (!toolbar || !footer) throw new Error('Reader chrome geometry is unavailable');
   expect(footer.height).toBeLessThan(toolbar.height);
@@ -452,7 +458,7 @@ test(`Reader toolbar stays one row and retains overflow controls at ${width}px`,
     await expect(page.getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
     await expect(page.getByRole('combobox', { name: /^Page layout:/ })).toBeVisible();
   }
-  await page.screenshot({ path: testInfo.outputPath('reader-single-row.png') });
+  await page.screenshot({ path: testInfo.outputPath('reader-toolbar.png') });
   await page.getByRole('button', { name: 'View options', exact: true }).click();
   if (width !== 1500) {
     await expect(page.getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
@@ -847,7 +853,7 @@ test(`Inspector sense selection stays beside its heading and captures the chosen
   await page.screenshot({ path: testInfo.outputPath('inspector-saved-actions.png') });
 });
 
-test(`Inspector footer keeps shared pill actions on one scrolling row at ${width}px`, async ({ page }, testInfo) => {
+test(`Inspector footer keeps primary actions visible and secondary actions reachable at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
@@ -857,20 +863,20 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   // Capture is a primary Inspector action, not content below a long entry.
   await expect(footer.getByRole('button', { name: 'Capture this context: 東京', exact: true })).toBeInViewport();
   const actions = footer.getByRole('button');
-  await expect(actions).toHaveCount(7);
+  await expect(actions).toHaveCount(5);
   const geometry = await actions.evaluateAll(nodes => nodes.filter(node =>
-    node.getAttribute('aria-label') !== 'Capture options').map(node => {
+    !['Capture options', 'Inspector actions'].includes(node.getAttribute('aria-label') ?? '')).map(node => {
     const rect = node.getBoundingClientRect();
     const style = getComputedStyle(node);
     return { top: rect.top, radius: style.borderRadius, material: style.backgroundImage };
   }));
   for (const action of geometry) {
-    expect(action.top).toBe(geometry[0].top);
+    if (width >= 720) expect(action.top).toBe(geometry[0].top);
     expect(action.radius).toBe(geometry[0].radius);
     expect(action.material).toContain('linear-gradient');
   }
   const overflow = await footer.evaluate(node => node.scrollWidth > node.clientWidth);
-  expect(overflow).toBe(true);
+  expect(overflow).toBe(false);
   const captureOptions = footer.getByRole('button', { name: 'Capture options', exact: true });
   await captureOptions.click();
   await expect(page.getByRole('menuitem', { name: 'Open saved 東京', exact: true })).toBeVisible();
@@ -878,9 +884,9 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   await page.keyboard.press('Escape');
   await expect(captureOptions).toBeFocused();
   const explain = footer.getByRole('button', { name: 'Explain', exact: true });
-  if (width === 1080) await expect(explain).toBeInViewport();
-  for (const action of [explain, footer.getByRole('button', { name: 'Copy context', exact: true }),
-    footer.getByRole('button', { name: 'Propose Material', exact: true })]) {
+  await expect(explain).toBeInViewport({ ratio: 1 });
+  const more = footer.getByRole('button', { name: 'Inspector actions', exact: true });
+  for (const action of [knowledge, explain, more]) {
     await action.focus();
     const trailing = await action.boundingBox();
     const viewport = await footer.boundingBox();
@@ -891,6 +897,19 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
     expect(Math.round((trailing.x + trailing.width) * scale))
       .toBeLessThanOrEqual(Math.round((viewport.x + viewport.width) * scale));
   }
+  await more.click();
+  for (const label of ['Copy selected text', 'Copy context', 'Propose Material']) {
+    await expect(page.getByRole('menuitem', { name: label, exact: true })).toBeVisible();
+  }
+  await page.keyboard.press('Escape');
+  await expect(more).toBeFocused();
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
+  const proposals = page.getByRole('dialog', { name: 'Material proposals', exact: true });
+  await expect(proposals).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(proposals).toBeHidden();
+  await expect(more).toBeFocused();
   if (width === 1080) {
     await page.setViewportSize({ width: 393, height: 900 });
     const close = page.getByRole('button', { name: 'Close Inspector', exact: true });
@@ -936,6 +955,14 @@ test('nested capture focus wrap reveals its action without moving the source', a
   const sourceScroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
 
   await page.keyboard.press('Shift+Tab');
+  const last = dialog.getByRole('button', { name: 'Import video', exact: true });
+  await expect(last).toBeFocused();
+  await expect(last).toBeInViewport({ ratio: 1 });
+  await expect(close).toBeInViewport({ ratio: 1 });
+  expect(await page.evaluate(() => ({ x: scrollX, y: scrollY }))).toEqual(sourceScroll);
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Tab');
   const save = dialog.getByRole('button', { name: 'Save Material', exact: true });
   await expect(save).toBeFocused();
   await expect(save).toBeInViewport({ ratio: 1 });

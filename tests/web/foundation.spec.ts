@@ -44,7 +44,7 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
   await expect(selector).toBeFocused();
   await expect(heading).not.toHaveCSS('color', before);
-  await expect(page.getByText('Unsaved visual preview. No native data was written.')).toBeVisible();
+  await expect(page.getByText('Preview only. Changes have not been saved.')).toBeVisible();
   const trigger = page.getByRole('button', { name: 'Edit theme JSON', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });
@@ -95,7 +95,8 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });
 
-test('unavailable Review Home preserves the retained Knowledge search', async ({ page }, info) => {
+for (const destination of ['Home', 'Knowledge', 'Material']) {
+test(`unavailable Review ${destination} preserves the retained Knowledge search`, async ({ page }, info) => {
   await page.goto('/');
   for (const width of [1080, 390]) {
     await page.setViewportSize({ width, height: 900 });
@@ -117,16 +118,18 @@ test('unavailable Review Home preserves the retained Knowledge search', async ({
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start Review', exact: true })).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`unavailable-review-before-home-${width}.png`) });
-    const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
-    await page.getByRole('button', { name: 'Home', exact: true }).click();
-    await home;
-    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    const targetPath = destination === 'Home' ? '/' : destination === 'Knowledge' ? '/knowledge' : '/materials';
+    const returned = page.waitForURL(url => url.pathname === targetPath, { timeout: 5000 });
+    await page.getByRole('button', { name: destination, exact: true }).click();
+    await returned;
+    await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
+    if (destination !== 'Knowledge') await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
     await page.screenshot({ path: info.outputPath(`unavailable-review-retained-${width}.png`) });
     await expect(search).toHaveValue(draft);
     await page.getByRole('button', { name: 'Home', exact: true }).click();
   }
 });
+}
 
 test('Home recovers directly opened activities without navigation history', async ({ page }, info) => {
   for (const width of [1080, 390]) {

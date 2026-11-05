@@ -89,8 +89,9 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const sourceWindow = reader.window;
     const visibleBlock = Math.max(0, sourceWindow?.blocks.findIndex(block =>
         block.resource === reader.position?.resource && block.id === reader.position.blockId) ?? 0);
+    const currentBlock = sourceWindow?.blocks[visibleBlock];
     const imageMode = reader.imageMode;
-    const pageIndex = sourceWindow?.blocks[visibleBlock]?.page
+    const pageIndex = currentBlock?.page
         ?? (reader.returned?.locator.kind === 'image' ? reader.returned.locator.pageIndex ?? 0 : 0);
     const imageReader = useImageReader(host.available ? host : null, source, pageIndex,
         imageMode && focused, reader.returnedPage,
@@ -165,13 +166,13 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
             style={[styles.header,
             { paddingLeft: host.available ? Math.max(8, host.windowControlsWidth ?? 0) : 8 }]}
             >
-            <View style={styles.toolbar}>
+            <View style={[styles.toolbar, compact && styles.compactToolbar]}>
                 <Button label="Home" icon="arrowLeft" iconOnly={compact} size="compact" variant="secondary"
                     disabled={reader.pending || departing} onPress={() => router.dismissTo('/')} />
                 {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
                     icon="transcript" iconOnly size="compact" variant="quiet" accessibilityState={{ expanded: !!rail }}
                     onPress={() => setRailOpen(value => !value)} /> : null}
-                <View style={styles.title}><Text variant="navigation" numberOfLines={1}
+                <View style={[styles.title, compact && styles.compactTitle]}><Text variant="navigation" numberOfLines={1}
                     accessibilityRole="header" testID="reader-title">{source?.title ?? 'Reader'}</Text></View>
                 {navigation}
                 {reader.pending ? <Button label="Cancel loading" icon="stop" iconOnly={compact} variant="secondary" size="compact"
@@ -338,9 +339,9 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
             <Row wrap={false}>
                 <View style={styles.position}><Text variant="detail" muted numberOfLines={1} testID="reader-position">
                     {imageMode && imageReader.pages.length ? `Page ${imageReader.pages.map(item => item.descriptor.pageIndex + 1).join('–')} of ${source?.totalPages ?? 0}`
-                        : reader.position ? `${reader.position.resource} · ${reader.position.blockId} · byte ${reader.position.offset}` : 'No visible position'}
+                        : reader.position ? currentBlock?.image ? currentBlock.image.alt || 'Image' : currentBlock?.text : 'No visible position'}
                 </Text></View>
-                {source && !compact ? <Text variant="detail" muted>{source.format.toUpperCase()} · {source.totalBlocks} source blocks</Text> : null}
+                {source && !compact ? <Text variant="detail" muted>{source.format.toUpperCase()}</Text> : null}
                 {(imageMode ? imageReader.pages.some(item => item.analyzing) : reader.analysisPending)
                     ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
                 <Button label="Save position" variant="quiet" size="compact" disabled={!source}
@@ -382,7 +383,9 @@ const styles = StyleSheet.create(theme => ({
     header: { flexShrink: 0, paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border },
     toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small, minWidth: 0 },
+    compactToolbar: { flexWrap: 'wrap' },
     title: { flex: 1, minWidth: 0 },
+    compactTitle: { flexBasis: '70%', minWidth: 120 },
     workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
     rail: { width: 160, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderColor: theme.colors.border },
     railContent: { padding: theme.spacing.small, gap: theme.spacing.small },

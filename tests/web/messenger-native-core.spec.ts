@@ -31,46 +31,28 @@ test('normal Messenger UI consumes actual native content and prepared language o
     }));
     expect(document.type).toBe('document');
     await page.goto('/');
-    // The preview must receive pointer input instead of the stretched import action.
+    // Continuation is one source action, separate from opening another document.
     await page.getByRole('button', { name: 'Continue continuity.txt', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'continuity.txt', exact: true })).toBeVisible();
     await page.goto('/');
-    await page.getByRole('button', { name: 'Resume continuity.txt', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'continuity.txt', exact: true })).toBeVisible();
-    await page.goto('/');
-    const activityBounds = async () => {
-      const bounds = await Promise.all(['read', 'watch', 'conversation', 'review'].map(async name => {
-        const activity = page.getByTestId(`home-${name}-activity`);
-        await expect(activity).toBeVisible();
-        return activity.boundingBox();
-      }));
-      return bounds.map(bound => {
-        if (!bound) throw new Error('Home activity has no layout bounds');
-        return bound;
-      });
-    };
-    const [read, watch, conversation, review] = await activityBounds();
-    expect(read.y).toBe(watch.y);
-    expect(watch.y).toBe(conversation.y);
-    expect(read.x + read.width).toBeLessThanOrEqual(watch.x);
-    expect(watch.x + watch.width).toBeLessThanOrEqual(conversation.x);
-    expect(review.y).toBeGreaterThanOrEqual(read.y + read.height);
-    await page.screenshot({ path: info.outputPath('home-desktop-activities.png') });
-    await page.setViewportSize({ width: 390, height: 844 });
-    const phoneActivities = await activityBounds();
-    for (let index = 0; index < phoneActivities.length; index++) {
-      const activity = phoneActivities[index];
-      expect(activity.x).toBeGreaterThanOrEqual(0);
-      expect(activity.x + activity.width).toBeLessThanOrEqual(390);
-      if (index > 0) {
-        const previous = phoneActivities[index - 1];
-        expect(activity.y).toBeGreaterThanOrEqual(previous.y + previous.height);
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const name of ['read', 'watch', 'conversation', 'review']) {
+        const action = page.getByTestId(`home-open-${name}`);
+        await action.scrollIntoViewIfNeeded();
+        await expect(action).toBeInViewport({ ratio: 1 });
+        const bounds = await action.boundingBox();
+        if (!bounds) throw new Error('Home activity action has no layout bounds');
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.height).toBeGreaterThanOrEqual(width < 700 ? 44 : 24);
       }
+      await page.screenshot({ path: info.outputPath(`home-actions-${width}.png`) });
     }
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
-    const messengerActivity = page.getByRole('button', { name: 'Messenger', exact: true });
+    const messengerActivity = page.getByRole('button', { name: 'Conversation', exact: true });
     await expect(messengerActivity).toBeVisible();
     await messengerActivity.focus();
     await expect(messengerActivity).toBeFocused();

@@ -13,6 +13,7 @@ import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Inspector, type Inspection } from '../inspector';
 import { LinguisticWord } from '../linguistic';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
+import { WorkspaceNavigation } from '../navigation';
 
 export function KnowledgeScreen() {
   const host = useRuntime();
@@ -27,6 +28,7 @@ export function KnowledgeScreen() {
   const [sort, setSort] = useState<CollectionSort>('default');
   const [entityKind, setEntityKind] = useState('');
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
+  const [viewOptions, setViewOptions] = useState(false);
   const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
   const [after, setAfter] = useState<string | null>(null);
   const [result, setResult] = useState<CollectionResult | null>(null);
@@ -170,17 +172,29 @@ export function KnowledgeScreen() {
   }
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
-  return <AppShell contentInset="none" header={<>
-    <Row><Button label="Home" variant="quiet" size="compact" onPress={() => router.navigate('/')} />
-      <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
-      <Button label="Material" variant="quiet" size="compact" onPress={() => router.navigate('/materials')} /></Row>
-    <Row><Select label="Knowledge language" value={packageId}
+  return <AppShell contentInset="none" navigationMode="workspace"
+    navigation={<WorkspaceNavigation active="knowledge" packageId={packageId} />} header={<>
+    <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
+    <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
+      onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
+      <Button label="Search" icon="search" size="compact" variant="secondary"
+        disabled={pending} onPress={() => { setAfter(null); setQuery(search); }} />
+      <Select label="Knowledge language" value={packageId} size="compact"
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
       onValueChange={value => {
         setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value);
         router.setParams({ packageId: value });
-      }} />
-      <Select label="Knowledge order" value={sort} options={[
+      }} /></Row>
+  </>}>
+    {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
+      <View style={styles.viewOptions}>
+      <Row>
+      {compact ? <Button label="View options" variant="quiet" size="compact"
+        icon={viewOptions ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded: viewOptions }}
+        onPress={() => setViewOptions(value => !value)} /> : null}
+      <View style={compact && !viewOptions ? styles.hidden : undefined}><Row>
+      {!compact ? <Text variant="caption" muted>View</Text> : null}
+      <Select label="Knowledge order" value={sort} size="compact" options={[
         { value: 'default', label: 'Package order' },
         { value: 'label_ascending', label: 'Entry A–Z' },
         { value: 'label_descending', label: 'Entry Z–A' },
@@ -190,23 +204,19 @@ export function KnowledgeScreen() {
         const option = ['default', 'label_ascending', 'label_descending', 'due_ascending', 'due_descending'] as const;
         const selected = option.find(item => item === value);
         if (selected) { setAfter(null); setSort(selected); }
-      }} /></Row>
-    <Row>
+      }} />
       {description?.catalog?.kinds.length ? <Select label="Knowledge entity kind" value={entityKind}
+        size="compact"
         options={[{ value: '', label: 'All entry kinds' }, ...description.catalog.kinds.map(kind => ({ value: kind.id, label: kind.label }))]}
         onValueChange={value => { setAfter(null); setEntityKind(value); }} /> : null}
-      <Select label="Knowledge layout" value={layout} options={[
+      <Select label="Knowledge layout" value={layout} size="compact" options={[
         { value: 'list', label: 'List' }, { value: 'grid', label: 'Grid' },
       ]} onValueChange={value => { if (value === 'list' || value === 'grid') setLayout(value); }} />
-    </Row>
-    <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
-      onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
-      <Button label="Search" icon="search" size="compact" variant="secondary"
-        disabled={pending} onPress={() => { setAfter(null); setQuery(search); }} /></Row>
-    {host.available && packageId ? <CollectionFilters key={packageId} client={host.client} packageId={packageId}
+    </Row></View>
+    {packageId ? <CollectionFilters key={packageId} client={host.client} packageId={packageId}
       value={filter} onApply={value => { setAfter(null); setFilter(value); }} /> : null}
-  </>}>
-    {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
+      </Row>
+      </View>
       <View style={styles.results} accessibilityLiveRegion="polite">
         <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
           ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
@@ -321,6 +331,8 @@ export function KnowledgeScreen() {
 
 const styles = StyleSheet.create(theme => ({
   search: { flexGrow: 1, flexShrink: 1, minWidth: 0, flexBasis: 220 },
+  viewOptions: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small },
+  hidden: { display: 'none' },
   results: { gap: 0 },
   // The collection page remains the only data window and AppShell owns scrolling.
   // Shared inline controls retain activation, Knowledge color and focus semantics.

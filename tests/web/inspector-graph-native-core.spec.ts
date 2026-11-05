@@ -241,6 +241,7 @@ test('packaged characters retain their identity from Knowledge through Material 
       for (const width of [1080, 390]) {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(`/knowledge?packageId=${packageId}`);
+        if (width < 700) await page.getByRole('button', { name: 'View options', exact: true }).click();
         await page.getByRole('combobox', { name: /^Knowledge entity kind:/ }).click();
         await page.getByRole('option', { name: kind.label, exact: true }).click();
         await expect(page.getByText('13108 entries', { exact: true })).toBeVisible();
@@ -289,6 +290,7 @@ test('packaged characters retain their identity from Knowledge through Material 
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByTestId('home-open-review').click();
+    await page.getByRole('button', { name: 'Session size', exact: true }).click();
     await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
     await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Sessions', exact: true })).toBeVisible();
@@ -303,7 +305,8 @@ test('packaged characters retain their identity from Knowledge through Material 
     // Then the genuine package probe is bound to the captured Material, and
     // interruption/restart resumes its original encounter without a new claim.
     const session = await client.reviewSession(started.id);
-    if (!session.encounter) throw new Error('Scheduled character Review did not admit an encounter');
+    if (!session.encounter || !('materialId' in session.encounter))
+      throw new Error('Scheduled character Review did not admit a Material encounter');
     expect(session.mode.kind).toBe('finite');
     expect(session.encounter.materialId).toBe(material.id);
     expect(session.encounter.packageId).toBe(packageId);
@@ -321,8 +324,10 @@ test('packaged characters retain their identity from Knowledge through Material 
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
     await expect(page.getByTestId('review-answer')).toBeVisible();
     const resumed = await client.reviewSession(session.id);
-    expect(resumed.encounter?.id).toBe(session.encounter.id);
-    expect(resumed.encounter?.materialId).toBe(material.id);
+    if (!resumed.encounter || !('materialId' in resumed.encounter))
+      throw new Error('Resumed character Review did not retain its Material encounter');
+    expect(resumed.encounter.id).toBe(session.encounter.id);
+    expect(resumed.encounter.materialId).toBe(material.id);
     expect((await client.inspectTarget(packageId, targetId, null)).knowledge.projections
       .every(value => value.claim === null)).toBe(true);
     expect(backend.metadata().providerRequests).toBe(0);

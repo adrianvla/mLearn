@@ -37,7 +37,8 @@ test('Word Sync setup preserves exact scope through empty cancellation and uncer
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.goto('/');
       await expect(page.getByTestId('home-open-read')).toBeEnabled();
-      await capture(`calibration-home-${theme.id}`, page.getByTestId('home-review-activity'));
+      await capture(`calibration-home-${theme.id}`, page.getByTestId('home-open-review'));
+      await page.getByTestId('home-open-review').click();
       await expect(page.getByRole('button', { name: 'Word Sync', exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Word Sync', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Word Sync', exact: true })).toBeVisible();

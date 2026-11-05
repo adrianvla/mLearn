@@ -17,7 +17,7 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
 }
 
 export default StyleSheet.create(theme => ({
-  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean) => {
+  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean, touchLayout: boolean) => {
     const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'segment' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
       || variant === 'media' && iconOnly;
     const borderless = variant === 'segment' || variant === 'navigation' && size === 'row' || variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
@@ -26,7 +26,7 @@ export default StyleSheet.create(theme => ({
     return {
       minHeight: variant === 'sourcePreview' ? 160 : size === 'row' ? 72 : 44,
       width: variant === 'sourcePreview' ? '100%' : variant === 'dictionary' ? 300 : undefined,
-      minWidth: variant === 'mediaSelect' ? 56 : variant === 'select' ? 166 : iconOnly || Platform.OS !== 'web' ? 44 : undefined,
+      minWidth: variant === 'mediaSelect' ? 56 : variant === 'select' ? 166 : iconOnly || touchLayout || Platform.OS !== 'web' ? 44 : undefined,
       paddingVertical: theme.spacing.small,
       paddingHorizontal: variant === 'dictionary' ? theme.spacing.comfortable : variant === 'disclosure' ? 0 : iconOnly ? theme.spacing.small
         : size === 'compact' ? theme.spacing.compact : theme.spacing.medium,
@@ -48,18 +48,18 @@ export default StyleSheet.create(theme => ({
       _web: {
         ...(variant === 'quiet' && !iconOnly ? { backdropFilter: theme.controls.backdrop,
           backgroundColor: theme.controls.quiet } : {}),
-        ...(size === 'compact' ? { minHeight: 32, minWidth: iconOnly ? 32 : undefined, paddingVertical: theme.spacing.tiny }
-          : variant === 'select' ? { minHeight: 36, paddingVertical: theme.spacing.tiny * 1.5 }
-          : variant === 'media' || variant === 'navigation' ? { minHeight: 36, paddingVertical: theme.spacing.tiny } : {}),
+        ...(size === 'compact' ? { minHeight: touchLayout ? 44 : 32, minWidth: iconOnly ? touchLayout ? 44 : 32 : undefined, paddingVertical: theme.spacing.tiny }
+          : variant === 'select' ? { minHeight: touchLayout ? 44 : 36, paddingVertical: theme.spacing.tiny * 1.5 }
+          : variant === 'media' || variant === 'navigation' ? { minHeight: touchLayout ? 44 : 36, paddingVertical: theme.spacing.tiny } : {}),
         ...(variant === 'pill' ? {
           backgroundImage: `linear-gradient(${theme.pills[tone].top}, ${theme.pills[tone].surface})`,
           boxShadow: 'inset 0 1px 0 #FFFFFF08',
-          ...(size === 'compact' ? { minHeight: 28, paddingVertical: 5, paddingHorizontal: 10, borderRadius: theme.radius + 2 } : {}),
+          ...(size === 'compact' ? { minHeight: touchLayout ? 44 : 28, paddingVertical: 5, paddingHorizontal: 10, borderRadius: theme.radius + 2 } : {}),
         } : {}),
-        ...(variant === 'dictionary' ? { minHeight: 30, paddingVertical: 0,
+        ...(variant === 'dictionary' ? { minHeight: touchLayout ? 44 : 30, paddingVertical: 0,
           backgroundColor: theme.media.translucentPanel, backdropFilter: theme.media.backdrop } : {}),
-        ...(variant === 'mediaSync' || variant === 'mediaClose' ? { minHeight: 40,
-          minWidth: iconOnly || variant === 'mediaClose' ? 40 : 100 * theme.textScale,
+        ...(variant === 'mediaSync' || variant === 'mediaClose' ? { minHeight: touchLayout ? 44 : 40,
+          minWidth: iconOnly || variant === 'mediaClose' ? touchLayout ? 44 : 40 : 100 * theme.textScale,
           paddingVertical: 5, paddingHorizontal: 5 } : {}),
         ...(variant === 'sourcePreview' ? { minHeight: 160, boxShadow: `inset 0 0 0 1px ${theme.colors.border}` } : {}),
       },

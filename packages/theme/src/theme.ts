@@ -129,10 +129,10 @@ export function resolveTheme(saved: ThemeDocument) {
     },
     pills: {
       neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
-      info: lightSurface ? { text: '#3C91FF', surface: '#DFF4FF', top: '#EDF8FF' }
-        : { text: '#097FFF', surface: '#07253D', top: '#1A384E' },
-      positive: { text: '#00CC00', surface: '#003300', top: '#2D4C25' },
-      negative: { text: '#FF4D75', surface: '#481024', top: '#693146' },
+      info: lightSurface ? { text: '#176AC0', surface: '#DFF4FF', top: '#EDF8FF' }
+        : { text: '#4DA3FF', surface: '#07253D', top: '#1A384E' },
+      positive: { text: '#00D000', surface: '#003300', top: '#2D4C25' },
+      negative: { text: '#FF90AA', surface: '#481024', top: '#693146' },
       warning: { text: lightSurface ? '#7A5B00' : '#F1C40F', surface: '#F1C40F40', top: '#F1C40F66' },
     },
     radius: document.radius,

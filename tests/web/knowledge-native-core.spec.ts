@@ -68,7 +68,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
         await expect(page.getByRole('button', { name: 'Next Knowledge page', exact: true })).toBeEnabled();
         await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(draft);
         await page.getByRole('button', { name: 'Home', exact: true }).click();
-        await page.getByRole('button', { name: `Open ${kind} entry`, exact: true }).click();
+        await page.getByRole('button', { name: `Open ${kind}`, exact: true }).click();
         await expect(page.getByRole('heading', {
           name: kind === 'document' ? 'Open a document' : 'Open a video', exact: true,
         })).toBeVisible();
@@ -240,6 +240,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(materialDraft);
       await page.screenshot({ path: info.outputPath(`navigation-material-${width}-before.png`) });
       await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      if (width < 700) await page.getByRole('button', { name: 'View options', exact: true }).click();
       await page.getByRole('combobox', { name: /^Knowledge order:/ }).click();
       await page.getByRole('option', { name: 'Entry Z–A', exact: true }).click();
       await page.getByRole('combobox', { name: /^Knowledge layout:/ }).click();
