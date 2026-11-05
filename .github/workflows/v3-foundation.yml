@@ -73,6 +73,8 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
       - name: Reproduce native-backed Messenger analysis
         if: github.event_name == 'workflow_dispatch' && inputs.web_check == 'messenger'
+        env:
+          MLEARN_TEST_HOLD_MESSENGER_IDLE: '1'
         run: npm run test:web -- tests/web/messenger-native-core.spec.ts --workers=1 --reporter=line --trace=on
       - name: Ensure checks did not modify tracked source
         if: always()

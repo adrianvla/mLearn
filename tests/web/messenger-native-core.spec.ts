@@ -12,6 +12,7 @@ import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runti
 // deliberately not claimed by this suite.
 test('normal Messenger UI consumes actual native content and prepared language on desktop and phone', async ({ page }, info) => {
   test.setTimeout(120_000);
+  const holdIdle = process.env.MLEARN_TEST_HOLD_MESSENGER_IDLE === '1';
   const backend = await startRuntimeBrowserQa({
     profile: `.mlearn/m03-m07/m07-messenger/browser-${randomUUID()}`,
   });
@@ -19,6 +20,27 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await attachRuntimeBrowserQa(page, backend.url);
     // Exercise the real macOS overlay-chrome reservation on every CI host.
     await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    if (holdIdle) await page.addInitScript(() => {
+      const request = window.requestIdleCallback.bind(window);
+      const cancel = window.cancelIdleCallback.bind(window);
+      const pending = new Map<number, { readonly callback: IdleRequestCallback; readonly deadline: IdleDeadline }>();
+      let held = false;
+      window.requestIdleCallback = (callback, options) => {
+        const handle = request(deadline => {
+          if (held) pending.set(handle, { callback, deadline });
+          else callback(deadline);
+        }, options);
+        return handle;
+      };
+      window.cancelIdleCallback = handle => { pending.delete(handle); cancel(handle); };
+      window.addEventListener('mlearn-test:hold-idle', () => { held = true; });
+      window.addEventListener('mlearn-test:release-idle', () => {
+        held = false;
+        const work = [...pending.values()];
+        pending.clear();
+        for (const item of work) item.callback(item.deadline);
+      });
+    });
     await page.setViewportSize({ width: 1212, height: 872 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
@@ -117,10 +139,18 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await composer.fill('Say a short sentence.');
     expect(await shrinking.evaluate(value => value.changed)).not.toBeNull();
     await shrinking.dispose();
+    if (holdIdle) await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:hold-idle')));
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByTestId('conversation-history').getByText('Children walked home.', { exact: true })).toBeVisible();
     const showAnalysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
-    await expect(showAnalysis).toBeEnabled();
+    try {
+      await expect(showAnalysis).toBeEnabled();
+    } finally {
+      if (holdIdle) {
+        await page.screenshot({ path: info.outputPath('messenger-analysis-with-idle-held.png') });
+        await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:release-idle')));
+      }
+    }
     expect(backend.metadata().counts['conversation:analyze_visible_messages']).toBeGreaterThan(0);
     await showAnalysis.click();
     const child = page.getByRole('button', { name: 'Children: untracked', exact: true });
