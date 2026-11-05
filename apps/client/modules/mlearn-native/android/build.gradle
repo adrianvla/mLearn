@@ -17,4 +17,15 @@ android {
   }
 }
 
-dependencies { implementation 'net.java.dev.jna:jna:5.17.0@aar' }
+dependencies {
+  implementation 'net.java.dev.jna:jna:5.17.0@aar'
+  // These artifacts include the executable models; do not replace with the
+  // downloadable com.google.android.gms:play-services-mlkit variants.
+  implementation 'com.google.mlkit:text-recognition:16.0.1'
+  implementation 'com.google.mlkit:text-recognition-chinese:16.0.1'
+  implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
+  implementation 'com.google.mlkit:text-recognition-korean:16.0.1'
+  implementation 'com.google.mlkit:text-recognition-devanagari:16.0.1'
+  implementation 'androidx.exifinterface:exifinterface:1.4.2'
+  testImplementation 'junit:junit:4.13.2'
+}

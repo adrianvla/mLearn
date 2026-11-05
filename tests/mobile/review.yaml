@@ -1,0 +1,147 @@
+appId: net.kikan.mlearn.v3dev
+name: Finite Review commits undoes and resumes the original attempt
+---
+- evalScript: '${output.reviewPhrase = "m04review" + Date.now()}'
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Material
+    timeout: 60000
+- tapOn: Material
+- extendedWaitUntil:
+    visible:
+      id: material-add
+      enabled: true
+    timeout: 60000
+- tapOn:
+    id: material-add
+- tapOn:
+    id: material-phrase
+- inputText: '${output.reviewPhrase}'
+- extendedWaitUntil:
+    visible:
+      id: material-phrase
+      text: '${output.reviewPhrase}'
+    timeout: 15000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: material-meaning
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: material-meaning
+- inputText: an authored Review meaning
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: material-save
+    direction: DOWN
+    timeout: 60000
+- tapOn:
+    id: material-save
+- scrollUntilVisible:
+    element:
+      id: material-result
+    direction: DOWN
+    timeout: 60000
+- scrollUntilVisible:
+    element: Close editor
+    direction: UP
+    timeout: 60000
+- tapOn: Close editor
+- tapOn: Home
+- tapOn: Review
+- extendedWaitUntil:
+    visible: Finite Review limit
+    timeout: 60000
+# The label and number input are separate accessibility elements on iOS.
+- tapOn: '^20$'
+- eraseText: 10
+- inputText: '1'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn: Start finite Review
+- extendedWaitUntil:
+    visible: '0 / 1'
+    timeout: 60000
+- tapOn: Reveal
+- scrollUntilVisible:
+    element: Fluent
+    direction: DOWN
+    timeout: 60000
+- tapOn: Fluent
+- extendedWaitUntil:
+    visible: '1 / 1'
+    timeout: 60000
+- assertVisible: Review complete
+- takeScreenshot: review-first-complete
+- scrollUntilVisible:
+    element: Undo
+    direction: UP
+    timeout: 60000
+- tapOn: Undo
+- extendedWaitUntil:
+    visible: '0 / 1'
+    timeout: 60000
+- assertNotVisible: Reveal
+- tapOn: Pause
+- extendedWaitUntil:
+    visible: Resume
+    timeout: 60000
+- takeScreenshot: review-paused-correction
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Review
+    timeout: 60000
+- tapOn: Review
+- extendedWaitUntil:
+    visible: 'Open Review .*'
+    timeout: 60000
+- tapOn:
+    text: 'Open Review .*'
+    index: 0
+- extendedWaitUntil:
+    visible: Resume
+    timeout: 60000
+- tapOn: Resume
+- extendedWaitUntil:
+    visible: '0 / 1'
+    timeout: 60000
+- assertNotVisible: Reveal
+- scrollUntilVisible:
+    element: Struggled
+    direction: DOWN
+    timeout: 60000
+- tapOn: Struggled
+- extendedWaitUntil:
+    visible: '1 / 1'
+    timeout: 60000
+- assertVisible: Review complete
+- takeScreenshot: review-corrected-complete

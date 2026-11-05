@@ -28,6 +28,23 @@ fn rejects_unknown_schema_and_unbounded_metrics() {
     theme.text_scale = 1.0;
     theme.radius = u32::MAX;
     assert!(theme.validate().is_err());
+    theme.radius = 12;
+    theme.spacing_scale = 0.0;
+    assert!(theme.validate().is_err());
+    theme.spacing_scale = f32::NAN;
+    assert!(theme.validate().is_err());
+}
+
+#[test]
+fn older_theme_documents_default_spacing_and_custom_density_round_trips() {
+    let mut older = serde_json::to_value(ThemeDocument::default()).unwrap();
+    older.as_object_mut().unwrap().remove("spacingScale");
+    let restored: ThemeDocument = serde_json::from_value(older).unwrap();
+    assert_eq!(restored.spacing_scale, 1.0);
+    let custom = ThemeDocument { spacing_scale: 0.75, ..restored };
+    assert!(custom.validate().is_ok());
+    let saved: ThemeDocument = serde_json::from_slice(&serde_json::to_vec(&custom).unwrap()).unwrap();
+    assert_eq!(saved.spacing_scale, 0.75);
 }
 
 #[test]

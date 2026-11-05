@@ -1,0 +1,170 @@
+appId: net.kikan.mlearn.v3dev
+name: Source Material captures real media and returns after restart
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- scrollUntilVisible:
+    element: Resume m01-watch.mp4
+    direction: DOWN
+    timeout: 60000
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: 'Children: .*'
+    timeout: 60000
+# Inspection pauses the actual native player before authoring its source point.
+- tapOn: 'Children: .*'
+- extendedWaitUntil:
+    visible: Close Inspector
+    timeout: 60000
+- tapOn: Close Inspector
+- tapOn: Capture subtitle
+- extendedWaitUntil:
+    visible:
+      id: material-phrase
+    timeout: 15000
+# Retained profiles can contain earlier captures of the same cue. Select this
+# run's authored item after restart, not an arbitrary matching phrase.
+- evalScript: ${output.marker = 'source' + Date.now()}
+- tapOn:
+    id: material-phrase
+- inputText: ${output.marker}
+- assertVisible:
+    id: material-phrase
+    text: ${'.*' + output.marker + '.*'}
+- copyTextFrom:
+    id: material-phrase
+- evalScript: ${output.phrase = maestro.copiedText}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element: Capture frame
+    direction: DOWN
+    centerElement: true
+    timeout: 60000
+- tapOn: Capture frame
+- scrollUntilVisible:
+    element: Pending image
+    direction: DOWN
+    timeout: 30000
+- runFlow: material/save.yaml
+- scrollUntilVisible:
+    element: Capture cue audio
+    direction: UP
+    centerElement: true
+- tapOn: Capture cue audio
+- scrollUntilVisible:
+    element: Pending audio
+    direction: DOWN
+    timeout: 30000
+- runFlow: material/save.yaml
+- scrollUntilVisible:
+    element: Capture cue video
+    direction: UP
+    centerElement: true
+- tapOn: Capture cue video
+- scrollUntilVisible:
+    element: Pending video
+    direction: DOWN
+    timeout: 30000
+- runFlow: material/save.yaml
+- scrollUntilVisible:
+    element: Preview frame.png
+    direction: UP
+- tapOn: Preview frame.png
+- takeScreenshot: source-material-media
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Material
+    timeout: 60000
+- tapOn: Material
+- extendedWaitUntil:
+    visible:
+      id: material-search
+    timeout: 15000
+- tapOn:
+    id: material-search
+- inputText: ${output.marker}
+- assertVisible:
+    id: material-search
+    text: ${output.marker}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn:
+    id: material-search-submit
+- extendedWaitUntil:
+    visible: ${'Edit ' + output.phrase}
+    timeout: 15000
+- tapOn: ${'Edit ' + output.phrase}
+- scrollUntilVisible:
+    element:
+      id: material-phrase
+      text: ${output.phrase}
+    direction: UP
+- scrollUntilVisible:
+    element: Preview frame.png
+    direction: DOWN
+- scrollUntilVisible:
+    element: Preview audio.m4a
+    direction: DOWN
+- scrollUntilVisible:
+    element: Preview video.mp4
+    direction: DOWN
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - scrollUntilVisible:
+          element: Preview audio.m4a
+          direction: UP
+          centerElement: true
+      - tapOn: Preview audio.m4a
+      - runFlow:
+          file: material/controls-ios.yaml
+          env:
+            NAME: audio.m4a
+      - scrollUntilVisible:
+          element: Preview video.mp4
+          direction: DOWN
+          centerElement: true
+      - tapOn: Preview video.mp4
+      - runFlow:
+          file: material/controls-ios.yaml
+          env:
+            NAME: video.mp4
+- scrollUntilVisible:
+    element: Preview frame.png
+    direction: UP
+- tapOn: Preview frame.png
+- takeScreenshot: source-material-restored
+# The editor's source action is beside its heading, above the media fields.
+- scrollUntilVisible:
+    element: Return to source
+    direction: UP
+- tapOn: Return to source
+- extendedWaitUntil:
+    visible: 'Children: .*'
+    timeout: 60000
+- assertVisible:
+    id: returned-source-selection
+- takeScreenshot: source-material-returned

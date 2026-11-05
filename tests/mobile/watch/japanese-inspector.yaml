@@ -1,0 +1,16 @@
+appId: net.kikan.mlearn.v3dev
+---
+# The same real entry must render from subtitles, transcript and live cards.
+# The paused media layer is hidden while Inspector owns the native surface.
+- extendedWaitUntil:
+    visible: 'JLPT N5.*'
+    timeout: 60000
+- assertVisible: Close Inspector
+- extendedWaitUntil:
+    visible:
+      id: pronunciation-reading
+      index: 1
+    timeout: 15000
+- assertVisible:
+    id: pronunciation-reading
+    index: 0

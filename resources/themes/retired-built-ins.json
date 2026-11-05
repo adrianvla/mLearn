@@ -1,0 +1,32 @@
+[
+  {
+    "id": "mlearn.quartz",
+    "name": "Quartz",
+    "radius": 12,
+    "replacementId": "mlearn.quartz",
+    "colors": {
+      "background": "#F1F2F4", "surface": "#FFFFFF", "text": "#20232A",
+      "muted": "#555D6B", "accent": "#2458A6", "onAccent": "#FFFFFF", "border": "#CFD4DC"
+    }
+  },
+  {
+    "id": "mlearn.quartz",
+    "name": "Quartz",
+    "radius": 8,
+    "replacementId": "mlearn.quartz",
+    "colors": {
+      "background": "#F5F5F5", "surface": "#EEEEEE", "text": "#1A1A1A",
+      "muted": "#626262", "accent": "#C44700", "onAccent": "#FFFFFF", "border": "#BFBFBF"
+    }
+  },
+  {
+    "id": "mlearn.slate",
+    "name": "Slate",
+    "radius": 12,
+    "replacementId": "mlearn.dark-quartz",
+    "colors": {
+      "background": "#15191F", "surface": "#20262E", "text": "#EDF0F5",
+      "muted": "#BAC2CE", "accent": "#99BEFF", "onAccent": "#15243C", "border": "#414B5A"
+    }
+  }
+]

@@ -1,0 +1,8 @@
+# Maestro 2.11's modal snapshot filter loses the Files service when Search owns
+# the keyboard: the visible More/List menu is absent from XCTest's snapshot.
+# Reproduced on the retained simulator; disabling that filter restores the same
+# real menu/filename/dismissal assertions. Product accessibility is unchanged.
+# Remove when the pinned runner snapshots the modal Files hierarchy correctly.
+platform:
+  ios:
+    snapshotKeyHonorModalViews: false

@@ -1,0 +1,354 @@
+param(
+  [string]$ApplicationPath = "target/debug/mlearn-desktop.exe",
+  [string]$OutputDirectory = "test-results/window-materials"
+)
+$ErrorActionPreference = "Stop"
+Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, WindowsBase, System.Windows.Forms, System.Drawing
+Add-Type -ReferencedAssemblies UIAutomationClient, UIAutomationTypes, WindowsBase, System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Windows.Automation;
+using System.Windows.Forms;
+
+public sealed class MaterialCapture {
+  public string Theme;
+  public int BackdropType;
+  public int DarkMode;
+  public int Width;
+  public int Height;
+  public string Image;
+}
+
+public static class NativeMaterialQa {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct Rect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)]
+  struct GuiThreadInfo {
+    public uint Size, Flags;
+    public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+    public Rect CaretBounds;
+  }
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", SetLastError = true)] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+  [DllImport("dwmapi.dll")] static extern int DwmFlush();
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
+
+  static void LogInputOwner(string stage, IntPtr expectedWindow) {
+    // Native keyboard ownership can differ from the WebView's UIA/DOM focus.
+    GuiThreadInfo info = new GuiThreadInfo { Size = (uint)Marshal.SizeOf(typeof(GuiThreadInfo)) };
+    bool available = GetGUIThreadInfo(0, ref info);
+    int error = available ? 0 : Marshal.GetLastWin32Error();
+    Console.WriteLine("Native theme " + stage + ": targetWindow=" + expectedWindow +
+      ", foreground=" + GetForegroundWindow() + ", guiAvailable=" + available + ", guiError=" + error +
+      ", active=" + info.Active + ", focus=" + info.Focus + ", caret=" + info.Caret + ", flags=" + info.Flags);
+  }
+
+  // Subscribe before triggering the action; no timing sleeps or readiness polls.
+  static AutomationElement Wait(string expected, AutomationElement root, Func<AutomationElement> query, Action trigger) {
+    Console.WriteLine("Waiting for: " + expected);
+    object gate = new object();
+    AutomationElement found = null;
+    Exception failure = null;
+    bool finished = false;
+    using (ManualResetEvent ready = new ManualResetEvent(false)) {
+      Action check = delegate {
+        lock (gate) {
+          if (finished || found != null || failure != null) return;
+          try { found = query(); }
+          catch (ElementNotAvailableException) { return; }
+          catch (Exception error) { failure = error; }
+          if (found != null || failure != null) ready.Set();
+        }
+      };
+      StructureChangedEventHandler structure = delegate { check(); };
+      AutomationPropertyChangedEventHandler property = delegate { check(); };
+      AutomationEventHandler opened = delegate { check(); };
+      AutomationFocusChangedEventHandler focused = delegate { check(); };
+      Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, structure);
+      Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Subtree, property,
+        AutomationElement.NameProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty,
+        ValuePattern.ValueProperty);
+      Automation.AddAutomationEventHandler(WindowPattern.WindowOpenedEvent, root, TreeScope.Subtree, opened);
+      Automation.AddAutomationFocusChangedEventHandler(focused);
+      try {
+        trigger();
+        check();
+        if (!ready.WaitOne(25000)) throw new TimeoutException("Native UI did not publish " + expected);
+        if (failure != null) throw failure;
+        return found;
+      } finally {
+        lock (gate) { finished = true; }
+        Automation.RemoveStructureChangedEventHandler(root, structure);
+        Automation.RemoveAutomationPropertyChangedEventHandler(root, property);
+        Automation.RemoveAutomationEventHandler(WindowPattern.WindowOpenedEvent, root, opened);
+        Automation.RemoveAutomationFocusChangedEventHandler(focused);
+      }
+    }
+  }
+
+  static AutomationElement Find(AutomationElement root, string name, AutomationPattern pattern) {
+    AutomationElementCollection matches = root.FindAll(TreeScope.Descendants,
+      new PropertyCondition(AutomationElement.NameProperty, name));
+    foreach (AutomationElement match in matches) {
+      object value;
+      if (match.Current.IsEnabled && !match.Current.IsOffscreen &&
+          (pattern == null || match.TryGetCurrentPattern(pattern, out value))) return match;
+    }
+    return null;
+  }
+
+  static void Invoke(AutomationElement root, string name) {
+    AutomationElement control = Find(root, name, null);
+    if (control == null) throw new InvalidOperationException("Missing native action: " + name);
+    object action;
+    if (control.TryGetCurrentPattern(InvokePattern.Pattern, out action))
+      ((InvokePattern)action).Invoke();
+    else if (control.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out action))
+      ((ExpandCollapsePattern)action).Expand();
+    else throw new InvalidOperationException("No native activation pattern for " + name + ": " +
+      String.Join(", ", Array.ConvertAll(control.GetSupportedPatterns(), pattern => pattern.ProgrammaticName)));
+  }
+
+  static AutomationElement Start(string application, string output, Action<Process> started) {
+    Process launched = null;
+    int launchedId = 0;
+    AutomationElement window = Wait("the owned mLearn application window", AutomationElement.RootElement, delegate {
+      if (launchedId == 0) return null;
+      // MainWindowHandle can initially identify an unnamed startup helper pane.
+      // Bind the UIA owner to the actual configured window, not the first HWND.
+      return AutomationElement.RootElement.FindFirst(TreeScope.Children, new AndCondition(
+        new PropertyCondition(AutomationElement.ProcessIdProperty, launchedId),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
+        new PropertyCondition(AutomationElement.NameProperty, "mLearn"),
+        new PropertyCondition(AutomationElement.IsOffscreenProperty, false)));
+    }, delegate {
+      string errors = Path.Combine(output, "native-stderr.log");
+      launched = new Process { StartInfo = new ProcessStartInfo(application) {
+        UseShellExecute = false, RedirectStandardError = true
+      }};
+      launched.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs line) {
+        if (line.Data != null) File.AppendAllText(errors, line.Data + Environment.NewLine);
+      };
+      launched.Start();
+      started(launched);
+      launchedId = launched.Id;
+      launched.BeginErrorReadLine();
+    });
+    Console.WriteLine("Native mLearn HWND: " + window.Current.NativeWindowHandle);
+    Wait("Home Settings action", window, delegate { return Find(window, "Settings", InvokePattern.Pattern); }, delegate {});
+    return window;
+  }
+
+  static void Settings(AutomationElement window) {
+    Wait("Edit theme JSON action", window, delegate { return Find(window, "Edit theme JSON", null); },
+      delegate { Invoke(window, "Settings"); });
+  }
+
+  static void Save(AutomationElement window, string document, string theme) {
+    Console.WriteLine("Saving native theme: " + theme);
+    AutomationElement dialog = Wait("Custom theme dialog", window, delegate { return Find(window, "Custom theme", WindowPattern.Pattern); },
+      delegate { Invoke(window, "Edit theme JSON"); });
+    AutomationElement editor = Wait("Theme JSON editor", dialog,
+      delegate { return Find(dialog, "Theme JSON", ValuePattern.Pattern); }, delegate {});
+    // The modal's effect owns initial focus. Await that handoff before moving
+    // it; early UIA SetFocus can otherwise be overwritten after input dispatch.
+    Wait("dialog initial keyboard focus", dialog, delegate {
+      AutomationElement close = Find(dialog, "Close", InvokePattern.Pattern);
+      return close != null && close.Current.HasKeyboardFocus ? close : null;
+    }, delegate {});
+    IntPtr handle = new IntPtr(window.Current.NativeWindowHandle);
+    SetForegroundWindow(handle);
+    if (GetForegroundWindow() != handle)
+      throw new InvalidOperationException("The owned test window cannot receive native input");
+    Wait("Theme JSON keyboard focus", dialog,
+      delegate { return editor.Current.HasKeyboardFocus ? editor : null; },
+      delegate { editor.SetFocus(); });
+    string input = document.Replace("\r\n", "\n");
+    Exception inputFailure = null;
+    string receivedInput = "";
+    string lastObservedInput = null;
+    LogInputOwner("before input " + theme, handle);
+    Console.WriteLine("Native theme editor " + theme + ": focused=" + editor.Current.HasKeyboardFocus);
+    try {
+      Wait("complete " + theme + " editor input", dialog, delegate {
+        receivedInput = ((ValuePattern)editor.GetCurrentPattern(ValuePattern.Pattern)).Current.Value;
+        bool complete = receivedInput.Replace("\r\n", "\n") == input;
+        if (receivedInput != lastObservedInput) {
+          Console.WriteLine("Native theme value " + theme + ": characters=" + receivedInput.Length +
+            ", expectedInput=" + complete);
+          lastObservedInput = receivedInput;
+        }
+        return complete ? editor : null;
+      }, delegate {
+        Thread typing = new Thread(delegate() {
+          try {
+            Clipboard.SetText(input);
+            Console.WriteLine("Native theme clipboard " + theme + ": expectedInput=" +
+              String.Equals(Clipboard.GetText(), input, StringComparison.Ordinal));
+            LogInputOwner("before select-all " + theme, handle);
+            SendKeys.SendWait("^a");
+            SendKeys.SendWait("^v");
+            LogInputOwner("after paste " + theme, handle);
+          } catch (Exception error) { inputFailure = error; }
+        });
+        typing.IsBackground = true;
+        typing.SetApartmentState(ApartmentState.STA);
+        typing.Start();
+        if (!typing.Join(10000)) throw new TimeoutException("Native editor input did not finish");
+        if (inputFailure != null) throw inputFailure;
+        Console.WriteLine("Native theme input dispatched " + theme + ": editorFocused=" + editor.Current.HasKeyboardFocus);
+      });
+    } catch (TimeoutException error) {
+      throw new InvalidOperationException("Incomplete native theme input. Expected: " +
+        input.Replace("\r", "\\r").Replace("\n", "\\n") + Environment.NewLine +
+        "Received: " + receivedInput.Replace("\r", "\\r").Replace("\n", "\\n"), error);
+    }
+    // The opaque custom palette closes the editor and remains named in the
+    // selector instead of falling back to an unselected placeholder.
+    string selection = theme == "Slate" ? "Slate (custom)" : theme;
+    Wait("saved " + theme + " selector", window, delegate { return Find(window, "Select theme: " + selection, null); },
+      delegate { Invoke(dialog, "Save custom theme"); });
+  }
+
+  static MaterialCapture Capture(AutomationElement target, string theme, string path, bool translucent, bool dark) {
+    IntPtr window = new IntPtr(target.Current.NativeWindowHandle);
+    int backdrop, appearance;
+    int backdropResult = DwmGetWindowAttribute(window, 38, out backdrop, sizeof(int));
+    int appearanceResult = DwmGetWindowAttribute(window, 20, out appearance, sizeof(int));
+    SetForegroundWindow(window);
+    if (GetForegroundWindow() != window || DwmFlush() != 0)
+      throw new InvalidOperationException("No composited foreground window is available");
+    Rect rect;
+    if (!GetWindowRect(window, out rect)) throw new InvalidOperationException("Cannot measure native window");
+    int width = rect.Right - rect.Left, height = rect.Bottom - rect.Top;
+    if (width <= 0 || height <= 0) throw new InvalidOperationException("Native window is empty");
+    using (Bitmap image = new Bitmap(width, height))
+    using (Graphics graphics = Graphics.FromImage(image)) {
+      graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, image.Size);
+      image.Save(path, ImageFormat.Png);
+    }
+    Console.WriteLine("Native material " + theme + ": window=" + window +
+      ", backdrop=" + backdrop + ", dark=" + appearance +
+      ", HRESULTs=" + backdropResult + "/" + appearanceResult);
+    if (backdropResult != 0 || appearanceResult != 0)
+      throw new InvalidOperationException("DWM material inspection is unavailable: " + backdropResult + ", " + appearanceResult);
+    if (backdrop != (translucent ? 2 : 1) || appearance != (dark ? 1 : 0))
+      throw new InvalidOperationException("Actual DWM state for " + theme + ": backdrop=" + backdrop + ", dark=" + appearance);
+    return new MaterialCapture { Theme = theme, BackdropType = backdrop, DarkMode = appearance,
+      Width = width, Height = height, Image = path };
+  }
+
+  static void Close(AutomationElement window, Process process) {
+    ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
+    if (!process.WaitForExit(15000)) throw new TimeoutException("Owned native app did not exit");
+  }
+
+  public static List<MaterialCapture> Run(string application, string output, string quartz, string dark, string slate) {
+    Directory.CreateDirectory(output);
+    List<MaterialCapture> captures = new List<MaterialCapture>();
+    Process process = null;
+    try {
+      AutomationElement window = Start(application, output, delegate(Process launched) { process = launched; });
+      Settings(window);
+      captures.Add(Capture(window, "Quartz", Path.Combine(output, "quartz.png"), true, false));
+      Save(window, dark, "Dark Quartz");
+      captures.Add(Capture(window, "Dark Quartz", Path.Combine(output, "dark-quartz.png"), true, true));
+      Save(window, slate, "Slate");
+      captures.Add(Capture(window, "Slate", Path.Combine(output, "opaque-slate.png"), false, true));
+      // A single passing edit did not reproduce the earlier native input loss.
+      // Reopen the same modal repeatedly; any failed admission still ends Run.
+      for (int cycle = 1; cycle <= 4; cycle++) {
+        Console.WriteLine("Native theme repeated-edit cycle " + cycle + "/4");
+        Save(window, dark, "Dark Quartz");
+        Save(window, slate, "Slate");
+      }
+      Save(window, dark, "Dark Quartz");
+      Close(window, process);
+      process = null;
+      window = Start(application, output, delegate(Process launched) { process = launched; });
+      captures.Add(Capture(window, "Restored Dark Quartz", Path.Combine(output, "restored-dark-quartz.png"), true, true));
+      Settings(window);
+      Save(window, quartz, "Quartz");
+      captures.Add(Capture(window, "Restored Quartz", Path.Combine(output, "restored-quartz.png"), true, false));
+      Close(window, process);
+      process = null;
+      return captures;
+    } catch (Exception error) {
+      string failure = Path.Combine(output, "failure.txt");
+      File.WriteAllText(failure, error + Environment.NewLine +
+        "Interactive=" + Environment.UserInteractive +
+        ", session=" + Process.GetCurrentProcess().SessionId +
+        ", foreground=" + GetForegroundWindow() + Environment.NewLine);
+      if (process != null) {
+        process.Refresh();
+        File.AppendAllText(failure, "Process=" + process.Id + ", exited=" + process.HasExited +
+          (process.HasExited ? ", exitCode=" + process.ExitCode : ", window=" + process.MainWindowHandle) +
+          Environment.NewLine);
+      }
+      try {
+        Rectangle bounds = Screen.PrimaryScreen.Bounds;
+        using (Bitmap image = new Bitmap(bounds.Width, bounds.Height))
+        using (Graphics graphics = Graphics.FromImage(image)) {
+          graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, image.Size);
+          image.Save(Path.Combine(output, "failure-desktop.png"), ImageFormat.Png);
+        }
+      } catch (Exception captureError) {
+        File.AppendAllText(failure, "Desktop capture: " + captureError + Environment.NewLine);
+      }
+      try {
+        StringBuilder tree = new StringBuilder();
+        Queue<AutomationElement> pending = new Queue<AutomationElement>();
+        pending.Enqueue(AutomationElement.RootElement);
+        int visited = 0;
+        while (pending.Count > 0 && visited < 400) {
+          AutomationElement element = pending.Dequeue();
+          visited++;
+          AutomationElement.AutomationElementInformation info = element.Current;
+          object pattern;
+          tree.AppendLine("pid=" + info.ProcessId + " handle=" + info.NativeWindowHandle +
+            " role=" + info.ControlType.ProgrammaticName + " name=" + info.Name +
+            " id=" + info.AutomationId + " enabled=" + info.IsEnabled +
+            " offscreen=" + info.IsOffscreen + " focused=" + info.HasKeyboardFocus +
+            " invoke=" + element.TryGetCurrentPattern(InvokePattern.Pattern, out pattern) +
+            " patterns=" + String.Join(",", Array.ConvertAll(element.GetSupportedPatterns(), supported => supported.ProgrammaticName)));
+          for (AutomationElement child = TreeWalker.ControlViewWalker.GetFirstChild(element);
+               child != null && visited + pending.Count < 400;
+               child = TreeWalker.ControlViewWalker.GetNextSibling(child)) pending.Enqueue(child);
+        }
+        File.WriteAllText(Path.Combine(output, "failure-uia.txt"), tree.ToString());
+      } catch (Exception treeError) {
+        File.AppendAllText(failure, "UI Automation capture: " + treeError + Environment.NewLine);
+      }
+      throw;
+    } finally {
+      if (process != null && !process.HasExited) process.Kill();
+    }
+  }
+}
+'@
+$quartz = Get-Content resources/themes/quartz.json -Raw
+$dark = Get-Content resources/themes/dark-quartz.json -Raw
+$slate = $dark | ConvertFrom-Json
+$slate.id = "mlearn.slate"
+$slate.name = "Slate"
+$slate.colors.background = "#15191F"
+$slate.colors.surface = "#20262E"
+$slate.colors.text = "#EDF0F5"
+$slate.colors.muted = "#BAC2CE"
+$slate.colors.accent = "#99BEFF"
+$slate.colors.onAccent = "#15243C"
+$slate.colors.border = "#414B5A"
+$output = [IO.Path]::GetFullPath($OutputDirectory)
+$application = [IO.Path]::GetFullPath($ApplicationPath)
+$captures = [NativeMaterialQa]::Run($application, $output, $quartz, $dark, ($slate | ConvertTo-Json -Depth 10))
+$captures | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $output "native-materials.json")
+Write-Output "Native Windows material transitions and startup restoration passed."

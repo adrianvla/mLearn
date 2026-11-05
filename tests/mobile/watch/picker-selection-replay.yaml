@@ -1,0 +1,15 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Failure-only experiment on the same open picker and compiled app.
+# The workflow preserves the original acceptance failure regardless of this result.
+- assertVisible:
+    id: '${VIDEO_NAME}, mp4'
+- takeScreenshot: '${DIAGNOSTIC_STAGE}-picker-before-selection'
+- tapOn:
+    id: '${VIDEO_NAME}, mp4'
+    enabled: true
+- extendedWaitUntil:
+    notVisible:
+      id: '${VIDEO_NAME}, mp4'
+    timeout: 10000
+- takeScreenshot: '${DIAGNOSTIC_STAGE}-picker-dismissed'

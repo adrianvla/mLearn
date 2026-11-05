@@ -1,0 +1,5 @@
+html { writing-mode: vertical-rl; }
+body { line-height: 1.8; }
+rt { font-size: 0.5em; }
+.horizontal { writing-mode: horizontal-tb; }
+svg { max-width: 100%; }

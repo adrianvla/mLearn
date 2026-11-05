@@ -1,0 +1,17 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Only runs after an identical replay also fails; verify actual keyboard removal.
+- assertVisible:
+    id: '${VIDEO_NAME}, mp4'
+- assertVisible:
+    id: '^UIKeyboardLayoutStar Preview$'
+- hideKeyboard
+- extendedWaitUntil:
+    notVisible:
+      id: '^UIKeyboardLayoutStar Preview$'
+    timeout: 10000
+- takeScreenshot: picker-keyboard-hidden
+- runFlow:
+    file: picker-selection-replay.yaml
+    env:
+      DIAGNOSTIC_STAGE: keyboard-hidden

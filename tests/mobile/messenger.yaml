@@ -1,0 +1,197 @@
+appId: net.kikan.mlearn.v3dev
+name: Native Messenger persists content and copies the actual generated message
+---
+# Standalone M07 flow. It never invokes a media picker or the deferred gate.
+# REPLY_TEXT is the fixture's exact output, distinct from the observed clipboard.
+- evalScript: ${output.nativePerson = 'M07 coach ' + Date.now()}
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 60000
+- scrollUntilVisible:
+    element: Conversation
+    direction: DOWN
+- tapOn: Conversation
+- tapOn: People
+- tapOn: New person
+- runFlow:
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-person-name
+      VALUE: ${output.nativePerson}
+- runFlow:
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-person-description
+      VALUE: Practice English.
+- tapOn: Save person
+- extendedWaitUntil:
+    notVisible:
+      id: conversation-person-name
+    timeout: 15000
+- runFlow:
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-search
+      VALUE: ${output.nativePerson}
+- extendedWaitUntil:
+    notVisible:
+      text: Message
+      index: 1
+    timeout: 15000
+- assertVisible: ${output.nativePerson}
+- tapOn: Message
+- assertVisible: ${'Message ' + output.nativePerson}
+- tapOn: Language for direct conversation.*
+- tapOn: English.*
+- tapOn: Open conversation
+- extendedWaitUntil:
+    visible:
+      id: conversation-composer
+    timeout: 15000
+- tapOn: Conversation actions
+- tapOn: Provider
+- extendedWaitUntil:
+    visible:
+      text: Save endpoint and model
+      enabled: true
+    timeout: 15000
+- runFlow:
+    when:
+      notVisible:
+        id: conversation-provider-endpoint
+        text: ${PROVIDER_URL}
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-provider-endpoint
+      VALUE: ${PROVIDER_URL}
+- runFlow:
+    when:
+      notVisible:
+        id: conversation-provider-model
+        text: qa
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-provider-model
+      VALUE: qa
+- tapOn: Save endpoint and model
+- extendedWaitUntil:
+    visible:
+      text: Save endpoint and model
+      enabled: true
+    timeout: 15000
+- tapOn: Close
+- tapOn: Conversation actions
+- runFlow:
+    file: messenger/type-field.yaml
+    env:
+      FIELD: conversation-composer
+      VALUE: Native question.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: conversation-composer
+      - assertVisible: Send
+      - assertVisible:
+          id: conversation-composer
+          text: Native question.
+      - takeScreenshot: messenger-native-keyboard
+      - tapOn: Done
+# Android seeds a different value through its platform editor. The standalone
+# iOS harness independently verifies an empty simulator pasteboard before launch.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - longPressOn:
+          id: conversation-composer
+          point: "10%,50%"
+      - tapOn: Copy
+- tapOn: Send
+- extendedWaitUntil:
+    visible: ${REPLY_TEXT}
+    timeout: 60000
+- takeScreenshot: messenger-native-complete
+- tapOn:
+    text: Message actions
+    index: 1
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - evalScript: ${output.clipboardBefore = json(http.get(CLIPBOARD_CHECK_URL + '?stage=before').body)}
+      - assertTrue: ${output.clipboardBefore.baselineDistinct}
+- tapOn: Copy message
+- extendedWaitUntil:
+    visible: Copied.
+    timeout: 15000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - evalScript: ${output.clipboardAfter = json(http.get(CLIPBOARD_CHECK_URL + '?stage=after').body)}
+      - assertTrue: ${output.clipboardAfter.matches && output.clipboardAfter.baselineDistinct}
+- takeScreenshot: messenger-native-clipboard
+- tapOn: Close
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      # Use Android's actual edit menu, not Maestro's internal pasteText buffer.
+      - longPressOn:
+          id: conversation-composer
+      - tapOn: Paste
+      - assertVisible:
+          id: conversation-composer
+          text: ${REPLY_TEXT}
+      - takeScreenshot: messenger-native-system-paste
+      - hideKeyboard
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Settings
+    timeout: 60000
+- scrollUntilVisible:
+    element: Conversation
+    direction: DOWN
+- tapOn: Conversation
+- tapOn: ${output.nativePerson}
+- extendedWaitUntil:
+    visible: Native question.
+    timeout: 15000
+- assertVisible: ${REPLY_TEXT}
+- takeScreenshot: messenger-native-restarted
+- tapOn:
+    text: Show analysis
+    index: 1
+- tapOn: "Children: .*"
+- tapOn: Explain
+- extendedWaitUntil:
+    visible: streaming
+    timeout: 15000
+- takeScreenshot: messenger-native-explanation-streaming
+- tapOn: Stop explanation
+- extendedWaitUntil:
+    visible: cancelled
+    timeout: 15000
+- runFlow:
+    file: messenger/type-field.yaml
+    env:
+      FIELD: source-explanation-question
+      VALUE: Why plural?
+- tapOn: Ask another question
+- extendedWaitUntil:
+    visible: complete
+    timeout: 15000
+- assertVisible:
+    id: source-explanation-question
+    text: Why plural?
+- takeScreenshot: messenger-native-edited-explanation
+- tapOn: Close

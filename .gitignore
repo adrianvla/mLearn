@@ -2,6 +2,7 @@ node_modules/
 .expo/
 dist/
 target/
+crates/document-parser/artifacts/
 .mlearn/
 .DS_Store
 *.tsbuildinfo

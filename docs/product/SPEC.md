@@ -151,6 +151,20 @@ For the initial mobile implementation, iOS recognition uses Apple's native Visio
 
 Desktop specialist OCR and mobile native OCR need not produce identical strings or box boundaries, but each must make the reader's stated interactions work on representative material. Compare image preprocessing, detection, crop transforms, reading order, vertical orientation, annotation filtering, confidence and source hit-region alignment. Record qualitative recognition differences, particularly on difficult Japanese manga, before calling a mobile provider adequate.
 
+Desktop inference is Python-free and Rust-owned through ONNX Runtime. The tuned
+Japanese path retains Paddle detection, package-owned vertical regrouping,
+original-resolution crops and complete MangaOCR autoregressive decoding with
+pinned preprocessing/tokenization. Apple Vision does not replace that path.
+MangaOCR is Japanese-only and is selected by that language package, not a
+generic recognizer or fallback for other languages. Other packages retain their
+generic/package-selected OCR path without a language registry in core.
+Python is permitted only for offline reference/conversion. Models and native
+runtime resources are optional, pinned, integrity/license-verified installations,
+not Cargo/test downloads. Acceleration uses actual available macOS CoreML,
+Windows and Linux GPU providers with reliable CPU fallback; inference sessions
+are bounded, reusable, cancellable and unloadable. Validate real macOS/Windows
+recognition and compare representative native outputs to the original pipeline.
+
 Annotated text is a shared semantic pipeline for subtitles, documents, OCR output and conversation messages. Native work analyzes a relevant bounded range, resolves stable source spans/targets and reads Knowledge for distinct targets in batches. The UI presents those results rather than assembling a separate knowledge query per word. Cache keys include the relevant source/content and package/analysis context; obsolete results cannot apply to a new source. Knowledge revisions update affected view data without automatically retokenizing the source. Source raw text can render while analysis is pending; it must not fabricate knowledge or hide processing errors.
 
 Keep source content dominant. Selection/hover/tap opens fast contextual inspection; returning preserves location and playback. Recognition, annotation and dictionary preparation occur as bounded native work, not a full parse or model initialization triggered by every hover. Missing optional assets degrade locally with an actionable state, not an app-wide permanent skeleton.
@@ -217,7 +231,9 @@ Settings, recovery and diagnostics remain accessible when a library, plugin or o
 
 Each active setting has a user purpose, one durable owner, a default, a consumer and defined application timing. Search and labels lead to the actual setting. A control that persists but affects nothing is not implemented. Changes that affect an admitted task take effect at a safe boundary rather than mutate its conditions.
 
-Retire Tactile/Flat modes, duplicate threshold aliases, old engine selectors, dead toggles and migration-only options from normal v3 behavior. Preserve raw legacy configuration only where import/recovery obligations require it. Map an old value to a new concept only through an explicit supported migration; do not keep the former branch of behavior 'just in case'.
+The legacy **Interface style** setting is excluded. Integrate the maintainer-selected reference presentation as the single coherent component system, without a style name or alternate style variants. Approved translucency and materials belong to shared components, not a user-selectable interface mode. Do not add an Interface style dropdown, persisted style preference, parallel component implementations or compatibility machinery for that selector. Quartz/Dark Quartz and user-defined themes remain conceptually separate from interface styles.
+
+Retire selectable interface-style modes, duplicate threshold aliases, old engine selectors, dead toggles and migration-only options from normal v3 behavior. Preserve raw legacy configuration only where import/recovery obligations require it; this does not authorize interpreting or restoring the excluded interface-style selector. Map an old value to a new concept only through an explicit supported migration; do not keep the former branch of behavior 'just in case'.
 
 Themes permit user-defined palettes and supported typography, spacing, surfaces and component values at runtime. Built-in themes are examples, not an exhaustive identity enum. Appearance, content aids and accessibility preferences are distinct from learner assessment. Unrestricted browser CSS is not promised as a portable native theme language.
 
@@ -287,7 +303,7 @@ The compatibility target is the selected product behavior, not the latest v2 scr
 
 For retained behavior, use representative source examples and data as a differential reference after confirming their intended semantics. For an approved change, assert the new contract and document the intentional difference. Do not automatically copy either old tests or old answers. Preserve licenses and notices for reused assets/code.
 
-Explicitly excluded from normal v3 behavior: whole-profile renderer state; ad hoc mutable JSON databases; old engine/threshold compatibility aliases; Tactile/Flat branches; compulsory free-form goal/budget setup; one review per internal capability by default; fake readiness or validated-assessment claims; automatic global knowledge from graph support; duplicate desktop/mobile features; unnecessary activity windows; decorative integration dashboards; another interpreter or JIT/AOT backend in this phase.
+Explicitly excluded from normal v3 behavior: whole-profile renderer state; ad hoc mutable JSON databases; old engine/threshold compatibility aliases; selectable interface-style branches; compulsory free-form goal/budget setup; one review per internal capability by default; fake readiness or validated-assessment claims; automatic global knowledge from graph support; duplicate desktop/mobile features; unnecessary activity windows; decorative integration dashboards; another interpreter or JIT/AOT backend in this phase.
 
 Open visual choices do not block domain implementation, but **a surface without an edited visual reference is not approved as final UI**. Open semantic choices, unavailable content or platform limitations remain explicit. An omitted legacy screen is visually rejected as a reference; an independently required catalogue feature is not automatically retired merely because its placement is not pictured. If an edited reference and the feature catalogue disagree about visible controls, ask for the maintainer's decision before claiming that surface visually complete.
 

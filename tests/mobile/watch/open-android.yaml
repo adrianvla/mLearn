@@ -1,0 +1,47 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Both real language scenarios use the same native picker/player entry.
+- scrollUntilVisible:
+    element:
+      id: home-open-watch
+    direction: UP
+    timeout: 30000
+    centerElement: false
+- tapOn:
+    id: home-open-watch
+- tapOn:
+    text: Open local video
+    enabled: true
+- tapOn: Show roots
+- tapOn:
+    id: android:id/title
+    text: Downloads
+- extendedWaitUntil:
+    visible: '${VIDEO_NAME}.mp4'
+    timeout: 15000
+- tapOn: '${VIDEO_NAME}.mp4'
+- extendedWaitUntil:
+    visible: '(Open|Replace) subtitles'
+    timeout: 60000
+- assertVisible: '${VIDEO_NAME}.mp4'
+- runFlow:
+    when:
+      visible: Show player controls
+    commands:
+      - tapOn: Show player controls
+- tapOn:
+    id: net.kikan.mlearn.v3dev:id/exo_prev
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:00'
+    timeout: 15000
+- tapOn: '(Open|Replace) subtitles'
+- tapOn: Show roots
+- tapOn:
+    id: android:id/title
+    text: Downloads
+- extendedWaitUntil:
+    visible: '${SUBTITLE_NAME}.srt'
+    timeout: 15000
+- tapOn: '${SUBTITLE_NAME}.srt'

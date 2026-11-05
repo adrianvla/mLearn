@@ -11,7 +11,8 @@ Pod::Spec.new do |s|
   s.swift_version = '5.9'
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
-  s.source_files = 'MlearnNativeModule.swift', 'generated/*.swift'
+  s.source_files = '*.swift', 'generated/*.swift'
+  s.frameworks = 'AVFoundation', 'ImageIO', 'UniformTypeIdentifiers'
   s.vendored_frameworks = 'generated/MlearnRust.xcframework'
   # CocoaPods links the static XCFramework but does not automatically expose
   # UniFFI's separately named Clang module to the Swift compiler.

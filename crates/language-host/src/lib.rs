@@ -1,5 +1,7 @@
 mod execute;
-pub use execute::{AssetMap, CompiledPlugin};
+mod resources;
+pub use resources::{Resource, ResourceKind};
+pub use execute::{AssetMap, CompiledPlugin, ExecutionPolicy, ResourcePaths, Resources};
 
 /// Executable origin is fixed by the native host, never by renderer input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

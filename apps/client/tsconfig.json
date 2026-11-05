@@ -14,6 +14,7 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "../../packages/ui/src/**/*.native.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]

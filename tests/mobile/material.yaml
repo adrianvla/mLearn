@@ -1,0 +1,138 @@
+appId: net.kikan.mlearn.v3dev
+name: Material authoring persists across native process restart
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Material
+    timeout: 60000
+- tapOn: Material
+- extendedWaitUntil:
+    visible:
+      text: Add Material
+      id: material-add
+      enabled: true
+    timeout: 60000
+- tapOn:
+    id: material-add
+- tapOn:
+    id: material-phrase
+- inputText: 'M'
+- assertVisible:
+    id: material-phrase
+    text: 'M'
+- inputText: '0'
+- assertVisible:
+    id: material-phrase
+    text: 'M0'
+- inputText: '3'
+- assertVisible:
+    id: material-phrase
+    text: 'M03'
+- inputText: 'c'
+- assertVisible:
+    id: material-phrase
+    text: 'M03c'
+- inputText: 'a'
+- assertVisible:
+    id: material-phrase
+    text: 'M03ca'
+- inputText: 'r'
+- assertVisible:
+    id: material-phrase
+    text: 'M03car'
+- inputText: 'd'
+- assertVisible:
+    id: material-phrase
+    text: 'M03card'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: material-meaning
+    direction: DOWN
+- tapOn:
+    id: material-meaning
+- inputText: 's'
+- assertVisible:
+    id: material-meaning
+    text: 's'
+- inputText: 'e'
+- assertVisible:
+    id: material-meaning
+    text: 'se'
+- inputText: 'n'
+- assertVisible:
+    id: material-meaning
+    text: 'sen'
+- inputText: 's'
+- assertVisible:
+    id: material-meaning
+    text: 'sens'
+- inputText: 'e'
+- assertVisible:
+    id: material-meaning
+    text: 'sense'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: material-save
+    direction: DOWN
+- tapOn:
+    id: material-save
+- scrollUntilVisible:
+    element:
+      id: 'material-result|material-duplicates'
+    direction: DOWN
+- runFlow:
+    when:
+      visible:
+        id: material-duplicates
+    commands:
+      - scrollUntilVisible:
+          element: 'Use existing: M03card'
+          direction: DOWN
+      - tapOn: 'Use existing: M03card'
+- extendedWaitUntil:
+    visible:
+      id: material-result
+    timeout: 15000
+- takeScreenshot: material-authored
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Material
+    timeout: 60000
+- tapOn: Material
+- extendedWaitUntil:
+    visible: Edit M03card
+    timeout: 15000
+- tapOn: Edit M03card
+- assertVisible:
+    id: material-phrase
+    text: M03card
+- assertVisible:
+    id: material-meaning
+    text: sense
+- takeScreenshot: material-restored

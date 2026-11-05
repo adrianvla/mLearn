@@ -1,5 +1,7 @@
 # Product references and UI capture guide
 
+> **Active visual authorization, 2026-10-20:** [VISUAL-PARITY.md](../implementation/VISUAL-PARITY.md) and [AGENTS.md](../../AGENTS.md) require edited screenshot parity for depicted states. For currently implemented unpictured surfaces, the corresponding isolated running `../mlearn-ts` UI is the secondary visual reference, including Home. This supersedes older unselected-layout, frozen-review and `visual_pending` restrictions. Preserve the product catalogue and native semantics; do not copy legacy architectural debt or invent absent capabilities.
+
 Use with [SPEC.md](SPEC.md), [FEATURES.md](FEATURES.md) and the [review-gated plan](../implementation/PLAN.md). This is a selection/discovery record, not a declaration that all referenced code works or that every legacy path has been audited.
 
 ## Reference locations
@@ -31,7 +33,7 @@ All v2 paths below refer to the pinned archive, not paths to recreate in v3. Che
 | Practice / calibration / evaluation | Keep distinct purposes and shared interaction; select final navigation | `docs/product-refactor/LEDGER.md`; `docs/LEARNING_PRODUCT_REFACTOR.md` |
 | Conversations | Strong later functional reference; retain messenger behavior, participants, voice and inspection rather than earlier generic chat layouts | `src/shared/world.ts`; `src/electron/services/` world/journal/conversation/voice services; `src/renderer/` conversation owners |
 | Sea / Thread | Keep scope, witnesses, source-grounded memories, deliberate integration and separate learner evidence | `src/shared/world.ts`; journal/world/integration/character/Director/Dreamer service callers |
-| Settings | Rebuild active settings from purpose to consumer; retire Tactile/Flat and compatibility aliases | `src/electron/services/settings.ts`; `src/shared/types*`; `src/shared/constants*`; renderer settings consumers |
+| Settings | Rebuild active settings from purpose to consumer; exclude the Interface style selector and compatibility aliases; integrate the selected presentation without a style name | `src/electron/services/settings.ts`; `src/shared/types*`; `src/shared/constants*`; renderer settings consumers |
 | History / recovery | Preserve data meaning, independent integrity and recovery; replace whole-store write and indefinite replay arrangements | `src/electron/services/flashcardStorage.ts`, `knowledgeHistoryStore.ts`; `src/shared/knowledge/historyArchive.ts`; `docs/guardian-kikan-runtime.md` |
 | Anki / external integration | Keep useful optional workflows, explicit host availability and failure recovery | `README.md`; Anki callers in `src/electron/services/`; `extension/`; companion/mobile references |
 | School / managed services | Keep role/authorization/provider boundaries; separate existing behavior from planned campaigns/group work | `SCHOOL_DEPLOYMENT.md`; `management/`; deployment policy documents |
@@ -73,9 +75,9 @@ Source inspection here is targeted, not exhaustive dead-code certification. For 
 | Desktop overlays | [`screenshots/overlay/`](screenshots/overlay/) | 2 |
 | Settings | [`screenshots/other/`](screenshots/other/) | 2 |
 
-These are manually constructed target designs, not proof that the legacy behavior, layout code or performance worked. Do not copy the original application structure or hand-edited DevTools CSS. Other screens remain `visual_pending` until the maintainer supplies a design. The screenshots are already publicly committed; check future additions for private conversations, credentials and copyrighted/private content before publishing.
+These are manually constructed target designs, not proof that the legacy behavior, layout code or performance worked. Do not copy the original application structure or hand-edited DevTools CSS. Currently implemented unpictured screens use the running isolated secondary reference under the active visual job; they may not remain generic under `visual_pending`. The screenshots are already publicly committed; check future additions for private conversations, credentials and copyrighted/private content before publishing.
 
-**Unpictured and unedited v2 UI is intentionally not selected.** Do not browse remaining v2 screens looking for attractive styling to fill gaps, auto-generate replacements, or treat archived screenshots as approval. The feature catalogue, not incidental v2 controls, determines wanted product behavior. If a required feature has no edited image, mark the presentation `visual_pending`, provide only a minimal usable interim control where needed, and ask for its final arrangement at review. If an edited image omits a catalogue-required control, report the conflict; do not reinsert it into the pictured design or silently retire its behavior.
+**Secondary reference is scoped to existing surfaces.** Study the corresponding running v2 screen where no edited image covers a currently implemented surface. Do not reconstruct unrelated legacy features, auto-generate replacement designs or treat incidental controls as product requirements. The feature catalogue still determines behavior. If a trustworthy required state cannot be established, record that exact state as incomplete and continue independent work. If an edited image omits a catalogue-required control, report the placement conflict rather than silently retiring the feature.
 
 For each edited image, retain its surface/state and viewport information; optional annotations can identify interaction and changes not visible in a still. Unedited before-images may be supplied for comparison but have **no** authority over the final UI. Do not alter the real learning profile to stage a capture; redact private conversations and credentials.
 
@@ -92,7 +94,7 @@ A 15–30 second clip is preferable to many stills for popup flicker, reveal/rat
 
 ### Small interactions that need a deliberate reference
 
-Include the reader's recognized-text mirror state and a short open/use/close sequence; its exact intended interaction is required but was not established by the currently inspected files. Ordinary OCR hit areas and the image-only magnifier are separate features, not substitutes. Also capture annotation hide/reveal, crop re-recognition, source ruby, first-page pairing/collation and a relevant unknown-word sidebar where these are important to the preferred workflow.
+Include the Reader's interactive OCR text aligned over the original image and its source-coordinate behavior through fit, resize, zoom, orientation, crops and spreads. Capture the separate image magnifier/zoom tool sampling original source pixels. The maintainer clarified on 2026-10-23 that no separate mirrored text view is required; its earlier roadmap distinction was unsupported and is not an external-reference blocker. Also capture annotation hide/reveal, crop re-recognition, source ruby, first-page pairing/collation and a relevant unknown-word sidebar where these are important to the preferred workflow.
 
 For Watch, include subtitle timing adjustment, embedded/alternate tracks, clipping/capture and any rate/repeat behavior to preserve. For learning, include the actual single/double-key grading behavior and a correction/resume sequence. For Messenger, include People/contact creation independently of a chat, task-focused versus persistent entry, actual message/context actions and the execution inspector.
 
@@ -105,7 +107,7 @@ No phone mockups are required before implementation. Initial native functionalit
 | 5. Home / Plan | Preferred Home with real recents/resume; selected curriculum/scope and unavailable/missing requirement state | Useful entry points without generic dashboards or fake readiness |
 | 6. Browse / Knowledge | Dense filtered list, bulk selection/edit, detailed capability/graph inspection, character view where relevant | Power-user density and the distinction between material and learner state |
 | 7. Grammar / evaluation | Recall/contrast/typed or timed assessment actually available, including feedback | Which experiences exist versus partial fixtures and what evidence they claim |
-| 8. Settings / recovery / onboarding | Preferred navigation/search, relevant provider/language controls, recovery access; annotate retired controls | New active settings inventory without copying dead fields or Tactile/Flat branches |
+| 8. Settings / recovery / onboarding | Preferred navigation/search, relevant provider/language controls, recovery access; annotate retired controls | New active settings inventory without copying dead fields or selectable interface-style branches |
 
 For a surface that changed substantially, the maintainer's final edited image is the target; an earlier/later unedited image can only document behavior or what was removed. Do not capture every language, theme or viewport. A Japanese example and a structurally different language such as German help validate that the selected UI survives different content structures, not grant automatic permission to copy either legacy layout.
 

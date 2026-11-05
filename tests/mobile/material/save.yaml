@@ -1,0 +1,32 @@
+appId: net.kikan.mlearn.v3dev
+---
+- scrollUntilVisible:
+    element:
+      id: material-save
+    direction: DOWN
+- extendedWaitUntil:
+    visible:
+      id: material-save
+      enabled: true
+    timeout: 30000
+- tapOn:
+    id: material-save
+- scrollUntilVisible:
+    element:
+      id: 'material-result|material-duplicates'
+    direction: DOWN
+- runFlow:
+    when:
+      visible:
+        id: material-duplicates
+    commands:
+      - scrollUntilVisible:
+          element: Keep distinct
+          direction: DOWN
+      - tapOn: Keep distinct
+# Saved metadata changes row height. Locate feedback in the real scrolling body
+# rather than requiring the previous viewport to contain the new receipt.
+- scrollUntilVisible:
+    element:
+      id: material-result
+    direction: DOWN

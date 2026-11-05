@@ -1,1 +1,45 @@
-{"name":"@mlearn/ui","version":"3.0.0-dev.0","private":true,"exports":{"./button":"./src/Button.tsx","./text":"./src/Text.tsx","./layout":"./src/Layout.tsx","./text-field":"./src/TextField.tsx","./dialog":"./src/Dialog.tsx","./provider":"./src/Provider.tsx"},"dependencies":{"@mlearn/theme":"3.0.0-dev.0","@rn-primitives/dialog":"1.5.2","@rn-primitives/portal":"1.5.2"},"peerDependencies":{"react":"19.2.3","react-native":"0.86.3","react-native-web":"~0.21.0","react-native-unistyles":"3.5.2","react-native-safe-area-context":"~5.7.0"}}
+{
+  "name": "@mlearn/ui",
+  "version": "3.0.0-dev.0",
+  "private": true,
+  "exports": {
+    "./button": "./src/Button.tsx",
+    "./activity-card": "./src/ActivityCard.tsx",
+    "./source-row": "./src/SourceRow.tsx",
+    "./icon": "./src/Icon.tsx",
+    "./brand": "./src/brand.ts",
+    "./select": "./src/Select.tsx",
+    "./menu": "./src/Menu.tsx",
+    "./segmented-control": "./src/SegmentedControl.tsx",
+    "./text": "./src/Text.tsx",
+    "./badge": "./src/Badge.tsx",
+    "./progress": "./src/Progress.tsx",
+    "./layout": "./src/Layout.tsx",
+    "./text-field": "./src/TextField.tsx",
+    "./dialog": "./src/Dialog.tsx",
+    "./keyboard-avoiding-view": "./src/KeyboardAvoidingView.tsx",
+    "./provider": "./src/Provider.tsx",
+    "./inline-word": "./src/InlineWord.tsx",
+    "./level-stars": "./src/LevelStars.tsx",
+    "./document": "./src/Document.tsx",
+    "./reading-segments": "./src/readingSegments.ts",
+    "./context-panel": "./src/ContextPanel.tsx",
+    "./dictionary-card": "./src/DictionaryCard.tsx",
+    "./media-overlay": "./src/MediaOverlay.tsx"
+  },
+  "dependencies": {
+    "@mlearn/theme": "3.0.0-dev.0",
+    "@rn-primitives/dialog": "1.5.2",
+    "@rn-primitives/dropdown-menu": "1.5.2",
+    "@rn-primitives/portal": "1.5.2",
+    "@rn-primitives/select": "^1.5.2"
+  },
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "react-native-unistyles": "3.5.2",
+    "react-native-web": "~0.21.0"
+  }
+}

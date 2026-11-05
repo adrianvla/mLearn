@@ -1,0 +1,148 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Both real language scenarios use the same native picker/player entry.
+- tapOn:
+    id: home-open-watch
+- tapOn:
+    text: Open local video
+    enabled: true
+- tapOn: Browse
+- runFlow:
+    when:
+      visible:
+        id: 'DOC.sidebar.item.On My iPhone'
+    commands:
+      - tapOn:
+          id: 'DOC.sidebar.item.On My iPhone'
+      - extendedWaitUntil:
+          # Files may restore the app container or fixture directory directly.
+          # Wait for a usable location, then keep the exact fixture selection below.
+          visible:
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'mLearn v3 Dev, Container'
+    commands:
+      - tapOn:
+          id: 'mLearn v3 Dev, Container'
+      - extendedWaitUntil:
+          visible:
+            id: 'M01 fixtures, Folder'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+      - extendedWaitUntil:
+          visible:
+            id: '${VIDEO_NAME}, mp4'
+          timeout: 15000
+# The Files grid exposes a movie preview that can absorb the tap without
+# selecting the document. Use its real list row, not a preview coordinate.
+# Exercise the keyboard-owned modal boundary that previously hid this menu
+# from XCTest; the workspace snapshot setting must preserve real selection.
+- tapOn:
+    text: Search
+    index: 0
+- tapOn: More
+- tapOn: '^List$'
+# Leave the search-owned native surface before selecting a browser row.
+# On iOS26.5 its background rows remain in the expanded snapshot but ignore
+# selection. Real parent/folder navigation restores browsing without a retry.
+- tapOn:
+    id: '^(BackButton|DOC\.navBarButton\.backInHistory)$'
+    enabled: true
+- extendedWaitUntil:
+    visible:
+      # Back can return the parent or leave search at the current location.
+      id: '(M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+- extendedWaitUntil:
+    visible:
+      id: '${VIDEO_NAME}, mp4'
+    timeout: 15000
+- takeScreenshot: '${VIDEO_NAME}-media-picker-before-selection'
+- tapOn:
+    # Select the document cell, not its non-control filename descendant.
+    id: '${VIDEO_NAME}, mp4'
+    enabled: true
+- extendedWaitUntil:
+    notVisible:
+      id: '${VIDEO_NAME}, mp4'
+    timeout: 10000
+- takeScreenshot: '${VIDEO_NAME}-media-picker-dismissed'
+- extendedWaitUntil:
+    visible: '(Open|Replace) subtitles'
+    timeout: 60000
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          text: Local video player
+          point: 50%, 38%
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: Skip Backward
+- assertVisible: '0:00 elapsed'
+- tapOn: '(Open|Replace) subtitles'
+- tapOn: Browse
+- runFlow:
+    when:
+      visible:
+        id: 'DOC.sidebar.item.On My iPhone'
+    commands:
+      - tapOn:
+          id: 'DOC.sidebar.item.On My iPhone'
+      - extendedWaitUntil:
+          visible:
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'mLearn v3 Dev, Container'
+    commands:
+      - tapOn:
+          id: 'mLearn v3 Dev, Container'
+      - extendedWaitUntil:
+          visible:
+            id: 'M01 fixtures, Folder'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+      - extendedWaitUntil:
+          visible:
+            id: '${VIDEO_NAME}, mp4'
+          timeout: 15000
+- tapOn: More
+- tapOn: '^List$'
+- takeScreenshot: '${SUBTITLE_NAME}-subtitle-picker-before-selection'
+- tapOn:
+    text: '^${SUBTITLE_NAME}\.srt$'
+    enabled: true
+- extendedWaitUntil:
+    notVisible:
+      id: '${SUBTITLE_NAME}.srt, srt'
+    timeout: 10000
+- takeScreenshot: '${SUBTITLE_NAME}-subtitle-picker-dismissed'

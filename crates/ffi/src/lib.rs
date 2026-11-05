@@ -1,6 +1,6 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::Runtime;
-use std::{path::Path, sync::{Arc, Mutex}};
+use mlearn_runtime::{Runtime, RuntimeExecutor};
+use std::{path::Path, sync::{Arc, atomic::{AtomicU64,Ordering}}};
 uniffi::setup_scaffolding!();
 include!(concat!(env!("OUT_DIR"), "/bundled.rs"));
 
@@ -12,7 +12,7 @@ pub enum BridgeError {
 }
 
 #[derive(uniffi::Object)]
-pub struct RuntimeBridge { runtime: Mutex<Runtime> }
+pub struct RuntimeBridge { runtime: RuntimeExecutor, cancellation: Arc<AtomicU64> }
 
 #[uniffi::export]
 impl RuntimeBridge {
@@ -20,13 +20,12 @@ impl RuntimeBridge {
     pub fn new(profile_path: String) -> Result<Arc<Self>, BridgeError> {
         let plugins = bundled_plugins().map_err(|reason| BridgeError::Initialization { reason })?;
         let runtime = Runtime::open(Path::new(&profile_path), CodePolicy::MobileBundled, None, plugins).map_err(|reason| BridgeError::Initialization { reason })?;
-        Ok(Arc::new(Self { runtime: Mutex::new(runtime) }))
+        let cancellation=runtime.cancellation_handle();
+        Ok(Arc::new(Self { runtime: RuntimeExecutor::new(runtime), cancellation }))
     }
+    pub fn cancel_source_open(&self) { self.cancellation.fetch_add(1,Ordering::Relaxed); }
     /// Native host invokes on a background queue. A busy request never creates an unbounded queue.
     pub fn execute(&self, request: String) -> String {
-        match self.runtime.try_lock() {
-            Ok(mut runtime) => runtime.execute(&request),
-            Err(_) => r#"{"type":"error","code":"busy","message":"Native runtime is busy; retry after the current operation."}"#.into(),
-        }
+        self.runtime.execute(&request)
     }
 }

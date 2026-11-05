@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="book">urn:mlearn:fixture:small-journey:1</dc:identifier>
+    <dc:title>A small journey</dc:title>
+    <dc:language>ja</dc:language>
+    <dc:language>en</dc:language>
+    <dc:rights>Original mLearn test content. CC0-1.0.</dc:rights>
+    <meta property="dcterms:modified">2026-10-22T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="start" href="start.xhtml" media-type="application/xhtml+xml"/>
+    <item id="return" href="return.xhtml" media-type="application/xhtml+xml" properties="svg"/>
+    <item id="style" href="book.css" media-type="text/css"/>
+  </manifest>
+  <spine page-progression-direction="rtl">
+    <itemref idref="start"/>
+    <itemref idref="return"/>
+  </spine>
+</package>

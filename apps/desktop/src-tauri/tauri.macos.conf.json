@@ -1,0 +1,6 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/mlearn-media", "binaries/mlearn-ocr"],
+    "macOS": { "minimumSystemVersion": "13.0" }
+  }
+}

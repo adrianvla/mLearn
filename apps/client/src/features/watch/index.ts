@@ -1,0 +1,1 @@
+export {WatchScreen} from './WatchScreen';

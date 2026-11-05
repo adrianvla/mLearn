@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "jmdict": {
+    "url": "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz",
+    "timestamp": "2026-10-17T03:30:23Z",
+    "sha256": "eb7cb9c5179c23154f3897eddb0f78f2ef374837fcaef0474cf9875d42161d9b",
+    "byteLength": 10585764,
+    "expandedByteLength": 63177054,
+    "license": "CC-BY-SA-4.0",
+    "copyright": "James William Breen and the Electronic Dictionary Research and Development Group",
+    "documentation": "https://www.edrdg.org/jmdict/j_jmdict.html",
+    "licenseUrl": "https://www.edrdg.org/edrdg/licence.html"
+  },
+  "sudachi": {
+    "wheel": "sudachidict_small-20260116-py3-none-any.whl",
+    "wheelUrl": "https://files.pythonhosted.org/packages/53/d4/50aa799a6cde6de872724003e3a3afa9af7d4ecb531572bc01a526ded175/sudachidict_small-20260116-py3-none-any.whl",
+    "wheelByteLength": 41766874,
+    "wheelSha256": "85aa874da703550d19b978be2208ad6ee110dc12117ece5a45832258fb0aed4b",
+    "member": "sudachidict_small/resources/system.dic",
+    "sha256": "34bdc3d279530567399874e62d7f98ea327c536dd7029a3dfdf5c694db1942c7",
+    "byteLength": 122948155,
+    "license": "Apache-2.0"
+  }
+}

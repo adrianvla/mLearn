@@ -1,21 +1,19 @@
 // Drive the real Tauri binary through WebKit WebDriver, without mocking IPC.
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, rename, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { startCatalog } from '../../tools/catalog-server.mjs';
+import { clickControl, WebDriverError, rpc } from './webdriver.mjs';
 
 await mkdir('test-results/desktop', { recursive: true });
 const catalog = await startCatalog(path.resolve('target/plugin-cdn'));
 const driver = spawn('tauri-driver', ['--port', '4444'], { stdio: 'inherit' });
 let session;
-async function rpc(method, endpoint, body) {
-  const response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
-  const result = await response.json();
-  if (!response.ok || result.value?.error) throw new Error(JSON.stringify(result));
-  return result.value;
-}
+let restoreTheme;
 async function until(work, description, timeout = 30000) {
   const deadline = Date.now() + timeout;
   let last;
@@ -28,16 +26,89 @@ async function until(work, description, timeout = 30000) {
 async function script(source, args = []) { return rpc('POST', `/session/${session}/execute/sync`, { script: source, args }); }
 async function text(expected) { return until(async () => (await script('return document.body.innerText')).includes(expected), expected); }
 async function click(label) {
-  const element = await until(async () => {
-    const value = await rpc('POST', `/session/${session}/element`, { using: 'css selector', value: `[aria-label="${label}"]` });
-    return value['element-6066-11e4-a52e-4f735466cecf'];
-  }, label);
-  await rpc('POST', `/session/${session}/element/${element}/click`, {});
+  await clickControl(rpc, session, label);
+}
+async function closeInspector() {
+  // A newly reopened, above-cue panel grows upward when its real entry arrives.
+  // Observe the completed entry and its layout before WebDriver chooses a point;
+  // otherwise the Close button can move between pointer-down and pointer-up.
+  const ready=await rpc('POST',`/session/${session}/execute/async`,{script:`
+    const done=arguments[arguments.length-1];
+    let settled=false,frame=0,panel;
+    const finish=value=>{
+      if(settled)return;
+      settled=true;mutations.disconnect();resize.disconnect();
+      cancelAnimationFrame(frame);clearTimeout(timer);done(value);
+    };
+    const check=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{
+        const current=document.querySelector('[data-testid="inspector-panel"]');
+        if(current!==panel){if(panel)resize.unobserve(panel);panel=current;if(panel)resize.observe(panel);}
+        const button=panel?.querySelector('[aria-label="Close Inspector"]');
+        if(!button||!panel.querySelector('[aria-label="Dictionary source"]'))return;
+        const r=button.getBoundingClientRect();
+        const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+        if(r.width&&r.height&&hit?.closest('[aria-label="Close Inspector"]')===button)
+          finish({ready:true,rect:{x:r.x,y:r.y,width:r.width,height:r.height}});
+      });});
+    };
+    const mutations=new MutationObserver(check),resize=new ResizeObserver(check);
+    const timer=setTimeout(()=>finish({error:'Inspector entry and Close target did not become ready'}),5000);
+    mutations.observe(document.body,{subtree:true,childList:true,attributes:true});check();
+  `,args:[]});
+  assert.equal(ready.ready,true,JSON.stringify(ready));
+  await script(`window.__m01Dismiss={};window.__m01Dismiss.promise=new Promise(resolve=>{
+    let settled=false;
+    const finish=pass=>{if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);resolve(pass);};
+    const check=()=>{if(!document.querySelector('[data-testid="inspector-panel"]'))finish(true);};
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish(false),5000);
+    window.__m01Dismiss.cancel=()=>finish(false);
+    observer.observe(document.documentElement,{subtree:true,childList:true});
+  });return true;`);
+  try {
+    await click('Close Inspector');
+    const closed=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0];window.__m01Dismiss.promise.then(done);',args:[]});
+    assert.equal(closed,true,'Inspector must finish dismissing before the next source interaction');
+  } finally {
+    await script('window.__m01Dismiss.cancel();delete window.__m01Dismiss;return true;');
+  }
+}
+// Subscribe before input. Native media properties do not all mutate the DOM.
+async function observeSourceView(condition) {
+  await script(`window.__m02View={};window.__m02View.promise=new Promise(resolve=>{
+    let settled=false;
+    const events=['loadedmetadata','loadeddata','ratechange','seeked','scroll','focusin'];
+    const finish=pass=>{
+      if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);
+      events.forEach(event=>document.removeEventListener(event,check,true));resolve(pass);
+      window.removeEventListener('resize',check);
+    };
+    const check=()=>{if(${condition})finish(true);};
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish(false),30000);
+    window.__m02View.cancel=()=>finish(false);
+    observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+    events.forEach(event=>document.addEventListener(event,check,true));window.addEventListener('resize',check);check();
+  });return true;`);
+}
+async function observedSourceView(description) {
+  try {
+    const result=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02View.promise.then(done);',args:[],
+    });
+    assert.equal(result,true,description);
+  } finally {
+    await script('window.__m02View.cancel();delete window.__m02View;return true;');
+  }
 }
 async function launch() {
   const result = await rpc('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: path.resolve('target/debug/mlearn-desktop') } } } });
   session = result.sessionId;
   assert.ok(session, 'WebDriver session missing');
+  await click('Settings');
+  await click('Runtime');
   await text('Tauri desktop');
 }
 async function screenshot(name) {
@@ -47,8 +118,11 @@ async function screenshot(name) {
 async function styleState() {
   return script(`
     const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
-      .find(node => node.textContent === 'One app. Native at the core.');
-    const button = document.querySelector('[aria-label="Reload native state"]');
+      .find(node => node.textContent === 'Settings');
+    // Expo retains the hidden Home heading when Settings is pushed. Measure
+    // the visible navigation control, not any node sharing its accessible name.
+    const button = Array.from(document.querySelectorAll('button[aria-label="Home"],[role="button"][aria-label="Home"]'))
+      .find(node => node.getClientRects().length && node.getBoundingClientRect().height > 0);
     const computed = heading && getComputedStyle(heading);
     return {
       heading: heading ? { fontSize: computed.fontSize, color: computed.color } : null,
@@ -66,7 +140,7 @@ async function styleState() {
 async function assertPluginFeedbackNearAction(expected) {
   const geometry = await script(`
     const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
-      .find(node => node.textContent === 'Hello, plugin');
+      .find(node => node.textContent === 'SDK example');
     const panel = heading?.parentElement;
     const message = document.querySelector('[data-testid="runtime-message"]');
     const button = document.querySelector('[aria-label="Run hello"]');
@@ -86,14 +160,14 @@ async function assertStyled(theme, color) {
   const state = await styleState();
   await writeFile(`test-results/desktop/styles-${theme}.json`, JSON.stringify(state, null, 2));
   assert.ok(state.heading, 'Main heading missing');
-  assert.equal(state.heading.fontSize, '28px', 'Packaged webview must apply the shared typography');
+  assert.equal(state.heading.fontSize, '20px', 'Packaged webview must apply the shared typography');
   assert.equal(state.heading.color, color, 'Native webview must apply the current theme, not merely save its name');
   assert.ok(state.buttonHeight >= 44, 'Shared native-web button must retain its accessible hit target');
 }
 try {
   await until(() => rpc('GET', '/status'), 'WebDriver startup');
   await launch();
-  await assertStyled('quartz', 'rgb(32, 35, 42)');
+  await assertStyled('quartz', 'rgb(17, 20, 24)');
   await screenshot('initial-quartz');
   await click('Install SDK example');
   await text('Verified plugin installed from the catalog.');
@@ -102,28 +176,775 @@ try {
   await text('Hello, world!');
   await assertPluginFeedbackNearAction('Hello, world!');
   await screenshot('hello-result-beside-action');
-  await click('Slate');
-  await text('Theme saved by Rust');
-  await assertStyled('slate', 'rgb(237, 240, 245)');
+  await click('Appearance');
+  await click('Select theme: Quartz');
+  await observeSourceView('!!document.querySelector(\'[data-testid="runtime-message"]\')');
+  await click('Dark Quartz');
+  await observedSourceView('Saved theme feedback must be visible after the native acknowledgement');
+  await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
   await launch();
-  await text('Current: Slate.');
-  await assertStyled('restarted-slate', 'rgb(237, 240, 245)');
+  await click('Appearance');
+  await text('Current: Dark Quartz.');
+  await assertStyled('restarted-dark-quartz', 'rgb(240, 240, 240)');
+  await click('Runtime');
   await click('Run hello');
   await text('Hello, world!');
   await screenshot('persisted-after-native-restart');
-  console.log('Real Tauri IPC, signed plugin download, Wasmi invocation, visible theme styling, SQLite save and native restart passed.');
+  // Seed through the real typed Rust command boundary; native picker selection is
+  // separately exercised on macOS. No mocked transport or renderer learner state.
+  async function native(request) {
+    const value = await rpc('POST', `/session/${session}/execute/async`, {script: `
+      const done=arguments[arguments.length-1];
+      window.__TAURI_INTERNALS__.invoke('runtime_execute',{request:JSON.stringify(arguments[0])})
+        .then(value=>done(JSON.parse(value))).catch(error=>done({type:'error',message:String(error)}));`, args:[request]});
+    return value;
+  }
+  const numericBase = (await native({ type: 'snapshot' })).snapshot;
+  restoreTheme = async () => {
+    const current = (await native({type:'snapshot'})).snapshot;
+    const restored = await native({type:'save_theme',document:numericBase.theme,expectedRevision:current.revision,commandId:randomUUID()});
+    assert.equal(restored.type,'saved',JSON.stringify(restored));
+    restoreTheme = undefined;
+  };
+  // Observe actual layout before refreshing accepted native settings. CSS-variable
+  // mode formerly updated colors but left numeric theme-derived styles frozen.
+  await script(`
+    window.__m01NumericTheme = {};
+    window.__m01NumericTheme.promise = new Promise(resolve => {
+      // Expo keeps the Home route mounted. Observe the active Settings heading,
+      // not the first (hidden) route heading, which can retain its old geometry.
+      const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
+        .find(node => node.textContent === 'Settings' && node.getClientRects().length);
+      let settled = false;
+      const finish = value => {
+        if(settled)return;
+        settled=true;observer.disconnect();clearTimeout(timer);resolve(value);
+      };
+      const observer = new ResizeObserver(() => {
+        const fontSize=getComputedStyle(heading).fontSize;
+        if(fontSize==='40px')finish({fontSize});
+      });
+      const timer = setTimeout(() => finish({error:'Numeric theme did not update mounted text',fontSize:getComputedStyle(heading).fontSize}),5000);
+      window.__m01NumericTheme.cancel = () => finish({error:'cancelled'});
+      observer.observe(heading);
+    });
+    return true;
+  `);
+  try {
+    const scaled = await native({type:'save_theme',document:{...numericBase.theme,textScale:2},expectedRevision:numericBase.revision,commandId:randomUUID()});
+    assert.equal(scaled.type,'saved',JSON.stringify(scaled));
+    await click('Reload native state');
+    const scaledText = await rpc('POST',`/session/${session}/execute/async`,{script:`
+      const done=arguments[arguments.length-1];window.__m01NumericTheme.promise.then(done);`,args:[]});
+    assert.equal(scaledText.fontSize,'40px',JSON.stringify(scaledText));
+  } finally {
+    await script('window.__m01NumericTheme.cancel();delete window.__m01NumericTheme;return true;');
+  }
+  async function resumeWatch() {
+    // At 2x, recents can sit below the viewport during a route return.
+    // Use the shared scroll/hit-target readiness before real WebDriver input.
+    await click('Resume watch-fixture.mp4');
+  }
+  assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.english'})).type,'installed');
+  const fixture=path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.mp4');
+  const opened=await native({type:'open_source',path:fixture,packageId:'org.mlearn.english'});
+  assert.equal(opened.type,'source',JSON.stringify(opened));
+  const id=opened.window.source.id;
+  const attached=await native({type:'attach_subtitles',sourceId:id,path:path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.srt')});
+  assert.equal(attached.type,'source',JSON.stringify(attached));
+  await click('Home');
+  // Refocus Home to fetch sources created through the same native runtime.
+  await click('Settings');await click('Home');
+  const homeWindowRect=await rpc('GET',`/session/${session}/window/rect`);
+  try {
+    await observeSourceView(`innerWidth<=420&&innerHeight<=560&&(()=>{
+      const visible=id=>Array.from(document.querySelectorAll('[data-testid="'+id+'"]')).find(node=>node.getClientRects().length);
+      const header=visible('app-shell-header'),body=visible('app-shell-content');
+      return header&&body&&header.scrollHeight>header.clientHeight&&body.getBoundingClientRect().height>=innerHeight/2;
+    })()`);
+    await rpc('POST',`/session/${session}/window/rect`,{...homeWindowRect,width:420,height:560});
+    await observedSourceView('Enlarged compact headers must scroll without consuming the source workspace');
+    const regions=await script(`const visible=id=>Array.from(document.querySelectorAll('[data-testid="'+id+'"]')).find(node=>node.getClientRects().length);
+      const header=visible('app-shell-header'),body=visible('app-shell-content');
+      return {header:header.getBoundingClientRect().toJSON(),body:body.getBoundingClientRect().toJSON(),
+        headerContentHeight:header.scrollHeight,viewportHeight:innerHeight};`);
+    await writeFile('test-results/desktop/home-compact-scroll-regions.json',JSON.stringify(regions));
+    await screenshot('home-minimum-2x-scroll-regions');
+    await click('Get language packages');await text('Language packages');await click('Home');
+  } finally {
+    await rpc('POST',`/session/${session}/window/rect`,homeWindowRect);
+  }
+  await resumeWatch();
+  await until(()=>script('const v=document.querySelector("video");return v&&v.readyState>=2&&v.duration>=29'),'Decoded real H.264/AAC fixture');
+  const titleContrast=await script(`
+    const toolbar=document.querySelector('[data-testid="watch-toolbar"]');
+    const title=toolbar.querySelector('[data-testid="watch-source-title"]');
+    const background=getComputedStyle(toolbar).backgroundColor,color=getComputedStyle(title).color;
+    const channels=value=>value.match(/[\\d.]+/g).map(Number);
+    const luminance=rgb=>rgb.slice(0,3).map(value=>value/255).map(value=>value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4)
+      .reduce((total,value,index)=>total+value*[0.2126,0.7152,0.0722][index],0);
+    const bg=channels(background),fg=channels(color),a=luminance(bg),b=luminance(fg);
+    return {background,color,opaque:bg.length===3||bg[3]===1,ratio:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)};
+  `);
+  assert.ok(titleContrast.opaque&&titleContrast.ratio>=4.5,
+    `Source title must remain readable above bright video: ${JSON.stringify(titleContrast)}`);
+  // Reject only a real rate write in this explicitly isolated profile. Position
+  // checkpoints still commit; IPC and the native rejection remain genuine.
+  assert.ok(process.env.XDG_DATA_HOME, 'Native failure checks require an isolated XDG_DATA_HOME');
+  const preferenceDb = new DatabaseSync(path.join(process.env.XDG_DATA_HOME, 'net.kikan.mlearn.v3dev', 'profile.sqlite3'));
+  // The real player's initial checkpoint may own the WAL writer lock. Use the
+  // same bounded lock acquisition as storage, not timing luck before this DDL.
+  preferenceDb.exec('PRAGMA busy_timeout=5000');
+  preferenceDb.exec(`CREATE TRIGGER mlearn_test_rate_write_rejected BEFORE UPDATE OF document ON sources
+    WHEN json_extract(NEW.document,'$.playbackRate') <> json_extract(OLD.document,'$.playbackRate')
+    BEGIN SELECT RAISE(ABORT,'mlearn_test_rate_write_rejected'); END`);
+  try {
+    await observeSourceView('!!document.querySelector(\'[data-testid="playback-preference-error"]\')');
+    await click('Playback rate: 1×');
+    await click('1.25×');
+    await observedSourceView('A rejected preference write must show feedback without opening another dialog');
+    const feedback = await script(`const error=document.querySelector('[data-testid="playback-preference-error"]');
+      const controls=document.querySelector('[data-testid="media-controls"]');
+      const r=error.getBoundingClientRect();return {text:error.textContent,besideControls:controls.contains(error),
+        visible:r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight};`);
+    assert.match(feedback.text, /mlearn_test_rate_write_rejected/);
+    assert.ok(feedback.besideControls && feedback.visible, 'Rate failure must remain visible beside its initiating control');
+    assert.equal((await native({type:'recent_sources'})).sources.find(source=>source.id===id).playbackRate, 1);
+  } finally {
+    preferenceDb.exec('DROP TRIGGER mlearn_test_rate_write_rejected');
+    preferenceDb.close();
+  }
+  await observeSourceView('document.querySelector("video")?.playbackRate===1.25&&!document.querySelector(\'[data-testid="playback-preference-error"]\')');
+  await click('Playback rate: 1×');await click('1.25×');
+  await observedSourceView('Retry must save the real preference and clear its feedback');
+  await observeSourceView('document.querySelector("video")?.playbackRate===1');
+  await click('Playback rate: 1.25×');await click('1×');
+  await observedSourceView('Restore the fixture rate before ordinary media input');
+  const rateKeysBefore=await script(`document.querySelector('[role="combobox"][aria-label^="Playback rate:"]').focus();
+    window.__rateKeyEvents=[];window.__rateKeyListener=event=>window.__rateKeyEvents.push({key:event.key,prevented:event.defaultPrevented});
+    document.addEventListener('keydown',window.__rateKeyListener);
+    const video=document.querySelector('video');return {time:video.currentTime,muted:video.muted};`);
+  try {
+    for(const key of ['\uE014','\uE012','m','f']) {
+      await rpc('POST',`/session/${session}/actions`,{actions:[{type:'key',id:'rate-control-input',actions:[
+        {type:'keyDown',value:key},{type:'keyUp',value:key},
+      ]}]});
+    }
+    const rateKeysAfter=await script(`const video=document.querySelector('video');return {time:video.currentTime,muted:video.muted,events:window.__rateKeyEvents};`);
+    assert.equal(rateKeysAfter.time,rateKeysBefore.time,'Closed combobox arrows must not seek the video');
+    assert.equal(rateKeysAfter.muted,rateKeysBefore.muted,'Combobox typing must not mute the video');
+    assert.equal(rateKeysAfter.events.length,4);
+    assert.ok(rateKeysAfter.events.every(event=>!event.prevented),'Media shortcuts must not consume combobox keys');
+  } finally {
+    await script('document.removeEventListener("keydown",window.__rateKeyListener);delete window.__rateKeyEvents;delete window.__rateKeyListener;document.activeElement.blur();return true;');
+  }
+  await rpc('POST', `/session/${session}/execute/async`, {script:'const done=arguments[arguments.length-1];document.querySelector("video").play().then(()=>done(true)).catch(e=>done(String(e)));',args:[]});
+  await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
+  await script('document.querySelector("video").pause()');
+  const inlineLayout = await script(`return Array.from(document.querySelectorAll('[data-testid="annotated-text"] button'),
+    node=>({label:node.getAttribute('aria-label'),height:node.getBoundingClientRect().height,viewport:innerHeight}));`);
+  assert.ok(inlineLayout.length > 0);
+  assert.ok(inlineLayout.every(word=>word.height > 0 && word.height < word.viewport), JSON.stringify(inlineLayout));
+  await observeSourceView('!!document.querySelector(\'[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])\')');
+  await click('Live word translator');
+  await observedSourceView('Live dictionary cards must come from the actual source analysis');
+  assert.equal(await script('return document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")'),'true');
+  const liveCards = await script(`return Array.from(document.querySelectorAll('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])'),
+    node=>({label:node.getAttribute('aria-label'),width:node.getBoundingClientRect().width}));`);
+  assert.ok(liveCards.length > 0 && liveCards.length <= 6, JSON.stringify(liveCards));
+  assert.ok(liveCards.every(card=>card.width > 0));
+  await click(liveCards[0].label);
+  await text('Dictionary source');
+  await closeInspector();
+  await observeSourceView('document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")==="false"');
+  await click('Live word translator');
+  await observedSourceView('The live dictionary control must announce its collapsed state');
+  await click('Children: untracked');await text('child');await click('Knowledge: Untracked');await click('Meaning');
+  await click('Claim Meaning known');await text('claimed known');await closeInspector();
+  await click('Children: mixed');await closeInspector();
+  await script('document.querySelector("video").currentTime=20');
+  await until(()=>script('return Math.abs(document.querySelector("video").currentTime-20)<0.5'),'Seek to second occurrence');
+  await click('came: untracked');await text('come');await closeInspector();
+  await click('Children: mixed');await closeInspector();
+  // Hold only delivery of a real native preference response. Cancellation and
+  // route blur must recover without an obsolete completion replacing that owner.
+  for (const leave of ['cancel', 'blur']) {
+    const offset=leave==='cancel'?375:625;
+    const checkpoint=leave==='cancel'?10000:11000;
+    await script(`const callbacks=window.__TAURI_INTERNALS__.callbacks;
+      const originalSet=callbacks.set;
+      const gate={originalSet,release:null,entered:null,checkpoint:null,delivered:false,checkpointArmed:false};
+      gate.entered=new Promise(resolve=>gate.enter=resolve);
+      gate.resumed=new Promise(resolve=>gate.resume=resolve);
+      gate.checkpoint=new Promise(resolve=>gate.saved=resolve);
+      const held=new Promise(resolve=>gate.release=resolve);
+      window.__m02Preference=gate;
+      // Tauri's invoke property is deliberately nonwritable. Its documented
+      // debugging callback Map lets this harness delay a real result without
+      // replacing IPC or fabricating a native response.
+      const offset=arguments[0],sourceId=arguments[1],position=arguments[2];
+      callbacks.set=function(key,callback){
+        return originalSet.call(this,key,data=>{
+          let response;
+          if(typeof data==='string')try{response=JSON.parse(data);}catch{}
+          if(!gate.delivered&&response?.type==='source'&&response.window.source.id===sourceId&&response.window.source.subtitleOffsetMs===offset){
+            gate.delivered=true;gate.enter();void held.then(()=>callback(data));return;
+          }
+          if(gate.delivered&&response?.type==='source'&&response.window.source.id===sourceId){
+            gate.resume(response.window.source);
+          }
+          if(gate.checkpointArmed&&response?.type==='position_saved'){
+            // A resumed player's earlier checkpoint can finish after a new seek.
+            // Signal the exact durable position, not whichever acknowledgement
+            // happens to arrive first.
+            // Read before delivering the acknowledgement: delivery can admit
+            // the next queued action alongside both display lanes and exhaust
+            // all three native permits before this raw harness read arrives.
+            void window.__TAURI_INTERNALS__.invoke('runtime_execute',{request:JSON.stringify({type:'recent_sources'})}).then(raw=>{
+              const saved=JSON.parse(raw);
+              if(saved.type!=='sources')throw new Error(raw);
+              if(saved.sources.find(source=>source.id===sourceId)?.positionMs===position){
+                gate.checkpointArmed=false;gate.saved({ack:data,recent:saved});
+              }
+            }).catch(error=>gate.saved({ack:JSON.stringify({type:'error',message:String(error)})}))
+              .finally(()=>callback(data));
+          }else callback(data);
+        });
+      };return true;`,[offset,id,checkpoint]);
+    try {
+      await click('Playback options');
+      const input=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[data-testid="subtitle-offset-input"]'});
+      const inputId=input['element-6066-11e4-a52e-4f735466cecf'];
+      // WebKit's clear can leave React's controlled value intact: the second
+      // iteration appended 625 to 375. Release Control with its second key code:
+      // WebKit's send-keys path does not interpret NULL as a modifier release.
+      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:`\uE009a\uE009\uE003${offset}`});
+      assert.equal(await script('return document.querySelector(\'[data-testid="subtitle-offset-input"]\').value'),String(offset),
+        'Native input replacement must retain exactly the requested offset');
+      await click('Apply subtitle offset');
+      assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
+      }),true,'Preference must reach the actual native owner before cancellation');
+      await click('Close');
+      if (leave === 'cancel') {
+        await click('Cancel opening');
+      } else {
+        await rpc('POST',`/session/${session}/back`,{});
+        await text('Recent sources');
+      }
+      await script('window.__m02Preference.release();return true;');
+      if (leave === 'blur') await resumeWatch();
+      // Observe the real replacement-source receipt instead of racing a raw
+      // recent_sources request against the client's action and display lanes.
+      const resumed=await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.resumed.then(source=>{clearTimeout(timer);done(source);});',args:[],
+      });
+      assert.ok(resumed,'The resumed source must remain persisted');
+      assert.equal(resumed.subtitleOffsetMs,offset);
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
+      await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      // This probe sets HTMLVideoElement.currentTime directly, unlike the product
+      // controller which queues seeks until metadata. First observe real resume
+      // initialization so it cannot overwrite the test's subsequent raw seek.
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking&&Math.abs(document.querySelector("video").currentTime-${resumed.positionMs}/1000)<0.01`);
+      await observedSourceView('Resume must settle at its persisted position before the raw seek');
+      await script('window.__m02Preference.checkpointArmed=true;document.querySelector("video").currentTime=arguments[0]/1000;return true;',[checkpoint]);
+      const saved=await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],
+      });
+      const media=await script('const video=document.querySelector("video");return {positionMs:Math.round(video.currentTime*1000),readyState:video.readyState,seeking:video.seeking};');
+      assert.equal(JSON.parse(saved?.ack ?? '{}').type,'position_saved',`Fresh media checkpoints must persist after preference cancellation: ${JSON.stringify({leave,checkpoint,media,saved})}`);
+      const recent=saved.recent;
+      assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
+      assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
+    } finally {
+      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
+    }
+  }
+  // Real persisted source preferences feed the mounted host and untouched cues.
+  assert.equal((await native({type:'set_subtitle_offset',sourceId:id,offsetMs:500})).type,'source');
+  assert.equal((await native({type:'set_playback_rate',sourceId:id,rate:1.25})).type,'source');
+  assert.equal((await native({type:'set_inspection_trigger',sourceId:id,trigger:'modifier'})).type,'source');
+  await click('Home');
+  await observeSourceView('document.querySelector("video")?.readyState>=1&&document.querySelector("video").playbackRate===1.25');
+  await resumeWatch();
+  await observedSourceView('Saved playback rate must reach the actual native video');
+  const shifted=await native({type:'source_window',sourceId:id,positionMs:14500});
+  assert.equal(shifted.window.cues.find(cue=>cue.index===1).startMs,15000);
+  await click('Transcript');await click('Transcript');
+  // Vocabulary is a companion sidebar, not the reading-only Transcript mode:
+  // the real source captions must remain visible beside its word controls.
+  await observeSourceView(`(()=>{
+    const captions=document.querySelector('[data-testid="subtitle-window"]');
+    if(!captions||!captions.textContent.trim())return false;
+    for(let node=captions;node;node=node.parentElement){
+      const style=getComputedStyle(node);
+      if(style.opacity==='0'||style.visibility==='hidden'||style.display==='none')return false;
+    }
+    return true;
+  })()`);
+  await click('Transcript');await click('Vocabulary');
+  await observedSourceView('Vocabulary must preserve the current real source captions');
+  await screenshot('native-vocabulary-with-source-captions');
+  // Menu choices publish after their closing focus scope, not click dispatch.
+  await observeSourceView(`(()=>{
+    const input=document.querySelector('[aria-label="Search transcript"]');
+    return !!input&&input.getClientRects().length>0&&!input.closest('[aria-hidden="true"]')&&!document.querySelector('[role="menu"]');
+  })()`);
+  await click('Transcript');await click('Transcript');
+  await observedSourceView('Transcript selection must expose its real search input');
+  const search=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Search transcript"]'});
+  const searchId=search['element-6066-11e4-a52e-4f735466cecf'];
+  await rpc('POST',`/session/${session}/element/${searchId}/value`,{text:'came'});
+  await observeSourceView('!!document.querySelector(\'[aria-label="Go to cue 2 at 0:14"]\')&&!document.querySelector(\'[aria-label^="Go to cue 1 "]\')');
+  await click('Search');
+  await observedSourceView('Bounded transcript search must return the actual second cue');
+  await screenshot('native-transcript-search');
+  await observeSourceView('!!document.querySelector(\'[aria-label="came: untracked"]\')');
+  await observedSourceView('Transcript must reuse real native token analysis');
+  await click('came: untracked');
+  await text('come');
+  await click('Knowledge: Untracked');await click('Meaning');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Knowledge: Mixed"]\')&&document.querySelector(\'[data-testid="inspector-panel"]\')?.textContent.includes("Meaning · claimed known")');
+  await click('Claim Meaning known');
+  await observedSourceView('Transcript claim must update authoritative Knowledge');
+  await closeInspector();
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: mixed');
+  await click('came: mixed');
+  await text('come');
+  await click('Knowledge: Mixed');await click('Meaning');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Knowledge: Untracked"]\')&&document.querySelector(\'[data-testid="inspector-panel"]\')?.textContent.includes("Meaning · untracked")');
+  await click('Withdraw Meaning claim');
+  await observedSourceView('Transcript withdrawal must refresh the same Knowledge projection');
+  await closeInspector();
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: untracked');
+  // Observe the UI's actual analysis instead of issuing a competing background
+  // analysis into the deliberately single-guest native execution slot.
+  await script(`const callbacks=window.__TAURI_INTERNALS__.callbacks;
+    const observed={originalSet:callbacks.set};
+    observed.promise=new Promise(resolve=>observed.publish=resolve);
+    const sourceId=arguments[0];
+    window.__m02AnalysisObservation=observed;
+    callbacks.set=function(key,callback){
+      return observed.originalSet.call(this,key,data=>{
+        callback(data);
+        let response;
+        if(typeof data==='string')try{response=JSON.parse(data);}catch{}
+        if(response?.type==='analysis'&&response.batch?.sourceId===sourceId)observed.publish(response);
+      });
+    };return true;`,[id]);
+  let beforeHover;
+  try {
+    await observeSourceView('Math.abs(document.querySelector("video").currentTime-14.5)<0.01&&!document.querySelector(\'[data-testid="dialog-surface"]\')');
+    await click('Go to cue 2 at 0:14');
+    await observedSourceView('Transcript selection must seek the real player using the saved offset');
+    await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')');
+    await observedSourceView('Shifted cue retains the same authoritative Knowledge');
+    beforeHover=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];const timer=setTimeout(()=>done({type:"error",message:"No UI analysis completed"}),10000);window.__m02AnalysisObservation.promise.then(value=>{clearTimeout(timer);done(value);});',args:[],
+    });
+  } finally {
+    await script('window.__TAURI_INTERNALS__.callbacks.set=window.__m02AnalysisObservation.originalSet;delete window.__m02AnalysisObservation;return true;');
+  }
+  assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
+  assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
+  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Dictionary source"]\')');
+  // Modifier/Knowledge rendering can replace the token node between input
+  // ticks. A real pointer targets viewport geometry, not a retained DOM handle.
+  const child=await script(`
+    const control=document.querySelector('[aria-label="Children: mixed"]');
+    if(!control)return null;
+    const rect=control.getBoundingClientRect();
+    const x=Math.round(rect.x+rect.width/2),y=Math.round(rect.y+rect.height/2);
+    const hit=document.elementFromPoint(x,y);
+    return {x,y,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)};
+  `);
+  assert.equal(child?.ready,true,JSON.stringify(child));
+  await rpc('POST',`/session/${session}/actions`,{actions:[
+    {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'},{type:'pause',duration:0},{type:'keyUp',value:'\uE008'}]},
+    {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
+      {type:'pointerMove',duration:0,origin:'viewport',x:0,y:0},
+      {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
+      {type:'pause',duration:0},
+    ]},
+  ]});
+  await observedSourceView('Shift-assisted real pointer entry must open the shared Inspector without a click');
+  await screenshot('native-modifier-inspection');
+  await closeInspector();
+  const retainedClaim=await native({type:'knowledge',keys:beforeHover.batch.knowledge.map(projection=>projection.key)});
+  assert.equal(retainedClaim.type,'knowledge');
+  assert.deepEqual(retainedClaim.projections,beforeHover.batch.knowledge,'Hover must not create learner evidence or change claims');
+  assert.equal((await native({type:'set_subtitle_offset',sourceId:id,offsetMs:0})).type,'source');
+  assert.equal((await native({type:'set_playback_rate',sourceId:id,rate:1})).type,'source');
+  assert.equal((await native({type:'set_inspection_trigger',sourceId:id,trigger:'click'})).type,'source');
+  await click('Home');
+  await observeSourceView('document.querySelector("video")?.readyState>=1&&document.querySelector("video").playbackRate===1');
+  await resumeWatch();
+  await observedSourceView('Reset source preferences must restore the real host');
+  // "home" also occurs in the previous cue. The media clock changes before
+  // React publishes its new caption, so that label alone admits the old anchor.
+  await observeSourceView(`Math.abs(document.querySelector("video").currentTime-20)<0.01&&
+    !!document.querySelector('[aria-label="came: untracked"]')?.closest('[data-testid="annotated-text"]')
+      .querySelector('[aria-label="home: untracked"]')`);
+  const seekPublication=await script(`const video=document.querySelector("video");
+    video.currentTime=20;
+    return {currentTime:video.currentTime,
+      cue:document.querySelector('[aria-label="home: untracked"]')?.closest('[data-testid="annotated-text"]').textContent,
+      currentCueReady:!!document.querySelector('[aria-label="came: untracked"]')};`);
+  await writeFile('test-results/desktop/seek-caption-publication.json',JSON.stringify(seekPublication,null,2));
+  await observedSourceView('Continue at the exact original second-line occurrence');
+  // A second-line occurrence must reserve its entire authored cue and follow
+  // the real native window resize, not retain its first captured coordinates.
+  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]')&&
+    document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect().bottom<=
+    document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect().top`);
+  await click('home: untracked');
+  await observedSourceView('The loaded Inspector must clear the entire cue after caption reflow');
+  const clearance=await script(`const panel=document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect();
+   const cue=document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect();
+   return {bottom:panel.bottom,cueTop:cue.top,cue:document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').textContent};`);
+  await writeFile('test-results/desktop/caption-clearance.json',JSON.stringify(clearance,null,2));
+  assert.ok(clearance.bottom<=clearance.cueTop,JSON.stringify(clearance));
+  await screenshot('native-second-line-inspector-clearance');
+  const windowPath=`/session/${session}/window/rect`;
+  const originalRect=await rpc('GET',windowPath);
+  const originalViewport=await script('return {width:innerWidth,height:innerHeight};');
+  await script(`window.__m01ResizeCheck=new Promise(resolve=>{
+   const panel=document.querySelector('[data-testid="inspector-panel"]');
+   const word=document.querySelector('button[aria-label="home: untracked"]');
+   const cue=word.closest('[data-testid="annotated-text"]');
+   const initialWidth=innerWidth;
+   let resize,mutation,last;
+   const finish=pass=>{resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);resolve({pass,...last});};
+   const check=()=>{
+    if(innerWidth===initialWidth)return;
+    const p=panel.getBoundingClientRect(),w=word.getBoundingClientRect(),c=cue.getBoundingClientRect();
+    const expected=w.left+w.width/2;
+    last={panel:p.toJSON(),cue:c.toJSON(),expected,viewport:innerWidth};
+    if(Math.abs(p.left+p.width/2-expected)<2&&p.bottom<=c.top&&p.left>=0&&p.right<=innerWidth)finish(true);
+   };
+   const timer=setTimeout(()=>finish(false),5000);
+   resize=new ResizeObserver(check);resize.observe(document.documentElement);resize.observe(panel);
+   mutation=new MutationObserver(check);mutation.observe(panel,{attributes:true,attributeFilter:['style','class']});
+   addEventListener('resize',check);
+  });`);
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:originalRect.width+160});
+   const resized=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01ResizeCheck;delete window.__m01ResizeCheck;pending.then(done);',args:[]});
+   assert.equal(resized.pass,true,JSON.stringify(resized));
+  } finally {
+   // The native resize command can return before WebKit and React restore the
+   // anchored panel. Subscribe before restoring, as for the enlargement above.
+   await observeSourceView(`innerWidth===${originalViewport.width}&&innerHeight===${originalViewport.height}&&(()=>{
+    const panel=document.querySelector('[data-testid="inspector-panel"]');
+    const word=document.querySelector('button[aria-label="home: untracked"]');
+    if(!panel||!word)return false;
+    const p=panel.getBoundingClientRect(),w=word.getBoundingClientRect();
+    const cue=word.closest('[data-testid="annotated-text"]').getBoundingClientRect();
+    return Math.abs(p.left+p.width/2-w.left-w.width/2)<2&&p.bottom<=cue.top&&p.left>=0&&p.right<=innerWidth;
+   })()`);
+   await rpc('POST',windowPath,originalRect);
+   await observedSourceView('Restored native viewport and anchored Inspector must settle before its next action');
+  }
+  // Keep the accepted maximum text scale through the minimum native viewport.
+  // A fixed expanded footer previously left no complete dictionary line visible.
+  await click('Knowledge: Untracked');await click('Meaning');
+  await script(`window.__m01CompactCheck=new Promise(resolve=>{
+   const panel=document.querySelector('[data-testid="inspector-panel"]');
+   const body=panel.querySelector('[data-testid="inspector-body"]');
+   const footer=panel.querySelector('[data-testid="inspector-footer"]');
+   const subtitles=document.querySelector('[data-testid="subtitle-window"]');
+   const toolbar=document.querySelector('[data-testid="watch-toolbar"]');
+   const controls=document.querySelector('[data-testid="media-controls"]');
+   let settled=false,last;
+   const finish=pass=>{
+    if(settled)return;settled=true;
+    resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);resolve({pass,...last});
+   };
+   const check=()=>{
+    if(innerWidth>420||innerHeight>560)return;
+    const p=panel.getBoundingClientRect(),b=body.getBoundingClientRect(),f=footer.getBoundingClientRect();
+    const lineHeight=Math.max(44,...Array.from(body.querySelectorAll('*'),node=>parseFloat(getComputedStyle(node).lineHeight)).filter(Number.isFinite));
+    const s=subtitles.getBoundingClientRect(),t=toolbar.getBoundingClientRect(),c=controls.getBoundingClientRect();
+    last={panel:p.toJSON(),body:b.toJSON(),footer:f.toJSON(),subtitles:s.toJSON(),toolbar:t.toJSON(),controls:c.toJSON(),lineHeight,width:innerWidth,height:innerHeight};
+    if(b.height>=lineHeight&&p.top>=0&&p.bottom<=innerHeight&&f.top>=b.bottom&&f.bottom<=p.bottom&&s.height>0&&s.top>=t.bottom&&s.bottom<=c.top)finish(true);
+   };
+   const resize=new ResizeObserver(check);[panel,body,footer,subtitles,toolbar,controls].forEach(node=>resize.observe(node));
+   const mutation=new MutationObserver(check);mutation.observe(panel,{subtree:true,attributes:true,childList:true});
+   const timer=setTimeout(()=>finish(false),5000);
+   addEventListener('resize',check);check();
+  });`);
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:420,height:560});
+   const compact=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01CompactCheck;delete window.__m01CompactCheck;pending.then(done);',args:[]});
+   assert.equal(compact.pass,true,JSON.stringify(compact));
+   await click('Knowledge: Untracked');
+   await screenshot('watch-enlarged-minimum-inspector');
+  } finally {
+   await rpc('POST',windowPath,originalRect);
+  }
+  await closeInspector();
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'home: untracked');
+  await screenshot('watch-inspector-claim-projection');
+  await click('Home');
+  await click('Settings');
+  // Observe before opening/resizing: AX/DOM presence alone missed a clipped form.
+  await script(`window.__overnightDialogCheck=new Promise(resolve=>{
+   let settled=false,last;
+   const finish=pass=>{
+    if(settled)return;settled=true;
+    resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);
+    resolve({pass,...last});
+   };
+   const visible=element=>{
+    element.scrollIntoView({block:'center'});
+    const r=element.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+    return r.width>0&&r.height>0&&!!hit&&(hit===element||element.contains(hit));
+   };
+   const check=()=>{
+    if(settled||innerWidth>420||innerHeight>560)return;
+    const dialog=document.querySelector('[role="dialog"]');
+    const panel=dialog?.querySelector('[data-testid="dialog-surface"]');
+    const editor=dialog?.querySelector('textarea'),save=dialog?.querySelector('[aria-label="Save custom theme"]');
+    if(!panel||!editor||!save)return;
+    const bounds=panel.getBoundingClientRect();
+    last={bounds:bounds.toJSON(),width:innerWidth,height:innerHeight,editor:visible(editor),save:visible(save)};
+    if(last.editor&&last.save&&bounds.top>=0&&bounds.bottom<=innerHeight)finish(true);
+   };
+   const resize=new ResizeObserver(check);resize.observe(document.body);
+   const mutation=new MutationObserver(check);mutation.observe(document.body,{subtree:true,attributes:true,childList:true});
+   const timer=setTimeout(()=>finish(false),5000);
+   addEventListener('resize',check);check();
+  });`);
+  await click('Edit theme JSON');
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:420,height:560});
+   const visibility=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__overnightDialogCheck;delete window.__overnightDialogCheck;pending.then(done);',args:[]});
+   await screenshot('dialog-minimum-2x-controls');
+   assert.equal(visibility.pass,true,JSON.stringify(visibility));
+  } finally {
+   try { await click('Close'); }
+   finally { await rpc('POST',windowPath,originalRect); }
+  }
+  await click('Home');
+  await restoreTheme();
+   await click('Settings');await click('Runtime');await click('Reload native state');await click('Home');
+  const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
+  assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
+  const homeSources=(await native({type:'recent_sources'})).sources;
+  const expectedProgress=homeSources.filter(source=>source.durationMs>0)
+    .map(source=>Math.max(0,Math.min(100,source.positionMs/source.durationMs*100)));
+  if(homeSources[0]?.durationMs>0)
+    expectedProgress.push(Math.max(0,Math.min(100,homeSources[0].positionMs/homeSources[0].durationMs*100)));
+  assert.ok(expectedProgress.length>0,'Decoded and checkpointed media must expose real source progress');
+  expectedProgress.sort((a,b)=>a-b);
+  const homeProgress=await rpc('POST',`/session/${session}/execute/async`,{script:`
+    const expected=arguments[0],done=arguments[arguments.length-1];
+    let settled=false,last;
+    const finish=pass=>{
+      if(settled)return;settled=true;observer.disconnect();resize.disconnect();
+      clearTimeout(timer);done({pass,...last});
+    };
+    const check=()=>{
+      const bars=Array.from(document.querySelectorAll('[role="progressbar"]'))
+        .filter(node=>node.getClientRects().length);
+      const values=bars.map(node=>Number(node.getAttribute('aria-valuenow'))).sort((a,b)=>a-b);
+      const ranges=bars.every(node=>node.getAttribute('aria-valuemin')==='0'&&node.getAttribute('aria-valuemax')==='100');
+      const tracks=bars.every(node=>{
+        const r=node.getBoundingClientRect(),style=getComputedStyle(node);
+        return r.width>r.height*4&&r.height>0&&parseFloat(style.borderTopWidth)>0
+          &&style.borderTopColor!==style.backgroundColor;
+      });
+      last={values,ranges,tracks};
+      if(values.length===expected.length&&values.every((value,index)=>Math.abs(value-expected[index])<0.001)&&ranges&&tracks)
+        finish(true);
+    };
+    const observer=new MutationObserver(check),resize=new ResizeObserver(check);
+    const timer=setTimeout(()=>finish(false),5000);
+    observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+    resize.observe(document.body);check();
+  `,args:[expectedProgress]});
+  assert.equal(homeProgress.pass,true,JSON.stringify({expectedProgress,...homeProgress}));
+  await writeFile('test-results/desktop/source-progress.json',JSON.stringify(homeProgress));
+  await screenshot('home-source-progress');
+  await rpc('DELETE', `/session/${session}`);session=undefined;
+  await launch();await click('Home');await resumeWatch();
+  await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Exact source position after native restart');
+  await click('Children: mixed');await closeInspector();await click('Home');
+  await rename(fixture,fixture+'.missing');
+  try {await resumeWatch();await text('reselect');await click('Reselect from Home');}
+  finally {await rename(fixture+'.missing',fixture);}
+  await resumeWatch();
+  await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Missing-source recovery keeps progress');
+  await screenshot('watch-restarted-source');
+  await click('Home');
+  const subtitleCopy=attached.window.source.subtitlePath;
+  await rename(subtitleCopy,subtitleCopy+'.missing');
+  try {
+    await resumeWatch();await text('Reselect subtitles');
+    assert.equal((await native({type:'attach_subtitles',sourceId:id,path:path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.srt')})).type,'source');
+    await click('Retry source');
+    await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Replaced missing subtitles preserve source position');
+  } finally {await rename(subtitleCopy+'.missing',subtitleCopy);}
+
+  // An unavailable language analysis must never freeze the raw subtitle window.
+  const unsupported=path.resolve('.mlearn/m01-ci-fixtures/unsupported.srt');
+  await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:05,000\n日本語\n\n2\n00:00:10,000 --> 00:00:15,000\n語彙\n\n3\n00:00:20,000 --> 00:00:30,000\n字幕\n');
+  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  await click('Home');
+  // As in the preference probe, a raw element seek must follow real resume
+  // initialization; otherwise loadedmetadata restores 20s over the test's 2s.
+  await observeSourceView(`Array.from(document.querySelectorAll('video')).some(video=>
+    video.getClientRects().length&&video.readyState>=2&&!video.seeking&&Math.abs(video.currentTime-20)<0.01)`);
+  await resumeWatch();
+  await observedSourceView('Raw-subtitle source must finish restoring its native position before the seek');
+  await text('English');await text('字幕');
+  await observeSourceView(`Array.from(document.querySelectorAll('video')).some(video=>
+    video.getClientRects().length&&!video.seeking&&Math.abs(video.currentTime-2)<0.01)&&document.body.innerText.includes('日本語')`);
+  await script('document.querySelector("video").currentTime=2');
+  await observedSourceView('Raw subtitles must follow the completed two-second seek despite unavailable analysis');
+  await text('日本語');
+  await screenshot('watch-raw-subtitles-with-analysis-unavailable');
+  // Two seeks within the same two-second bucket must still change the cue window.
+  await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
+  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  await click('Home');await resumeWatch();
+  // A Resume click finishes before React mounts the player. Subscribe to its
+  // real media/initial-seek events before seeking, retaining that active element.
+  const subsecondVideo=await rpc('POST', `/session/${session}/execute/async`, {script: `
+    const done=arguments[arguments.length-1];
+    const listeners=new AbortController();
+    let video,settled=false;
+    function finish(value) {
+      if(settled)return;
+      settled=true;observer.disconnect();listeners.abort();clearTimeout(timer);done(value);
+    }
+    function check() {
+      const active=Array.from(document.querySelectorAll('video')).find(node=>
+        node.getClientRects().length&&!node.closest('[aria-hidden="true"]'));
+      if(active!==video) {
+        video=active;
+        video?.addEventListener('loadedmetadata',check,{signal:listeners.signal});
+        video?.addEventListener('loadeddata',check,{signal:listeners.signal});
+        video?.addEventListener('seeked',check,{signal:listeners.signal});
+        video?.addEventListener('error',check,{signal:listeners.signal});
+      }
+      if(video?.error)finish({mediaError:video.error.code});
+      else if(video&&video.readyState>=2&&!video.seeking)finish(video);
+    }
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish({readinessError:'Video metadata unavailable before subsecond seek'}),20000);
+    observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+    check();`, args:[]});
+  assert.ok(subsecondVideo?.['element-6066-11e4-a52e-4f735466cecf'],JSON.stringify(subsecondVideo));
+  await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await closeInspector();
+  await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await closeInspector();
+  await click('Home');await click('Settings');
+  // restoreTheme above saved the actual Dark Quartz base. Wait for that native
+  // snapshot instead of freezing the transient default label during route mount.
+  await click('Select theme: Dark Quartz');await click('Dark Quartz');await click('Home');
+  assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.japanese'})).type,'installed');
+  const japaneseVideo = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.mp4');
+  const japaneseSubtitles = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.srt');
+  await copyFile(path.resolve('.mlearn/m01-ci-fixtures/watch-japanese.mp4'),japaneseVideo);
+  await writeFile(japaneseSubtitles,'1\n00:00:00,000 --> 00:00:30,000\n昨日、つまり、明日。銀河(ぎんが)。\n');
+  const japaneseSource = await native({type:'open_source',path:japaneseVideo,packageId:'org.mlearn.japanese'});
+  assert.equal(japaneseSource.type,'source',JSON.stringify(japaneseSource));
+  assert.equal((await native({type:'attach_subtitles',sourceId:japaneseSource.window.source.id,path:japaneseSubtitles})).type,'source');
+  await click('Settings');await click('Home');
+  await observeSourceView('!!document.querySelector(\'button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
+  await click('Resume japanese-watch.mp4');
+  await observedSourceView('Real Japanese source must render its package-owned contour');
+  await observeSourceView('!!document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
+  await click('Transcript');await click('Transcript');
+  await observedSourceView('Transcript must reuse structured Japanese metadata');
+  const contourStyle = await script(`const word=document.querySelector('[data-testid="dialog-surface"] button[aria-label^="つまり:"]');
+    const glyph=word.querySelector('[data-testid="pronunciation-reading"] span');
+    const rect=word.getBoundingClientRect();
+    return {color:getComputedStyle(glyph).color,sourceColor:getComputedStyle(word.querySelector('span')).color,
+      height:rect.height,viewport:innerHeight};`);
+  assert.equal(contourStyle.color,contourStyle.sourceColor,'Late-mounted contour glyphs must use the active content palette');
+  assert.ok(contourStyle.height > 0 && contourStyle.height < contourStyle.viewport,JSON.stringify(contourStyle));
+  const yesterday = await script('return document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="昨日:"]\').getAttribute("aria-label");');
+  await click(yesterday);await text('JLPT N5');
+  const pronunciations = await script(`return Array.from(document.querySelectorAll('[data-testid="inspector-panel"] [data-testid="pronunciation-reading"]'),
+    node=>({label:node.getAttribute('aria-label'),width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}));`);
+  assert.ok(pronunciations.length >= 2 && pronunciations.every(value=>value.width > 0 && value.height > 0),JSON.stringify(pronunciations));
+  await screenshot('native-japanese-ruby-pitch-levels');
+  await closeInspector();await click('Close');await click('Home');
+  await click('Settings');await click('Runtime');
+  const japaneseTheme = (await native({type:'snapshot'})).snapshot;
+  assert.equal((await native({type:'save_theme',document:{...japaneseTheme.theme,textScale:2},
+    expectedRevision:japaneseTheme.revision,commandId:randomUUID()})).type,'saved');
+  await click('Reload native state');await click('Home');
+  await observeSourceView(`Array.from(document.querySelectorAll('button[aria-label^="銀河("]')).some(node=>
+    node.getClientRects().length&&!node.closest('[aria-hidden="true"]')&&getComputedStyle(node).fontSize==='80px')`);
+  await click('Resume japanese-watch.mp4');
+  await observedSourceView('Saved enlarged typography must reach actual Japanese source words');
+  const japaneseWindowPath = `/session/${session}/window/rect`;
+  const japaneseRect = await rpc('GET',japaneseWindowPath);
+  try {
+    await observeSourceView(`innerWidth<=420&&!!document.querySelector('[data-testid="subtitle-window"] button[aria-label^="銀河("]')&&Array.from(document.querySelectorAll('[data-testid="subtitle-window"] button')).every(node=>
+      node.scrollWidth<=node.clientWidth+1&&node.getBoundingClientRect().right<=innerWidth)`);
+    await rpc('POST',japaneseWindowPath,{...japaneseRect,width:420,height:560});
+    await observedSourceView('Enlarged ruby bases must wrap without horizontal clipping');
+    await screenshot('native-japanese-enlarged-narrow-ruby');
+    await observeSourceView(`(()=>{
+      const rail=document.querySelector('[data-testid="watch-source-overlays"]');
+      const captions=document.querySelector('[data-testid="subtitle-window"]');
+      const card=document.querySelector('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])');
+      return !!rail&&!!captions&&!!card&&captions.getBoundingClientRect().height>0&&
+        captions.getBoundingClientRect().top>=rail.getBoundingClientRect().bottom;
+    })()`);
+    await click('Live word translator');await click('Subtitle synchronization');
+    await observedSourceView('Measured source overlays must not cover enlarged captions');
+    await screenshot('native-japanese-enlarged-source-overlays');
+    await observeSourceView(`(()=>{
+      const panel=document.querySelector('[data-testid="live-word-cards"]');
+      const cards=panel?.querySelectorAll('button:not([aria-label="Hide live word translator"])');
+      if(!cards||cards.length<2||document.activeElement!==cards[1])return false;
+      const card=cards[1].getBoundingClientRect(),bounds=panel.getBoundingClientRect();
+      return card.left>=bounds.left&&card.right<=bounds.right&&
+        !panel.querySelector('[aria-label="Hide live word translator"]').disabled;
+    })()`);
+    await script(`document.querySelectorAll('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])')[1].focus();return true;`);
+    await observedSourceView('Keyboard focus must reveal the auxiliary card and close control in the narrow rail');
+    await screenshot('native-japanese-focused-auxiliary-card');
+  } finally {
+    await rpc('POST',japaneseWindowPath,japaneseRect);
+  }
+  console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {
   if (session) {
     await screenshot('failure').catch(() => {});
     const body = await script('return document.body.innerText').catch(() => 'No DOM available');
     await writeFile('test-results/desktop/failure.txt', String(body));
+    await script(`return {
+      viewport:{width:innerWidth,height:innerHeight,scrollX,scrollY},
+      regions:Array.from(document.querySelectorAll('[data-testid="inspector-panel"],[data-testid="inspector-panel"] button,[data-testid="annotated-text"],[data-testid="subtitle-window"],[data-testid="subtitle-window"] button')).map(node=>{
+        const style=getComputedStyle(node);
+        const rect=node.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return {testId:node.getAttribute('data-testid'),label:node.getAttribute('aria-label'),
+          expanded:node.getAttribute('aria-expanded'),disabled:node.getAttribute('aria-disabled'),
+          hitLabel:hit?.closest('button')?.getAttribute('aria-label')??null,
+          rect:rect.toJSON(),scrollTop:node.scrollTop,scrollHeight:node.scrollHeight,
+          position:style.position,top:style.top,bottom:style.bottom,maxHeight:style.maxHeight,
+          transform:style.transform};
+      })
+    };`).then(state=>writeFile('test-results/desktop/geometry-failure.json',JSON.stringify(state,null,2))).catch(error=>writeFile('test-results/desktop/geometry-failure.json',JSON.stringify({probeError:String(error)},null,2)));
+    await script(`const v=document.querySelector('video'); return v && {src:v.currentSrc,readyState:v.readyState,networkState:v.networkState,duration:Number.isFinite(v.duration)?v.duration:null,currentTime:v.currentTime,paused:v.paused,error:v.error&&{code:v.error.code,message:v.error.message},mp4:v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'),webm:v.canPlayType('video/webm; codecs="vp9, opus"')};`).then(state=>writeFile('test-results/desktop/media-failure.json',JSON.stringify(state,null,2))).catch(error=>writeFile('test-results/desktop/media-failure.json',JSON.stringify({probeError:String(error)},null,2)));
     await styleState().then(state => writeFile('test-results/desktop/styles-failure.json', JSON.stringify(state, null, 2))).catch(() => {});
   }
   throw error;
 } finally {
-  if (session) await rpc('DELETE', `/session/${session}`).catch(() => {});
-  driver.kill('SIGTERM');
-  catalog.close();
+  try {
+    if (session && restoreTheme) await restoreTheme();
+  } finally {
+    if (session) await rpc('DELETE', `/session/${session}`).catch(() => {});
+    driver.kill('SIGTERM');
+    catalog.close();
+  }
 }
