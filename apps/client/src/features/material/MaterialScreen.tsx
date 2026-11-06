@@ -276,23 +276,31 @@ export function MaterialScreen() {
     {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
     {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
   </View> : null;
+  const collectionLanguage = <Select label="Material collection language" value={collectionPackageId ?? '*'} size="compact"
+    options={[{ value: '*', label: 'All languages' }, ...packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))]}
+    onValueChange={value => {
+      setAfter(null); setFilter({ kind: 'all', filters: [] }); setCollectionPackageId(value === '*' ? null : value);
+    }} />;
+  const addMaterial = <Button label="Add Material" icon="plus" iconOnly={compact} size="compact"
+    testID="material-add" ref={node => { if (node) triggers.current.set('add', node); else triggers.current.delete('add'); }}
+    disabled={!packageId || !!opening?.pending} onPress={() => {
+      if (returnRequest.current?.location === 'editor') returnRequest.current = null;
+      setReturning(previous => previous?.location === 'editor' ? null : previous);
+      setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add',
+        items: currentItems.current, window: currentWindow.current, returnToOrigin: false });
+    }} />;
   return <AppShell contentInset="none" header={<>
     <Row>
       <ActivityNavigation active="material" packageId={packageId}>
         <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
+        {host.available && compact ? collectionLanguage : null}
       </ActivityNavigation>
     {host.available ? <>
-      <View style={styles.headerSpace} />
+      {!compact ? <View style={styles.headerSpace} /> : null}
       {packages.length > 1 ? <Select label="New Material language" value={packageId} size="compact"
         options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
         onValueChange={setPackageId} /> : null}
-      <Button label="Add Material" testID="material-add" ref={node => { if (node) triggers.current.set('add', node); else triggers.current.delete('add'); }}
-        disabled={!packageId || !!opening?.pending} onPress={() => {
-          if (returnRequest.current?.location === 'editor') returnRequest.current = null;
-          setReturning(previous => previous?.location === 'editor' ? null : previous);
-          setEditor({ key: `manual:${Date.now()}`, content: emptyMaterial(packageId), trigger: 'add',
-            items: currentItems.current, window: currentWindow.current, returnToOrigin: false });
-        }} />
+      {!compact ? addMaterial : null}
     </> : null}
     </Row>
     {host.available ? <Row>
@@ -301,11 +309,7 @@ export function MaterialScreen() {
         onSubmitEditing={() => { setAfter(null); setQuery(search); setReload(value => value + 1); }} /></View>
       <Button label="Search Material" testID="material-search-submit" icon="search" iconOnly size="compact" variant="secondary" disabled={pending}
         onPress={() => { setAfter(null); setQuery(search); setReload(value => value + 1); }} />
-      <Select label="Material collection language" value={collectionPackageId ?? '*'} size="compact"
-        options={[{ value: '*', label: 'All languages' }, ...packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))]}
-        onValueChange={value => {
-          setAfter(null); setFilter({ kind: 'all', filters: [] }); setCollectionPackageId(value === '*' ? null : value);
-        }} />
+      {compact ? addMaterial : collectionLanguage}
     </Row> : null}
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>

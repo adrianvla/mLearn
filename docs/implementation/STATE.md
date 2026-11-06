@@ -75,6 +75,14 @@ Evidence: `messenger-directory-identity`, `knowledge-toolbar-red`,
 `knowledge-toolbar-green`, `collection-controls-refined`, and the
 `knowledge-controls-populated-*` captures.
 
+Material now uses the same compact collection composition: its phone language
+filter sits beside the title and the real Add action shares the search row,
+retaining its editor trigger/focus owner. Its former 210px phone header fails
+the focused 160px containment budget; the repaired header and full native
+draft/cancel/lost-save/retry/origin workflow pass. Typecheck, lint, export and
+source diagnostics pass. Desktop/phone before/after frames were inspected in
+`material-toolbar-red` and `material-toolbar-green`.
+
 ### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.

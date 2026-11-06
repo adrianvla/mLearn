@@ -34,6 +34,15 @@ test('Material item switching retains its draft through cancelled departure and 
       if (saved.status !== 'saved') throw new Error('Expected fresh authored Material');
     }
     await page.goto('/materials');
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.getByRole('button', { name: 'Add Material', exact: true })).toBeInViewport({ ratio: 1 });
+      await expect(page.getByRole('combobox', { name: /^Material collection language:/ })).toBeInViewport({ ratio: 1 });
+      await page.screenshot({ path: info.outputPath(`material-toolbar-${width}.png`) });
+      const header = await page.getByTestId('app-shell-header').boundingBox();
+      if (!header) throw new Error('Material toolbar has no layout bounds');
+      if (width < 700) expect(header.height).toBeLessThanOrEqual(160);
+    }
     await page.setViewportSize({ width: 390, height: 900 });
     await page.getByRole('button', { name: 'View options', exact: true }).click();
     await page.getByRole('combobox', { name: /^Material order:/ }).click();
