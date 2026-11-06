@@ -208,6 +208,8 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await child.click();
     const inspector = page.getByTestId('inspector-panel');
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
+    await expect(inspector.getByRole('button', { name: 'Inspect', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    await expect(inspector.getByText('In text: Children', { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-inspector.png') });
     // Message inspection must retain readable lexical copy over bright content.
     const captionContrast = await inspector.getByText('Children walked home.', { exact: true }).evaluate(caption => {
@@ -354,6 +356,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await darkAnalysis.click();
     await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
+    await expect(inspector.getByText('In text: Children', { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-dark-inspector.png') });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(inspector).toBeInViewport({ ratio: 1 });

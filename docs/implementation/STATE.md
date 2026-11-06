@@ -4,6 +4,26 @@
 
 ### Workload-specific execution resumed
 
+After explicit approval, the 24 checkpoints through `ef2b73b8` were pushed
+normally to `agent/m10-m11`; PR #45 remains OPEN/draft. Exact-source foundation
+`42305664227`, mobile `42305664249` and desktop `42305664341` CI were subscribed.
+Desktop built/launched, then failed waiting for removed SDK success copy;
+the real failure frame shows the installed execution action enabled. The
+assertion repair and full native rerun remain separate from the visual result.
+
+While CI runs, the edited Reader image exposed a shared Inspector fidelity
+regression: a different selected word form was hidden behind Inspect. The
+source-form condition now preserves that primary context by default while
+still omitting an identical form. Actual native `Children -> child` before/
+after frames cover both themes at 1080/390, including touch emulation; all
+were inspected and contained. The owner regression fails before and all six
+cases pass after; typecheck, ownership lint, export and the real native-backed
+Messenger continuity case pass. Captures are `source-form-before-*`,
+`source-form-after-*` and `source-form-messenger-final` under the existing
+experience evidence directory. Source/Knowledge/capture identity, commands
+and persistence are unchanged. This is not acceptance or current native-device
+certification; the downloaded macOS binary remains source-bound to `ef2b73b8`.
+
 Annotation continuation from `687e369d`: current Reader/Watch replays of the
 retained genuine Japanese batches pass eight cases across both themes and
 1080/393 widths. Readings, ranks, caption flow and vocabulary-edge stars were

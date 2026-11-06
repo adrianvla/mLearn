@@ -349,7 +349,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     setExpandedCapability(evidenceCapability); setEvidenceCapability(null);
                     requestAnimationFrame(() => evidenceTrigger.current?.focus());
                 }} /> : entry ? <>
-                {history.length || showDetails && inspection.sourceForm !== entry.headword ? (
+                {history.length || inspection.sourceForm !== entry.headword ? (
                     <Text tone="media" muted variant="caption" selectable>{history.length ? 'Source selection' : 'In text'}: {inspection.sourceForm}</Text>
                 ) : null}
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>

@@ -174,6 +174,10 @@ test('Inspector graph navigation keeps source identity separate from active targ
           await page.addScriptTag({ content: script.text });
           await page.evaluate(scenario => Reflect.get(window, 'mount')(scenario), scenario);
           await expect(page.getByRole('heading')).toHaveText('headword alternative');
+          if (scenario === 'identity') {
+            await expect(page.getByRole('button', { name: 'Inspect', exact: true })).toHaveAttribute('aria-expanded', 'false');
+            await expect(page.getByText('In text: original phrase', { exact: true })).toBeVisible();
+          }
           await page.getByRole('button', { name: 'Inspect', exact: true }).click();
           await page.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
 
