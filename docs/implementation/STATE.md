@@ -83,6 +83,17 @@ draft/cancel/lost-save/retry/origin workflow pass. Typecheck, lint, export and
 source diagnostics pass. Desktop/phone before/after frames were inspected in
 `material-toolbar-red` and `material-toolbar-green`.
 
+Home's recorded pseudo-preview discrepancy is repaired at SourceRow: the
+140x72 empty icon frame is removed, leaving actual source title/language and
+available progress dominant. Empty document/video entry uses compact actions;
+the superseded unused Button sourcePreview role is deleted. The native source
+metadata layout regression failed before repair. Four focused continuation,
+empty-host and image-import cases pass, followed by a final native continuation
+case after style removal. Typecheck/lint/export pass; desktop/phone final frames
+in `home-source-final` were inspected. Watch's three native-analysis layout cases
+also pass and their current desktop/narrow/phone overlays were inspected in
+`watch-controls-integrated`; this does not claim media decoding from that fixture.
+
 The integrated native Inspector graph case passes: real capture and claims,
 cancelled/late graph receipts, related-target/source return, focus restoration
 and host restart all retain the original source and distinct Knowledge owners.

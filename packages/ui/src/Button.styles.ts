@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import type {} from '@mlearn/theme/runtime';
 import type { ResolvedTheme } from '@mlearn/theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'mediaClose' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'sourcePreview' | 'dictionary';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'mediaClose' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'dictionary';
 export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'info';
 export type ButtonSize = 'default' | 'compact' | 'row';
 export type ButtonSurface = 'content' | 'media';
@@ -13,7 +13,6 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
   return variant === 'mediaClose' ? theme.media.closeIcon
     : variant === 'pill' || tone === 'warning' ? pills[tone].text
     : (variant === 'navigation' || variant === 'segment') && !selected ? theme.colors.muted
-    : variant === 'sourcePreview' ? theme.colors.muted
     : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
     : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.text : theme.colors.text;
 }
@@ -27,8 +26,8 @@ export default StyleSheet.create(theme => ({
       || variant === 'media' && iconOnly;
     const selectedSurface = selected && (variant === 'quiet' || variant === 'secondary' || variant === 'navigation' || variant === 'segment');
     return {
-      minHeight: variant === 'sourcePreview' ? 160 : size === 'row' ? 72 : 44,
-      width: variant === 'sourcePreview' ? '100%' : variant === 'dictionary' ? 300 : undefined,
+      minHeight: size === 'row' ? 72 : 44,
+      width: variant === 'dictionary' ? 300 : undefined,
       minWidth: variant === 'mediaSelect' ? 56 : variant === 'select' && size !== 'compact' ? 166 : iconOnly || touchLayout || Platform.OS !== 'web' ? 44 : undefined,
       paddingVertical: theme.spacing.small,
       paddingHorizontal: variant === 'dictionary' ? theme.spacing.comfortable : variant === 'disclosure' ? 0 : iconOnly ? theme.spacing.small
@@ -36,14 +35,14 @@ export default StyleSheet.create(theme => ({
       justifyContent: variant === 'navigation' || variant === 'disclosure' ? 'flex-start'
         : variant === 'select' || variant === 'dictionary' ? 'space-between' : 'center',
       alignItems: 'center', alignSelf: variant === 'mediaFloating' ? 'flex-start' : undefined,
-      flexDirection: variant === 'sourcePreview' ? 'column' : 'row', gap: theme.spacing.small, maxWidth: '100%',
+      flexDirection: 'row', gap: theme.spacing.small, maxWidth: '100%',
       borderRadius: variant === 'preview' ? 999 : variant === 'pill' ? theme.radius + 4 : theme.radius,
       borderWidth: borderless ? 0 : 1,
       borderColor: tone === 'warning' ? pills.warning.top : variant === 'navigation' && !selected ? 'transparent'
         : variant === 'preview' ? theme.controls.outline
         : variant === 'primary' ? theme.colors.accent : variant === 'media' || variant === 'mediaFloating' ? theme.media.border : theme.colors.border,
       backgroundColor: tone === 'warning' ? pills.warning.surface : selected && variant === 'navigation' && size === 'row' ? theme.surfaces.secondary : selectedSurface ? theme.controls.selected
-        : variant === 'preview' || variant === 'sourcePreview' ? theme.surfaces.glass
+        : variant === 'preview' ? theme.surfaces.glass
         : variant === 'select' || variant === 'secondary' ? theme.controls.field
         : transparent ? 'transparent' : variant === 'pill' ? pills[tone].surface
         : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}1F`
@@ -65,13 +64,12 @@ export default StyleSheet.create(theme => ({
         ...(variant === 'mediaSync' || variant === 'mediaClose' ? { minHeight: touchLayout ? 44 : 40,
           minWidth: iconOnly || variant === 'mediaClose' ? touchLayout ? 44 : 40 : 100 * theme.textScale,
           paddingVertical: 5, paddingHorizontal: 5 } : {}),
-        ...(variant === 'sourcePreview' ? { minHeight: 160, boxShadow: `inset 0 0 0 1px ${theme.colors.border}` } : {}),
       },
     };
   },
   label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, surface: ButtonSurface) => ({
     ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
-      : variant === 'navigation' ? 'navigation' : variant === 'select' || variant === 'sourcePreview' ? 'caption'
+      : variant === 'navigation' ? 'navigation' : variant === 'select' ? 'caption'
       : variant === 'pill' ? size === 'compact' ? 'compactPill' : 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
       : size === 'default' ? 'action' : 'compactAction'],
     flexShrink: 1, ...(variant === 'dictionary' ? { flex: 1, minWidth: 0 } : {}),
@@ -87,7 +85,6 @@ export default StyleSheet.create(theme => ({
   hover: (variant: ButtonVariant, tone: ButtonTone, surface: ButtonSurface) => ({
     backgroundColor: tone === 'warning' ? (surface === 'media' ? theme.media.pills : theme.pills).warning.top : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
       : variant === 'pill' ? (surface === 'media' ? theme.media.pills : theme.pills)[tone].top
-      : variant === 'sourcePreview' ? theme.surfaces.secondary
       : variant === 'mediaFloating' ? theme.media.border
       : variant === 'mediaSync' || variant === 'mediaClose' ? theme.media.actionHover
       : variant === 'media' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,

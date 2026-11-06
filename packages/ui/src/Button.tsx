@@ -28,7 +28,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
   const selected = state.selected === true;
   const row = variant === 'navigation' && size === 'row';
   const name = props.accessibilityLabel ?? label;
-  const iconSize = row ? 40 : variant === 'sourcePreview' ? 32 : variant === 'mediaSync' || variant === 'mediaClose' ? 20 : variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
+  const iconSize = row ? 40 : variant === 'mediaSync' || variant === 'mediaClose' ? 20 : variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
   return (
     <Pressable {...props}
       {...(Platform.OS === 'web' && accessibilityRole === 'button' ? { 'aria-pressed': state.selected } : {})}
@@ -52,7 +52,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
         {description ? <Text numberOfLines={1} style={styles.rowDetail}>{description}</Text> : null}
         {detail ? <Text numberOfLines={1} style={styles.rowDetail}>{detail}</Text> : null}
       </View> : <>
-        {!iconOnly ? <Text numberOfLines={variant === 'dictionary' || variant === 'sourcePreview' || variant === 'select' || variant === 'mediaSelect' ? 1 : undefined} style={styles.label(variant, size, tone, selected, surface)}>{selected && variant !== 'navigation' && variant !== 'segment' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
+        {!iconOnly ? <Text numberOfLines={variant === 'dictionary' || variant === 'select' || variant === 'mediaSelect' ? 1 : undefined} style={styles.label(variant, size, tone, selected, surface)}>{selected && variant !== 'navigation' && variant !== 'segment' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
         {detail ? <Text numberOfLines={1} style={styles.detail}>{detail}</Text> : null}
       </>}
       {icon && iconPosition === 'trailing' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected, surface)} /> : null}

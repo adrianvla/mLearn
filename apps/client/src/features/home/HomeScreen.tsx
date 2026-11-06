@@ -147,14 +147,14 @@ export function HomeScreen() {
           <ActivityCard title="Read" icon="book" onPress={openRead} disabled={busy || !selected}>
             {documents[0] ? documentRow(documents[0]) : null}
             <Button testID="home-open-read" label="Open document" icon="book"
-              variant={documents.length ? 'quiet' : 'sourcePreview'} disabled={busy || !selected} onPress={openRead} />
+              variant="quiet" size="compact" disabled={busy || !selected} onPress={openRead} />
           </ActivityCard>
         </View>
         <View style={styles.activity(columns)}>
           <ActivityCard title="Watch" icon="video" onPress={openWatch} disabled={busy || !selected}>
             {sources[0] ? videoRow(sources[0]) : null}
             <Button testID="home-open-watch" label="Open video" icon="video"
-              variant={sources.length ? 'quiet' : 'sourcePreview'} disabled={busy || !selected} onPress={openWatch} />
+              variant="quiet" size="compact" disabled={busy || !selected} onPress={openWatch} />
           </ActivityCard>
         </View>
         <View style={styles.activity(columns)}>

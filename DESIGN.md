@@ -51,6 +51,12 @@ The field retains its palette, type role, focus/input behavior and parent
 scroll owner. Knowledge, Material, Messenger and Settings receive the change
 through TextField rather than feature-local sizing.
 
+Layout: Home source continuations prioritize their actual title, language and
+available progress. A small source-type icon must not sit in an empty framed
+thumbnail. Document/video entry uses compact actions rather than tall empty
+preview tiles when no source pixels exist. The shared SourceRow owns this
+treatment for both document and video history.
+
 ## Active correction — maintainer rejection of a726010
 
 The maintainer rejected the sidebar-and-recents workspace introduced by
