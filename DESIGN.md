@@ -82,6 +82,11 @@ records belong in their relevant detail view. A dialog description is optional,
 not a required paragraph. Empty Home exposes its package action directly;
 star-display choices describe their effect without explanatory prose.
 
+Colored linguistic labels retain their package hue on an opaque dark tint
+with lightened ink. The shared Badge owns this material on both content and
+media surfaces; raw package colors are metadata, not certified text contrast.
+Neutral and reading badges retain their existing roles.
+
 Layout: Knowledge grid entries use the existing entry-title role, centered
 inside a full-tile inspection target. Pronunciation and difficulty remain
 attached to the word rather than expanding to the tile width. Selection is a

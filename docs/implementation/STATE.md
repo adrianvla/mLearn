@@ -4,6 +4,23 @@
 
 ### Workload-specific execution resumed
 
+Annotation continuation from `687e369d`: current Reader/Watch replays of the
+retained genuine Japanese batches pass eight cases across both themes and
+1080/393 widths. Readings, ranks, caption flow and vocabulary-edge stars were
+inspected. The captures exposed a real shared Badge defect: raw package ink
+over a translucent same-hue tint produced 1.98:1 and 2.11:1 level-label contrast
+on light content. Shared colored metadata now owns an opaque dark hue surface
+and lightened same-hue ink. Neutral/reading badges and native metadata are
+unchanged. A real-component contrast test fails before repair and passes for
+valid hue extremes on content/media in both themes; typecheck/lint/export and
+four genuine-data vocabulary replays with Axe contrast checks pass. Final
+desktop/phone frames were inspected in `package-label-contrast-final`.
+The initial dark phone frame missed the heading; explicit heading containment
+and contrast observation produced a complete inspected frame in
+`package-label-dark-header`, without an application workaround.
+This is presentation evidence over captured native data, not native decoding,
+current native GUI, mobile-device or inference-quality certification.
+
 Inspector continuation from `d4e506ca`: ordinary chevron buttons exposing
 expanded state now default to trailing affordances through shared Button;
 explicit icon positions and ordinary directional actions retain their contract.
