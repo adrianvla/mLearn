@@ -23,8 +23,8 @@ async function readerOptions(page: Page) {
   return dialog;
 }
 
-async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false, withSenses = false, theme = initialTheme) {
-  await page.addInitScript(({ theme, orientation, pdf, withSenses }) => {
+async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false, withSenses = false, theme = initialTheme, status = 'untracked') {
+  await page.addInitScript(({ theme, orientation, pdf, withSenses, status }) => {
     const source: DocumentWindow = {
       source: { id: 'scan-book', title: 'Original image collection', documentPath: '/owned/collection.images',
         format: pdf ? 'pdf' : 'images', contentRevision: 'original-pixels', parserRevision: 'images-1', packageId: 'package', packageVersion: '1',
@@ -346,7 +346,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
                 resourceId: original.resourceId, ocrRevision: original.ocrRevision, packageId: 'package', packageVersion: '1',
                 packageRevision: 'a'.repeat(64), regions, knowledge: [],
                 annotations: regions.flatMap(region => region.tokens.filter(token => token.targets.length)
-                  .map(token => ({ regionId: region.regionId, tokenStart: token.start, status: 'untracked' }))) } });
+                  .map(token => ({ regionId: region.regionId, tokenStart: token.start, status }))) } });
             }
             case 'inspect_target': return JSON.stringify({ type: 'entry', packageVersion: '1', packageRevision: 'a'.repeat(64),
               entry: { targetId: 'line-0', headword: '東京', reading: 'とうきょう', partOfSpeech: 'noun', definition: 'Tokyo',
@@ -414,7 +414,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
         },
       },
     });
-  }, { theme, orientation, pdf, withSenses });
+  }, { theme, orientation, pdf, withSenses, status });
   await page.goto(home ? '/' : '/reader?id=scan-book');
   if (home) {
     await page.getByRole('button', { name: 'Open document', exact: true }).click();
@@ -427,7 +427,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     return;
   }
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: orientation ? '日本語: untracked' : '東京: untracked', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: `${orientation ? '日本語' : '東京'}: ${status.replaceAll('_', ' ')}`, exact: true })).toBeVisible();
 }
 
 for (const width of [1500, 1080, 393]) {
@@ -496,6 +496,22 @@ test(`Reader chrome preserves the dark reference materials at ${width}px`, async
   expect(frame.height).toBeLessThanOrEqual(width < 700 ? 112 : 52);
   await page.screenshot({ path: info.outputPath(`reader-dark-chrome-${width}.png`) });
 });
+}
+
+for (const width of [1080, 390]) {
+for (const status of ['claimed_known', 'claimed_unknown']) {
+test(`original image hit areas preserve publisher pixels for ${status} at ${width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page, false, null, false, false, initialTheme, status);
+  const word = page.locator('[data-ocr-region="line-0"]').getByRole('button');
+  await expect(word).toHaveAccessibleName(`東京: ${status.replaceAll('_', ' ')}`);
+  await page.screenshot({ path: testInfo.outputPath('original-image-annotation.png') });
+  // Transparent descendants alone do not suppress a button's own underline.
+  await expect(word).toHaveCSS('color', 'rgba(0, 0, 0, 0)');
+  await word.click();
+  await expect(page.getByTestId('inspector-panel')).toBeVisible();
+});
+}
 }
 
 for (const width of [1080, 390]) {

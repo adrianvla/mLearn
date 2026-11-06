@@ -52,6 +52,15 @@ Inline annotation corrections, remaining surface comparisons, broader theme
 and native-host verification and independent review remain open. No merge,
 release or maintainer acceptance is claimed.
 
+Original-image annotation follow-up: the image hit area's button still painted
+Knowledge underlines although its OCR text children were transparent. The shared
+DocumentWord now makes both normal and known foregrounds transparent for hidden
+image text; accessibility, hit geometry, source selection and Inspector remain
+active. Four status/width regressions failed before the repair. Ten focused
+image/readings/vertical/Inspector cases pass afterward, with typecheck, lint,
+export and source diagnostics clean. Before/after captures in
+`image-annotation-red` and `image-annotation-green` were inspected at both widths.
+
 ### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.
