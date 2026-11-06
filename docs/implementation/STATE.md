@@ -94,6 +94,18 @@ in `home-source-final` were inspected. Watch's three native-analysis layout case
 also pass and their current desktop/narrow/phone overlays were inspected in
 `watch-controls-integrated`; this does not claim media decoding from that fixture.
 
+Integrated regression receipt: the repository's complete tooling/client test
+selection ran serially with 256 MiB Node heaps: 91 tooling and 224 client tests
+pass, zero failures/skips (15.5s and 16.2s). The final Home native case also
+passes with both persisted built-in themes at desktop/phone widths; all four
+frames are under `home-source-themes`, with dark frames inspected directly.
+All owned metadata hosts, browsers, preview servers and QA backends are closed.
+Final physical footprint is 1281594288 bytes, RSS 1400487936, pressure normal,
+available memory 5097684992 bytes and swap unchanged at 505282560. Disk has
+6.7 GiB free. No user processes, profiles or compiled artifacts were removed.
+Fresh consuming native builds and the broader CI/platform gates remain deferred;
+these browser/native-core results do not certify native window/media/device UI.
+
 The integrated native Inspector graph case passes: real capture and claims,
 cancelled/late graph receipts, related-target/source return, focus restoration
 and host restart all retain the original source and distinct Knowledge owners.

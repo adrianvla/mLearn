@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { resolve } from 'node:path';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
+import { builtInThemes } from '../../packages/theme/src/theme';
 
 test('Home continuation gives real source metadata priority over placeholder geometry', async ({ page }, info) => {
   const backend = await startRuntimeBrowserQa({ profile: info.outputPath('native-profile') });
@@ -14,18 +15,21 @@ test('Home continuation gives real source metadata priority over placeholder geo
     await page.getByRole('button', { name: /^Install .*English/ }).click();
     await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/graph-navigation.txt'), 'org.mlearn.english');
-    await page.goto('/');
-    for (const width of [1080, 390]) {
-      await page.setViewportSize({ width, height: 844 });
-      const source = page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true });
-      await expect(source).toBeVisible();
-      await page.screenshot({ path: info.outputPath(`home-source-${width}.png`) });
-      const row = await source.boundingBox();
-      const title = await source.getByText(document.source.title, { exact: true }).boundingBox();
-      if (!row || !title) throw new Error('Source continuation has no metadata bounds');
-      expect(row.height).toBeGreaterThanOrEqual(44);
-      expect(title.width).toBeGreaterThan(row.width * 0.65);
-      expect(row.x + row.width).toBeLessThanOrEqual(width);
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      await page.goto('/');
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        const source = page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true });
+        await expect(source).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`home-source-${theme.id}-${width}.png`) });
+        const row = await source.boundingBox();
+        const title = await source.getByText(document.source.title, { exact: true }).boundingBox();
+        if (!row || !title) throw new Error('Source continuation has no metadata bounds');
+        expect(row.height).toBeGreaterThanOrEqual(44);
+        expect(title.width).toBeGreaterThan(row.width * 0.65);
+        expect(row.x + row.width).toBeLessThanOrEqual(width);
+      }
     }
     await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/reader\\?id=${document.source.id}`));
