@@ -294,7 +294,6 @@ export function MaterialScreen() {
     <Row>
       <ActivityNavigation active="material" packageId={packageId}>
         <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
-        {host.available && compact ? collectionLanguage : null}
       </ActivityNavigation>
     {host.available ? <>
       {!compact ? <View style={styles.headerSpace} /> : null}
@@ -316,6 +315,7 @@ export function MaterialScreen() {
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.collectionTools}>
       <Row>
+      {compact ? collectionLanguage : null}
       {compact ? <Button label="View options" variant="quiet" size="compact"
         icon={viewOptions ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded: viewOptions }}
         onPress={() => setViewOptions(value => !value)} /> : null}

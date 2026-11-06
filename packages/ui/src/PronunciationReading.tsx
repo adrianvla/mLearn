@@ -4,7 +4,7 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { PronunciationContour } from '@mlearn/contracts';
 
-type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'pronunciationPill' | 'compactPill' | 'subtitle' | 'body' | 'listTitle';
+type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'pronunciationPill' | 'compactPill' | 'subtitle' | 'body' | 'listTitle' | 'entryTitle';
 
 /** Draw package-supplied display heights; no linguistic categories are interpreted. */
 export function PronunciationReading({ contour, variant = 'inspectionReading', pill = false, color, compact = false }: {
@@ -17,7 +17,7 @@ export function PronunciationReading({ contour, variant = 'inspectionReading', p
     const last = contour.units[contour.units.length - 1];
     const textVariant = pill ? compact ? 'compactPill' : 'pronunciationPill' : variant;
     const { theme } = useUnistyles();
-    const foreground = color ?? (variant === 'body' || variant === 'listTitle' ? theme.colors.text : variant === 'bodyRuby' ? theme.colors.muted
+    const foreground = color ?? (variant === 'body' || variant === 'listTitle' || variant === 'entryTitle' ? theme.colors.text : variant === 'bodyRuby' ? theme.colors.muted
         : variant === 'subtitle' ? theme.media.text : theme.media.muted);
     return <View testID="pronunciation-reading" style={styles.word(pill, compact)} accessible
         accessibilityLabel={`${contour.reading}. ${contour.label}. ${contour.attribution}`}>

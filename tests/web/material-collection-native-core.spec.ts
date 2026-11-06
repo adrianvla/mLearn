@@ -73,7 +73,7 @@ test('Material collections preserve exact counts and native order through paging
       await expect(page.getByRole('button', { name: `Edit ${material.content.phrase}`, exact: true })).toBeAttached();
     await page.getByRole('button', { name: 'Select items', exact: true }).click();
     await page.getByRole('button', { name: 'Select entry-01', exact: true }).click();
-    await expect(page.getByText(/^1 selected.*frozen selection$/)).toBeVisible();
+    await expect(page.getByText('1 selected', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Next Material page', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Edit entry-00', exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Add Material', exact: true }).click();
@@ -96,7 +96,7 @@ test('Material collections preserve exact counts and native order through paging
     expect(JSON.parse((await releaseResponse.json()).value)).toMatchObject({
       type: 'collection_selection_released', id: previousId,
     });
-    await expect(page.getByText(/^2 selected.*frozen selection$/)).toBeVisible();
+    await expect(page.getByText('2 selected', { exact: true })).toBeVisible();
     const selections = await client.collectionSelections();
     expect(selections).toHaveLength(1);
     const frozen = await client.collectionSelectionPage(selections[0].id);
@@ -125,7 +125,8 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Retain the originating collection page.');
     await page.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect(page.getByTestId('material-result')).toContainText('Saved Material');
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
     const resumed = page.waitForResponse(response => {
       if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
       const request = JSON.parse(response.request().postDataJSON().args.request);
@@ -193,7 +194,7 @@ test('Material collections preserve exact counts and native order through paging
     await expect(page.getByRole('button', { name: 'First Material page', exact: true })).toBeEnabled();
     await expect(origin).toBeFocused();
     await expect(search).toHaveValue('Unsubmitted collection query');
-    await expect(page.getByText(/^2 selected.*frozen selection$/)).toBeVisible();
+    await expect(page.getByText('2 selected', { exact: true })).toBeVisible();
     expect(await client.collectionSelectionPage(selections[0].id)).toEqual(frozen);
     expect(await scroller.evaluate(node => node.scrollTop)).toBe(scroll);
     await page.screenshot({ path: info.outputPath('material-origin-after-save-refocus-1080.png') });

@@ -4,6 +4,7 @@ import type { CollectionQuery } from '@mlearn/contracts';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 import { builtInThemes } from '../../packages/theme/src/theme';
+import { selectionAction } from './collection-actions';
 
 test('frozen collection Practice survives live filter changes, lost receipts, restart and explicit Stop', async ({ page }, info) => {
   test.setTimeout(300_000);
@@ -64,6 +65,7 @@ test('frozen collection Practice survives live filter changes, lost receipts, re
       await page.goto(`/knowledge?packageId=${packageId}`);
       await page.reload();
       await page.getByRole('button', { name: 'Select items', exact: true }).click();
+      await selectionAction(page, 'Saved selections');
       await page.getByRole('combobox', { name: /^Retained selection:/ }).click();
       const retainedIndex = (await client.collectionSelections()).findIndex(value => value.id === selection.id) + 1;
       await page.getByRole('option', { name: new RegExp(`^${retainedIndex}: ${selection.targetCount} items`) }).click();

@@ -181,7 +181,6 @@ export function KnowledgeScreen() {
   return <AppShell contentInset="none" header={<>
     <ActivityNavigation active="knowledge" packageId={packageId}>
       <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
-      {compact ? languageControl : null}
     </ActivityNavigation>
     <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
       onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
@@ -192,6 +191,7 @@ export function KnowledgeScreen() {
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.viewOptions}>
       <Row>
+      {compact ? languageControl : null}
       {compact ? <Button label="View options" variant="quiet" size="compact"
         icon={viewOptions ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded: viewOptions }}
         onPress={() => setViewOptions(value => !value)} /> : null}
@@ -223,7 +223,7 @@ export function KnowledgeScreen() {
       <View style={styles.results} accessibilityLiveRegion="polite">
         <View style={styles.notice}><View style={styles.summary}>
           {page ? <Text variant="caption">{page.count} entries</Text> : null}
-          <View style={styles.selection}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
+          <View style={styles.selection(selection.enabled)}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
           ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
           onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
         </View></View>
@@ -281,8 +281,9 @@ export function KnowledgeScreen() {
               && value.key.capability === description?.annotationCapability);
             return <View key={target.summary.targetId} testID={`knowledge-target-${target.summary.targetId}`}
               style={layout === 'grid' ? styles.gridEntry : styles.entry(compact)}>
-              <View style={styles.word(compact || layout === 'grid')}><LinguisticWord text={target.summary.headword} presentation={target.summary.presentation}
-                activation={{ status: projection?.status ?? 'unavailable', inspectionMode: 'click', onActivate: anchor => {
+              <View style={layout === 'grid' ? styles.gridWord : styles.word(compact)}><LinguisticWord text={target.summary.headword} presentation={target.summary.presentation}
+                variant={layout === 'grid' ? 'entryTitle' : 'listTitle'}
+                activation={{ layout: layout === 'grid' ? 'tile' : 'inline', status: projection?.status ?? 'unavailable', inspectionMode: 'click', onActivate: anchor => {
                   inspectionChanged.current = false;
                   setInspection({
                   sourceForm: target.summary.headword, context: '', targets: [target.summary.targetId],
@@ -302,7 +303,7 @@ export function KnowledgeScreen() {
                 <View style={styles.meaning(compact)}><Text numberOfLines={compact ? 3 : 2}>{target.summary.summary}</Text></View>
                 <View style={styles.level(compact)}><Text variant="caption">{target.levels.map(level => level.level).join(' · ') || '—'}</Text></View>
               </> : null}
-              <View style={styles.knowledge(compact || layout === 'grid')}>
+              {layout === 'list' || selection.enabled ? <View style={layout === 'grid' ? styles.gridSelection : styles.knowledge(compact)}>
                 {selection.enabled ? <Button label="Select" accessibilityLabel={`Select ${target.summary.headword}`}
                   variant="secondary" size="compact" disabled={!selection.canToggle}
                   accessibilityState={{ selected: selection.selected({ kind: 'target', targetId: target.summary.targetId }) }}
@@ -311,7 +312,7 @@ export function KnowledgeScreen() {
                   {compact && capabilityLabel ? <Text variant="caption" muted>{capabilityLabel}</Text> : null}
                   <Badge label={projection?.status.replaceAll('_', ' ') ?? 'Knowledge unavailable'} />
                 </> : null}
-              </View>
+              </View> : null}
             </View>;
           })}
           </View>
@@ -340,14 +341,16 @@ const styles = StyleSheet.create(theme => ({
   hidden: { display: 'none' },
   results: { gap: 0 },
   summary: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.small },
-  selection: { maxWidth: '100%', minWidth: 0, flexShrink: 1 },
+  selection: (enabled: boolean) => ({ width: enabled ? '100%' : undefined, maxWidth: '100%', minWidth: 0, flexShrink: 1 }),
   // The collection page remains the only data window and AppShell owns scrolling.
   // Shared inline controls retain activation, Knowledge color and focus semantics.
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.tiny,
     paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small },
-  gridEntry: { width: 96, maxWidth: '100%', minWidth: 0, padding: theme.spacing.small,
+  gridEntry: { width: 96, maxWidth: '100%', minWidth: 0,
     gap: theme.spacing.tiny, borderWidth: 1, borderColor: theme.colors.border,
     borderRadius: theme.radius, backgroundColor: theme.colors.background },
+  gridWord: { minWidth: 0, alignSelf: 'stretch' },
+  gridSelection: { alignItems: 'center', paddingHorizontal: theme.spacing.tiny, paddingBottom: theme.spacing.tiny },
   notice: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact, gap: theme.spacing.small },
   columns: { flexDirection: 'row', paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.compact,
     gap: theme.spacing.compact, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderColor: theme.colors.border },

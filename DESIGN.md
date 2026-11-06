@@ -82,6 +82,19 @@ records belong in their relevant detail view. A dialog description is optional,
 not a required paragraph. Empty Home exposes its package action directly;
 star-display choices describe their effect without explanatory prose.
 
+Layout: Knowledge grid entries use the existing entry-title role, centered
+inside a full-tile inspection target. Pronunciation and difficulty remain
+attached to the word rather than expanding to the tile width. Selection is a
+separate sibling control. The bounded collection and AppShell scroll owner
+remain unchanged; long entries wrap within their tile.
+
+Layout: selection keeps the count, Done and primary bulk action beside the
+collection. Selection actions owns matching, clear, refresh and saved scopes;
+saved scopes open a focused dialog. The same menu owns secondary bulk operations.
+Errors and retry controls remain beside the operation. Phone language scope
+belongs with collection controls, leaving the activity header and destinations
+menu on one row.
+
 ## Active correction — maintainer rejection of a726010
 
 The maintainer rejected the sidebar-and-recents workspace introduced by

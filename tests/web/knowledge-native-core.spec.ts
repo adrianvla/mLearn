@@ -32,14 +32,16 @@ test('Knowledge keeps search and language visible in compact source controls', a
       if (width < 700) expect(bounds.height).toBeLessThanOrEqual(160);
       await expect(search).toHaveValue('unsubmitted draft');
       await page.getByRole('button', { name: 'Select items', exact: true }).click();
+      await page.getByRole('button', { name: 'Selection actions', exact: true }).click();
       for (const name of ['Select all 0 matching', 'Clear selection', 'Refresh selections']) {
-        const control = page.getByRole('button', { name, exact: true });
+        const control = page.getByRole('menuitem', { name, exact: true });
         const bounds = await control.boundingBox();
         if (!bounds) throw new Error(`${name} has no layout bounds`);
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
       }
       await page.screenshot({ path: info.outputPath(`knowledge-selection-${width}.png`) });
+      await page.keyboard.press('Escape');
       await page.getByRole('button', { name: 'Close selection controls', exact: true }).click();
     }
   } finally {
@@ -449,7 +451,9 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.getByRole('button', { name: 'Select items', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Add selected to Material', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Edit selected', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Remove selected', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Selection actions', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Remove selected', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.screenshot({ path: info.outputPath('knowledge-empty-selection-phone.png') });
     await page.setViewportSize({ width: 1080, height: 900 });
     await page.screenshot({ path: info.outputPath('knowledge-empty-selection-desktop.png') });

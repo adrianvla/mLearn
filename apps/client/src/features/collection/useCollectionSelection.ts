@@ -135,7 +135,13 @@ export function useCollectionSelection(
       if (client && !blocked) void submit(client.prepareCollectionSelection({ kind: 'matching', query }));
     },
     choose(id: string) {
-      if (!blocked) { setSelection(retained.find(value => value.id === id) ?? null); setError(''); }
+      // Choosing an existing scope is not another write. After a failed write,
+      // this explicit change of intent must still allow saved-scope recovery.
+      // The native receipt/handle survives; ordinary Retry keeps its command.
+      if (!pending) {
+        setSelection(retained.find(value => value.id === id) ?? null);
+        setAttempt(null); setError('');
+      }
     },
     retry() { if (attempt) void submit(attempt); },
     refresh,

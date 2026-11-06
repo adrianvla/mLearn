@@ -4,6 +4,33 @@
 
 ### Workload-specific execution resumed
 
+Collection continuation from `efbdfa01`: Knowledge grid uses the shared word
+control's full-tile layout and existing entry-title typography. Ruby,
+pronunciation, Knowledge color, word-relative stars, exact Inspector anchors
+and focus return remain shared. Phone language scopes no longer wrap the
+destinations menu. Selection keeps count, language and the primary action
+visible; one menu owns saved scopes and secondary operations. Native selection
+capacity is unchanged. Explicitly choosing a saved scope after a settled failed
+write now replaces only the view's retry intent, allowing capacity recovery.
+Ordinary Retry preserves its exact command and native receipts remain intact.
+Typecheck, ownership lint and serial web export pass. Three focused client
+tests, three selection/bulk native scenarios, compact Knowledge toolbar, and
+four final native scenarios pass: frozen Practice with lost receipt/restart/
+Stop; selection replay/restart; reproduced capacity recovery; and Material
+paging, Save/Discard/Cancel, departure/refocus and failed-window recovery.
+The capacity regression failed before repair. Tile regression mutation fails
+at 26px versus the required 96px target; its owner was restored byte-for-byte.
+Grid captures cover 1080/390 in both themes, exact target activation, focus
+return and separate selection; final native captures were inspected. Evidence
+and pre-run actions are in `.mlearn/experience-20261105/grid-continuation-20261106.md`.
+The original selection frame is `selection-before-compact-phone.png`; final
+frames are `grid-compact-*` and `collection-final-native`. A retained-profile
+failure came from eight capture-owned scopes; their exact handles were
+identified and released without touching Material, evidence or pinned work.
+Capture scripts now clear their own selection after each case. Original theme
+restoration and clean host/browser exit are recorded. Native GUI/device and
+whole-candidate independent review remain open.
+
 The cross-frontend narrative pass removes redundant descriptions/headings,
 routine success prose and repeated metadata across Home, Settings, collections,
 Material, Reader/Watch, Messenger, Review/Word Sync/authoring and Inspector.

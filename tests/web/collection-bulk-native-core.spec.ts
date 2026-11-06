@@ -5,6 +5,7 @@ import { createRuntimeClient } from '@mlearn/runtime-client';
 import type { Material } from '@mlearn/contracts';
 import { emptyMaterial } from '../../apps/client/src/features/material/content';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
+import { selectionAction, expectSelectionReady } from './collection-actions';
 
 test('bulk controls recover a held receipt and preserve revision checks through edit, exclusion and removal', async ({ page }, info) => {
   test.setTimeout(60_000);
@@ -34,9 +35,9 @@ test('bulk controls recover a held receipt and preserve revision checks through 
     }
     await page.goto('/materials');
     await page.getByRole('button', { name: 'Select items', exact: true }).click();
-    const selectAll = page.getByRole('button', { name: 'Select all 3 matching', exact: true });
-    await selectAll.click();
-    await expect(page.getByText(/^3 selected.*frozen selection$/)).toBeVisible();
+    const selectAll = () => selectionAction(page, 'Select all 3 matching');
+    await selectAll();
+    await expect(page.getByText('3 selected', { exact: true })).toBeVisible();
 
     // When: the native edit commits but its start response is held at the wire.
     let forwardedResolve = (_id: string) => {};
@@ -81,7 +82,7 @@ test('bulk controls recover a held receipt and preserve revision checks through 
       expect((await client.material(material.id)).content.notes).toBe('shared authored note');
 
     async function change(action: string) {
-      await page.getByRole('button', { name: action, exact: true }).click();
+      await selectionAction(page, action);
       const returned = page.waitForResponse(response => {
         const payload = response.request().postDataJSON();
         if (typeof payload?.args?.request !== 'string') return false;
@@ -100,19 +101,19 @@ test('bulk controls recover a held receipt and preserve revision checks through 
     expect(stale.failed).toBe(3);
     expect(stale.succeeded).toBe(0);
     for (const material of saved) expect((await client.material(material.id)).excluded).toBe(false);
-    await selectAll.click();
-    await expect(page.getByRole('button', { name: 'Refresh selections', exact: true })).toBeEnabled();
+    await selectAll();
+    await expectSelectionReady(page);
     const excluded = await change('Exclude selected');
     expect(excluded.succeeded).toBe(3);
     await expect(page.getByText('0 of 0 items', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Include excluded', exact: true }).click();
-    await selectAll.click();
-    await expect(page.getByRole('button', { name: 'Refresh selections', exact: true })).toBeEnabled();
+    await selectAll();
+    await expectSelectionReady(page);
     expect((await change('Include selected')).succeeded).toBe(3);
-    await selectAll.click();
-    await expect(page.getByRole('button', { name: 'Refresh selections', exact: true })).toBeEnabled();
-    const remove = page.getByRole('button', { name: 'Remove selected', exact: true });
-    await remove.click();
+    await selectAll();
+    await expectSelectionReady(page);
+    const remove = page.getByRole('button', { name: 'Selection actions', exact: true });
+    await selectionAction(page, 'Remove selected');
     await page.screenshot({ path: info.outputPath('bulk-removal-confirmation-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: info.outputPath('bulk-removal-confirmation-phone.png') });
@@ -124,7 +125,7 @@ test('bulk controls recover a held receipt and preserve revision checks through 
     await expect(page.getByText('0 of 0 items', { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath('bulk-removal-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: 'Refresh bulk results', exact: true }).scrollIntoViewIfNeeded();
+    await page.getByRole('button', { name: 'Selection actions', exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: info.outputPath('bulk-removal-phone.png') });
     for (const material of saved) await expect(client.material(material.id)).rejects.toThrow();
     await backend.crashRestart();
@@ -206,9 +207,10 @@ test('a released retained bulk operation resets the replacement job to its first
     await page.getByRole('button', { name: 'Clear bulk results', exact: true }).click();
     await expect(page.getByTestId(`bulk-status-${second.command.commandId}`)).toHaveCount(0);
     expect(await client.materialBulkJobs()).toEqual([]);
+    await selectionAction(page, 'Saved selections');
     await page.getByRole('combobox', { name: /^Retained selection:/ }).click();
     await page.getByRole('option', { name: '1: 25 items · All languages', exact: true }).click();
-    await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+    await selectionAction(page, 'Clear selection');
     await expect(page.getByText('0 selected', { exact: true })).toBeVisible();
     expect(await client.collectionSelections()).toEqual([]);
     expect((await client.startMaterialBulk(second.command)).resultsAvailable).toBe(false);

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import type {
@@ -8,6 +8,7 @@ import type {
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
+import { Menu } from '@mlearn/ui/menu';
 import { Row, Stack } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
@@ -32,12 +33,15 @@ function label(action: MaterialBulkAction): string {
   }
 }
 
-export function CollectionBulkActions({ client, selection, blocked, surface, onChanged }: {
+export function CollectionBulkActions({ client, selection, blocked, surface, onChanged, leading, additionalActions = [], menuRef }: {
   readonly client: RuntimeClient;
   readonly selection: CollectionSelection | null;
   readonly blocked: boolean;
   readonly surface: 'knowledge' | 'material';
   readonly onChanged: () => void;
+  readonly leading?: ReactNode;
+  readonly additionalActions?: ComponentProps<typeof Menu>['actions'];
+  readonly menuRef?: Ref<View>;
 }) {
   const router = useRouter();
   const [jobs, setJobs] = useState<MaterialBulkStatus[]>([]);
@@ -164,26 +168,33 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
   }
   return <Stack>
     <Row>
+      {leading}
+      <Row wrap={false}>
       {surface === 'knowledge' ? <>
         <Button label="Add selected to Material" variant="secondary" size="compact" disabled={disabled}
           ref={node => { triggers.current.add = node; }} onPress={() => propose({ kind: 'add', distinct })} />
-        <Button label="Create distinct copies" variant="quiet" size="compact" disabled={disabled}
-          accessibilityState={{ selected: distinct }} onPress={() => setDistinct(value => !value)} />
       </> : <>
         <Button label="Edit selected" variant="secondary" size="compact" disabled={disabled}
           ref={node => { triggers.current.edit = node; }} onPress={() => { setReplacement(''); propose({ kind: 'edit', patch: editPatch() }); }} />
-        <Button label="Exclude selected" variant="quiet" size="compact" disabled={disabled}
-          ref={node => { triggers.current.exclude = node; }}
-          onPress={() => propose({ kind: 'exclude', excluded: true })} />
-        <Button label="Include selected" variant="quiet" size="compact" disabled={disabled}
-          ref={node => { triggers.current.include = node; }}
-          onPress={() => propose({ kind: 'exclude', excluded: false })} />
-        <Button label="Remove selected" variant="quiet" size="compact" tone="negative" disabled={disabled}
-          ref={node => { triggers.current.remove = node; }}
-          onPress={() => propose({ kind: 'remove' })} />
       </>}
-      <Button label="Refresh bulk results" variant="quiet" size="compact" disabled={loading}
-        onPress={() => { latestChanged.current(); void load(); }} />
+      <Menu label="Selection actions" icon="more" variant="quiet"
+        ref={node => {
+          triggers.current.exclude = node; triggers.current.include = node; triggers.current.remove = node;
+          if (typeof menuRef === 'function') menuRef(node);
+          else if (menuRef) menuRef.current = node;
+        }}
+        actions={[
+          ...(surface === 'knowledge' ? [{
+            id: 'distinct', label: 'Create distinct copies', disabled, current: distinct, onPress: () => setDistinct(value => !value),
+          }] : [
+            { id: 'exclude', label: 'Exclude selected', disabled, onPress: () => propose({ kind: 'exclude', excluded: true }) },
+            { id: 'include', label: 'Include selected', disabled, onPress: () => propose({ kind: 'exclude', excluded: false }) },
+            { id: 'remove', label: 'Remove selected', disabled, onPress: () => propose({ kind: 'remove' }) },
+          ]),
+          { id: 'refresh', label: 'Refresh bulk results', disabled: loading, onPress: () => { latestChanged.current(); void load(); } },
+          ...additionalActions,
+        ]} />
+      </Row>
     </Row>
     {submission ? <Stack>
       <Text accessibilityLiveRegion="polite">{submission.pending ? `Submitting ${label(submission.command.action)}…` : 'Submission not confirmed.'}</Text>
