@@ -10,6 +10,37 @@ import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runti
 // package installation, language execution, jobs and traces run in real Rust.
 // The external text provider is controlled; native window/media/clipboard are
 // deliberately not claimed by this suite.
+test('Messenger directory search preserves touch targets and compact desktop layout', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({
+    profile: `.mlearn/m03-m07/m07-messenger/search-${randomUUID()}`,
+  });
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/messenger');
+    for (const width of [390, 1080]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const tab of ['Chats', 'People']) {
+        await page.getByRole('button', { name: tab, exact: true }).click();
+        const search = page.getByRole('textbox', {
+          name: tab === 'Chats' ? 'Search conversations and history' : 'Search People', exact: true,
+        });
+        await search.fill('query');
+        await expect(search).toHaveValue('query');
+        const bounds = await search.boundingBox();
+        if (!bounds) throw new Error('Directory search has no layout bounds');
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.height).toBeGreaterThanOrEqual(width < 720 ? 44 : 32);
+        if (width >= 720) expect(bounds.height).toBeLessThan(44);
+        await search.fill('');
+        await page.screenshot({ path: info.outputPath(`directory-search-${tab}-${width}.png`) });
+      }
+    }
+  } finally {
+    await backend.close();
+  }
+});
+
 test('normal Messenger UI consumes actual native content and prepared language on desktop and phone', async ({ page }, info) => {
   test.setTimeout(120_000);
   const holdIdle = process.env.MLEARN_TEST_HOLD_MESSENGER_IDLE === '1';

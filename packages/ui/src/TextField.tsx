@@ -43,7 +43,7 @@ export function TextField({ label, multiline = false, variant = 'default', multi
     inputAccessoryViewID={Platform.OS === 'ios' ? accessory : undefined}
     accessibilityLabel={label} accessibilityLabelledBy={variant === 'default' ? id : undefined}
     placeholderTextColor={theme.colors.muted}
-    style={styles.input(multiline, variant === 'search', variant === 'composer', compact, contentHeight)} />;
+    style={styles.input(multiline, variant === 'search', variant === 'composer', compact, contentHeight, width < 720)} />;
   return <View style={styles.field}>
     {variant === 'search' ? <View style={styles.search}><Icon name="search" size={18} color={theme.colors.muted} />{input}</View>
       : variant === 'composer' ? <View style={styles.composer}>{input}
@@ -59,7 +59,7 @@ const styles = StyleSheet.create((theme) => ({
   composer: { flexDirection: 'row', alignItems: 'flex-end', borderWidth: 1, borderColor: theme.colors.border,
     borderRadius: theme.radius, backgroundColor: theme.surfaces.glass },
   trailing: { padding: theme.spacing.tiny },
-  input: (multiline: boolean, search: boolean, composer: boolean, compact: boolean, height: number | null) => ({ ...theme.typography[search ? 'caption' : 'body'], minWidth: 0, flex: search || composer ? 1 : undefined,
+  input: (multiline: boolean, search: boolean, composer: boolean, compact: boolean, height: number | null, touchLayout: boolean) => ({ ...theme.typography[search ? 'caption' : 'body'], minWidth: 0, flex: search || composer ? 1 : undefined,
     minHeight: multiline && !composer ? compact ? 60 : 180 : 44,
     maxHeight: composer ? 120 : compact ? 200 : undefined, height: (composer || compact) && height !== null ? Math.min(compact ? 200 : 120, height) : undefined,
     borderWidth: search || composer ? 0 : 1, borderColor: theme.colors.border,
@@ -69,5 +69,5 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: search ? 0 : theme.spacing.compact,
     textAlignVertical: multiline ? 'top' : 'center',
     _web: { ...theme.typography[search ? 'caption' : 'body']._web,
-      ...(search ? { minHeight: 32, paddingVertical: theme.spacing.tiny } : {}) } }),
+      ...(search ? { minHeight: touchLayout ? 44 : 32, paddingVertical: theme.spacing.tiny } : {}) } }),
 }));
