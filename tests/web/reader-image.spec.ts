@@ -469,6 +469,10 @@ test(`Reader toolbar stays compact and retains accessible controls at ${width}px
   const options = await readerOptions(page);
   await expect(options.getByRole('combobox', { name: /^Document source language:/ })).toBeVisible();
   if (width < 700) await expect(options.getByRole('button', { name: 'Open document', exact: true })).toBeVisible();
+  await options.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Search source', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Search source', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reader-image-search.png') });
 });
 }
 

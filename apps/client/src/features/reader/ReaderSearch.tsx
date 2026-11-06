@@ -92,8 +92,8 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
         }
     }
     return <Dialog title="Search source" description={scope === 'text'
-        ? 'Exact, case-sensitive search in canonical document text.'
-        : 'Exact, case-sensitive search in saved recognized pages. Search does not run recognition.'}
+        ? 'Case-sensitive.'
+        : 'Case-sensitive. Saved recognition only; does not run OCR.'}
         open={open} onOpenChange={value => {
             setOpen(value);
             if (value) onOpen();
@@ -110,23 +110,24 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
                 {origin ? <Button label="Return to reading position" variant="secondary" disabled={pending || disabled}
                     onPress={() => void locate()} /> : null}
             </Row>
-            {pending ? <Text accessibilityLiveRegion="polite">Searching or navigating…</Text> : null}
+            {pending ? <Text accessibilityLiveRegion="polite">{navigating ? 'Opening…' : 'Searching…'}</Text> : null}
             {status ? <Text accessibilityLiveRegion="polite">{status}</Text> : null}
             {error ? <Text accessibilityRole="alert">{error}</Text> : null}
             {error && retry.current ? <Button label="Retry search" disabled={pending || disabled}
                 onPress={() => { const held = retry.current; if (held) void search(held.text, held.after); }} /> : null}
             {page ? <>
-                <Text variant="caption" muted>{page.scanned} of {page.total} {scope === 'text' ? 'blocks' : 'pages'} scanned
-                    {page.unavailable ? ` · ${page.unavailable} ${scope === 'text'
-                        ? 'blocks without searchable text' : 'pages without available recognition'}` : ''}</Text>
+                {pending && !navigating ? <Text variant="caption" muted>{page.scanned} of {page.total} {scope === 'text' ? 'blocks' : 'pages'} scanned</Text>
+                    : page.hits.length ? <Text variant="caption" muted>{page.hits.length} {page.hits.length === 1 ? 'match' : 'matches'} shown</Text> : null}
+                {page.unavailable ? <Text variant="caption" muted>{page.unavailable} {scope === 'text'
+                    ? 'blocks without searchable text' : 'pages without available recognition'}</Text> : null}
                 {!pending && !page.hits.length && !page.next ? <Text>No matches in available {scope === 'text' ? 'text' : 'recognition'}.</Text> : null}
                 {page.hits.map((hit, index) => <Button key={JSON.stringify([hit.position, index])}
                     label={hit.anchor.text} detail={hit.anchor.locator.kind === 'image'
                         ? `Page ${(hit.anchor.locator.pageIndex ?? 0) + 1}`
-                        : `${hit.position.resource} · byte ${hit.position.offset}`}
+                        : undefined}
                     variant="secondary" disabled={pending || disabled} onPress={() => void locate(hit)} />)}
-                <Button label="More search results" variant="secondary" disabled={pending || disabled || !page.next}
-                    onPress={() => { if (page.next) void search(page.text, page.next); }} />
+                {page.next ? <Button label="More search results" variant="secondary" disabled={pending || disabled}
+                    onPress={() => { if (page.next) void search(page.text, page.next); }} /> : null}
             </> : null}
         </View>
     </Dialog>;

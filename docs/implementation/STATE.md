@@ -4,6 +4,22 @@
 
 ### Workload-specific execution resumed
 
+Reader continuation from `dcf21090`: current compact image/text chrome,
+bounded source previews and phone reflow were inspected against the edited
+Reader hierarchy. Eight selected current-surface/native-search scenarios pass.
+Search now leads with the source excerpt instead of clipped byte-location
+metadata; actual image page numbers, case sensitivity and unavailable-text/
+recognition limits remain. Scan counts appear while searching; progress
+distinguishes searching from opening a result. Exhausted result pages no
+longer leave an unusable More action. Native locators and bounded reads are
+unchanged. Typecheck/lint/export and nine affected cases pass, including all
+six native search/departure cases: Unicode paging, held-result cancellation,
+failed checkpoint recovery, exact source return, retry and native restart.
+Text-result and saved-recognition search frames were inspected at desktop/
+phone widths in `reader-search-concise`; earlier current chrome/theme frames
+remain in `reader-current-candidate`. Native GUI/device acceptance remains
+part of final verification, not inferred from these browser/core results.
+
 Collection continuation from `efbdfa01`: Knowledge grid uses the shared word
 control's full-tile layout and existing entry-title typography. Ruby,
 pronunciation, Knowledge color, word-relative stars, exact Inspector anchors

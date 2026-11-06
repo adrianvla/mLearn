@@ -241,7 +241,7 @@ test('Reader search pages native Unicode matches without loading or dropping the
       await expect(dialog.getByRole('button', { name: new RegExp(`^🌱 東京 passage ${start}$`) })).toBeVisible();
       await expect(dialog.getByRole('button', { name: /^🌱 東京 passage \d+$/ })).toHaveCount(count);
     }
-    await expect(dialog.getByRole('button', { name: 'More search results', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'More search results', exact: true })).toHaveCount(0);
     expect(backend.metadata().providerRequests).toBe(0);
   } finally { await backend.close(); }
 });
@@ -299,7 +299,7 @@ test('stopping a held Reader search rejects its late page and a failed search re
     await expect(dialog.getByRole('button', { name: 'Retry search', exact: true })).toBeVisible();
     await backend.crashRestart();
     await dialog.getByRole('button', { name: 'Retry search', exact: true }).click();
-    await expect(dialog.getByRole('button', { name: 'More search results', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'More search results', exact: true })).toHaveCount(0);
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
