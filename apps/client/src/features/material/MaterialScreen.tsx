@@ -17,7 +17,7 @@ import { MaterialEditor, type MaterialEditorHandle } from './MaterialEditor';
 import { MaterialProposalReview } from './MaterialProposalReview';
 import { emptyMaterial } from './content';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
-import { WorkspaceNavigation } from '../navigation';
+import { ActivityNavigation } from '../navigation';
 
 const orders = [
   { value: 'default', label: 'Default order' },
@@ -276,10 +276,11 @@ export function MaterialScreen() {
     {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
     {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
   </View> : null;
-  return <AppShell contentInset="none" navigationMode="workspace"
-    navigation={<WorkspaceNavigation active="material" packageId={packageId} />} header={<>
+  return <AppShell contentInset="none" header={<>
     <Row>
-      <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
+      <ActivityNavigation active="material" packageId={packageId}>
+        <Text ref={collectionHeading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Material</Text>
+      </ActivityNavigation>
     {host.available ? <>
       <View style={styles.headerSpace} />
       {packages.length > 1 ? <Select label="New Material language" value={packageId} size="compact"

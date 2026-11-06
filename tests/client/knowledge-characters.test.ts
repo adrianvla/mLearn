@@ -160,6 +160,19 @@ test('package kind scopes both bounded pages and selection while grid/list retai
                   export const Button = ({ label, accessibilityLabel, accessibilityState, disabled, onPress }) =>
                     <button aria-label={accessibilityLabel ?? label} aria-pressed={accessibilityState?.selected}
                       disabled={disabled} onClick={onPress}>{label}</button>;
+                  export const SegmentedControl = ({ value, options, onValueChange }) =>
+                    <div>{options.map(option => <button key={option.value}
+                      aria-pressed={value === option.value} onClick={() => onValueChange(option.value)}>
+                      {option.label}</button>)}</div>;
+                  export const Menu = React.forwardRef(({ label, actions, disabled }, ref) => {
+                    const [open, setOpen] = React.useState(false);
+                    return <><button ref={ref} disabled={disabled} aria-haspopup="menu"
+                      aria-expanded={open} onClick={() => setOpen(value => !value)}>{label}</button>
+                      {open ? <div role="menu">{actions.map(action => <button key={action.id} role="menuitem"
+                        aria-label={action.current ? action.label + ', current' : action.label}
+                        disabled={action.disabled}
+                        onClick={() => { setOpen(false); action.onPress(); }}>{action.label}</button>)}</div> : null}</>;
+                  });
                   export const Select = ({ label, options, value, onValueChange }) =>
                     <select aria-label={label} value={value} onChange={e => onValueChange(e.target.value)}>
                       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}

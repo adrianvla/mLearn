@@ -22,6 +22,7 @@ import { MessageActions } from './MessageActions';
 import { messageAnchor, shouldSendComposer } from './messageFlow';
 import { useMessenger } from './useMessenger';
 import { ConversationSource } from './ConversationSource';
+import { conversationPreviewText } from './conversationPreview';
 
 /** Return-to-message hook: /messenger?id=<conversationId>&messageId=<messageId>. */
 export function MessengerScreen() {
@@ -200,8 +201,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
             const preview = messenger.previews.find(item => item.conversationId === value.id);
             return <Button key={value.id} label={value.title}
               description={value.purpose || (value.kind === 'thread' ? 'Temporary Thread' : undefined)}
-              detail={preview ? preview.status === 'complete' ? preview.text
-                : `${preview.status.replaceAll('_', ' ')}${preview.text ? ` · ${preview.text}` : ''}` : undefined}
+              detail={preview ? conversationPreviewText(preview) : undefined}
               meta={preview ? new Date(preview.createdAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : undefined}
               variant="navigation" size="row" accessibilityState={{ selected: messenger.id === value.id }} disabled={messenger.busy}
               onPress={() => select(value.id)} />;

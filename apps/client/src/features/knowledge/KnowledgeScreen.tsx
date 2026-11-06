@@ -13,7 +13,7 @@ import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Inspector, type Inspection } from '../inspector';
 import { LinguisticWord } from '../linguistic';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
-import { WorkspaceNavigation } from '../navigation';
+import { ActivityNavigation } from '../navigation';
 
 export function KnowledgeScreen() {
   const host = useRuntime();
@@ -172,9 +172,10 @@ export function KnowledgeScreen() {
   }
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
-  return <AppShell contentInset="none" navigationMode="workspace"
-    navigation={<WorkspaceNavigation active="knowledge" packageId={packageId} />} header={<>
-    <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
+  return <AppShell contentInset="none" header={<>
+    <ActivityNavigation active="knowledge" packageId={packageId}>
+      <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
+    </ActivityNavigation>
     <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
       onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
       <Button label="Search" icon="search" size="compact" variant="secondary"

@@ -11,7 +11,7 @@ import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { ReviewAudio } from '../review-media';
-import { WorkspaceNavigation } from '../navigation';
+import { ActivityNavigation } from '../navigation';
 import { RatingMatrix } from './RatingMatrix';
 import { useReviewKeys } from './useReviewKeys';
 import { CalibrationSetup } from './CalibrationSetup';
@@ -37,8 +37,9 @@ function practiceScope(mode: ReviewMode): string | null {
 export function ReviewScreen() {
   const host = useRuntime();
   return host.available ? <ReviewWorkspace client={host.client} media={host.authoredMedia} />
-    : <AppShell navigationMode="workspace" navigation={<WorkspaceNavigation active="review" />}
-      header={<Text variant="heading" accessibilityRole="header">Review</Text>}>
+    : <AppShell header={<ActivityNavigation active="review">
+      <Text variant="heading" accessibilityRole="header">Review</Text>
+    </ActivityNavigation>}>
       <Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
 }
 
@@ -391,15 +392,16 @@ function ReviewWorkspace({ client, media }: {
       </View>;
     })}
   </Stack> : null;
-  return <AppShell {...(!session && !requestedSession ? {
-    navigationMode: 'workspace' as const,
-    navigation: <WorkspaceNavigation active="review" {...(packageId ? { packageId } : {})} />,
-  } : {})} header={<Row>
-    {session || requestedSession ? <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
-      onPress={() => router.dismissTo('/')} />
-      : calibrationSetup || authoringSetup ? <Button label="Back to Review" variant="quiet" disabled={blocked}
-        onPress={() => router.setParams({ activity: '', materialId: '' })} /> : null}
-    <Text variant="heading" accessibilityRole="header">{purpose}</Text>
+  return <AppShell header={<Row>
+    {session || requestedSession ? <>
+      <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
+        onPress={() => router.dismissTo('/')} />
+      <Text variant="heading" accessibilityRole="header">{purpose}</Text>
+    </> : <ActivityNavigation active="review" {...(packageId ? { packageId } : {})}>
+      <Text variant="heading" accessibilityRole="header">{purpose}</Text>
+    </ActivityNavigation>}
+    {!session && !requestedSession && (calibrationSetup || authoringSetup) ? <Button label="Back to Review" variant="quiet" disabled={blocked}
+      onPress={() => router.setParams({ activity: '', materialId: '' })} /> : null}
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} ${selectedScope ? 'completed' : 'reviewed'}` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>

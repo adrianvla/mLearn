@@ -21,7 +21,8 @@ export const Menu = forwardRef<View, {
   readonly icon: IconName;
   readonly actions: readonly Action[];
   readonly disabled?: boolean;
-}>(function Menu({ label, icon, actions, disabled = false }, ref) {
+  readonly variant?: 'media' | 'quiet';
+}>(function Menu({ label, icon, actions, disabled = false, variant = 'media' }, ref) {
   const { theme } = useUnistyles();
   const { width, height } = useWindowDimensions();
   const safeArea = useSafeAreaInsets();
@@ -47,7 +48,7 @@ export const Menu = forwardRef<View, {
   }, []);
   return <Primitive.Root onOpenChange={open => { if (open) chosen.current = false; }}>
     <Primitive.Trigger asChild disabled={disabled}>
-      <Button ref={triggerRef} label={label} icon={icon} iconOnly variant="media" size="compact" disabled={disabled} />
+      <Button ref={triggerRef} label={label} icon={icon} iconOnly variant={variant} size="compact" disabled={disabled} />
     </Primitive.Trigger>
     <Primitive.Portal container={portal ?? undefined}>
       <Primitive.Overlay style={styles.overlay}>

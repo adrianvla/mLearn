@@ -1,1 +1,1 @@
-export { WorkspaceNavigation } from './WorkspaceNavigation';
+export { ActivityNavigation } from './ActivityNavigation';
