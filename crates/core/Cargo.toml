@@ -11,5 +11,6 @@ typescript = ["dep:ts-rs"]
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 ts-rs = { version = "11", optional = true, features = ["serde-json-impl"] }

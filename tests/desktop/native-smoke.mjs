@@ -46,7 +46,7 @@ async function closeInspector() {
         const current=document.querySelector('[data-testid="inspector-panel"]');
         if(current!==panel){if(panel)resize.unobserve(panel);panel=current;if(panel)resize.observe(panel);}
         const button=panel?.querySelector('[aria-label="Close Inspector"]');
-        if(!button||!panel.querySelector('[aria-label="Dictionary source"]'))return;
+        if(!button||!panel.querySelector('[aria-label="Inspect"][aria-disabled="false"]'))return;
         const r=button.getBoundingClientRect();
         const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
         if(r.width&&r.height&&hit?.closest('[aria-label="Close Inspector"]')===button)
@@ -180,13 +180,13 @@ try {
   await click('Select theme: Quartz');
   await observeSourceView('!!document.querySelector(\'[data-testid="runtime-message"]\')');
   await click('Dark Quartz');
-  await observedSourceView('Saved theme feedback must be visible after the native acknowledgement');
+  await observedSourceView('Saved theme appearance must be visible after the native acknowledgement');
   await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
   await launch();
   await click('Appearance');
-  await text('Current: Dark Quartz.');
+  await text('Dark Quartz');
   await assertStyled('restarted-dark-quartz', 'rgb(240, 240, 240)');
   await click('Runtime');
   await click('Run hello');
@@ -245,7 +245,7 @@ try {
   async function resumeWatch() {
     // At 2x, recents can sit below the viewport during a route return.
     // Use the shared scroll/hit-target readiness before real WebDriver input.
-    await click('Resume watch-fixture.mp4');
+    await click('Continue watch-fixture.mp4');
   }
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.english'})).type,'installed');
   const fixture=path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.mp4');
@@ -356,6 +356,7 @@ try {
   assert.ok(liveCards.length > 0 && liveCards.length <= 6, JSON.stringify(liveCards));
   assert.ok(liveCards.every(card=>card.width > 0));
   await click(liveCards[0].label);
+  await click('Inspect');
   await text('Dictionary source');
   await closeInspector();
   await observeSourceView('document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")==="false"');
@@ -428,14 +429,26 @@ try {
         script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
       }),true,'Preference must reach the actual native owner before cancellation');
       await click('Close');
-      if (leave === 'cancel') {
-        await click('Cancel opening');
-      } else {
+      if (leave === 'blur') {
+        // A busy preference must not lose its checkpoint owner to browser Back.
+        // Observe the restored cursor, not a timing-dependent DOM snapshot.
+        await script(`const gate=window.__m02Preference,before=location.href;
+          gate.back=new Promise(resolve=>{
+            const restored=()=>{if(location.href===before){gate.stopBack();resolve(true);}};
+            gate.stopBack=()=>window.removeEventListener('popstate',restored);
+            window.addEventListener('popstate',restored);
+          });return true;`);
         await rpc('POST',`/session/${session}/back`,{});
-        await text('Recent sources');
+        assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+          script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.back.then(value=>{clearTimeout(timer);done(value);});',args:[],
+        }),true,'Pending source work must retain Watch and restore its browser cursor');
       }
+      await observeSourceView(`!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.getBoundingClientRect().width>0`);
+      await click('Cancel source update');
+      await observedSourceView('Explicit cancellation must replace the pending source lifetime before its late receipt');
+      // Admitted writes still own their serial receipt; cancellation does not
+      // discard a committed preference to let a later read overtake it.
       await script('window.__m02Preference.release();return true;');
-      if (leave === 'blur') await resumeWatch();
       // Observe the real replacement-source receipt instead of racing a raw
       // recent_sources request against the client's action and display lanes.
       const resumed=await rpc('POST',`/session/${session}/execute/async`,{
@@ -443,8 +456,13 @@ try {
       });
       assert.ok(resumed,'The resumed source must remain persisted');
       assert.equal(resumed.subtitleOffsetMs,offset);
-      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&!document.querySelector('[aria-label="Cancel source update"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      if (leave === 'blur') {
+        await rpc('POST',`/session/${session}/back`,{});
+        await text('Watching');
+        await resumeWatch();
+      }
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
       // controller which queues seeks until metadata. First observe real resume
       // initialization so it cannot overwrite the test's subsequent raw seek.
@@ -460,7 +478,7 @@ try {
       assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
       assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {
-      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
+      await script('const gate=window.__m02Preference;gate.release();gate.stopBack?.();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
     }
   }
   // Real persisted source preferences feed the mounted host and untouched cues.
@@ -550,7 +568,7 @@ try {
   }
   assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
   assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
-  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Dictionary source"]\')');
+  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]\')');
   // Modifier/Knowledge rendering can replace the token node between input
   // ticks. A real pointer targets viewport geometry, not a retained DOM handle.
   const child=await script(`
@@ -559,17 +577,69 @@ try {
     const rect=control.getBoundingClientRect();
     const x=Math.round(rect.x+rect.width/2),y=Math.round(rect.y+rect.height/2);
     const hit=document.elementFromPoint(x,y);
-    return {x,y,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)};
+    const media=document.querySelector('video')?.getBoundingClientRect();
+    if(!media?.width||!media.height)return null;
+    const away={x:Math.round(media.x+media.width/2),y:Math.round(media.y+media.height/4)};
+    const awayHit=document.elementFromPoint(away.x,away.y);
+    return {x,y,away,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)&&!!awayHit&&!control.contains(awayHit)};
   `);
   assert.equal(child?.ready,true,JSON.stringify(child));
-  await rpc('POST',`/session/${session}/actions`,{actions:[
-    {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'},{type:'pause',duration:0},{type:'keyUp',value:'\uE008'}]},
-    {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
-      {type:'pointerMove',duration:0,origin:'viewport',x:0,y:0},
-      {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
-      {type:'pause',duration:0},
-    ]},
-  ]});
+  await script(`const probe={events:[]};
+    const label=arguments[0];
+    const data=event=>({type:event.type,key:event.key??null,shiftKey:event.shiftKey,
+      trusted:event.isTrusted,pointerType:event.pointerType??null,
+      label:event.target instanceof Element?event.target.closest('[aria-label]')?.getAttribute('aria-label')??null:null,
+      relatedLabel:event.relatedTarget instanceof Element?event.relatedTarget.closest('[aria-label]')?.getAttribute('aria-label')??null:null});
+    const record=event=>{if(probe.events.length<16)probe.events.push(data(event));};
+    let keyDone,entryDone;
+    probe.key=new Promise(resolve=>keyDone=resolve);
+    probe.entry=new Promise(resolve=>entryDone=resolve);
+    const key=event=>{record(event);if(event.key==='Shift')keyDone(data(event));};
+    const entry=event=>{record(event);
+      if(event.target instanceof Element&&event.target.closest('[aria-label]')?.getAttribute('aria-label')===label)
+        entryDone(data(event));};
+    const timer=setTimeout(()=>{keyDone({timedOut:true});entryDone({timedOut:true});},10000);
+    probe.cancel=()=>{clearTimeout(timer);
+      document.removeEventListener('keydown',key,true);
+      document.removeEventListener('keyup',record,true);
+      document.removeEventListener('pointerout',record,true);
+      document.removeEventListener('pointerover',entry,true);};
+    document.addEventListener('keydown',key,true);
+    document.addEventListener('keyup',record,true);
+    document.addEventListener('pointerout',record,true);
+    document.addEventListener('pointerover',entry,true);
+    window.__m02Modifier=probe;return true;`,['Children: mixed']);
+  try {
+    // Observe actual delivery instead of assuming zero-duration WebDriver ticks
+    // preserve a modifier across the native key/pointer dispatch boundary.
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'}]},
+    ]});
+    const key=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02Modifier.key.then(done);',args:[],
+    });
+    assert.equal(key.trusted,true,JSON.stringify(key));
+    assert.equal(key.shiftKey,true,JSON.stringify(key));
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
+        {type:'pointerMove',duration:0,origin:'viewport',x:child.away.x,y:child.away.y},
+        {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
+      ]},
+    ]});
+    const entry=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02Modifier.entry.then(done);',args:[],
+    });
+    assert.equal(entry.trusted,true,JSON.stringify(entry));
+    assert.equal(entry.pointerType,'mouse',JSON.stringify(entry));
+    assert.equal(entry.shiftKey,true,JSON.stringify(entry));
+  } finally {
+    // Release immediately after entry, before awaiting asynchronous lookup.
+    await rpc('POST',`/session/${session}/actions`,{actions:[
+      {type:'key',id:'inspection-modifier',actions:[{type:'keyUp',value:'\uE008'}]},
+    ]});
+    const events=await script('const probe=window.__m02Modifier;probe.cancel();delete window.__m02Modifier;return probe.events;');
+    await writeFile('test-results/desktop/modifier-input.json',JSON.stringify({target:child,events},null,2));
+  }
   await observedSourceView('Shift-assisted real pointer entry must open the shared Inspector without a click');
   await screenshot('native-modifier-inspection');
   await closeInspector();
@@ -597,7 +667,7 @@ try {
   await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
-  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]')&&
+  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]')&&
     document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect().bottom<=
     document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect().top`);
   await click('home: untracked');
@@ -734,10 +804,9 @@ try {
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
   const homeSources=(await native({type:'recent_sources'})).sources;
+  // Home renders each persisted source once, with its real progress.
   const expectedProgress=homeSources.filter(source=>source.durationMs>0)
     .map(source=>Math.max(0,Math.min(100,source.positionMs/source.durationMs*100)));
-  if(homeSources[0]?.durationMs>0)
-    expectedProgress.push(Math.max(0,Math.min(100,homeSources[0].positionMs/homeSources[0].durationMs*100)));
   assert.ok(expectedProgress.length>0,'Decoded and checkpointed media must expose real source progress');
   expectedProgress.sort((a,b)=>a-b);
   const homeProgress=await rpc('POST',`/session/${session}/execute/async`,{script:`
@@ -809,7 +878,8 @@ try {
   await screenshot('watch-raw-subtitles-with-analysis-unavailable');
   // Two seeks within the same two-second bucket must still change the cue window.
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
-  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  const subsecondAttached=await native({type:'attach_subtitles',sourceId:id,path:unsupported});
+  assert.equal(subsecondAttached.type,'source',JSON.stringify(subsecondAttached));
   await click('Home');await resumeWatch();
   // A Resume click finishes before React mounts the player. Subscribe to its
   // real media/initial-seek events before seeking, retaining that active element.
@@ -855,7 +925,7 @@ try {
   assert.equal((await native({type:'attach_subtitles',sourceId:japaneseSource.window.source.id,path:japaneseSubtitles})).type,'source');
   await click('Settings');await click('Home');
   await observeSourceView('!!document.querySelector(\'button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
-  await click('Resume japanese-watch.mp4');
+  await click('Continue japanese-watch.mp4');
   await observedSourceView('Real Japanese source must render its package-owned contour');
   await observeSourceView('!!document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
   await click('Transcript');await click('Transcript');
@@ -881,7 +951,7 @@ try {
   await click('Reload native state');await click('Home');
   await observeSourceView(`Array.from(document.querySelectorAll('button[aria-label^="銀河("]')).some(node=>
     node.getClientRects().length&&!node.closest('[aria-hidden="true"]')&&getComputedStyle(node).fontSize==='80px')`);
-  await click('Resume japanese-watch.mp4');
+  await click('Continue japanese-watch.mp4');
   await observedSourceView('Saved enlarged typography must reach actual Japanese source words');
   const japaneseWindowPath = `/session/${session}/window/rect`;
   const japaneseRect = await rpc('GET',japaneseWindowPath);

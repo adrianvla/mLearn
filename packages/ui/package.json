@@ -6,6 +6,7 @@
     "./button": "./src/Button.tsx",
     "./activity-card": "./src/ActivityCard.tsx",
     "./source-row": "./src/SourceRow.tsx",
+    "./source-preview": "./src/SourcePreview.tsx",
     "./icon": "./src/Icon.tsx",
     "./brand": "./src/brand.ts",
     "./select": "./src/Select.tsx",

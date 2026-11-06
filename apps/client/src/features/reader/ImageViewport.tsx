@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentRecord, ImageReaderSettings, OcrRect, SourceAnchor } from '@mlearn/contracts';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
+import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
 import ImageCanvas, { type ImageCanvasRef } from './ImageCanvas';
@@ -24,7 +25,7 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     readonly onCrop: (resourceId: string, crop: OcrRect) => void;
     readonly onMagnify: (resourceId: string, crop: OcrRect) => Promise<string>;
     readonly onDismissInspection: () => void;
-    readonly onThumbnail: (resourceId: string, uri: string) => void;
+    readonly onThumbnail: (resourceId: string, thumbnail: SourceThumbnail) => void;
     readonly onNavigate: (direction: 'previous' | 'next') => void;
     readonly onRetry: () => void;
 }) {
@@ -80,8 +81,8 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         onMagnifierActive={async (key, active) => {
             if (key === anchors.active.current && active) handlers.current.onDismissInspection();
         }}
-        onThumbnail={async (key, resourceId, uri) => {
-            if (key === anchors.active.current) handlers.current.onThumbnail(resourceId, uri);
+        onThumbnail={async (key, resourceId, thumbnail) => {
+            if (key === anchors.active.current) handlers.current.onThumbnail(resourceId, thumbnail);
         }}
         onImageError={async key => { if (key === anchors.active.current) setFailure(key); }}
         onNavigate={async (key, direction) => {

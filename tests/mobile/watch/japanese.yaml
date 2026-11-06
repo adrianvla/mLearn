@@ -100,11 +100,11 @@ appId: net.kikan.mlearn.v3dev
     clearState: false
     permissions: {}
 - scrollUntilVisible:
-    element: Resume m01-japanese.mp4
+    element: Continue m01-japanese.mp4
     direction: DOWN
     timeout: 60000
     centerElement: true
-- tapOn: Resume m01-japanese.mp4
+- tapOn: Continue m01-japanese.mp4
 - extendedWaitUntil:
     visible: '今日: untracked.*'
     timeout: 60000
@@ -134,10 +134,10 @@ appId: net.kikan.mlearn.v3dev
 # The original source is now the second recent row, below the enlarged iOS
 # viewport. Scroll to its own action rather than activating the latest source.
 - scrollUntilVisible:
-    element: Resume m01-watch.mp4
+    element: Continue m01-watch.mp4
     direction: DOWN
     centerElement: true
-- tapOn: Resume m01-watch.mp4
+- tapOn: Continue m01-watch.mp4
 - extendedWaitUntil:
     visible: 'Children: mixed'
     timeout: 60000

@@ -1,15 +1,66 @@
 /// <reference types="node" />
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createRuntimeClient } from '@mlearn/runtime-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
 // The browser substitutes only the host transport. Profile mutations, signed
 // package installation, language execution, jobs and traces run in real Rust.
 // The external text provider is controlled; native window/media/clipboard are
 // deliberately not claimed by this suite.
+test('Messenger directory search preserves touch targets and compact desktop layout', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({
+    profile: `.mlearn/m03-m07/m07-messenger/search-${randomUUID()}`,
+  });
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/messenger');
+    await page.getByRole('button', { name: 'People', exact: true }).click();
+    await page.getByRole('button', { name: 'New person', exact: true }).click();
+    const person = page.getByRole('dialog', { name: 'New person', exact: true });
+    await person.getByRole('textbox', { name: 'Name', exact: true }).fill('Reading partner');
+    await person.getByRole('textbox', { name: 'Description', exact: true }).fill('Discuss the current book.');
+    await person.getByRole('button', { name: 'Save person', exact: true }).click();
+    await expect(person).toBeHidden();
+    for (const width of [390, 1080]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const tab of ['Chats', 'People']) {
+        await page.getByRole('button', { name: tab, exact: true }).click();
+        const search = page.getByRole('textbox', {
+          name: tab === 'Chats' ? 'Search conversations and history' : 'Search People', exact: true,
+        });
+        await search.fill('query');
+        await expect(search).toHaveValue('query');
+        const bounds = await search.boundingBox();
+        if (!bounds) throw new Error('Directory search has no layout bounds');
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.height).toBeGreaterThanOrEqual(width < 720 ? 44 : 32);
+        if (width >= 720) expect(bounds.height).toBeLessThan(44);
+        await search.fill('');
+        await expect(search).toHaveAttribute('placeholder', 'Search');
+        if (tab === 'People') {
+          const savedPerson = page.getByRole('button', { name: 'Reading partner', exact: true });
+          await expect(savedPerson).toBeVisible();
+          await expect(savedPerson).toContainText('Discuss the current book.');
+          const row = await savedPerson.boundingBox();
+          if (!row) throw new Error('Saved person has no layout bounds');
+          expect(row.height).toBeGreaterThanOrEqual(44);
+          expect(row.x + row.width).toBeLessThanOrEqual(width);
+        }
+        await page.screenshot({ path: info.outputPath(`directory-search-${tab}-${width}.png`) });
+      }
+    }
+  } finally {
+    await backend.close();
+  }
+});
+
 test('normal Messenger UI consumes actual native content and prepared language on desktop and phone', async ({ page }, info) => {
   test.setTimeout(120_000);
+  const holdIdle = process.env.MLEARN_TEST_HOLD_MESSENGER_IDLE === '1';
   const backend = await startRuntimeBrowserQa({
     profile: `.mlearn/m03-m07/m07-messenger/browser-${randomUUID()}`,
   });
@@ -17,6 +68,27 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await attachRuntimeBrowserQa(page, backend.url);
     // Exercise the real macOS overlay-chrome reservation on every CI host.
     await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    if (holdIdle) await page.addInitScript(() => {
+      const request = window.requestIdleCallback.bind(window);
+      const cancel = window.cancelIdleCallback.bind(window);
+      const pending = new Map<number, { readonly callback: IdleRequestCallback; readonly deadline: IdleDeadline }>();
+      let held = false;
+      window.requestIdleCallback = (callback, options) => {
+        const handle = request(deadline => {
+          if (held) pending.set(handle, { callback, deadline });
+          else callback(deadline);
+        }, options);
+        return handle;
+      };
+      window.cancelIdleCallback = handle => { pending.delete(handle); cancel(handle); };
+      window.addEventListener('mlearn-test:hold-idle', () => { held = true; });
+      window.addEventListener('mlearn-test:release-idle', () => {
+        held = false;
+        const work = [...pending.values()];
+        pending.clear();
+        for (const item of work) item.callback(item.deadline);
+      });
+    });
     await page.setViewportSize({ width: 1212, height: 872 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
@@ -29,46 +101,28 @@ test('normal Messenger UI consumes actual native content and prepared language o
     }));
     expect(document.type).toBe('document');
     await page.goto('/');
-    // The preview must receive pointer input instead of the stretched import action.
+    // Continuation is one source action, separate from opening another document.
     await page.getByRole('button', { name: 'Continue continuity.txt', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'continuity.txt', exact: true })).toBeVisible();
     await page.goto('/');
-    await page.getByRole('button', { name: 'Resume continuity.txt', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'continuity.txt', exact: true })).toBeVisible();
-    await page.goto('/');
-    const activityBounds = async () => {
-      const bounds = await Promise.all(['read', 'watch', 'conversation', 'review'].map(async name => {
-        const activity = page.getByTestId(`home-${name}-activity`);
-        await expect(activity).toBeVisible();
-        return activity.boundingBox();
-      }));
-      return bounds.map(bound => {
-        if (!bound) throw new Error('Home activity has no layout bounds');
-        return bound;
-      });
-    };
-    const [read, watch, conversation, review] = await activityBounds();
-    expect(read.y).toBe(watch.y);
-    expect(watch.y).toBe(conversation.y);
-    expect(read.x + read.width).toBeLessThanOrEqual(watch.x);
-    expect(watch.x + watch.width).toBeLessThanOrEqual(conversation.x);
-    expect(review.y).toBeGreaterThanOrEqual(read.y + read.height);
-    await page.screenshot({ path: info.outputPath('home-desktop-activities.png') });
-    await page.setViewportSize({ width: 390, height: 844 });
-    const phoneActivities = await activityBounds();
-    for (let index = 0; index < phoneActivities.length; index++) {
-      const activity = phoneActivities[index];
-      expect(activity.x).toBeGreaterThanOrEqual(0);
-      expect(activity.x + activity.width).toBeLessThanOrEqual(390);
-      if (index > 0) {
-        const previous = phoneActivities[index - 1];
-        expect(activity.y).toBeGreaterThanOrEqual(previous.y + previous.height);
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const name of ['read', 'watch', 'conversation', 'review']) {
+        const action = page.getByTestId(`home-open-${name}`);
+        await action.scrollIntoViewIfNeeded();
+        await expect(action).toBeInViewport({ ratio: 1 });
+        const bounds = await action.boundingBox();
+        if (!bounds) throw new Error('Home activity action has no layout bounds');
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.height).toBeGreaterThanOrEqual(width < 700 ? 44 : 24);
       }
+      await page.screenshot({ path: info.outputPath(`home-actions-${width}.png`) });
     }
     await page.getByRole('button', { name: 'Review', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
-    const messengerActivity = page.getByRole('button', { name: 'Messenger', exact: true });
+    const messengerActivity = page.getByRole('button', { name: 'Conversation', exact: true });
     await expect(messengerActivity).toBeVisible();
     await messengerActivity.focus();
     await expect(messengerActivity).toBeFocused();
@@ -133,10 +187,18 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await composer.fill('Say a short sentence.');
     expect(await shrinking.evaluate(value => value.changed)).not.toBeNull();
     await shrinking.dispose();
+    if (holdIdle) await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:hold-idle')));
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByTestId('conversation-history').getByText('Children walked home.', { exact: true })).toBeVisible();
     const showAnalysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
-    await expect(showAnalysis).toBeEnabled();
+    try {
+      await expect(showAnalysis).toBeEnabled();
+    } finally {
+      if (holdIdle) {
+        await page.screenshot({ path: info.outputPath('messenger-analysis-with-idle-held.png') });
+        await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:release-idle')));
+      }
+    }
     expect(backend.metadata().counts['conversation:analyze_visible_messages']).toBeGreaterThan(0);
     await showAnalysis.click();
     const child = page.getByRole('button', { name: 'Children: untracked', exact: true });
@@ -147,6 +209,36 @@ test('normal Messenger UI consumes actual native content and prepared language o
     const inspector = page.getByTestId('inspector-panel');
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-inspector.png') });
+    // Message inspection must retain readable lexical copy over bright content.
+    const captionContrast = await inspector.getByText('Children walked home.', { exact: true }).evaluate(caption => {
+      const panel = caption.closest('[data-testid="inspector-panel"]');
+      if (!panel) throw new Error('Inspector caption has no rendered panel');
+      const bounds = panel.getBoundingClientRect();
+      const material = Array.from(panel.children).find(child => {
+        const box = child.getBoundingClientRect();
+        return getComputedStyle(child).pointerEvents === 'none'
+          && box.width >= bounds.width - 2 && box.height >= bounds.height - 2;
+      });
+      if (!material) throw new Error('Inspector has no full-size material backing');
+      const foreground = getComputedStyle(caption).color.match(/[\d.]+/g)?.map(Number);
+      const background = getComputedStyle(material).backgroundColor.match(/[\d.]+/g)?.map(Number);
+      if (!foreground || !background || foreground.length < 3 || background.length < 3)
+        throw new Error('Inspector colors are not measurable');
+      const alpha = background[3] ?? 1;
+      const luminance = (channels: number[]) => channels.slice(0, 3).map(value => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+      const ink = luminance(foreground);
+      const surface = luminance(background.slice(0, 3).map(value => value * alpha + 255 * (1 - alpha)));
+      return (Math.max(ink, surface) + 0.05) / (Math.min(ink, surface) + 0.05);
+    });
+    expect(captionContrast).toBeGreaterThanOrEqual(4.5);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(inspector).toBeInViewport({ ratio: 1 });
+    await expect(inspector.getByRole('button', { name: /^Close Inspect/ })).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: info.outputPath('messenger-phone-inspector.png') });
+    await page.setViewportSize({ width: 1212, height: 872 });
     await inspector.getByRole('button', { name: /^Close Inspect/ }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     const narrowBack = await page.getByRole('button', { name: 'Chats and People', exact: true }).boundingBox();
@@ -155,6 +247,89 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await expect(composer).toBeInViewport();
     await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeInViewport();
     await page.screenshot({ path: info.outputPath('messenger-phone.png') });
+    // Given: the existing native conversation and its analyzed message source.
+    const client = createRuntimeClient({
+      commandId: randomUUID,
+      execute: request => backend.invoke('runtime_execute', { request }),
+    });
+    const chats = await client.conversations();
+    const coach = chats.items.find(chat => chat.title === 'Coach');
+    if (!coach) throw new Error('Actual Coach conversation is missing');
+    const historyBefore = await client.conversationMessages(coach.id);
+    const reply = historyBefore.items.find(message => message.role === 'assistant' && message.text === 'Children walked home.');
+    if (!reply) throw new Error('Actual assistant message source is missing');
+    const sourceBefore = await client.analyzeVisibleMessages(coach.id, [{ id: reply.id, revision: reply.revision }]);
+    const restorationReceipts = [];
+    for (const width of [1212, 390]) {
+      await page.setViewportSize({ width, height: 872 });
+      if (width === 390) await page.getByRole('button', { name: 'Chats and People', exact: true }).click();
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      const materialSearch = page.getByRole('textbox', { name: 'Search Material', exact: true });
+      const materialDraft = `M10 Messenger return ${width} unsubmitted Material search`;
+      await materialSearch.fill(materialDraft);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+      await page.getByRole('button', { name: 'Coach', exact: true }).click();
+      await expect(composer).toBeEnabled();
+      const draftBefore = await client.conversationDraft(coach.id);
+      const messageDraft = `M10 Messenger return ${width} unsent message`;
+      await composer.fill(messageDraft);
+      // When: Home checkpoints the unsent draft, then its Material action
+      // revisits the retained management surface without a reload.
+      const persisted = page.waitForResponse(response => {
+        if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
+        const payload = response.request().postDataJSON();
+        if (typeof payload.args?.request !== 'string') return false;
+        const request = JSON.parse(payload.args.request);
+        return request.type === 'conversation' && request.command.action === 'save_draft'
+          && request.command.draft.conversationId === coach.id && request.command.draft.text === messageDraft;
+      });
+      if (width === 390) await page.getByRole('button', { name: 'Chats and People', exact: true }).click();
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      const savedDraft = JSON.parse((await (await persisted).json()).value);
+      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      const materialAfter = await materialSearch.inputValue();
+      await page.screenshot({ path: info.outputPath(`messenger-home-material-${width}.png`) });
+      const conversationAfter = await client.conversation(coach.id);
+      const draftAfter = await client.conversationDraft(coach.id);
+      const historyAfter = await client.conversationMessages(coach.id);
+      const sourceAfter = await client.analyzeVisibleMessages(coach.id, [{ id: reply.id, revision: reply.revision }]);
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Conversation', exact: true }).click();
+      await page.getByRole('button', { name: 'Coach', exact: true }).click();
+      await expect(composer).toBeEnabled();
+      const composerAfter = await composer.inputValue();
+      restorationReceipts.push({ width, materialDraft, materialAfter, messageDraft, composerAfter,
+        draftBefore, savedDraft, conversationAfter, draftAfter, historyAfter, sourceAfter });
+    }
+    const restorationReceipt = JSON.stringify({
+      transport: 'real_core_browser_adapter', profile: backend.profile, nativePid: backend.pid,
+      catalog: backend.catalogUrl, coach, historyBefore, sourceBefore, restorationReceipts,
+      activity: backend.metadata(),
+      uiScripts: await page.locator('script[src]').evaluateAll(nodes => nodes.map(node => node.getAttribute('src'))),
+    }, null, 2);
+    await writeFile(info.outputPath('messenger-home-material-restoration.json'), restorationReceipt);
+    await info.attach('messenger-home-material-restoration.json', {
+      body: restorationReceipt, contentType: 'application/json',
+    });
+    // Then: the native draft/source and management presentation survive
+    // independently, without another sent turn or provider request.
+    for (const receipt of restorationReceipts) {
+      expect(receipt.savedDraft).toMatchObject({ type: 'conversation', result: { kind: 'draft', draft: {
+        conversationId: coach.id, text: receipt.messageDraft, revision: receipt.draftBefore.revision + 1,
+      } } });
+      expect(receipt.conversationAfter).toEqual(coach);
+      expect(receipt.draftAfter).toEqual({
+        ...receipt.draftBefore, text: receipt.messageDraft, revision: receipt.draftBefore.revision + 1,
+      });
+      expect(receipt.composerAfter).toBe(receipt.messageDraft);
+      expect(receipt.historyAfter).toEqual(historyBefore);
+      expect(receipt.sourceAfter).toEqual(sourceBefore);
+      expect(receipt.materialAfter, `Material draft after Messenger Home at ${receipt.width}px`).toBe(receipt.materialDraft);
+    }
+    expect(backend.metadata().providerRequests).toBe(1);
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const savedTheme = page.waitForResponse(response => {
@@ -165,7 +340,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await page.getByRole('combobox', { name: /^Select theme/ }).click();
     await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
     expect(JSON.parse((await (await savedTheme).json()).value)).toMatchObject({ type: 'saved' });
-    await expect(page.getByText('Theme saved.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Select theme:/ })).toHaveText('Dark Quartz');
     await backend.crashRestart();
     await page.goto('/');
     await page.getByRole('button', { name: 'Conversation', exact: true }).click();
@@ -180,6 +355,10 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-dark-inspector.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(inspector).toBeInViewport({ ratio: 1 });
+    await expect(inspector.getByRole('button', { name: /^Close Inspect/ })).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: info.outputPath('messenger-phone-dark-inspector.png') });
     const snapshot = JSON.parse(await backend.invoke('runtime_execute', { request: JSON.stringify({ type: 'snapshot' }) }));
     expect(snapshot.snapshot.theme.id).toBe('mlearn.dark-quartz');
     await info.attach('native-source-and-profile.json', {

@@ -107,7 +107,7 @@ export function ImageRecognition({ client, reader, open, onOpenChange, focusTarg
             if (current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
         } finally { if (current.current === identity) setEvidencePending(false); }
     }
-    return <Dialog title="Recognition and alignment" description="Save source corrections or inspect their original recognition evidence."
+    return <Dialog title="Recognition and alignment"
         open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <Select label="Recognized region" value={selected?.key ?? ''} disabled={pending}
             options={regions.map(value => ({ value: value.key,

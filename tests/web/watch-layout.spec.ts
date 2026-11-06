@@ -47,22 +47,29 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     // nominal 30px SVG to 20px. Preserve the larger interactive target.
     expect(cueGlyph.width).toBe(20);
     expect(cueGlyph.height).toBe(20);
-    expect(nextCue.width).toBeGreaterThanOrEqual(40);
-    expect(nextCue.height).toBeGreaterThanOrEqual(40);
+    const targetSize = width < 720 ? 44 : 40;
+    expect(nextCue.width).toBeGreaterThanOrEqual(targetSize);
+    expect(nextCue.height).toBeGreaterThanOrEqual(targetSize);
     const dismiss = page.getByRole('button', { name: 'Hide synchronization', exact: true, includeHidden: true });
     // MediaOverlay's close wrapper and panel are the same owners in both
     // disclosure states. A one-pixel header divider precedes the 220px body.
     const panel = await dismiss.locator('..').locator('..').boundingBox();
     if (!panel) throw new Error('Synchronization panel is not laid out');
-    expect(panel.width).toBe(221);
+    if (width >= 720) expect(panel.width).toBe(221);
+    else expect(panel.width).toBeLessThanOrEqual(sourceOverlays.width);
+    if (width < 720) {
+      await expect(dismiss).toBeEnabled();
+      await expect(dismiss).toBeInViewport({ ratio: 1 });
+    }
     await synchronization.focus();
     await expect(dismiss).toBeEnabled();
     const closeBounds = await dismiss.boundingBox();
     const previousCue = await page.getByRole('button', { name: 'Align previous subtitle', exact: true }).boundingBox();
     const focusedNext = await page.getByRole('button', { name: 'Align next subtitle', exact: true }).boundingBox();
     if (!closeBounds || !previousCue || !focusedNext) throw new Error('Focused synchronization controls are not laid out');
-    expect(closeBounds.width).toBe(40);
-    expect(closeBounds.height).toBe(40);
+    expect(closeBounds.width).toBe(targetSize);
+    expect(closeBounds.height).toBe(targetSize);
+    await expect(dismiss).toBeInViewport({ ratio: 1 });
     expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(previousCue.x);
     expect(focusedNext.x).toBe(nextCue.x);
     await page.screenshot({ path: info.outputPath('focused-synchronization.png') });
@@ -78,6 +85,11 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     const overlay = page.getByTestId('live-word-cards');
     const cards = overlay.getByRole('button', { name: / · / });
     await expect(cards).toHaveCount(4);
+    if (width < 720) {
+      const close = overlay.getByRole('button', { name: 'Hide live word translator', exact: true });
+      await expect(close).toBeEnabled();
+      await expect(close).toBeInViewport({ ratio: 1 });
+    }
     // OCR readability must not replace the reference's translucent video cards.
     const material = await cards.first().evaluate(node => getComputedStyle(node).backgroundColor);
     const channels = material.match(/\d+(?:\.\d+)?/g)?.map(Number);
@@ -133,6 +145,8 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     await last.focus();
     await containedAfterFocus;
     await expect(overlay.getByRole('button', { name: 'Hide live word translator', exact: true })).toBeEnabled();
+    await expect(overlay.getByRole('button', { name: 'Hide live word translator', exact: true }))
+      .toBeInViewport({ ratio: 1 });
     const container = await overlay.boundingBox();
     const focused = await last.boundingBox();
     if (!container || !focused) throw new Error('Focused live word card is not laid out');

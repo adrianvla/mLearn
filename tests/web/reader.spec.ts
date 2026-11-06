@@ -201,7 +201,7 @@ test('mixed writing modes do not overlap and next navigates within the loaded so
 
   await page.getByRole('button', { name: 'Next passage', exact: true }).click();
 
-  await expect(page.getByTestId('reader-position')).toContainText('seed');
+  await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
   const requests = await page.evaluate(() => window.__readerRequests);
   expect(requests.some(request => request.type === 'document_window'
     && request.position?.blockId === position('seed').blockId)).toBe(true);
@@ -213,7 +213,7 @@ test('opening a captured document Material dismisses Inspector before exposing i
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Capture options', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Open saved 東京', exact: true }).click();
 
   await expect(page.getByTestId('material-phrase')).toHaveValue('東京');
@@ -228,7 +228,7 @@ test('Review Return preserves its admitted passage after the Material source is 
   await page.getByRole('button', { name: 'Return to source', exact: true }).click();
 
   await expect(page.getByTestId('reader-title')).toHaveText(source.source.title);
-  await expect(page.getByTestId('reader-position')).toContainText('chapter · seed');
+  await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
   const selected = page.getByRole('document', { name: 'Document text' })
     .locator('[data-source-start="5"][data-source-end="11"]');
   await expect(selected).toHaveText('東京');
@@ -236,9 +236,11 @@ test('Review Return preserves its admitted passage after the Material source is 
   await page.screenshot({ path: testInfo.outputPath('review-original-document-return.png') });
 });
 
-test('source image navigation exposes a real bounded thumbnail without changing the image aspect ratio', async ({ page }) => {
+test('source image navigation exposes a real bounded thumbnail without changing the image aspect ratio', async ({ page }, testInfo) => {
   await start(page);
-  await page.getByRole('button', { name: 'Read chapter image', exact: true }).click();
+  const preview = page.getByRole('button', { name: 'Read Blue bridge', exact: true });
+  await preview.click();
+  await expect.soft(preview).toHaveAttribute('aria-pressed', 'true');
   const images = page.getByRole('img', { name: 'Blue bridge', exact: true });
   await expect(images).toHaveCount(2);
   const sizes = await images.evaluateAll(nodes => nodes.map(node => {
@@ -247,30 +249,45 @@ test('source image navigation exposes a real bounded thumbnail without changing 
   }));
   expect(sizes.some(size => size.source.startsWith('data:image/png;') && size.width <= 128
     && size.height <= 160 && size.width / size.height === 2)).toBe(true);
-  await expect(page.getByTestId('reader-position')).toContainText('image');
+  await expect.poll(() => images.evaluateAll(nodes => nodes
+    .filter(node => node.getAttribute('src')?.startsWith('data:image/png;'))
+    .map(node => {
+      const bounds = node.getBoundingClientRect();
+      return bounds.width / bounds.height;
+    }))).toEqual([2]);
+  await expect(page.getByTestId('reader-position')).toHaveText('Blue bridge');
+  await page.screenshot({ path: testInfo.outputPath('reader-source-preview.png') });
 });
 
 test('narrow Reader reflows without losing the original source location or hiding navigation', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 852 });
   await start(page);
   await page.getByRole('button', { name: 'Next passage', exact: true }).click();
-  await expect(page.getByTestId('reader-position')).toContainText('seed');
+  await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
   await page.getByRole('button', { name: 'View options', exact: true }).click();
-  await page.getByRole('button', { name: 'Horizontal', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('reader-appearance-narrow.png') });
+  await page.getByRole('combobox', { name: /^Writing mode:/ }).click();
+  await page.getByRole('option', { name: 'Horizontal', exact: true }).click();
   await page.getByRole('button', { name: 'Larger text', exact: true }).click();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByTestId('reader-position')).toContainText('seed');
+  await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
+  await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByTestId('reader-title')).toHaveText('Mixed source.epub');
   const document = page.getByRole('document', { name: 'Document text' });
   await expect(document.locator('section').first()).toHaveCSS('writing-mode', 'horizontal-tb');
   await expect(document.locator('section').first()).toHaveCSS('font-size', '26px');
   const controls = [page.getByRole('button', { name: 'Home', exact: true }),
-    page.getByRole('button', { name: 'Next passage', exact: true }), document];
+    page.getByRole('button', { name: 'Next passage', exact: true }),
+    page.getByRole('button', { name: 'Search source', exact: true }),
+    page.getByRole('button', { name: 'Contents', exact: true }),
+    page.getByRole('button', { name: 'View options', exact: true }), document];
   for (const control of controls) {
     const box = await control.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(393);
     expect(box!.height).toBeGreaterThan(0);
+    if (control !== document) expect(box!.height).toBeGreaterThanOrEqual(44);
   }
   await page.screenshot({ path: testInfo.outputPath('reader-narrow.png') });
 });

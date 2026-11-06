@@ -435,6 +435,12 @@ impl Runtime {
                     projections: self.store.knowledge(&keys).map_err(|e| e.to_string())?,
                 })
             }
+            Request::KnowledgeEvidence { query } => Ok(Response::KnowledgeEvidence {
+                page: self
+                    .store
+                    .knowledge_evidence(&query)
+                    .map_err(|e| e.to_string())?,
+            }),
             _ => Err("Not a Watch action".into()),
         }
     }

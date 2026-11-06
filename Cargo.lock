@@ -3197,6 +3197,7 @@ version = "3.0.0-dev.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.21",
  "ts-rs",
 ]
@@ -3328,6 +3329,7 @@ dependencies = [
 name = "mlearn-language-sdk"
 version = "3.0.0-dev.0"
 dependencies = [
+ "mlearn-core",
  "serde",
  "serde_json",
 ]
@@ -3360,6 +3362,7 @@ version = "3.0.0-dev.0"
 dependencies = [
  "mlearn-core",
  "rusqlite",
+ "serde",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",

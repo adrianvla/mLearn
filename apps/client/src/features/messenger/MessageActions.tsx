@@ -90,7 +90,7 @@ export function MessageActions({ actions, message, conversation, packageVersion,
       {message.generationId && ['failed', 'cancelled', 'interrupted'].includes(message.status)
         ? <Button label="Retry response" disabled={actions.busy} onPress={retryGeneration} /> : null}
       {source ? <SourceActions client={actions.client} source={source} />
-        : message.status === 'complete' ? <Text muted variant="caption">Message analysis must be available before contextual feedback.</Text> : null}
+        : message.status === 'complete' ? <Text muted variant="caption">Analysis required</Text> : null}
       <ActionFeedback actions={actions} origin={origin} />
       {feedback ? <><Text variant="caption" muted>Action feedback · not learner evidence</Text><Text selectable>{feedback}</Text></> : null}
     </Dialog>

@@ -1,7 +1,9 @@
+/// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Request, ReviewCommand, ReviewEncounter, ReviewSession } from '@mlearn/contracts';
+import type { CalibrationQuery, Request, ReviewCommand, ReviewEncounter, ReviewSession, TaskResponse, SourcePracticeTarget, TargetPracticeItem } from '@mlearn/contracts';
 import { createReviewClient, type ReviewAction } from '../src/reviewClient';
+import { createRuntimeClient } from '../src/client';
 import { RuntimeError } from '../src/errors';
 import { isReviewCommand, isReviewResponse } from '../src/reviewProtocol';
 
@@ -27,6 +29,454 @@ function gate<T>() {
   return { promise, release };
 }
 const protocol = (error: unknown) => error instanceof RuntimeError && error.code === 'protocol';
+
+const typedEncounter: ReviewEncounter = {
+  ...encounter,
+  task: { revision: 1, responseSpec: { kind: 'typed_text', maxBytes: 2048 },
+    attribution: 'Original package content', limitations: 'Finite matching only' },
+};
+const typedSession: ReviewSession = {
+  ...session, mode: { kind: 'practice', items: [{ materialId: 'material', source: null }] },
+  total: 1, encounter: typedEncounter,
+};
+const capturedEncounter: ReviewEncounter = {
+  ...typedEncounter,
+  capture: { id: 'native-capture', response: { kind: 'typed_text', text: '  RAW  ' },
+    conditions: { ...encounter.conditions }, feedback: null },
+};
+
+const captureReceipt = JSON.stringify({ type: 'review', commit: {
+  commandId: 'capture', committedRevision: 2,
+  session: { ...typedSession, revision: 2, encounter: capturedEncounter },
+} });
+
+const calibrationQuery: CalibrationQuery = {
+  packageId: 'package', capability: 'package:meaning',
+  filter: { kind: 'scope', id: 'package:scope' }, limit: 2,
+};
+const calibrationItems: TargetPracticeItem[] = ['target', 'second'].map(targetId => ({
+  packageId: 'package', packageRevision: 'revision', targetId,
+  capabilities: ['package:meaning'], source: null,
+}));
+
+test('authored preview binds saved revisions and admits only assisted self-report sessions', async () => {
+  const preview = {
+    materialId: 'material', materialRevision: 1, packageRevision: 'revision',
+    fingerprint: 'a'.repeat(64), probes: [{
+      id: 'written', contractVersion: 1, direction: 'written',
+      cue: 'authored cue', answer: 'authored answer', targets: encounter.targets,
+      supplied: [], requiredMedia: null,
+    }],
+  };
+  let response: unknown = { type: 'authored_practice_preview', preview };
+  const client = createReviewClient(async request => {
+    assert.deepEqual(request, { type: 'preview_authored_practice', materialId: 'material', materialRevision: 1 });
+    return response;
+  }, () => { throw new Error('Preview cannot allocate a write identity'); });
+  assert.deepEqual(await client.authoredPracticePreview('material', 1), preview);
+  for (const malformed of [
+    { ...preview, materialRevision: 2 },
+    { ...preview, fingerprint: 'unbound' },
+    { ...preview, probes: [preview.probes[0], preview.probes[0]] },
+    { ...preview, probes: [{ ...preview.probes[0], contractVersion: 2 }] },
+    { ...preview, probes: [{ ...preview.probes[0], targets: [] }] },
+  ]) {
+    response = { type: 'authored_practice_preview', preview: malformed };
+    await assert.rejects(client.authoredPracticePreview('material', 1), protocol);
+  }
+  const authored = {
+    ...session, total: 1,
+    mode: { kind: 'authored_practice', materialId: 'material', materialRevision: 1,
+      packageRevision: 'revision', fingerprint: preview.fingerprint },
+    encounter: { ...encounter, conditions: { ...encounter.conditions, assistance: ['source'] } },
+  };
+  assert.equal(isReviewResponse({ type: 'review_session', session: authored }), true);
+  for (const invalid of [
+    { ...authored, encounter },
+    { ...authored, encounter: { ...authored.encounter, materialRevision: 2 } },
+    { ...authored, encounter: { ...authored.encounter, task: typedEncounter.task } },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+});
+
+test('calibration preparation freezes its query and rejects broadened native membership', { timeout: 5000 }, async () => {
+  // Given a requested scope held at its real client/transport boundary.
+  const entered = gate<void>(), released = gate<void>();
+  let requested: Request | null = null;
+  let response: unknown = { type: 'calibration', items: calibrationItems };
+  const client = createReviewClient(async request => {
+    requested = structuredClone(request); entered.release(); await released.promise;
+    return response;
+  }, () => { throw new Error('Preparation must not allocate a durable command.'); });
+  const query = structuredClone(calibrationQuery);
+  const pending = client.calibrationCandidates(query);
+  // When caller input changes while the bounded read is in flight.
+  await entered.promise;
+  query.limit = 1; query.filter = { kind: 'all', filters: [] };
+  released.release();
+  assert.deepEqual(await pending, calibrationItems);
+  // Then the original scope is retained, and widened results cannot become a Start.
+  assert.deepEqual(requested, { type: 'prepare_calibration', query: calibrationQuery });
+  for (const items of [
+    [{ ...calibrationItems[0], packageId: 'foreign' }],
+    [{ ...calibrationItems[0], capabilities: ['package:reading'] }],
+    [calibrationItems[0], { ...calibrationItems[1], packageRevision: 'changed' }],
+    [calibrationItems[0], calibrationItems[0]],
+    [...calibrationItems, { ...calibrationItems[0], targetId: 'third' }],
+    [{ ...calibrationItems[0], source: {
+      sourceId: 'source', contentRevision: 'media', packageId: 'package', packageVersion: '1',
+      text: 'cue', locator: { kind: 'video', subtitleRevision: 'subtitles', cueIndex: 0,
+        selectionStart: 0, selectionEnd: 3, positionMs: 0, subtitleOffsetMs: 0, playbackRate: 1 },
+    } }],
+  ]) {
+    response = { type: 'calibration', items };
+    await assert.rejects(client.calibrationCandidates(calibrationQuery), protocol);
+  }
+  response = { type: 'calibration', items: [] };
+  assert.deepEqual(await client.calibrationCandidates(calibrationQuery), []);
+});
+
+test('calibration keeps canonical session scope without discarding legitimate assistance', () => {
+  // Given one native canonical question in a frozen, finite calibration.
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: typedEncounter.task };
+  const projection = { ...session, total: 2, encounter: current,
+    mode: { kind: 'calibration', query: calibrationQuery, items: calibrationItems } };
+  // When the shared Review boundary admits the command and current projection.
+  assert.equal(isReviewCommand({ kind: 'start', start: {
+    commandId: 'once', sessionId: 'calibrate', mode: projection.mode,
+  } }), true);
+  assert.equal(isReviewResponse({ type: 'review_session', session: projection }), true);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...projection, encounter: { ...current, conditions: {
+      ...encounter.conditions, assistance: ['prior_disclosure'],
+    } },
+  } }), true);
+  // Then false completion, foreign targets and alternate scopes fail closed.
+  for (const invalid of [
+    { ...projection, total: null },
+    { ...projection, state: 'complete' },
+    { ...projection, encounter: { ...current, targetId: 'foreign' } },
+    { ...projection, mode: { ...projection.mode, query: { ...calibrationQuery, capability: 'package:reading' } } },
+    { ...projection, mode: { ...projection.mode, items: [] } },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+});
+
+test('calibration cancellation drains its own bounded slot and permits a fresh read', { timeout: 5000 }, async () => {
+  // Given a native read held until its exact cancellation acknowledgement.
+  const entered = gate<void>(), cancelled = gate<void>(), terminal = gate<string>();
+  let sequence = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'unused',
+    execute: async () => { throw new Error('Calibration must not use the ordinary request queue.'); },
+    cancelSourceOpen: async () => { assert.fail('A calibration read must not cancel the source owner.'); },
+    boundedReads: {
+      begin: async () => `calibration-${++sequence}`,
+      execute: async (id, raw) => {
+        assert.deepEqual(JSON.parse(raw), { type: 'prepare_calibration', query: calibrationQuery });
+        if (id === 'calibration-1') { entered.release(); return terminal.promise; }
+        assert.equal(id, 'calibration-2');
+        return JSON.stringify({ type: 'calibration', items: calibrationItems });
+      },
+      cancel: async id => {
+        assert.equal(id, 'calibration-1'); cancelled.release(); await terminal.promise;
+      },
+    },
+  });
+  const controller = new AbortController();
+  const pending = client.calibrationCandidates(calibrationQuery, controller.signal);
+  // When cancellation reaches the owned operation before its terminal receipt.
+  await entered.promise;
+  controller.abort();
+  await cancelled.promise;
+  terminal.release(JSON.stringify({ type: 'error', code: 'cancelled', message: 'Fixture terminal receipt' }));
+  // Then the stale response is rejected and its acknowledged slot is reusable.
+  await assert.rejects(pending, error => error instanceof RuntimeError && error.code === 'cancelled');
+  assert.deepEqual(await client.calibrationCandidates(calibrationQuery), calibrationItems);
+});
+
+test('source Practice preparation rejects widened targets, revisions and return anchors', async () => {
+  // Given one explicitly selected source target and the native preparation transport.
+  const targets: SourcePracticeTarget[] = [{
+    targetId: 'target',
+    source: { sourceId: 'source', contentRevision: 'media', packageId: 'package', packageVersion: '1',
+      text: 'word', locator: { kind: 'video', subtitleRevision: 'subtitles', cueIndex: 0,
+        selectionStart: 0, selectionEnd: 4, positionMs: 0, subtitleOffsetMs: 0, playbackRate: 1 } },
+  }];
+  const item = { packageId: 'package', packageRevision: 'revision', ...targets[0], capabilities: ['package:meaning'] };
+  let response: unknown = { type: 'source_practice', items: [item] };
+  const client = createReviewClient(async request => {
+    assert.equal(request.type, 'prepare_source_practice');
+    return response;
+  }, () => { throw new Error('A preparation read must not allocate a durable command.'); });
+  // When a real bounded projection preserves every requested identity and return location.
+  assert.deepEqual(await client.sourcePractice('package', 'revision', targets), [item]);
+  // Then malformed support or scope changes fail rather than becoming a different Practice session.
+  for (const changed of [
+    { ...item, targetId: 'another' },
+    { ...item, packageRevision: 'another' },
+    { ...item, source: { ...targets[0]?.source, text: 'another' } },
+    { ...item, capabilities: [] },
+  ]) {
+    response = { type: 'source_practice', items: [changed] };
+    await assert.rejects(client.sourcePractice('package', 'revision', targets), protocol);
+  }
+});
+
+test('validation preserves its frozen request outside ordinary and source cancellation queues', { timeout: 5000 }, async () => {
+  // Given ordinary transport and source cancellation whose receipts remain pending.
+  const ordinaryEntered = gate<void>(), ordinary = gate<string>();
+  const sourceEntered = gate<void>(), source = gate<void>();
+  const begun = gate<string>(), registration = gate<string>();
+  const sent: string[] = [];
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { ordinaryEntered.release(); return ordinary.promise; },
+    cancelSourceOpen: async () => { sourceEntered.release(); await source.promise; },
+    reviewValidation: {
+      begin: async raw => { begun.release(raw); return registration.promise; },
+      execute: async (id, raw) => { assert.equal(id, 'validation-1'); sent.push(raw); return captureReceipt; },
+      cancel: async () => { assert.fail('Source cancellation must not cancel this response.'); },
+    },
+  });
+  const knowledge = client.knowledge([{ packageId: 'package', targetId: 'target', capability: 'package:meaning' }]);
+  await ordinaryEntered.promise;
+  const cancellingSource = client.cancelSourceOpen();
+  await sourceEntered.promise;
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  // When the durable response registers and executes while both other lanes wait.
+  const saving = client.review(command);
+  const registered = await begun.promise;
+  if (command.kind !== 'capture_response' || command.response.kind !== 'typed_text')
+    throw new Error('Expected the typed response fixture');
+  command.response.text = 'edited while registration was pending';
+  registration.release('validation-1');
+  const result = await saving;
+  // Then native registration and execution receive the same original raw intent.
+  assert.equal(sent[0], registered);
+  assert.equal(JSON.parse(registered).command.response.text, '  RAW  ');
+  assert.equal(result.session.revision, 2);
+  ordinary.release(JSON.stringify({ type: 'knowledge', projections: [] }));
+  source.release();
+  await Promise.all([knowledge, cancellingSource]);
+});
+
+test('registration abort retains its shared operation slot until native acknowledgment', { timeout: 5000 }, async () => {
+  // Given a delayed validation registration and an independent source read.
+  const begun = gate<void>(), registration = gate<string>();
+  const cancelEntered = gate<string>(), acknowledgement = gate<void>();
+  const readEntered = gate<void>(), read = gate<string>();
+  const key = { packageId: 'package', targetId: 'target', capability: 'package:meaning' };
+  let registrations = 0, executions = 0, cancellations = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Scoped work must not use ordinary transport.'); },
+    reviewValidation: {
+      begin: async () => {
+        if (++registrations === 1) { begun.release(); return registration.promise; }
+        return 'validation-2';
+      },
+      execute: async id => { executions++; assert.equal(id, 'validation-2'); return captureReceipt; },
+      cancel: async id => { cancellations++; cancelEntered.release(id); await acknowledgement.promise; },
+    },
+    boundedReads: {
+      begin: async () => 'source-read',
+      execute: async () => { readEntered.release(); return read.promise; },
+      cancel: async () => { assert.fail('Stopping a response must not stop the source read.'); },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'cancelled' });
+  await begun.promise;
+  // When Stop precedes ticket delivery, native cancellation still owns that slot.
+  controller.abort();
+  registration.release('validation-1');
+  assert.equal(await cancelEntered.promise, 'validation-1');
+  controller.abort();
+  const reading = client.knowledgeEvidence({ key, after: null });
+  await readEntered.promise;
+  await assert.rejects(client.review(command), { code: 'busy' });
+  assert.equal(registrations, 1);
+  assert.equal(executions, 0);
+  assert.equal(cancellations, 1);
+  // Then acknowledgment releases only this operation; the source completes separately.
+  acknowledgement.release();
+  await stopped;
+  read.release(JSON.stringify({ type: 'knowledge_evidence', page: {
+    projection: { key, claim: null, assessed: null, prediction: null, status: 'untracked', revision: 0 },
+    claimRevision: null, assessedAttempt: null, observations: [], next: null,
+  } }));
+  await reading;
+  assert.equal((await client.review(command)).session.revision, 2);
+});
+
+test('active validation discards late success until execution and cancellation both terminate', { timeout: 5000 }, async () => {
+  // Given a native response whose work is complete but transport delivery is held.
+  const entered = gate<void>(), execution = gate<string>();
+  const cancelEntered = gate<void>(), acknowledgement = gate<void>();
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Validation must use its dedicated transport.'); },
+    reviewValidation: {
+      begin: async () => 'validation-1',
+      execute: async () => { entered.release(); return execution.promise; },
+      cancel: async () => { cancelEntered.release(); await acknowledgement.promise; },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'cancelled' });
+  await entered.promise;
+  // When Stop races an already-committed result whose delivery arrives late.
+  controller.abort();
+  await cancelEntered.promise;
+  execution.release(captureReceipt);
+  await execution.promise;
+  acknowledgement.release();
+  // Then no late success is published as a new Review state.
+  await stopped;
+});
+
+test('stopped validation preserves uncertain registration failures instead of acknowledging drainage', { timeout: 5000 }, async () => {
+  // Given registration whose native ticket receipt will be lost.
+  const entered = gate<void>(), release = gate<void>();
+  let registrations = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { assert.fail('Validation must use its dedicated transport.'); },
+    reviewValidation: {
+      begin: async () => {
+        registrations++;
+        entered.release();
+        await release.promise;
+        throw new Error('Registration receipt lost');
+      },
+      execute: async () => { assert.fail('No usable ticket was delivered.'); },
+      cancel: async () => { assert.fail('An unknown native ticket cannot be cancelled.'); },
+    },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  const controller = new AbortController();
+  const stopped = assert.rejects(client.review(command, controller.signal), { code: 'transport' });
+  await entered.promise;
+  // When Stop races loss of registration identity, no drainage receipt exists.
+  controller.abort();
+  release.release();
+  await stopped;
+  // Then both uncertain slots remain charged and no third registration starts.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  await assert.rejects(client.review(command), { code: 'transport' });
+  assert.equal(registrations, 2);
+});
+
+test('captured responses require the cancellable host capability without ordinary fallback', async () => {
+  // Given a host that has no scoped validation API.
+  let ordinary = 0;
+  const client = createRuntimeClient({
+    commandId: () => 'capture',
+    execute: async () => { ordinary++; return captureReceipt; },
+  });
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: { kind: 'typed_text', text: '  RAW  ' },
+  });
+  // When a response is submitted without an AbortSignal.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  // Then an uncancellable path cannot masquerade as the supported operation.
+  assert.equal(ordinary, 0);
+});
+
+test('captured questions reject feedback leaks and foreign validator rows', () => {
+  // Given valid hidden and Revealed projections of one immutable capture.
+  const feedback = { contractVersion: 1, taskId: 'written', taskRevision: 1,
+    validatorId: 'package:validator',
+    outcomes: [{ targetId: 'row', result: 'accepted', reason: 'finite_match' }],
+  };
+  const revealedCapture = { ...capturedEncounter, answer: 'answer',
+    conditions: { ...encounter.conditions, revealed: true },
+    capture: { ...capturedEncounter.capture, feedback },
+  };
+  assert.equal(isReviewResponse({ type: 'review_session', session: typedSession }), true);
+  for (const value of [capturedEncounter, revealedCapture])
+    assert.equal(isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: value } }), true);
+  // When feedback appears early, claims another task/row or violates the admitted input.
+  const invalid = [
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture, feedback } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      conditions: { ...encounter.conditions, revealed: true } } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      response: { kind: 'choice_id', id: 'choice' } } },
+    { ...capturedEncounter, capture: { ...capturedEncounter.capture,
+      response: { kind: 'typed_text', text: 'é'.repeat(1025) } } },
+    { ...typedEncounter, task: { ...typedEncounter.task, responseSpec: { kind: 'typed_text', maxBytes: 0 } } },
+    { ...typedEncounter, task: { ...typedEncounter.task, hiddenAnswer: 'leaked' } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback, taskId: 'another-task' } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback, taskRevision: 2 } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback,
+      outcomes: [...feedback.outcomes, ...feedback.outcomes] } } },
+    { ...revealedCapture, capture: { ...revealedCapture.capture, feedback: { ...feedback,
+      outcomes: [{ ...feedback.outcomes[0], targetId: 'another-row' }] } } },
+  ];
+  // Then none acquires the trusted question projection.
+  for (const value of invalid)
+    assert.equal(isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: value } }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: { ...session, encounter: typedEncounter } }), false);
+});
+
+test('choice captures retain only a declared option identity', () => {
+  // Given a question with two actual stable choice IDs.
+  const choice = { ...capturedEncounter, task: {
+    revision: 1, responseSpec: { kind: 'choice_id', options: [
+      { id: 'a', label: 'First sentence' }, { id: 'b', label: 'Second sentence' },
+    ] }, attribution: 'Original package content', limitations: 'Choice contrast only',
+  }, capture: { ...capturedEncounter.capture, response: { kind: 'choice_id', id: 'a' } } };
+  // When the host projects a declared option and an invented replacement.
+  const accepted = isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: choice } });
+  const foreign = isReviewResponse({ type: 'review_session', session: { ...typedSession, encounter: {
+    ...choice, capture: { ...choice.capture, response: { kind: 'choice_id', id: 'outside' } },
+  } } });
+  // Then only the declared choice belongs to the admitted response.
+  assert.equal(accepted, true);
+  assert.equal(foreign, false);
+});
+
+test('prepared capture retries preserve raw bytes and reject renderer-supplied grading', async () => {
+  // Given an uncertain save and a mutable local response.
+  const wire: Request[] = [];
+  const client = createReviewClient(async request => {
+    wire.push(structuredClone(request));
+    if (wire.length === 1) throw new RuntimeError('transport', 'Receipt lost');
+    return { type: 'review', commit: { commandId: 'capture', committedRevision: 2,
+      session: { ...typedSession, revision: 2, encounter: capturedEncounter } } };
+  }, () => 'capture');
+  const raw = { kind: 'typed_text', text: '  RAW  ' } satisfies TaskResponse;
+  const command = client.prepareReviewMutation(typedSession, {
+    kind: 'capture_response', encounterId: 'encounter', response: raw,
+  });
+  raw.text = 'edited after admission';
+  // When the same frozen command retries after uncertain transport.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  await client.review(command);
+  // Then original input survives without a client-authored success or oversized payload.
+  assert.deepEqual(wire[0], wire[1]);
+  assert.equal(command.kind, 'capture_response');
+  if (command.kind !== 'capture_response') throw new Error('Expected prepared capture');
+  assert.deepEqual(command.response, { kind: 'typed_text', text: '  RAW  ' });
+  for (const response of [
+    { kind: 'typed_text', text: 'answer', accepted: true },
+    { kind: 'typed_text', text: 'é'.repeat(1025) },
+    { kind: 'choice_id', id: '' },
+  ]) assert.equal(isReviewCommand({ ...command, response }), false);
+  assert.equal(isReviewCommand({ ...command, response: { kind: 'typed_text', text: 'é'.repeat(1024) } }), true);
+});
 
 test('Word Practice validates explicit membership and preserves a prepared selection across retry', async () => {
   // Given an exact selected native membership and an uncertain transport result.
@@ -55,6 +505,84 @@ test('Word Practice validates explicit membership and preserves a prepared selec
       commandId: 'start', sessionId: 's', mode: { kind: 'practice', items: invalid },
     } }), false);
   }
+});
+
+test('canonical Practice confines target identity revision and tested capabilities', () => {
+  // Given one explicit canonical scope, with no authored identity.
+  const item = { packageId: 'package', packageRevision: 'revision', targetId: 'target',
+    capabilities: ['package:meaning'], source: null };
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: {
+    revision: 1, responseSpec: { kind: 'self_report' },
+    attribution: 'Package content', limitations: 'Recall only',
+  } };
+  const practice = { ...session, mode: { kind: 'target_practice', items: [item] },
+    total: 1, encounter: current };
+  // When the native projection crosses its ordinary response boundary.
+  assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  const assisted = { ...practice, mode: { ...practice.mode, assistance: ['inspector'] } };
+  assert.equal(isReviewResponse({ type: 'review_session', session: assisted }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...assisted, encounter: { ...current,
+      conditions: { ...encounter.conditions, assistance: ['inspector'] } },
+  } }), true);
+  for (const assistance of [['inspector', 'inspector'], ['prior_disclosure'], ['replay']]) {
+    assert.equal(isReviewCommand({ kind: 'start', start: {
+      commandId: 'start', sessionId: 's', mode: { ...practice.mode, assistance },
+    } }), false);
+  }
+  // Then a different subject, revision, key or authored identity cannot broaden it.
+  for (const invalid of [
+    { ...current, targetId: 'other-target' },
+    { ...current, packageRevision: 'other-revision' },
+    { ...current, materialId: 'invented', materialRevision: 1 },
+    { ...current, targets: [{ ...encounter.targets[0],
+      key: { packageId: 'package', targetId: 'target', capability: 'package:reading' } }] },
+  ]) assert.equal(isReviewResponse({
+    type: 'review_session', session: { ...practice, encounter: invalid },
+  }), false);
+});
+
+test('collection Practice keeps a frozen native scope distinct from due work and cold evidence', () => {
+  // Given a frozen selection and one source-assisted canonical encounter.
+  const canonical = Object.fromEntries(Object.entries(encounter)
+    .filter(([name]) => name !== 'materialId' && name !== 'materialRevision'));
+  const current = { ...canonical, targetId: 'target', task: {
+    revision: 1, responseSpec: { kind: 'self_report' },
+    attribution: 'Package content', limitations: 'Recall only',
+  }, conditions: { ...encounter.conditions, assistance: ['source'] } };
+  const practice = { ...session, total: null, mode: {
+    kind: 'collection_practice', selectionId: 'frozen', capabilities: ['package:meaning'],
+  }, encounter: current };
+  // When the bounded wire projection is admitted without enumerating the selection.
+  assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  assert.equal(isReviewCommand({ kind: 'start', start: {
+    commandId: 'once', sessionId: 'scope', mode: practice.mode,
+  } }), true);
+  const captured = { ...current, task: typedEncounter.task, capture: {
+    id: 'capture', response: { kind: 'typed_text', text: 'raw' },
+    conditions: current.conditions, feedback: null,
+  } };
+  assert.equal(isReviewResponse({ type: 'review_session',
+    session: { ...practice, encounter: captured } }), true);
+  assert.equal(isReviewResponse({ type: 'review_session',
+    session: { ...practice, encounter: { ...captured, capture: {
+      ...captured.capture, conditions: encounter.conditions,
+    } } } }), false);
+  // Then stripped assistance, broadened keys and false terminal states fail closed.
+  for (const invalid of [
+    { ...practice, encounter: { ...current, conditions: encounter.conditions } },
+    { ...practice, mode: { ...practice.mode, capabilities: ['package:reading'] } },
+    { ...practice, state: 'stopped' },
+    { ...practice, state: 'complete' },
+  ]) assert.equal(isReviewResponse({ type: 'review_session', session: invalid }), false);
+  assert.equal(isReviewResponse({ type: 'review_session', session: {
+    ...practice, state: 'stopped', encounter: null, canUndo: false,
+  } }), true);
+  assert.equal(isReviewCommand({ kind: 'stop', mutation: {
+    commandId: 'stop-once', sessionId: 'scope', expectedRevision: 1,
+  } }), true);
 });
 
 test('Review rejects leaked answers malformed rows and incompatible delivery at the wire boundary', () => {

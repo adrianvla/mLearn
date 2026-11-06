@@ -5,6 +5,7 @@ import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from
 import type { DocumentAnalysisBatch, DocumentAppearance, DocumentBlock, DocumentFlow, DocumentPosition } from '@mlearn/contracts';
 import { DocumentFigure, DocumentWord, InlineDocumentBlock, InlineWordContent, type InlineDocumentFlow, type TextAnchor, type TextBounds } from '@mlearn/ui/document';
 import { blockKey, byteLength, documentSegments } from './documentFlow';
+import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 
 export type DocumentCanvasRef = {
     measure: DOMImperativeFactory[string];
@@ -42,7 +43,7 @@ export default function DocumentCanvas({ ref, identity, parserRevision, blocks, 
     readonly onInspect: (identity: string, occurrence: number, resource: string, blockId: string, tokenStart: number, bounds: TextBounds) => Promise<void>;
     readonly onMeasured: (identity: string, occurrence: number, request: number, bounds: TextBounds) => Promise<void>;
     readonly onImageError: (identity: string, resourceId: string) => Promise<void>;
-    readonly onThumbnail: (identity: string, resourceId: string, uri: string) => Promise<void>;
+    readonly onThumbnail: (identity: string, resourceId: string, thumbnail: SourceThumbnail) => Promise<void>;
     readonly onNavigate: (identity: string, direction: 'previous' | 'next') => Promise<void>;
 }) {
     const viewport = useRef<HTMLDivElement>(null);
@@ -227,7 +228,7 @@ export default function DocumentCanvas({ ref, identity, parserRevision, blocks, 
                     caption={display.caption} muted={display.muted}
                     onLoad={() => { restore(lastPosition.current); report(true); }}
                     onError={() => { if (block.image) void onImageError(identity, block.image.resourceId); }}
-                    onThumbnail={uri => { if (block.image) void onThumbnail(identity, block.image.resourceId, uri); }} />;
+                    onThumbnail={thumbnail => { if (block.image) void onThumbnail(identity, block.image.resourceId, thumbnail); }} />;
             })() : <InlineDocumentBlock appearance={appearance} flow={flow(block)} display={display} kind={block.kind} page={block.page}>
                 <InlineWordContent documentFlow={display} segments={documentSegments(block, batch?.blocks ?? []).map(segment => ({
                     text: segment.text,

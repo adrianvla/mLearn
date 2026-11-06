@@ -31,21 +31,21 @@ const contentStyles = StyleSheet.create(theme => ({
     source: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant],
         flexShrink: 1,
-        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' || variant === 'listTitle' || variant === 'entryTitle' ? theme.colors.text : theme.media.text,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
         textDecorationLine: status === 'claimed_unknown' || status === 'assessed_unknown' || status === 'mixed' ? 'underline' : 'none',
         textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid',
     }),
     reading: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant === 'subtitle' ? 'subtitleRuby' : variant === 'inspectionTitle' ? 'inspectionRuby' : 'bodyRuby'],
-        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' || variant === 'listTitle' || variant === 'entryTitle' ? theme.colors.text : theme.media.text,
     }),
 }));
 
 /** A real inline view keeps each word independently reachable by TalkBack/VoiceOver.
  * Nested NativeText onPress works by touch but collapses into its parent's AX node.
  */
-export function InlineWordControl({ text, children, accessibilityLabel, status, onActivate, variant = 'subtitle', level, starCollapse }: InlineWordProps) {
+export function InlineWordControl({ text, children, accessibilityLabel, status, onActivate, variant = 'subtitle', level, starCollapse, layout = 'inline' }: InlineWordProps) {
     const ref = useRef<View>(null);
     const restoreFocus = () => {
         const tag = findNodeHandle(ref.current);
@@ -61,14 +61,22 @@ export function InlineWordControl({ text, children, accessibilityLabel, status, 
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? `${text}: ${status.replaceAll('_', ' ')}`}
       onPress={activate}
-      style={styles.target}>
-    {children ?? <NativeText style={styles.word(status, variant)}>{text}</NativeText>}
-    {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}</Pressable>;
+      style={[styles.target, layout === 'tile' ? styles.tile : undefined]}>
+    {layout === 'tile' ? <View style={styles.tileWord}>
+      {children ?? <NativeText style={styles.word(status, variant)}>{text}</NativeText>}
+      {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}
+    </View> : <>
+      {children ?? <NativeText style={styles.word(status, variant)}>{text}</NativeText>}
+      {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}
+    </>}</Pressable>;
 }
 const styles = StyleSheet.create(theme => ({
     target: {
         minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-end'
-    }, word: (status: string, variant: 'subtitle' | 'body') => ({
+    },
+    tile: { width: '100%', minHeight: 72, padding: theme.spacing.small, justifyContent: 'center', alignItems: 'center' },
+    tileWord: { maxWidth: '100%', position: 'relative', alignItems: 'center' },
+    word: (status: string, variant: 'subtitle' | 'body') => ({
         ...theme.typography[variant],
         flexShrink: 1,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),

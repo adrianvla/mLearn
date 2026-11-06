@@ -2,7 +2,7 @@ use mlearn_core::{ClaimChange, Cue, KnowledgeKey, SourceRecord};
 use mlearn_language_host::{AssetMap, CodePolicy, CompiledPlugin, ResourcePaths};
 use mlearn_runtime::Runtime;
 use mlearn_storage::ProfileStore;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
@@ -125,6 +125,29 @@ fn retained_abi1_modules_and_saved_source_run_offline_without_reinstallation() {
         call(&mut runtime, json!({"type":"snapshot"}))["snapshot"]["catalogConfigured"],
         false
     );
+    let schema = call(
+        &mut runtime,
+        json!({"type":"describe_language","packageId":source.package_id}),
+    );
+    assert!(schema["description"].get("catalog").is_none());
+    let denied: Value = serde_json::from_str(
+        &runtime.execute(
+            &json!({"type":"invoke_plugin","pluginId":source.package_id,
+            "capability":"collection.targets.v1","input":{"after":null,"limit":1}})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(denied["type"], "error");
+    let denied_tasks: Value = serde_json::from_str(
+        &runtime.execute(
+            &json!({"type":"invoke_plugin","pluginId":source.package_id,
+                "capability":"learning.probes.v2","input":{}})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(denied_tasks["type"], "error");
     assert_eq!(
         call(
             &mut runtime,
@@ -149,13 +172,14 @@ fn retained_abi1_modules_and_saved_source_run_offline_without_reinstallation() {
         call(&mut runtime, json!({"type":"knowledge","keys":[key]}))["projections"][0]["claim"],
         true
     );
-    assert_eq!(
-        call(
-            &mut runtime,
-            json!({"type":"inspect_target","packageId":key.package_id,"targetId":key.target_id})
-        )["entry"]["headword"],
-        "child"
+    let inspected = call(
+        &mut runtime,
+        json!({"type":"inspect_target","packageId":key.package_id,"targetId":key.target_id}),
     );
+    assert_eq!(inspected["entry"]["headword"], "child");
+    assert!(inspected["entry"]
+        .get("canonicalPracticeCapabilities")
+        .is_none());
     call(
         &mut runtime,
         json!({"type":"save_position","sourceId":source.id,"positionMs":3432,"durationMs":10000}),

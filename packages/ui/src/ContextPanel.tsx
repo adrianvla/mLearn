@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useState, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { Platform, View, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -8,10 +8,11 @@ import { DialogPortalContext } from './Dialog';
 import { revealScrollFocus } from './scrollFocus';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, headerAction, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
+    headerAction?: ReactElement;
     footer?: ReactNode;
     popover?: ReactNode;
     onPopoverClose?: () => void;
@@ -23,7 +24,9 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
     const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
     const { width, height } = viewport ?? window;
     const { theme } = useUnistyles();
-    const material = opaque ? theme.media.panel : theme.media.translucentPanel;
+    // Bright content needs the readable dark backing, including message sources.
+    const solid = opaque || theme.shell.light;
+    const material = solid ? theme.media.panel : theme.media.translucentPanel;
     const [bounds, setBounds] = useState<TextBounds>(anchor);
     const [headerHeight, setHeaderHeight] = useState(0);
     const [footerHeight, setFooterHeight] = useState(0);
@@ -100,23 +103,23 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                             </Primitive.Title>
                                         </View>
                                         <Primitive.Description asChild>
-                                            <Text tone="media" muted variant="caption">Inspect</Text>
+                                            {headerAction ?? <Text tone="media" muted variant="caption">Inspect</Text>}
                                         </Primitive.Description>
                                         <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
                                 </View>
                                 <ScrollView testID="inspector-body" onFocus={revealScrollFocus} style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-                                    {(!anchored || alwaysShowContext) && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
+                                    {(!anchored || alwaysShowContext) && sourceContext && sourceContext !== title ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
-                                    horizontal
+                                    horizontal={desktop}
                                     onFocus={revealScrollFocus}
                                     onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
-                                    contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
+                                    contentContainerStyle={[styles.footerContent, !desktop && styles.footerWrap]} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
-                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(opaque), { bottom: footerHeight,
+                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(solid), { bottom: footerHeight,
                                     maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
                                     contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
                                     {popover}
@@ -157,6 +160,8 @@ const styles = StyleSheet.create(theme => ({
         backgroundColor: theme.media.footer
     }, footerContent: {
         padding: theme.spacing.compact, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small
+    }, footerWrap: {
+        flexWrap: 'wrap'
     }, popover: (opaque: boolean) => ({
         position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
         borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,

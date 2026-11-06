@@ -108,13 +108,13 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
         {words.length ? <Text variant="caption" muted>
             Words {offset + 1}–{offset + visible.length} of {words.length}
         </Text> : <Text>No matching words in the analyzed regions.</Text>}
-        <Button label={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
+        <Button label={practice.retry ? 'Retry original Word Practice request' : 'Practice words in this view'}
              variant="secondary" size="compact" busy={practice.pending} disabled={!visible.length && !practice.retry}
              onPress={() => void practice.start()} />
         {practice.error ? <Text variant="caption" accessibilityRole="alert">{practice.error}</Text> : null}
     </>;
-    return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
-        presentation="sidebar" open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
+    return <Dialog title="Page words"
+        presentation="sidebar" modal={false} open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <CaptureList client={client} candidates={visible.map(word => word.candidate)}
             presentation="cards" header={header}
             onInspect={(candidate, anchor) => {

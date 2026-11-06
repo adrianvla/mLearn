@@ -20,6 +20,14 @@ impl Runtime {
                 Ok((self.complete_review(work, admissions)?, None))
             }
             GuestWork::Language(work) => {
+                if let LanguageAction::ReviewCapture { command, .. } = &work.action
+                    && let Some(commit) = self
+                        .store
+                        .review_receipt(command)
+                        .map_err(crate::review::storage_failure)?
+                {
+                    return Ok((Response::Review { commit }, None));
+                }
                 work.cancellation.check()?;
                 let current = self
                     .installed
@@ -50,6 +58,10 @@ impl Runtime {
                     }
                 }
                 let response = match (&work.action, output) {
+                    (
+                        LanguageAction::ReviewCapture { command, admission },
+                        GuestOutput::Validation(output),
+                    ) => self.complete_review_capture(work, command, admission, output)?,
                     (
                         LanguageAction::OpenDocument { .. }
                         | LanguageAction::OpenImageCollection { .. },
@@ -161,6 +173,40 @@ impl Runtime {
                             package_version: work.package.manifest.version.clone(),
                             package_revision: work.package.revision()?,
                             knowledge: self.target_knowledge(&work.package.manifest.id, entry)?,
+                        }
+                    }
+                    (LanguageAction::Graph(query), GuestOutput::Graph(value)) => {
+                        self.complete_graph(query, &work.package, value)?
+                    }
+                    (LanguageAction::SourcePractice(_), GuestOutput::SourcePractice(items)) => {
+                        self.validate_target_practice(
+                            items,
+                            &[mlearn_core::ReviewAssistance::Source],
+                        )?;
+                        Response::SourcePractice {
+                            items: std::mem::take(items),
+                        }
+                    }
+                    (
+                        LanguageAction::AuthoredPreview(material),
+                        GuestOutput::AuthoredPreview(preview),
+                    ) => {
+                        let current = self
+                            .store
+                            .review_practice_materials(&[mlearn_core::PracticeItem {
+                                material_id: material.id.clone(),
+                                source: None,
+                            }])
+                            .map_err(crate::review::storage_failure)?
+                            .pop()
+                            .ok_or_else(|| Failure::Operation("Material is unavailable".into()))?;
+                        if current.revision != material.revision {
+                            return Err(Failure::Operation(
+                                "Material changed during probe preview".into(),
+                            ));
+                        }
+                        Response::AuthoredPracticePreview {
+                            preview: preview.as_ref().clone(),
                         }
                     }
                     (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {

@@ -8,7 +8,22 @@ use mlearn_core::{Request, Response};
 impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
+        self.prepare_cancellable(request, cancellation)
+    }
+    pub(crate) fn prepare_cancellable(
+        &mut self,
+        request: Request,
+        cancellation: Cancellation,
+    ) -> Result<Prepared, Failure> {
+        let epoch = cancellation.epoch;
         match request {
+            Request::PrepareCollection { .. }
+            | Request::CollectionPreparationStatus { .. }
+            | Request::CancelCollectionPreparation { .. }
+            | Request::MaterialBulk { .. } => Err(Failure::Protocol(
+                "requires_executor",
+                "Task control requires the shared native executor".into(),
+            )),
             Request::Conversation { command } => self.prepare_conversation(command, cancellation),
             Request::ImportImageCollection {
                 paths,
@@ -108,10 +123,17 @@ impl Runtime {
             | Request::RecentDocuments
             | Request::DocumentWindow { .. }
             | Request::DocumentContents { .. }
+            | Request::SearchDocument { .. }
             | Request::CheckpointDocument { .. }
             | Request::DocumentResource { .. }) => Ok(Prepared::Immediate(Box::new(
                 self.document_request(request, &cancellation)?,
             ))),
+            Request::ReturnSourceAnchor { anchor } => {
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(
+                    self.return_source_anchor(anchor, cancellation.epoch)?,
+                )))
+            }
             Request::AnalyzeDocument {
                 source_id,
                 position,
@@ -143,7 +165,80 @@ impl Runtime {
                     cancellation,
                 )
             }
-            Request::Review { command } => self.prepare_review(command),
+            Request::Review { command } => self.prepare_review(command, cancellation),
+            Request::PreviewAuthoredPractice {
+                material_id,
+                material_revision,
+            } => {
+                let material = self
+                    .store
+                    .review_practice_materials(&[mlearn_core::PracticeItem {
+                        material_id,
+                        source: None,
+                    }])
+                    .map_err(crate::review::storage_failure)?
+                    .pop()
+                    .ok_or_else(|| Failure::Operation("Saved Material is unavailable".into()))?;
+                if material.revision != material_revision {
+                    return Err(Failure::Operation(
+                        "Material changed; reload before authoring".into(),
+                    ));
+                }
+                let package_id = material.content.package_id.clone();
+                if !self.installed.get(&package_id).is_some_and(|package| {
+                    package
+                        .manifest
+                        .capabilities
+                        .iter()
+                        .any(|id| id == "learning.probes.v1")
+                }) {
+                    return Err(Failure::Operation(
+                        "Package does not support authored recall probes".into(),
+                    ));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::AuthoredPreview(Box::new(material)),
+                    cancellation,
+                )
+            }
+            Request::PrepareCalibration { query } => {
+                cancellation.check()?;
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|id| id == "learning.probes.v2")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not support Word Sync tasks".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                if self
+                    .store
+                    .collection_catalog_revision(&query.package_id)
+                    .map_err(crate::review::storage_failure)?
+                    .as_deref()
+                    != Some(revision.as_str())
+                {
+                    return Err(Failure::Operation(
+                        "Language package changed; prepare its current Knowledge catalog".into(),
+                    ));
+                }
+                let items = self
+                    .store
+                    .calibration_candidates(&query)
+                    .map_err(crate::review::storage_failure)?;
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(Response::Calibration {
+                    items,
+                })))
+            }
             Request::ReviewSession { session_id } => {
                 Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
                     session: self
@@ -274,6 +369,94 @@ impl Runtime {
                     cancellation,
                 )
             }
+            Request::PrepareSourcePractice {
+                package_id,
+                package_revision,
+                targets,
+            } => {
+                if !(1..=128).contains(&targets.len())
+                    || targets.iter().any(|target| {
+                        target.target_id.is_empty()
+                            || target.target_id.len() > 512
+                            || target.target_id.contains('\0')
+                            || target.source.package_id != package_id
+                    })
+                    || targets
+                        .iter()
+                        .map(|target| &target.target_id)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != targets.len()
+                {
+                    return Err(Failure::Operation(
+                        "Invalid visible Practice target scope".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if package.revision()? != package_revision {
+                    return Err(Failure::Operation(
+                        "Language package changed; refresh the selected source".into(),
+                    ));
+                }
+                for target in &targets {
+                    self.validate_capture_source(&target.source)?;
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::SourcePractice(targets),
+                    cancellation,
+                )
+            }
+            Request::GraphNeighborhood { query } => {
+                if [&query.package_id, &query.target_id]
+                    .iter()
+                    .any(|value| value.is_empty() || value.len() > 512 || value.contains('\0'))
+                    || query.after.as_ref().is_some_and(|cursor| {
+                        cursor.after.is_empty()
+                            || cursor.after.len() > 512
+                            || cursor.after.contains('\0')
+                    })
+                {
+                    return Err(Failure::Operation(
+                        "Invalid graph neighborhood query".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|value| value == "graph.neighborhood.v1")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not provide related-entity inspection".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                let identity =
+                    crate::graph::identity(&query.package_id, &revision, &query.target_id)?;
+                if query
+                    .expected_revision
+                    .as_ref()
+                    .is_some_and(|expected| expected != &revision)
+                    || query
+                        .after
+                        .as_ref()
+                        .is_some_and(|cursor| cursor.identity != identity)
+                {
+                    return Err(Failure::Operation(
+                        "Language package or graph scope changed; refresh related entities".into(),
+                    ));
+                }
+                let package_id = query.package_id.clone();
+                self.language_work(&package_id, LanguageAction::Graph(query), cancellation)
+            }
             Request::InspectTargets {
                 source_id,
                 subtitle_revision,
@@ -368,11 +551,28 @@ impl Runtime {
                 cancellation.check()?;
                 Ok(Prepared::Immediate(Box::new(response?)))
             }
-            request @ (Request::Snapshot
+            request @ (Request::Collection { .. }
+            | Request::RefreshMaterialCollection { .. }
+            | Request::CreateCollectionSelection { .. }
+            | Request::CollectionSelection { .. }
+            | Request::CollectionSelections
+            | Request::CollectionSelectionMembership { .. }
+            | Request::CollectionSelectionPage { .. }
+            | Request::ReleaseCollectionSelection { .. }
+            | Request::Snapshot
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }
             | Request::Materials { .. }
             | Request::Material { .. }
+            | Request::MaterialProposals { .. }
+            | Request::MaterialGeneration { .. }
+            | Request::MaterialGenerations { .. }
+            | Request::CollectMaterialGeneration { .. }
+            | Request::MaterialProposal { .. }
+            | Request::SuggestMaterial { .. }
+            | Request::ReviewMaterialProposal { .. }
+            | Request::ReturnMaterialProposalSource { .. }
+            | Request::RemoveMaterial { .. }
             | Request::MaterialEligibility { .. }
             | Request::SetCaptureExclusion { .. }
             | Request::ReturnMaterialSource { .. }
@@ -386,6 +586,7 @@ impl Runtime {
             | Request::SetInspectionTrigger { .. }
             | Request::SavePosition { .. }
             | Request::Knowledge { .. }
+            | Request::KnowledgeEvidence { .. }
             | Request::SaveTheme { .. }
             | Request::SaveInlineLevelScale { .. }
             | Request::SaveStarCollapse { .. }) => {

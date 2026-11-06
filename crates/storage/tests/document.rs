@@ -76,6 +76,166 @@ fn checkpoint(record: &DocumentRecord) -> DocumentCheckpoint {
     }
 }
 
+fn search_query(record: &DocumentRecord, text: &str) -> DocumentSearchQuery {
+    DocumentSearchQuery {
+        source_id: record.id.clone(),
+        content_revision: record.content_revision.clone(),
+        parser_revision: record.parser_revision.clone(),
+        scope: DocumentSearchScope::Text,
+        text: text.into(),
+        after: None,
+    }
+}
+
+#[test]
+fn document_search_pages_preserve_each_original_utf8_occurrence() {
+    // Given: canonical blocks contain repeated matches after a multibyte scalar.
+    let directory = tempfile::tempdir().unwrap();
+    let store_path = directory.path().join("search");
+    let mut store = ProfileStore::open(&store_path).unwrap();
+    let (record, blocks, resources) = fixture(20);
+    store
+        .import_document(&record, &blocks, &[], &resources)
+        .unwrap();
+    let mut query = search_query(&record, "bridge");
+    let first = store.search_document(&query).unwrap();
+    assert_eq!(first.hits.len(), 16);
+    assert!(first.next.is_some());
+    let mut hits = first.hits;
+    query.after = first.next;
+    store.checkpoint_document(&checkpoint(&record)).unwrap();
+    drop(store);
+    let store = ProfileStore::open(&store_path).unwrap();
+
+    // When: the same source search continues across progress changes and restart.
+    for _ in 0..4 {
+        let page = store.search_document(&query).unwrap();
+        assert!(page.hits.len() <= 16);
+        assert!(serde_json::to_vec(&page).unwrap().len() <= 196_608);
+        hits.extend(page.hits);
+        query.after = page.next;
+        if query.after.is_none() {
+            break;
+        }
+    }
+
+    // Then: pagination neither duplicates nor drops source-coordinate matches.
+    assert!(query.after.is_none());
+    let expected: Vec<_> = (0..20)
+        .flat_map(|index| [6, 14].map(|offset| (format!("bridge-{index}"), offset)))
+        .collect();
+    let actual: Vec<_> = hits
+        .iter()
+        .map(|hit| (hit.position.block_id.clone(), hit.position.offset))
+        .collect();
+    assert_eq!(actual, expected);
+    for hit in hits {
+        let SourceLocator::Document {
+            context_start,
+            selection_start,
+            selection_end,
+            ..
+        } = hit.anchor.locator
+        else {
+            panic!("Expected a canonical document location");
+        };
+        assert_eq!(
+            hit.anchor
+                .text
+                .get(selection_start as usize..selection_end as usize),
+            Some("bridge")
+        );
+        assert_eq!(context_start + selection_start, hit.position.offset);
+        assert_eq!(hit.anchor.content_revision, record.content_revision);
+    }
+}
+
+#[test]
+fn sparse_document_search_yields_bounded_progress_and_exact_late_context() {
+    // Given: the only match is late in a source and deep inside a large block.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("search")).unwrap();
+    let (record, mut blocks, resources) = fixture(145);
+    for block in &mut blocks {
+        block.text = "No matching text.".into();
+        block.readings.clear();
+    }
+    blocks[144].text = format!("{}needle 猫", "😀".repeat(1000));
+    store
+        .import_document(&record, &blocks, &[], &resources)
+        .unwrap();
+    let mut query = search_query(&record, "needle");
+
+    // When: successive bounded quanta scan the authoritative block owner.
+    let first = store.search_document(&query).unwrap();
+    assert!(first.hits.is_empty());
+    assert!(first.scanned > 0 && first.scanned <= 64 && first.scanned < first.total);
+    query.after = first.next;
+    let second = store.search_document(&query).unwrap();
+    assert!(second.hits.is_empty());
+    query.after = second.next;
+    let final_page = store.search_document(&query).unwrap();
+
+    // Then: an unfinished scan is not an empty result, and the final span is exact.
+    assert!(final_page.next.is_none());
+    assert_eq!(final_page.scanned, 145);
+    assert_eq!(final_page.hits.len(), 1);
+    let hit = &final_page.hits[0];
+    assert_eq!(hit.position.offset, 4000);
+    assert_eq!(hit.position.block_id, "bridge-144");
+    let SourceLocator::Document {
+        context_start,
+        selection_start,
+        selection_end,
+        ..
+    } = hit.anchor.locator
+    else {
+        panic!("Expected a document span");
+    };
+    assert!(context_start > 0);
+    assert_eq!(context_start + selection_start, 4000);
+    assert_eq!(
+        hit.anchor
+            .text
+            .get(selection_start as usize..selection_end as usize),
+        Some("needle")
+    );
+    assert!(hit.anchor.text.len() <= 1536);
+}
+
+#[test]
+fn document_search_rejects_foreign_queries_stale_packages_and_split_scalar_cursors() {
+    // Given: a continuation belongs to one exact source/package/query.
+    let directory = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&directory.path().join("search")).unwrap();
+    let (record, blocks, resources) = fixture(20);
+    store
+        .import_document(&record, &blocks, &[], &resources)
+        .unwrap();
+    let mut query = search_query(&record, "bridge");
+    query.after = store.search_document(&query).unwrap().next;
+    let mut changed = query.clone();
+    changed.text = "other".into();
+    assert!(store.search_document(&changed).is_err());
+    changed = query.clone();
+    changed.scope = DocumentSearchScope::RecognizedPages;
+    assert!(store.search_document(&changed).is_err());
+    changed = query.clone();
+    changed.after.as_mut().unwrap().offset = 2;
+    assert!(store.search_document(&changed).is_err());
+    changed = query.clone();
+    changed.content_revision = "changed-bytes".into();
+    assert!(store.search_document(&changed).is_err());
+
+    // When: the source's authoritative language association changes.
+    store
+        .set_document_language(&record.id, "another-package", "2")
+        .unwrap();
+
+    // Then: the old cursor cannot silently publish anchors under the new package.
+    assert!(store.search_document(&query).is_err());
+}
+
 #[test]
 fn document_windows_fit_native_transport_even_with_dense_authored_readings() {
     let dir = tempfile::tempdir().unwrap();
@@ -210,11 +370,9 @@ fn invalid_scalar_stale_or_missing_checkpoints_leave_saved_state_unchanged() {
         ..position("bridge-1", 0)
     };
     assert!(store.document_window(&record.id, Some(&stale)).is_err());
-    assert!(
-        store
-            .document_window(&record.id, Some(&position("missing", 0)))
-            .is_err()
-    );
+    assert!(store
+        .document_window(&record.id, Some(&position("missing", 0)))
+        .is_err());
     // Then rejection preserves the original passage and appearance.
     assert_eq!(store.document(&record.id).unwrap(), Some(saved));
 }
@@ -232,25 +390,19 @@ fn immutable_projection_identity_rejects_content_parser_and_block_changes() {
     // When a deterministic ID is reused with another revision or projection.
     let mut changed = record.clone();
     changed.content_revision = "content-two".into();
-    assert!(
-        store
-            .import_document(&changed, &blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&changed, &blocks, &[], &resources)
+        .is_err());
     changed = record.clone();
     changed.parser_revision = "parser-two".into();
-    assert!(
-        store
-            .import_document(&changed, &blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&changed, &blocks, &[], &resources)
+        .is_err());
     let mut changed_blocks = blocks.clone();
     changed_blocks[2].text.push('!');
-    assert!(
-        store
-            .import_document(&record, &changed_blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&record, &changed_blocks, &[], &resources)
+        .is_err());
     // Then original projection, location and appearance remain authoritative.
     assert_eq!(store.document(&record.id).unwrap(), Some(saved));
     assert_eq!(
@@ -329,11 +481,9 @@ fn full_size_block_and_readings_fit_without_loading_later_corpus() {
     // Then the legal block is returned alone with a stable next locator.
     assert_eq!(window.blocks, blocks[..1]);
     assert_eq!(window.next, Some(position("bridge-1", 0)));
-    assert!(
-        store
-            .document_window(&record.id, window.next.as_ref())
-            .is_err()
-    );
+    assert!(store
+        .document_window(&record.id, window.next.as_ref())
+        .is_err());
 }
 
 #[test]
@@ -382,11 +532,9 @@ fn failed_projection_write_rolls_back_document_blocks_and_registered_resources()
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute_batch("CREATE TRIGGER fail_document_navigation BEFORE INSERT ON document_navigation BEGIN SELECT RAISE(ABORT,'disk failure fixture'); END;").unwrap();
     // When complete projection admission fails.
-    assert!(
-        store
-            .import_document(&record, &blocks, &contents, &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&record, &blocks, &contents, &resources)
+        .is_err());
     // Then no partial record, block or resource survives, and retry is safe.
     assert_eq!(store.document(&record.id).unwrap(), None);
     assert_eq!(
@@ -463,7 +611,7 @@ fn schema_six_migration_retains_review_material_and_accepted_settings() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        11
+        21
     );
     let (record, blocks, resources) = fixture(1);
     store
@@ -614,11 +762,9 @@ fn byte_budget_stops_window_before_eight_blocks_and_pdf_pages_stay_source_metada
     let mut invalid_resources = resources.clone();
     invalid_resources[0].source_id = invalid.id.clone();
     blocks[2].page = Some(3);
-    assert!(
-        store
-            .import_document(&invalid, &blocks, &[], &invalid_resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&invalid, &blocks, &[], &invalid_resources)
+        .is_err());
     assert_eq!(store.document(&invalid.id).unwrap(), None);
 }
 
