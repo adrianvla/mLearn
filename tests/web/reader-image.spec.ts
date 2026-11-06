@@ -893,8 +893,13 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
   await page.screenshot({ path: testInfo.outputPath(`inspector-default-${width}.png`) });
   await details.click();
   await expect(details).toHaveAttribute('aria-expanded', 'true');
-  for (const name of ['Linguistic relationships', 'Dictionary source', 'Edit before capture'])
+  for (const name of ['Linguistic relationships', 'Dictionary source'])
     await expect(inspector.getByRole('button', { name, exact: true })).toBeVisible();
+  const relationships = inspector.getByRole('button', { name: 'Linguistic relationships', exact: true });
+  const labelBounds = await relationships.getByText('Linguistic relationships', { exact: true }).boundingBox();
+  const disclosureBounds = await relationships.locator('svg').boundingBox();
+  if (!labelBounds || !disclosureBounds) throw new Error('Disclosure label or control has no visible bounds');
+  expect(disclosureBounds.x).toBeGreaterThanOrEqual(labelBounds.x + labelBounds.width);
   await page.screenshot({ path: testInfo.outputPath(`inspector-details-${width}.png`) });
   await details.click();
   const footer = page.getByTestId('inspector-footer');
@@ -903,9 +908,11 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
   // Capture is a primary Inspector action, not content below a long entry.
   await expect(footer.getByRole('button', { name: 'Capture this context: 東京', exact: true })).toBeInViewport();
   const actions = footer.getByRole('button');
-  await expect(actions).toHaveCount(3);
+  await expect(actions).toHaveCount(4);
   await expect(footer.getByRole('button', { name: 'Capture options', exact: true })).toHaveCount(0);
-  await expect(footer.getByRole('button', { name: 'Inspector actions', exact: true })).toHaveCount(0);
+  const more = footer.getByRole('button', { name: 'Inspector actions', exact: true });
+  await expect(more).toBeVisible();
+  await expect(actions.last()).toHaveAccessibleName('Inspector actions');
   const geometry = await actions.evaluateAll(nodes => nodes.filter(node =>
     !['Capture options', 'Inspector actions'].includes(node.getAttribute('aria-label') ?? '')).map(node => {
     const rect = node.getBoundingClientRect();
@@ -913,19 +920,24 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
     return { top: rect.top, radius: style.borderRadius, material: style.backgroundImage };
   }));
   for (const action of geometry) {
-    if (width >= 720) expect(action.top).toBe(geometry[0].top);
+    expect(action.top).toBe(geometry[0].top);
     expect(action.radius).toBe(geometry[0].radius);
     expect(action.material).toContain('linear-gradient');
   }
   const overflow = await footer.evaluate(node => node.scrollWidth > node.clientWidth);
   expect(overflow).toBe(false);
-  await details.click();
-  const captureOptions = footer.getByRole('button', { name: 'Capture options', exact: true });
-  await captureOptions.click();
+  await more.click();
   await expect(page.getByRole('menuitem', { name: 'Open saved 東京', exact: true })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Exclude capture 東京', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(captureOptions).toBeFocused();
+  await expect(more).toBeFocused();
+  await more.click();
+  await page.getByRole('menuitem', { name: 'Edit before capture', exact: true }).click();
+  const editor = page.getByRole('dialog', { name: 'Capture Material', exact: true });
+  await expect(editor).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(editor).toBeHidden();
+  await expect(more).toBeFocused();
   const explain = footer.getByRole('button', { name: 'Explain', exact: true });
   await expect(explain).toBeInViewport({ ratio: 1 });
   const mediaActions = [
@@ -935,7 +947,7 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
   for (const action of mediaActions) {
     const background = (await action.evaluate(node => getComputedStyle(node).backgroundColor))
       .match(/\d+(?:\.\d+)?/g)?.map(Number);
-    const foreground = (await action.getByText(/^(Capture context|Explain)$/)
+    const foreground = (await action.getByText(/^(Capture|Capture context|Explain)$/)
       .evaluate(node => getComputedStyle(node).color)).match(/\d+(?:\.\d+)?/g)?.map(Number);
     expect(background).toHaveLength(3);
     expect(foreground).toHaveLength(3);
@@ -947,7 +959,6 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
     expect(ink).toBeGreaterThan(surface);
     expect((ink + 0.05) / (surface + 0.05)).toBeGreaterThanOrEqual(4.5);
   }
-  const more = footer.getByRole('button', { name: 'Inspector actions', exact: true });
   for (const action of [knowledge, explain, more]) {
     await action.focus();
     const trailing = await action.boundingBox();
@@ -1009,9 +1020,9 @@ test('nested capture focus wrap reveals its action without moving the source', a
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
   const inspector = page.getByTestId('inspector-panel');
-  await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
-  const author = inspector.getByRole('button', { name: 'Edit before capture', exact: true });
+  const author = inspector.getByRole('button', { name: 'Inspector actions', exact: true });
   await author.click();
+  await page.getByRole('menuitem', { name: 'Edit before capture', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Capture Material', exact: true });
   const close = dialog.getByRole('button', { name: 'Close', exact: true });
   await expect(close).toBeFocused();
@@ -1040,8 +1051,7 @@ test('nested capture focus wrap reveals its action without moving the source', a
 test('source Inspector capture options remain readable on their shared menu material', async ({ page }, testInfo) => {
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
-  await page.getByRole('button', { name: 'Inspect', exact: true }).click();
-  await page.getByRole('button', { name: 'Capture options', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
   const action = page.getByRole('menuitem', { name: 'Open saved 東京', exact: true });
   await expect(action).toBeVisible();
   const foreground = (await page.getByRole('menuitem', { name: 'Exclude capture 東京', exact: true })

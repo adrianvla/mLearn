@@ -244,7 +244,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue('');
       await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
-      await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+      await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
       const materialReentry = page.waitForResponse(response => {
         if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
         const payload = response.request().postDataJSON();
@@ -360,7 +360,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
         await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
         await expect(inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true })).toBeVisible();
       } else {
-        await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+        await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
       }
       const entered = page.waitForResponse(response => {
         if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;

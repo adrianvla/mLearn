@@ -213,7 +213,7 @@ test('opening a captured document Material dismisses Inspector before exposing i
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Capture options', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Open saved 東京', exact: true }).click();
 
   await expect(page.getByTestId('material-phrase')).toHaveValue('東京');

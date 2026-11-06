@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Platform, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AnalyzedToken, CaptureExclusion, MaterialContent, MaterialCreate, MaterialCaptureResult, MaterialEligibility } from '@mlearn/contracts';
@@ -22,7 +22,7 @@ export type CaptureCandidate = {
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, optionsVisible = true }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, renderMenu }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
@@ -33,7 +33,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   readonly presentation?: 'rows' | 'cards' | 'actions';
   readonly header?: ReactNode;
   readonly disabled?: boolean;
-  readonly optionsVisible?: boolean;
+  readonly renderMenu?: (actions: ComponentProps<typeof Menu>['actions']) => ReactNode;
 }) {
   const { width } = useWindowDimensions();
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
@@ -171,6 +171,22 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       const result = item?.result;
       const status = available(candidate);
       const excluded = status?.state === 'excluded' || status?.state === 'existing' && status.excluded;
+      const menuActions: ComponentProps<typeof Menu>['actions'] = [
+        ...(status?.state === 'existing' && result?.state !== 'saved' ? [{
+          id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
+          disabled: disabled || pending, onPress: () => onOpenMaterial?.(status.materialId),
+        }] : []),
+        ...(status && candidate.content.targetId ? [{
+          id: 'capture-exclusion',
+          label: excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`,
+          disabled: disabled || pending, onPress: () => {
+            if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({
+              packageId: candidate.content.packageId, targetId: candidate.content.targetId,
+            }, !excluded));
+          },
+        }] : []),
+      ];
+      const actionSize = actions && width >= 720 ? 'default' : 'compact';
       const checking = !status ? <Text tone={tone} muted variant="caption">Checking capture availability…</Text> : null;
       const exclusion = status && candidate.content.targetId ? <Button label={cards ? excluded ? 'Allow' : 'Exclude'
         : excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
@@ -196,31 +212,22 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           {cards ? exclusion : null}
           {!item && status?.state === 'eligible' ? <Button label={compact ? 'Capture' : `Capture ${candidate.content.phrase}`}
             accessibilityLabel={`Capture ${candidate.content.phrase}`} variant={compact ? 'pill' : primary}
-            tone={compact ? 'info' : 'neutral'} surface={tone} icon={compact ? 'plusCircle' : undefined}
-            size={actions ? 'default' : 'compact'} disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
+            tone={compact ? 'info' : 'neutral'} surface={tone} icon={compact && (!actions || width >= 720) ? 'plusCircle' : undefined}
+            size={actionSize} disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
           {!actions && status?.state === 'existing' ? <Button label={cards ? 'Saved' : `Open saved ${candidate.content.phrase}`}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} surface={tone} size="compact"
             disabled={disabled}
             onPress={() => onOpenMaterial?.(status.materialId)} /> : null}
-          {!item && status?.state === 'existing' && !excluded ? <Button label={compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
+          {!item && status?.state === 'existing' && !excluded ? <Button label={actions && width < 720 ? 'Capture' : compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
             accessibilityLabel={`Capture this context: ${candidate.content.phrase}`}
-            icon={actions ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined} surface={tone}
-            size={actions ? 'default' : 'compact'} variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
+            icon={actions && width >= 720 ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined} surface={tone}
+            size={actionSize} variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
           {actions && result?.state === 'saved' ? <Button label={result.reused ? 'Reused' : 'Saved'}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`}
             accessibilityValue={{ text: `revision ${result.committedRevision}` }} accessibilityLiveRegion="polite"
-            variant="pill" surface={tone} disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
-          {actions && status && optionsVisible ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={[
-            ...(status.state === 'existing' && result?.state !== 'saved' ? [{ id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
-              onPress: () => onOpenMaterial?.(status.materialId) }] : []),
-            ...(candidate.content.targetId ? [{ id: 'capture-exclusion',
-              label: excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`,
-              onPress: () => {
-                if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({
-                  packageId: candidate.content.packageId, targetId: candidate.content.targetId,
-                }, !excluded));
-              } }] : []),
-          ]} /> : null}
+            variant="pill" size={actionSize} surface={tone} disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
+          {actions ? renderMenu ? renderMenu(menuActions)
+            : status ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={menuActions} /> : null : null}
           {!compact ? exclusion : null}
         </Row>
         {!actions && result?.state === 'saved' ? <Text tone={tone} accessibilityLiveRegion="polite">{result.reused ? 'Reused' : 'Saved'} · {result.materialId} · revision {result.committedRevision}</Text> : null}

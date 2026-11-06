@@ -26,9 +26,12 @@ saved positions remain unchanged.
 
 Layout: contextual Inspector leads with the headword, selected source form
 when different, meaning, package pronunciation/metadata, dictionary alternatives
-and senses. The header's Inspect action discloses relationships, provenance
-and authoring rather than placing their controls in the default lexical
-reading flow. Knowledge, Capture and Explain retain the stable footer.
+and senses. The header's Inspect action discloses relationships and provenance.
+Knowledge, Capture and Explain retain the stable footer, followed by one More
+menu for saved Material, editing and source actions. Routine actions never
+require opening Inspect first. At phone widths the three primary actions keep
+their labels and 44px targets on one row; decorative icons yield space.
+Disclosure rows keep the label leading and the expand/collapse control trailing.
 Their pills resolve against the dark media surface even when the surrounding
 application uses a light theme. Existing content surfaces retain their own
 palette. The shared ContextPanel and Button boundaries carry these choices

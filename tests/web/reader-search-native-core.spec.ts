@@ -142,7 +142,7 @@ test('Reader keeps failed checkpoint recovery before saved-Material departure', 
     await expect(page.getByRole('button', { name: 'Retry saving position', exact: true })).toHaveCount(0);
     expect((await client.resumeDocument(document.source.id)).source.appearance.fontSize).toBe(original + 2);
     await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
-    await inspector.getByRole('button', { name: 'Capture options', exact: true }).click();
+    await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Open saved Children', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Phrase', exact: true })).toHaveValue('Children');

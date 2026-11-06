@@ -19,7 +19,7 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   iconPosition?: 'leading' | 'trailing';
 };
 
-export const Button = forwardRef<View, ButtonProps>(function Button({ label, detail, description, meta, busy = false, disabled = false, variant = 'primary', size = 'default', tone = 'neutral', surface = 'content', icon, iconOnly = false, iconPosition = 'leading', accessibilityValue, accessibilityRole = 'button', onHoverIn, onHoverOut, ...props }, ref) {
+export const Button = forwardRef<View, ButtonProps>(function Button({ label, detail, description, meta, busy = false, disabled = false, variant = 'primary', size = 'default', tone = 'neutral', surface = 'content', icon, iconOnly = false, iconPosition = variant === 'disclosure' ? 'trailing' : 'leading', accessibilityValue, accessibilityRole = 'button', onHoverIn, onHoverOut, ...props }, ref) {
   const { theme } = useUnistyles();
   const touchLayout = useWindowDimensions().width < 720;
   const [hovered, setHovered] = useState(false);

@@ -32,9 +32,9 @@ export default StyleSheet.create(theme => ({
       paddingVertical: theme.spacing.small,
       paddingHorizontal: variant === 'dictionary' ? theme.spacing.comfortable : variant === 'disclosure' ? 0 : iconOnly ? theme.spacing.small
         : size === 'compact' ? theme.spacing.compact : theme.spacing.medium,
-      justifyContent: variant === 'navigation' || variant === 'disclosure' ? 'flex-start'
-        : variant === 'select' || variant === 'dictionary' ? 'space-between' : 'center',
-      alignItems: 'center', alignSelf: variant === 'mediaFloating' ? 'flex-start' : undefined,
+      justifyContent: variant === 'navigation' ? 'flex-start'
+        : variant === 'select' || variant === 'dictionary' || variant === 'disclosure' ? 'space-between' : 'center',
+      alignItems: 'center', alignSelf: variant === 'mediaFloating' ? 'flex-start' : variant === 'disclosure' ? 'stretch' : undefined,
       flexDirection: 'row', gap: theme.spacing.small, maxWidth: '100%',
       borderRadius: variant === 'preview' ? 999 : variant === 'pill' ? theme.radius + 4 : theme.radius,
       borderWidth: borderless ? 0 : 1,

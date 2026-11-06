@@ -1,5 +1,5 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { View } from 'react-native';
+import { useState, useEffect, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
@@ -8,6 +8,7 @@ import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Badge } from '@mlearn/ui/badge';
 import { Dialog } from '@mlearn/ui/dialog';
+import { Menu } from '@mlearn/ui/menu';
 import { useRouter } from 'expo-router';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import type { ClaimChange, LexicalSense, ReviewCommand, SourceAnchor } from '@mlearn/contracts';
@@ -241,6 +242,20 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         claimed_unknown: { label: 'Unknown', tone: 'negative', icon: 'closeCircle' },
         mixed: { label: 'Mixed', tone: 'neutral', icon: 'circle' },
     } as const)[result.knowledge.claim] : null;
+    const narrow = useWindowDimensions().width < 720;
+    const actionsTrigger = useRef<View>(null);
+    const moreActions = (captureActions: ComponentProps<typeof Menu>['actions'] = []) => {
+        const actions = [...captureActions, ...(materialContent && !readOnlySourceReason ? [{
+            id: 'edit-before-capture', label: 'Edit before capture', disabled: busy,
+            onPress: () => setCaptureOpen(true),
+        }] : [])];
+        return inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
+            secondaryActionsMenuLabel="Inspector actions" additionalActions={actions}
+            menuRef={node => { actionsTrigger.current = node; }}
+            disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close}
+            onOpenMaterial={id => void openMaterial(id)} />
+            : <Menu ref={actionsTrigger} label="Inspector actions" icon="more" actions={actions} disabled={busy} />;
+    };
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={close} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
             headerAction={<Button label="Inspect" variant="mediaSelect" size="compact" disabled={!entry}
@@ -300,10 +315,10 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     </>}
                 </View> : null}
             footer={<>
-                {entry && claim ? <Button ref={knowledgeTrigger} variant="pill" surface="media"
+                {entry && claim ? <Button ref={knowledgeTrigger} variant="pill" surface="media" size={narrow ? 'compact' : 'default'}
                 label={claim.label}
                 tone={claim.tone}
-                icon={claim.icon}
+                icon={narrow ? undefined : claim.icon}
                 accessibilityLabel="Knowledge"
                 accessibilityValue={{ text: claim.label }}
                 accessibilityState={{ expanded: expandedCapability !== null }}
@@ -312,17 +327,13 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     : practiceRetry?.capability ?? entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                    client={client} tone="media" presentation="actions" disabled={busy} optionsVisible={showDetails}
+                    client={client} tone="media" presentation="actions" disabled={busy} renderMenu={moreActions}
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                     onOpenMaterial={id => void openMaterial(id)} /> : null}
                 {busy && openingMaterial.current === scope.current ? <Text tone="media" variant="caption"
                     accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
                 {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
-                {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
-                    secondaryActionsMenuLabel="Inspector actions"
-                    secondaryActionsVisible={showDetails}
-                    disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close}
-                    onOpenMaterial={id => void openMaterial(id)} /> : null}
+                {(!materialContent || !entry || readOnlySourceReason) ? moreActions() : null}
             </>}>
             {history.length ? <Row>
                 <Button ref={returnTrigger} label="Return to source entry" size="compact" variant="media"
@@ -398,15 +409,13 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                         <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
                         {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
                     </> : null}
-                    {materialContent && !readOnlySourceReason ? <>
-                        <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
-                            description="Author this Material without changing its source reference or selected dictionary sense."
-                            trigger={<Button label="Edit before capture" size="compact" variant="media" />}>
-                            <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
-                                onSaved={() => setCaptureRefresh(value => value + 1)} />
-                        </Dialog>
                     </> : null}
-                    </> : null}
+                {materialContent && !readOnlySourceReason ? <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
+                    description="Author this Material without changing its source reference or selected dictionary sense."
+                    focusTarget={() => actionsTrigger.current}>
+                    <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
+                        onSaved={() => setCaptureRefresh(value => value + 1)} />
+                </Dialog> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
             {error && !retry ? <>
                 <Text tone="media" accessibilityRole="alert">{error}</Text>

@@ -4,6 +4,21 @@
 
 ### Workload-specific execution resumed
 
+Latest interaction correction, following the maintainer's rejection: Inspector
+now has one trailing More menu combining existing capture/source actions.
+Opening saved Material, editing before capture, exclusions, copying and
+proposals no longer require Inspect or choosing between two ellipsis controls.
+Native action owners, retry identities and focus restoration are retained.
+Phone primary actions fit one row with 44px targets; shared disclosure buttons
+place expand/collapse affordances at the trailing edge across alternatives,
+relationships and graph sources. Current typecheck/lint/export and two final
+desktop/phone interaction cases pass. The connected native Messenger case,
+nested editor focus and document-to-Material return also passed during this
+batch; existing native Knowledge/Reader navigation selectors were migrated,
+with their broader executions deferred. Final captures are retained in
+`inspector-final-interactions`; before/intermediate captures remain preserved.
+Frontend correction continues independently of deferred native consuming builds.
+
 The maintainer explicitly replaced the blanket execution block. All unmet
 requirements are active in the twelve-task work graph; earlier commits,
 profiles, captures and passing results remain valid within their recorded
