@@ -51,12 +51,33 @@ test('Material item switching retains its draft through cancelled departure and 
     await search.fill('Unsubmitted collection query');
     const opener = page.getByRole('button', { name: 'Edit cat', exact: true });
     await opener.scrollIntoViewIfNeeded();
-    const scroll = await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop);
+    const collection = page.getByTestId('app-shell').filter({
+      has: page.getByRole('heading', { name: 'Material', exact: true }),
+    });
+    const scroll = await collection.getByTestId('app-shell-content').evaluate(node => node.scrollTop);
     await opener.click();
     const dialog = page.getByRole('dialog', { name: 'Edit Material', exact: true });
     const notes = dialog.getByRole('textbox', { name: 'Notes', exact: true });
     const next = dialog.getByRole('button', { name: 'Next Material', exact: true });
+    const current = dialog.getByRole('combobox', { name: /^Current Material selection:/ });
+    await expect(dialog).toBeVisible();
+    await page.screenshot({ path: info.outputPath('material-editor-toolbar-390.png') });
+    const nextBounds = await next.boundingBox();
+    const currentBounds = await current.boundingBox();
+    if (!nextBounds || !currentBounds) throw new Error('Material navigation has no layout bounds');
+    expect(Math.abs(nextBounds.y - currentBounds.y)).toBeLessThanOrEqual(1);
+    await dialog.getByRole('button', { name: 'Material destinations', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Knowledge', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
     await notes.fill('Keep this authored draft.');
+    await dialog.getByRole('button', { name: 'Material destinations', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Home', exact: true }).click();
+    await expect(page).toHaveURL('/');
+    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await expect(dialog).toBeVisible();
+    await expect(notes).toHaveValue('Keep this authored draft.');
     await next.click();
     await expect(dialog.getByRole('button', { name: 'Discard', exact: true })).toBeVisible();
     await expect(notes).toHaveValue('Keep this authored draft.');
@@ -109,8 +130,13 @@ test('Material item switching retains its draft through cancelled departure and 
     await expect(dialog).toHaveCount(0);
     await expect(opener).toBeFocused();
     await expect(search).toHaveValue('Unsubmitted collection query');
-    expect(await page.getByTestId('app-shell-content').evaluate(node => node.scrollTop)).toBe(scroll);
+    expect(await collection.getByTestId('app-shell-content').evaluate(node => node.scrollTop)).toBe(scroll);
     await page.screenshot({ path: info.outputPath('material-switch-origin-restored-390.png') });
+    await page.setViewportSize({ width: 1080, height: 900 });
+    await opener.click();
+    await expect(dialog).toBeVisible();
+    await page.screenshot({ path: info.outputPath('material-editor-toolbar-1080.png') });
+    await dialog.getByRole('button', { name: 'Close editor', exact: true }).click();
   } finally {
     events.emit('released');
     try { await page.unroute(`${backend.url}/invoke`); }
@@ -185,9 +211,13 @@ test('Material multiline editing grows and shrinks within a bound without losing
     } finally { await finalGrowth.dispose(); }
     const beforeHide = await notes.boundingBox();
     if (!beforeHide) throw new Error('Authored Notes has no editing bounds');
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
     const returnToMaterial = page.getByRole('button', { name: 'Material', exact: true });
-    await expect(returnToMaterial).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'Material', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 1080, height: 900 });
     const restoredHeight = await page.evaluateHandle(expected => {
       let observer: MutationObserver;

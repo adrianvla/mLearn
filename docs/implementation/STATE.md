@@ -83,6 +83,27 @@ draft/cancel/lost-save/retry/origin workflow pass. Typecheck, lint, export and
 source diagnostics pass. Desktop/phone before/after frames were inspected in
 `material-toolbar-red` and `material-toolbar-green`.
 
+The integrated native Inspector graph case passes: real capture and claims,
+cancelled/late graph receipts, related-target/source return, focus restoration
+and host restart all retain the original source and distinct Knowledge owners.
+Its Quartz/Dark Quartz desktop/phone captures were inspected under
+`inspector-graph-integrated`. A separate bounded inspection opened the populated
+Knowledge/Material and Messenger directories through the actual persisted dark
+theme, then restored the isolated profile's original Quartz through Settings.
+The `integrated-*-dark-*` captures record those renders. That owned browser,
+backend and guard closed with exit 0; no device, build or inference ran.
+
+Material editor follow-up: Previous/Next, current selection and the shared
+destination menu now fit one phone row instead of stacking navigation above
+the form. The original 56px selector-row offset reproduced before the repair.
+Final desktop/phone captures in `material-editor-final` were inspected. Both
+native item-switch/lost-receipt and multiline/hidden-resize workflows pass.
+Home/Knowledge intentionally retain the mounted editor and unsaved draft;
+actual closure/item replacement retain Save/Discard/Cancel. Existing height,
+exact scroll, native persistence and retry assertions remain intact, with
+navigation selectors migrated to the menu and scroll scoped to Material's
+retained shell. Typecheck, lint and export pass. No destination guard was added.
+
 ### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.

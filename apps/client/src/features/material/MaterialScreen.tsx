@@ -12,6 +12,7 @@ import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
 import { Badge } from '@mlearn/ui/badge';
 import { Dialog } from '@mlearn/ui/dialog';
+import { Menu } from '@mlearn/ui/menu';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialEditor, type MaterialEditorHandle } from './MaterialEditor';
 import { MaterialProposalReview } from './MaterialProposalReview';
@@ -356,15 +357,10 @@ export function MaterialScreen() {
               }
             }}>
             <Row>
-              <Button label="Home" variant="quiet" size="compact" onPress={() => router.navigate('/')} />
-              <Button label="Knowledge" variant="quiet" size="compact"
-                onPress={() => router.navigate({ pathname: '/knowledge', params: { packageId } })} />
-            </Row>
-            <Row>
-              <Button label="Previous" accessibilityLabel="Previous Material" variant="secondary" size="compact"
+              <Button label="Previous" accessibilityLabel="Previous Material" icon="arrowLeft" iconOnly={compact} variant="secondary" size="compact"
                 disabled={blocked || !!opening?.pending || editorIndex < 0 || (editorIndex === 0 && !editor.window?.previous)}
                 onPress={() => stepEditor(true)} />
-              <Button label="Next" accessibilityLabel="Next Material" variant="secondary" size="compact"
+              <Button label="Next" accessibilityLabel="Next Material" icon="chevronRight" iconOnly={compact} variant="secondary" size="compact"
                 disabled={blocked || !!opening?.pending || (editorIndex + 1 >= editorItems.length && !editor.window?.next)}
                 onPress={() => stepEditor(false)} />
               <View style={styles.editorSelection}>
@@ -372,6 +368,10 @@ export function MaterialScreen() {
                   placeholder="New Material" options={editorItems} disabled={blocked || !!opening?.pending}
                   onValueChange={id => { if (id !== editor.material?.id) requestOpen(id, editor.trigger); }} />
               </View>
+              <Menu label="Material destinations" icon="more" variant="quiet" actions={[
+                { id: 'home', label: 'Home', onPress: () => router.navigate('/') },
+                { id: 'knowledge', label: 'Knowledge', onPress: () => router.navigate({ pathname: '/knowledge', params: { packageId } }) },
+              ]} />
             </Row>
             {listStatus}
             {opening ? openStatus(opening.id) : null}
@@ -443,7 +443,7 @@ const styles = StyleSheet.create(theme => ({
   headerSpace: { flexGrow: 1 },
   collectionTools: { paddingHorizontal: theme.spacing.large, paddingVertical: theme.spacing.small, gap: theme.spacing.small },
   hidden: { display: 'none' },
-  editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 220, minWidth: 0 },
+  editorSelection: { flexGrow: 1, flexShrink: 1, flexBasis: 100, minWidth: 0 },
   notice: { paddingHorizontal: theme.spacing.large, gap: theme.spacing.small },
   gridInset: { padding: theme.spacing.large },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.medium, alignItems: 'flex-start' },
