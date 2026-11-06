@@ -172,20 +172,22 @@ export function KnowledgeScreen() {
   }
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
+  const languageControl = <Select label="Knowledge language" value={packageId} size="compact"
+    options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
+    onValueChange={value => {
+      setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value);
+      router.setParams({ packageId: value });
+    }} />;
   return <AppShell contentInset="none" header={<>
     <ActivityNavigation active="knowledge" packageId={packageId}>
       <Text ref={heading} variant="heading" accessibilityRole="header" accessible tabIndex={-1}>Knowledge</Text>
+      {compact ? languageControl : null}
     </ActivityNavigation>
     <Row><View style={styles.search}><TextField label="Search Knowledge" variant="search" placeholder="Search Knowledge" value={search} onChangeText={setSearch}
       onSubmitEditing={() => { setAfter(null); setQuery(search); }} /></View>
-      <Button label="Search" icon="search" size="compact" variant="secondary"
+      <Button label="Search" icon="search" iconOnly={compact} size="compact" variant="secondary"
         disabled={pending} onPress={() => { setAfter(null); setQuery(search); }} />
-      <Select label="Knowledge language" value={packageId} size="compact"
-      options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
-      onValueChange={value => {
-        setAfter(null); setFilter({ kind: 'all', filters: [] }); setEntityKind(''); setPackageId(value);
-        router.setParams({ packageId: value });
-      }} /></Row>
+      {!compact ? languageControl : null}</Row>
   </>}>
     {!host.available ? <View style={styles.notice}><Text accessibilityRole="alert">{host.reason}</Text></View> : <>
       <View style={styles.viewOptions}>
@@ -219,9 +221,12 @@ export function KnowledgeScreen() {
       </Row>
       </View>
       <View style={styles.results} accessibilityLiveRegion="polite">
-        <View style={styles.notice}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
+        <View style={styles.notice}><View style={styles.summary}>
+          {page ? <Text variant="caption">{page.count} entries</Text> : null}
+          <View style={styles.selection}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
           ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
           onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
+        </View></View>
         {selection.enabled && selection.selection?.targetCount ? <View style={styles.notice}>
           <Row>
             <Select label="Practice capability" value={practiceCapability}
@@ -262,7 +267,6 @@ export function KnowledgeScreen() {
           </Row> : null}
         </View> : null}
         {page ? <>
-          <View style={styles.notice}><Text variant="caption">{page.count} entries</Text></View>
           {!compact && layout === 'list' ? <View style={styles.columns}>
             <View style={styles.word(false)}><Text variant="caption">Entry</Text></View>
             <View style={styles.meaning(false)}><Text variant="caption">Meaning</Text></View>
@@ -335,6 +339,8 @@ const styles = StyleSheet.create(theme => ({
   viewOptions: { paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small },
   hidden: { display: 'none' },
   results: { gap: 0 },
+  summary: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.small },
+  selection: { maxWidth: '100%', minWidth: 0, flexShrink: 1 },
   // The collection page remains the only data window and AppShell owns scrolling.
   // Shared inline controls retain activation, Knowledge color and focus semantics.
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.tiny,

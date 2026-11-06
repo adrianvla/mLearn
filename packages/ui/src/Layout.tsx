@@ -108,7 +108,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingRight: inset === 'none' ? 0 : sidebar ? theme.spacing.section : theme.spacing.large,
     paddingTop: inset === 'none' ? 0 : theme.spacing.medium,
     paddingBottom: theme.spacing.large, alignItems: 'center' }),
-  shellContent: (inset: 'standard' | 'none') => ({ width: '100%', maxWidth: inset === 'none' ? undefined : 1184, gap: theme.spacing.comfortable }),
+  shellContent: (inset: 'standard' | 'none') => ({ width: '100%', maxWidth: inset === 'none' ? undefined : 1184, gap: inset === 'none' ? 0 : theme.spacing.comfortable }),
   panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid' | 'card') => ({
     backgroundColor: material === 'solid' || material === 'card' ? theme.colors.surface : theme.surfaces.glass,
     borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,

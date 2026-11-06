@@ -9,6 +9,44 @@ import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runti
 
 // Real Rust, signed package, catalog, Knowledge and Material storage. Only the
 // host transport is adapted; native window/media/clipboard are not claimed.
+test('Knowledge keeps search and language visible in compact source controls', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: `.mlearn/m10/knowledge-toolbar-${randomUUID()}` });
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/settings?section=languages');
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Install .*English/ }).click();
+    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await page.goto('/knowledge');
+    for (const width of [1080, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const header = page.getByTestId('app-shell-header');
+      const language = page.getByRole('combobox', { name: /^Knowledge language:/ });
+      const search = page.getByRole('textbox', { name: 'Search Knowledge', exact: true });
+      await expect(language).toBeInViewport({ ratio: 1 });
+      await expect(search).toBeInViewport({ ratio: 1 });
+      await search.fill('unsubmitted draft');
+      await page.screenshot({ path: info.outputPath(`knowledge-toolbar-${width}.png`) });
+      const bounds = await header.boundingBox();
+      if (!bounds) throw new Error('Knowledge toolbar has no bounds');
+      if (width < 700) expect(bounds.height).toBeLessThanOrEqual(160);
+      await expect(search).toHaveValue('unsubmitted draft');
+      await page.getByRole('button', { name: 'Select items', exact: true }).click();
+      for (const name of ['Select all 0 matching', 'Clear selection', 'Refresh selections']) {
+        const control = page.getByRole('button', { name, exact: true });
+        const bounds = await control.boundingBox();
+        if (!bounds) throw new Error(`${name} has no layout bounds`);
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      }
+      await page.screenshot({ path: info.outputPath(`knowledge-selection-${width}.png`) });
+      await page.getByRole('button', { name: 'Close selection controls', exact: true }).click();
+    }
+  } finally {
+    await backend.close();
+  }
+});
+
 test('bounded Knowledge browsing captures source-free Material and preserves claims across restart', async ({ page }, info) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(15_000);

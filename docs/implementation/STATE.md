@@ -61,6 +61,20 @@ image/readings/vertical/Inspector cases pass afterward, with typecheck, lint,
 export and source diagnostics clean. Before/after captures in
 `image-annotation-red` and `image-annotation-green` were inspected at both widths.
 
+Collection/directory follow-up: Messenger uses shared person/group silhouettes
+for its supported identity data, quiet plus actions and an explicit Search
+placeholder. One native saved-contact case passes and all four directory frames
+were inspected. Knowledge's phone header measured 210px before repair; language
+now shares the title row and search retains an accessible icon action. Count and
+selection share one summary. Expanded selection is width-bounded, and full-bleed
+Knowledge/Material shells no longer insert the generic section gap. The focused
+header/selection and native Material continuity cases pass with typecheck/lint/
+export. Populated native Knowledge was also inspected with the existing 206979
+entries; no catalog preparation was repeated. The inspection host closed cleanly.
+Evidence: `messenger-directory-identity`, `knowledge-toolbar-red`,
+`knowledge-toolbar-green`, `collection-controls-refined`, and the
+`knowledge-controls-populated-*` captures.
+
 ### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.
