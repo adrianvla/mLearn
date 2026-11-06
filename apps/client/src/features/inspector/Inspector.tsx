@@ -360,7 +360,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     onPress={() => setShowPronunciation(value => !value)} /> : null}
                 </Row>
                 {!history.length && inspection.targets.length > 1 ? <>
-                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure"
+                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure" surface="media"
                     icon={showAlternatives ? 'chevronDown' : 'chevronRight'}
                     accessibilityState={{ expanded: showAlternatives }} onPress={() => setShowAlternatives(v => !v)} />
                 {showAlternatives ? <View style={styles.alternatives}>
@@ -393,7 +393,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                         <Badge label={entry.partOfSpeech} />
                     </View> : null}
                     {showDetails ? <>
-                    <Button ref={graphTrigger} size="compact" label="Linguistic relationships" variant="disclosure"
+                    <Button ref={graphTrigger} size="compact" label="Linguistic relationships" variant="disclosure" surface="media"
                         icon={showGraph ? 'chevronDown' : 'chevronRight'}
                         accessibilityState={{ expanded: showGraph }} onPress={() => setShowGraph(value => !value)} />
                     {showGraph && result ? <GraphDetails

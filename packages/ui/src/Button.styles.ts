@@ -14,7 +14,8 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
     : variant === 'pill' || tone === 'warning' ? pills[tone].text
     : (variant === 'navigation' || variant === 'segment') && !selected ? theme.colors.muted
     : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
-    : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.text : theme.colors.text;
+    : variant === 'disclosure' ? surface === 'media' ? theme.media.text : theme.colors.text
+    : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? theme.media.text : theme.colors.text;
 }
 
 export default StyleSheet.create(theme => ({
@@ -68,7 +69,8 @@ export default StyleSheet.create(theme => ({
     };
   },
   label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, surface: ButtonSurface) => ({
-    ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
+    ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning'
+      : variant === 'disclosure' ? surface === 'media' ? 'inspectionBody' : size === 'compact' ? 'compactAction' : 'action'
       : variant === 'navigation' ? 'navigation' : variant === 'select' ? 'caption'
       : variant === 'pill' ? size === 'compact' ? 'compactPill' : 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
       : size === 'default' ? 'action' : 'compactAction'],

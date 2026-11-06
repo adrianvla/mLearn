@@ -20,6 +20,11 @@ test('expert authoring validates saved inputs and executes only its frozen packa
   const capture = async (name: string) => {
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 900 });
+      if (name.startsWith('authoring-preview-')) {
+        await page.getByRole('heading', { name: 'Authored recall probes', exact: true }).scrollIntoViewIfNeeded();
+        await expect(page.getByRole('button', { name: 'Practice authored probes', exact: true }))
+          .toBeInViewport({ ratio: 1 });
+      }
       await page.screenshot({ path: info.outputPath(`${name}-${width}.png`) });
     }
   };

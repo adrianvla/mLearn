@@ -397,11 +397,12 @@ function ReviewWorkspace({ client, media }: {
       <Button label="Home" variant="quiet" disabled={pending || returning || failed !== null}
         onPress={() => router.dismissTo('/')} />
       <Text variant="heading" accessibilityRole="header">{purpose}</Text>
-    </> : <ActivityNavigation active="review" {...(packageId ? { packageId } : {})}>
+    </> : <ActivityNavigation active="review" {...(packageId ? { packageId } : {})}
+      {...(calibrationSetup || authoringSetup ? { back: {
+        label: 'Back to Review', disabled: blocked, onPress: () => router.setParams({ activity: '', materialId: '' }),
+      } } : {})}>
       <Text variant="heading" accessibilityRole="header">{purpose}</Text>
     </ActivityNavigation>}
-    {!session && !requestedSession && (calibrationSetup || authoringSetup) ? <Button label="Back to Review" variant="quiet" disabled={blocked}
-      onPress={() => router.setParams({ activity: '', materialId: '' })} /> : null}
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} ${selectedScope ? 'completed' : 'reviewed'}` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>
@@ -411,7 +412,7 @@ function ReviewWorkspace({ client, media }: {
       {!session && !requestedSession ? <Panel>
         {calibrationSetup ? <CalibrationSetup client={client}
           initialPackageId={typeof params.packageId === 'string' ? params.packageId : ''}
-          disabled={blocked} onStart={startCalibration}
+            disabled={blocked} saving={pending} onStart={startCalibration}
           onOpenKnowledge={packageId => router.push({ pathname: '/knowledge', params: { packageId } })} />
           : authoringSetup ? <ExpertProbeSetup client={client}
             materialId={typeof params.materialId === 'string' ? params.materialId : ''}

@@ -9,16 +9,18 @@ import { SegmentedControl } from '@mlearn/ui/segmented-control';
 type Destination = 'knowledge' | 'material' | 'review';
 
 /** Collection peers stay in context; other activities remain available without a global rail. */
-export function ActivityNavigation({ active, packageId, children }: {
+export function ActivityNavigation({ active, packageId, back, children }: {
   readonly active: Destination;
   readonly packageId?: string;
+  readonly back?: { readonly label: string; readonly onPress: () => void; readonly disabled?: boolean };
   readonly children: ReactNode;
 }) {
   const router = useRouter();
   const compact = useWindowDimensions().width < 700;
+  const home = () => active === 'review' ? router.dismissTo('/') : router.navigate('/');
   return <View style={styles.navigation}>
-    <Button label="Home" icon="arrowLeft" iconOnly variant="quiet" size="compact"
-      onPress={() => active === 'review' ? router.dismissTo('/') : router.navigate('/')} />
+    <Button label={back?.label ?? 'Home'} icon="arrowLeft" iconOnly variant="quiet" size="compact"
+      disabled={back?.disabled} onPress={back?.onPress ?? home} />
     {children}
     {!compact && active !== 'review' ? <View style={styles.collections}>
       <SegmentedControl value={active} options={[
@@ -29,6 +31,7 @@ export function ActivityNavigation({ active, packageId, children }: {
       }} />
     </View> : null}
     <Menu label="More destinations" icon="more" variant="quiet" actions={[
+      ...(back ? [{ id: 'home', label: 'Home', onPress: home }] : []),
       ...(compact || active === 'review' ? [
         { id: 'knowledge', label: 'Knowledge', current: active === 'knowledge', onPress: () => {
           const destination = { pathname: '/knowledge' as const, params: packageId ? { packageId } : {} };

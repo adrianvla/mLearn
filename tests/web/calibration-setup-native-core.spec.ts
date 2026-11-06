@@ -4,6 +4,55 @@ import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 import { builtInThemes } from '../../packages/theme/src/theme';
 
+test('Word Sync keeps its primary setup action visible and retains optional scope edits', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('compact-setup-profile') });
+  const client = createRuntimeBrowserClient(backend);
+  try {
+    await client.availablePackages();
+    await client.installPackage(client.prepareInstall('org.mlearn.english'));
+    await attachRuntimeBrowserQa(page, backend.url);
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      await page.goto('/review?activity=calibration&packageId=org.mlearn.english');
+      const start = page.getByRole('button', { name: 'Start Word Sync', exact: true });
+      const options = page.getByRole('button', { name: 'Scope options', exact: true });
+      await expect(start).toBeEnabled();
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(start).toBeInViewport({ ratio: 1 });
+        const back = await page.getByRole('button', { name: 'Back to Review', exact: true }).boundingBox();
+        const heading = await page.getByRole('heading', { name: 'Word Sync', exact: true }).boundingBox();
+        if (!back || !heading) throw new Error('Word Sync navigation has no visible bounds');
+        expect(heading.y + heading.height / 2).toBeGreaterThanOrEqual(back.y);
+        expect(heading.y + heading.height / 2).toBeLessThanOrEqual(back.y + back.height);
+        await expect(options).toHaveAttribute('aria-expanded', 'false');
+        await page.screenshot({ path: info.outputPath(`compact-setup-${theme.id}-${width}.png`) });
+        await options.click();
+        const scope = page.getByRole('textbox', { name: 'Scope text', exact: true });
+        const limit = page.getByRole('textbox', { name: 'Maximum targets', exact: true });
+        await scope.fill('Past simple negative');
+        await limit.fill('3');
+        await options.click();
+        await expect(scope).toBeHidden();
+        await expect(page.getByText('Past simple negative · up to 3 unmeasured targets', { exact: true })).toBeVisible();
+        await expect(start).toBeInViewport({ ratio: 1 });
+        await options.click();
+        await expect(scope).toHaveValue('Past simple negative');
+        await expect(limit).toHaveValue('3');
+        await page.screenshot({ path: info.outputPath(`expanded-setup-${theme.id}-${width}.png`) });
+        await options.click();
+      }
+    }
+    await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Home', exact: true }).click();
+    await expect(page.getByTestId('home-open-review')).toBeVisible();
+    expect(await client.reviewSessions()).toEqual([]);
+    expect(backend.metadata().providerRequests).toBe(0);
+  } finally {
+    await backend.close();
+  }
+});
+
 test('Word Sync setup preserves exact scope through empty cancellation and uncertain admission', async ({ page }, info) => {
   test.setTimeout(300_000);
   const backend = await startRuntimeBrowserQa({
@@ -51,6 +100,7 @@ test('Word Sync setup preserves exact scope through empty cancellation and uncer
       expect((await client.prepareCollectionCatalog(client.prepareCollection(packageId))).phase).toBe('succeeded');
     await page.getByRole('combobox', { name: /^Word Sync capability:/ }).click();
     await page.getByRole('option', { name: 'Grammar formation', exact: true }).click();
+    await page.getByRole('button', { name: 'Scope options', exact: true }).click();
     const scope = page.getByRole('textbox', { name: 'Scope text', exact: true });
     const bound = page.getByRole('textbox', { name: 'Maximum targets', exact: true });
     const start = page.getByRole('button', { name: 'Start Word Sync', exact: true });
@@ -110,6 +160,9 @@ test('Word Sync setup preserves exact scope through empty cancellation and uncer
     await retrySelection.click();
     const retryStart = page.getByRole('button', { name: 'Retry Review save', exact: true });
     await expect(retryStart).toBeVisible();
+    await expect(page.getByText('Starting Word Sync...', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Saving Word Sync...', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Past simple negative · up to 2 unmeasured targets', { exact: true })).toBeVisible();
     await capture('calibration-start-retry');
     const admitted = (await client.reviewSessions()).filter(session => !previousIds.has(session.id));
     expect(admitted).toHaveLength(1);

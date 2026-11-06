@@ -4,6 +4,23 @@
 
 ### Workload-specific execution resumed
 
+The connected Review setup increment is integrated: Word Sync uses compact
+language/skill rows and optional scope controls, while retaining a visible
+scope/limit summary; authored probes lead with saved content and put Practice
+above their previews. Both use one toolbar back action instead of a second
+navigation row. Shared disclosures support content and media surfaces.
+Typecheck, ownership lint and export pass. Native authored-preview cancellation,
+frozen/concurrent-edit rejection and restart; default setup scope retention;
+and full Word Sync cancellation/uncertain-admission/restart/evidence workflows
+pass (three cases, 2.5m). Recovery captures exposed misleading Saving copy after
+a failed admission; that owner now keeps the selected scope and only reports
+progress while pending. Its affected full native workflow passed again after
+repair (2.3m). Final light/dark desktop/phone and recovery frames were inspected
+in `review-setup-final` and `word-sync-recovery-final`; before states are retained.
+No owned browser/backend/server remains. Pressure is normal and swap unchanged
+at 505282560 bytes. These are browser/native-core receipts; native GUI/device
+and full-candidate review gates remain open.
+
 Latest interaction correction, following the maintainer's rejection: Inspector
 now has one trailing More menu combining existing capture/source actions.
 Opening saved Material, editing before capture, exclusions, copying and

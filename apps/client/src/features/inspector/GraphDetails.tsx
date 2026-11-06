@@ -66,7 +66,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
     return <View style={styles.stack} testID="graph-details">
         <Row>
             <Text tone="media" variant="inspectionBody" accessibilityRole="header">Related entities</Text>
-            <Button label="Graph sources" variant="disclosure" size="compact"
+            <Button label="Graph sources" variant="disclosure" surface="media" size="compact"
                 icon={showSources ? 'chevronDown' : 'chevronRight'}
                 accessibilityState={{ expanded: showSources }}
                 onPress={() => setShowSources(value => !value)} />

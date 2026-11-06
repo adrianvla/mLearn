@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import type { AuthoredPracticePreview, Material } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
-import { Panel, Stack } from '@mlearn/ui/layout';
+import { Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 
 const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -74,30 +74,24 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
   }
   return <Stack>
     <Text variant="section" accessibilityRole="header">Authored recall probes</Text>
-    <Text muted>Check your saved cue and answer, then preview the recall tasks before practicing.</Text>
-    <Text variant="caption" muted>You rate your own recall. Seeing these answers makes this source-assisted practice.</Text>
     {loading ? <Text accessibilityLiveRegion="polite">Loading saved Material...</Text> : null}
     {material ? <>
-      <Text selectable>{material.content.phrase}</Text>
+      <Text variant="entryTitle" selectable>{material.content.phrase}</Text>
       <Text selectable>{material.content.meaning}</Text>
-      <Text variant="caption" muted>Material revision {material.revision}</Text>
     </> : null}
+    <Text variant="caption" muted>You rate your own recall. Seeing these answers makes this source-assisted practice.</Text>
+    <Row>
     <Button label="Edit cue and answer" variant="quiet" disabled={disabled || pending} onPress={onEdit} />
-    <Button label="Preview authored probes" busy={pending} disabled={disabled || loading || !material || pending}
+    <Button label="Preview authored probes" variant={preview ? 'secondary' : 'primary'}
+      busy={pending} disabled={disabled || loading || !material || pending}
       onPress={() => void inspect()} />
+    </Row>
     {pending ? <Button label="Cancel probe preview" variant="quiet" onPress={() => operation.current?.abort()} /> : null}
     {cancelled ? <Text testID="authored-preview-cancelled" accessibilityLiveRegion="polite">Probe preview cancelled.</Text> : null}
     {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-    <Button label="Assessment limits" variant="quiet" accessibilityState={{ expanded: assessmentDetails }}
-      onPress={() => setAssessmentDetails(value => !value)} />
-    {assessmentDetails ? <>
-      <Text variant="caption" muted>The package supplies these probes from saved Material.
-      They support self-report, not automatic response grading or linguistic correctness certification.
-      Previewed answers cannot establish independent assessment.</Text>
-      {material ? <Text variant="caption" muted selectable>Language package: {material.content.packageId}</Text> : null}
-    </> : null}
     {preview ? <View testID="authored-probe-preview"><Stack>
-      {preview.probes.map(probe => <Panel key={probe.id}>
+      <Button label="Practice authored probes" disabled={disabled || pending} onPress={() => void start()} />
+      {preview.probes.map(probe => <Panel key={probe.id} inset="compact">
         <Text variant="section" accessibilityRole="header">{probe.direction} recall</Text>
         <Text variant="caption" muted>Cue</Text><Text selectable>{probe.cue}</Text>
         <Text variant="caption" muted>Expected answer</Text><Text selectable>{probe.answer}</Text>
@@ -114,7 +108,18 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
             ? probe.supplied.map(key => `${key.targetId} · ${key.capability}`).join('; ') : 'none'}</Text>
         </> : null}
       </Panel>)}
-      <Button label="Practice authored probes" disabled={disabled || pending} onPress={() => void start()} />
     </Stack></View> : null}
+    <Button label="Assessment limits" variant="disclosure" size="compact"
+      icon={assessmentDetails ? 'chevronDown' : 'chevronRight'} iconPosition="trailing"
+      accessibilityState={{ expanded: assessmentDetails }} onPress={() => setAssessmentDetails(value => !value)} />
+    {assessmentDetails ? <>
+      <Text variant="caption" muted>The package supplies these probes from saved Material.
+      They support self-report, not automatic response grading or linguistic correctness certification.
+      Previewed answers cannot establish independent assessment.</Text>
+      {material ? <>
+        <Text variant="caption" muted>Material revision {material.revision}</Text>
+        <Text variant="caption" muted selectable>Language package: {material.content.packageId}</Text>
+      </> : null}
+    </> : null}
   </Stack>;
 }

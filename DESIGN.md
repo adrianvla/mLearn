@@ -67,6 +67,14 @@ group. Expanded capability adjustment keeps the same worded All actions above
 its detailed rows; keyboard chord codes do not replace action labels.
 Existing exception grades, Untested, Worked out and keyboard behavior remain.
 
+Layout: Word Sync leads with language and skill, followed by a visible scope
+summary and Start. Optional text/filter/limit edits live under Scope options.
+Selection and uncertain admission retain that exact summary; progress copy
+appears only while work is running. Probe authoring leads with saved cue and
+answer, then Preview or Practice; Practice stays above the preview list.
+Setup back navigation occupies the leading toolbar position, with Home in the
+existing destinations menu. Assessment and contract metadata are secondary.
+
 ## Active correction — maintainer rejection of a726010
 
 The maintainer rejected the sidebar-and-recents workspace introduced by
