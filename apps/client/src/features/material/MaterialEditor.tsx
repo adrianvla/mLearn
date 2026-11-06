@@ -230,7 +230,7 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
         <Button label="Continue editing" variant="secondary" disabled={pending} onPress={() => { setRetry(null); setError(''); }} />
       </Row> : null}
       {duplicates.length ? <View style={styles.reference} testID="material-duplicates">
-        <Text>Existing Material found. Choose an existing item or keep this context distinct.</Text>
+        <Text variant="section">Existing Material</Text>
         {duplicates.map(item => <Button key={item.id} label={`Use existing: ${item.content.phrase}`}
           detail={item.content.context || item.content.meaning} variant="secondary"
           disabled={pending || mediaPending || navigationPending} onPress={() => {

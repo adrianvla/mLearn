@@ -94,7 +94,7 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
                 accessibilityState={{ selected: magnifier }}
                 onPress={() => { onBeforeAction(); onMagnifier(!magnifier); onReturnToSource(); }} />
             {children}
-            <Dialog title="Recognize source image" description="Results and crop geometry are saved with the original source."
+            <Dialog title="Recognize source image"
                 open={recognitionOpen} onOpenChange={open => {
                 onBeforeAction(); setRecognitionOpen(open);
             }} trigger={<Button label="Recognize" variant="quiet" size="compact" disabled={reader.pending || !reader.pages.length} />}>
@@ -136,16 +136,12 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
     </>;
 }
 
-export function ImageReaderFeedback({ reader, cropMode, magnifier }: {
+export function ImageReaderFeedback({ reader }: {
     readonly reader: ReturnType<typeof useImageReader>;
-    readonly cropMode: boolean;
-    readonly magnifier: boolean;
 }) {
     return <>
         {reader.pending ? <Text variant="caption" accessibilityLiveRegion="polite">Opening source pages…</Text> : null}
         {reader.recognizing ? <Text variant="caption" accessibilityLiveRegion="polite">Recognizing on device…</Text> : null}
-        {cropMode ? <Text variant="caption">Drag over the original image, or enter an accessible region in Recognize.</Text> : null}
-        {magnifier ? <Text variant="caption">Touch or move over an image. Wheel changes zoom. Hold Z for a temporary lens.</Text> : null}
         {reader.error ? <Row><Text variant="caption" accessibilityRole="alert">{reader.error}</Text>
             <Button label="Retry image action" variant="secondary" size="compact" disabled={reader.pending || reader.recognizing}
                 onPress={reader.retry} /></Row> : null}

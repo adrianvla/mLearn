@@ -621,7 +621,7 @@ function WatchWorkspace() {
                                  selectionStart: 0, selectionEnd: 0, positionMs: Math.round(point),
                                  subtitleOffsetMs: window.source.subtitleOffsetMs, playbackRate: window.source.playbackRate } });
                         }
-                       }} title="Capture source" description="Save source text and available media with their original location."
+                        }} title="Capture source"
                          trigger={<Button label={cues.length ? 'Capture subtitle' : 'Capture frame'} icon="camera" iconOnly variant="media" size="compact" />}>
                         {subtitleCapture ? <MaterialEditor key={JSON.stringify(subtitleCapture)} client={host.client} authoredMedia={host.authoredMedia}
                            initial={{ ...emptyMaterial(subtitleCapture.packageId), phrase: subtitleCapture.text || window.source.title, context: subtitleCapture.text, source: subtitleCapture }} /> : null}
@@ -650,7 +650,7 @@ function WatchWorkspace() {
                           setPlaybackError('');
                           void pauseAndSave().catch(() => {});
                         }
-                       }} title="Playback and subtitles" description="Changes are saved for this video."
+                        }} title="Playback and subtitles"
                          focusTarget={() => playbackOpener.current === 'offset' ? offsetTrigger.current : playbackTrigger.current}
                          trigger={<Button ref={playbackTrigger} label="Playback options" icon="settings" iconOnly variant="media" size="compact"
                            onPress={() => { playbackOpener.current = 'toolbar'; }} />}>
@@ -687,7 +687,7 @@ function WatchWorkspace() {
                             variant="secondary" disabled={busy}
                             accessibilityState={{ selected: window.source.inspectionTrigger === trigger }}
                             onPress={() => void changeSource(client => client.setInspectionTrigger(id, trigger))} />)}</Row>
-                          <Text variant="caption" muted>Click and keyboard activation remain available. Shift is held when entering a word.</Text>
+                           <Text variant="caption" muted>Hold Shift when entering a word.</Text>
                         </> : null}
                         {window.source.subtitleRevision ? <>
                           <Text>Subtitle synchronization</Text>
@@ -697,7 +697,7 @@ function WatchWorkspace() {
                             <Button label="Align next subtitle" icon="nextCue" disabled={busy}
                               onPress={() => alignSubtitle('next')} />
                           </Row>
-                          <Text variant="caption" muted>Saved for this source and subtitle association. Positive milliseconds show cues earlier; original subtitle timestamps stay intact.</Text>
+                           <Text variant="caption" muted>Positive values show cues earlier.</Text>
                           <TextField testID="subtitle-offset-input" label="Subtitle offset in milliseconds" value={offsetDraft}
                             onChangeText={setOffsetDraft} maxLength={12} autoCorrect={false} />
                           <Row>
@@ -815,7 +815,7 @@ function WatchWorkspace() {
                 </View>
                 <View pointerEvents="box-none"
                     style={[styles.status, { top: insets.top + toolbarHeight + 8 + overlayInset }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
-                    {!window.source.subtitlePath ? <Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text> : null}
+                    {!window.source.subtitlePath ? <Text tone="media">No subtitles</Text> : null}
                     {analysisPending && !batch && !sourceCovered ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
                     {analysisError ? <>
                         <Text tone="media" accessibilityRole="alert">{analysisError}</Text>

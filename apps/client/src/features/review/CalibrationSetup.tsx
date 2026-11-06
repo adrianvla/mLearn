@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import type { CollectionFilter, LanguageDescription, PluginSummary, ReviewMode } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
-import { SettingRow, Stack } from '@mlearn/ui/layout';
+import { Row, SettingRow, Stack } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
@@ -93,12 +93,14 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
       if (owner.current) { setSelecting(false); setCancelling(false); }
     }
   }
-  const scopeSummary = <Text variant="caption" muted>{text.trim() || 'All words and topics'} · up to {limit} unmeasured targets
-    {filter.kind !== 'all' || filter.filters.length ? ' · filters applied' : ''}</Text>;
+  const scopeSummary = <SettingRow label={text.trim() || 'All'}>
+    <Text variant="caption" muted>Up to {limit}</Text>
+    {filter.kind !== 'all' || filter.filters.length ? <Text variant="caption" muted>Filtered</Text> : null}
+  </SettingRow>;
   const selection = <>
     <Text variant="section" accessibilityRole="header">Selected scope</Text>
-    <Text>{packages.find(item => item.id === packageId)?.displayName ?? packageId}
-      {capability ? ` · ${capabilities.find(item => item.id === capability)?.label ?? capability}` : ''}</Text>
+    <Row><Text>{packages.find(item => item.id === packageId)?.displayName ?? packageId}</Text>
+      {capability ? <Text muted>{capabilities.find(item => item.id === capability)?.label ?? capability}</Text> : null}</Row>
     {scopeSummary}
   </>;
   if (selecting) return <Stack>
@@ -112,8 +114,6 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
     {saving ? <Text accessibilityLiveRegion="polite">Starting Word Sync...</Text> : null}
   </Stack>;
   return <Stack>
-    <Text variant="section" accessibilityRole="header">Find your starting point</Text>
-    <Text muted>Choose a skill and a small set of words or topics you haven't measured yet.</Text>
     <SettingRow label="Language">
     <Select label="Word Sync language" value={packageId} disabled={loading} size="compact"
       options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
@@ -130,7 +130,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
     <Select label="Word Sync capability" value={capability} disabled={loading} size="compact"
       options={capabilities.map(item => ({ value: item.id, label: item.label }))}
       onValueChange={value => { changed(); setCapability(value); }} /></SettingRow>
-    <Button label="Scope options" variant="disclosure" size="compact" icon={scopeOptions ? 'chevronDown' : 'chevronRight'}
+    <Button label="Unmeasured items" variant="disclosure" size="compact" icon={scopeOptions ? 'chevronDown' : 'chevronRight'}
       iconPosition="trailing" accessibilityState={{ expanded: scopeOptions }}
       onPress={() => setScopeOptions(value => !value)} />
     {scopeOptions ? <Stack>

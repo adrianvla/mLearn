@@ -15,7 +15,7 @@ test('Word Sync keeps its primary setup action visible and retains optional scop
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.goto('/review?activity=calibration&packageId=org.mlearn.english');
       const start = page.getByRole('button', { name: 'Start Word Sync', exact: true });
-      const options = page.getByRole('button', { name: 'Scope options', exact: true });
+      const options = page.getByRole('button', { name: 'Unmeasured items', exact: true });
       await expect(start).toBeEnabled();
       for (const width of [1080, 390]) {
         await page.setViewportSize({ width, height: 900 });
@@ -34,7 +34,8 @@ test('Word Sync keeps its primary setup action visible and retains optional scop
         await limit.fill('3');
         await options.click();
         await expect(scope).toBeHidden();
-        await expect(page.getByText('Past simple negative · up to 3 unmeasured targets', { exact: true })).toBeVisible();
+        await expect(page.getByText('Past simple negative', { exact: true })).toBeVisible();
+        await expect(page.getByText('Up to 3', { exact: true })).toBeVisible();
         await expect(start).toBeInViewport({ ratio: 1 });
         await options.click();
         await expect(scope).toHaveValue('Past simple negative');
@@ -100,7 +101,7 @@ test('Word Sync setup preserves exact scope through empty cancellation and uncer
       expect((await client.prepareCollectionCatalog(client.prepareCollection(packageId))).phase).toBe('succeeded');
     await page.getByRole('combobox', { name: /^Word Sync capability:/ }).click();
     await page.getByRole('option', { name: 'Grammar formation', exact: true }).click();
-    await page.getByRole('button', { name: 'Scope options', exact: true }).click();
+    await page.getByRole('button', { name: 'Unmeasured items', exact: true }).click();
     const scope = page.getByRole('textbox', { name: 'Scope text', exact: true });
     const bound = page.getByRole('textbox', { name: 'Maximum targets', exact: true });
     const start = page.getByRole('button', { name: 'Start Word Sync', exact: true });
@@ -162,7 +163,8 @@ test('Word Sync setup preserves exact scope through empty cancellation and uncer
     await expect(retryStart).toBeVisible();
     await expect(page.getByText('Starting Word Sync...', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Saving Word Sync...', { exact: true })).toHaveCount(0);
-    await expect(page.getByText('Past simple negative · up to 2 unmeasured targets', { exact: true })).toBeVisible();
+    await expect(page.getByText('Past simple negative', { exact: true })).toBeVisible();
+    await expect(page.getByText('Up to 2', { exact: true })).toBeVisible();
     await capture('calibration-start-retry');
     const admitted = (await client.reviewSessions()).filter(session => !previousIds.has(session.id));
     expect(admitted).toHaveLength(1);

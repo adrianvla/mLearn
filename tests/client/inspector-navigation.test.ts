@@ -123,8 +123,8 @@ test('Inspector graph navigation keeps source identity separate from active targ
             export const useRuntime = () => ({ available: false });
             export const Pronunciation = () => null;
             export const MaterialEditor = () => null;
-            export const CaptureList = ({ candidates }) =>
-              <output data-testid="capture-content">{JSON.stringify(candidates[0].content)}</output>;
+            export const CaptureList = ({ candidates, renderMenu }) =>
+              <><output data-testid="capture-content">{JSON.stringify(candidates[0].content)}</output>{renderMenu?.([])}</>;
             export const SourceActions = ({ source }) =>
               <output data-testid="source-actions">{JSON.stringify(source)}</output>;
             export const KnowledgeEvidence = ({ knowledgeKey, onBack }) =>
@@ -139,12 +139,14 @@ test('Inspector graph navigation keeps source identity separate from active targ
             import React from 'react';
             import { initialTheme, resolveTheme } from './packages/theme/src/theme';
             export const View = React.forwardRef(({ children, testID }, ref) => <div ref={ref} data-testid={testID}>{children}</div>);
+            export const useWindowDimensions = () => ({ width: window.innerWidth, height: window.innerHeight, scale: 1, fontScale: 1 });
             export const Row = View;
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
             export const Badge = ({ label }) => <span>{label}</span>;
             export const Button = React.forwardRef(({ label, accessibilityLabel, accessibilityState, disabled, onPress }, ref) =>
               <button ref={ref} aria-label={accessibilityLabel ?? label}
                 aria-expanded={accessibilityState?.expanded} disabled={disabled} onClick={onPress}>{label}</button>);
+            export const Menu = Button;
             export const ContextPanel = ({ title, anchor, sourceContext, headerAction, footer, popover, children }) =>
               <section data-testid="panel" data-original-anchor={anchor === window.originalAnchor}>
                 <h1>{title}</h1><output data-testid="context">{sourceContext}</output>

@@ -73,7 +73,6 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
         </Row>
         {page ? <>
             <EntityDetails entity={page.entity} page={page} showSources={showSources} />
-            <Text tone="media" muted variant="caption">Relations do not transfer Knowledge between targets.</Text>
             {!page.connections.length ? <Text tone="media">No relations on this page.</Text> : null}
             {Object.entries(categories).map(([category, label]) => {
                 const connections = page.connections.filter(item => item.relation.category === category);

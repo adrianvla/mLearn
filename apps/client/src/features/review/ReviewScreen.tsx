@@ -419,8 +419,6 @@ function ReviewWorkspace({ client, media }: {
             disabled={blocked} onStart={startAuthored}
             onEdit={() => router.canGoBack() ? router.back()
               : router.push({ pathname: '/materials', params: { id: typeof params.materialId === 'string' ? params.materialId : '' } })} /> : <>
-        <Text variant="section" accessibilityRole="header">Review what's due</Text>
-        <Text muted>Review saved material when it is due.</Text>
         <Button label="Start Review" variant={continuation ? 'secondary' : 'primary'}
           disabled={blocked} onPress={() => void start(false)} />
         <View style={styles.optionGroup}>
@@ -428,13 +426,12 @@ function ReviewWorkspace({ client, media }: {
             icon={sessionOptions ? 'chevronDown' : 'chevronRight'} accessibilityState={{ expanded: sessionOptions }}
             onPress={() => setSessionOptions(value => !value)} />
           {sessionOptions ? <>
-            <Text variant="caption" muted>Choose up to 128 items.</Text>
+            <Text variant="caption" muted>1–128 items</Text>
             <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
               <Button label="Start finite Review" variant="secondary" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
           </> : null}
         </View>
         <View style={styles.optionGroup}>
-          <Text variant="caption" muted>Practice a selection, or check unmeasured words.</Text>
           <Row><Button label="Word Practice" variant="secondary" disabled={blocked} onPress={() => router.push({
             pathname: '/knowledge', ...(packageId ? { params: { packageId } } : {}),
           })} />
@@ -480,7 +477,7 @@ function ReviewWorkspace({ client, media }: {
                 {outcome.reason ? ` · ${outcome.reason}` : ''}
               </Text>)}
             </Stack> : null}
-            {encounter.correction ? <Text accessibilityLiveRegion="polite">Correct the original response. Its original retrieval conditions are retained.</Text> : null}
+            {encounter.correction ? <Text accessibilityLiveRegion="polite">Correcting previous response</Text> : null}
             {encounter.conditions.assistance.length ? <Text variant="caption" muted>Assistance: {encounter.conditions.assistance.join(', ')}</Text> : null}
             {encounter.conditions.revealed && encounter.answer !== null ?
               <RatingMatrix key={`${encounter.id}:${encounter.correction}`} targets={encounter.targets}

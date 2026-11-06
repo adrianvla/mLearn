@@ -87,7 +87,6 @@ export function SettingsScreen() {
     if (!host.available || !snapshot) return;
     await host.client.saveTheme(theme, snapshot.revision);
     await refresh();
-    report('theme', 'Theme saved.');
     setEditing(false);
   }
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');
@@ -115,7 +114,6 @@ export function SettingsScreen() {
       <View style={styles.heading}>
         <View style={styles.title}><Icon name="settings" size={20} color={theme.colors.text} />
           <Text variant="heading" accessibilityRole="header">Settings</Text></View>
-        <View style={styles.description}><Text muted variant="caption">Configure mLearn to your preferences</Text></View>
       </View>
       <View style={styles.home}><Button label="Home" icon="arrowLeft" iconOnly={width < 700} variant="quiet"
         onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /></View>
@@ -133,23 +131,19 @@ export function SettingsScreen() {
   </>}>
       <View style={styles.content}>
       {section === 'appearance' ? <Section title="Appearance">
-        <SettingRow label="Theme" description={
-          <Text variant="detail" muted>{snapshot ? `Current: ${displayedTheme.name}.` : 'Preview only. Changes are not saved.'}</Text>
-        }>
+        <SettingRow label="Theme" description={!snapshot
+          ? <Text variant="detail" muted>Preview only. Changes are not saved.</Text> : undefined}>
           <Select label="Select theme" value={selectedPreset?.id ?? 'custom'}
             options={themeOptions}
             disabled={busy} onValueChange={id => {
               const preset = builtInThemes.find(value => value.id === id);
               if (!preset) return;
               if (canSave) void perform('theme', () => saveTheme(preset));
-              else { setPreviewTheme(preset); applyTheme(preset); report('theme', 'Preview only. Changes have not been saved.'); }
+              else { setPreviewTheme(preset); applyTheme(preset); }
             }} />
         </SettingRow>
-        <SettingRow label="Custom theme" description={
-          <Text variant="detail" muted>Palette, text size, spacing and corner radius.</Text>
-        }>
+        <SettingRow label="Custom theme">
           <Dialog open={editing} onOpenChange={setEditing} title="Custom theme"
-            description="Edit a versioned theme document. Changes are checked before being saved."
             trigger={<Button label="Edit theme JSON" variant="secondary" />}>
             <TextField testID="theme-json-input" label="Theme JSON" value={themeJson} onChangeText={setThemeJson} multiline maxLength={24000} autoCapitalize="none" autoCorrect={false} />
             <Button label="Save custom theme" disabled={!canSave} onPress={() => void perform('theme', () => saveTheme(parseThemePreview(themeJson)))} />
@@ -186,17 +180,16 @@ export function SettingsScreen() {
       {!host.available ? <Text muted>{host.reason}</Text> : <>
         <Text>Plugin code: {snapshot?.codePolicy ?? 'Connecting…'}</Text>
         <Text variant="caption" muted>Desktop downloads executable plugins. iOS and Android ship their executable plugins in the app. Language data remains separately packaged.</Text>
-        <Button label="Reload native state" variant="secondary" disabled={busy} onPress={() => void perform('runtime', async () => { await refresh(); report('runtime', 'Native state reloaded.'); })} />
+        <Button label="Reload native state" variant="secondary" disabled={busy} onPress={() => void perform('runtime', refresh)} />
         {feedbackAt('runtime')}
       </>}
       <View style={styles.runtimeExample}>
       <Text variant="section" accessibilityRole="header">SDK example</Text>
-      <Text variant="caption" muted>Run the installed example to check native plugin execution.</Text>
       <TextField label="Your name" value={name} onChangeText={setName} maxLength={128} autoCapitalize="none" editable={!busy} />
       <Row>
         {snapshot?.codePolicy === 'desktop-downloaded' && <Button label="Install SDK example" variant="secondary" disabled={!snapshot.catalogConfigured || busy} onPress={() => void perform('plugin', async () => {
           if (!host.available) return;
-          await host.client.installPlugin('example.hello'); await refresh(); report('plugin', 'Verified plugin installed from the catalog.');
+          await host.client.installPlugin('example.hello'); await refresh();
         })} />}
         <Button label="Run hello" disabled={!installed || busy || !name.trim()} onPress={() => void perform('plugin', async () => {
           if (!host.available) return;
@@ -217,7 +210,6 @@ const styles = StyleSheet.create(theme => ({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: theme.spacing.medium },
   heading: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
   home: { flexShrink: 0 },
-  description: { paddingLeft: 20 + theme.spacing.compact },
   title: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
   search: { width: '100%', marginBottom: theme.spacing.compact },
   content: { minWidth: 0, gap: theme.spacing.large },

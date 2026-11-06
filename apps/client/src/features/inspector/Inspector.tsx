@@ -349,7 +349,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     setExpandedCapability(evidenceCapability); setEvidenceCapability(null);
                     requestAnimationFrame(() => evidenceTrigger.current?.focus());
                 }} /> : entry ? <>
-                {history.length || inspection.sourceForm !== entry.headword ? (
+                {history.length || showDetails && inspection.sourceForm !== entry.headword ? (
                     <Text tone="media" muted variant="caption" selectable>{history.length ? 'Source selection' : 'In text'}: {inspection.sourceForm}</Text>
                 ) : null}
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
@@ -411,7 +411,6 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     </> : null}
                     </> : null}
                 {materialContent && !readOnlySourceReason ? <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
-                    description="Author this Material without changing its source reference or selected dictionary sense."
                     focusTarget={() => actionsTrigger.current}>
                     <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
                         onSaved={() => setCaptureRefresh(value => value + 1)} />

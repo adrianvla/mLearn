@@ -180,13 +180,13 @@ try {
   await click('Select theme: Quartz');
   await observeSourceView('!!document.querySelector(\'[data-testid="runtime-message"]\')');
   await click('Dark Quartz');
-  await observedSourceView('Saved theme feedback must be visible after the native acknowledgement');
+  await observedSourceView('Saved theme appearance must be visible after the native acknowledgement');
   await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
   await launch();
   await click('Appearance');
-  await text('Current: Dark Quartz.');
+  await text('Dark Quartz');
   await assertStyled('restarted-dark-quartz', 'rgb(240, 240, 240)');
   await click('Runtime');
   await click('Run hello');

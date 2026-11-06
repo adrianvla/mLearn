@@ -68,12 +68,19 @@ its detailed rows; keyboard chord codes do not replace action labels.
 Existing exception grades, Untested, Worked out and keyboard behavior remain.
 
 Layout: Word Sync leads with language and skill, followed by a visible scope
-summary and Start. Optional text/filter/limit edits live under Scope options.
+summary and Start. Optional text/filter/limit edits live under Unmeasured items.
 Selection and uncertain admission retain that exact summary; progress copy
 appears only while work is running. Probe authoring leads with saved cue and
 answer, then Preview or Practice; Practice stays above the preview list.
 Setup back navigation occupies the leading toolbar position, with Home in the
 existing destinations menu. Assessment and contract metadata are secondary.
+
+Copy: composition and controls carry the interaction. Keep text for necessary
+data, decisions, constraints and recovery; remove repeated headings, control
+instructions, routine success narration and duplicated metadata. Technical
+records belong in their relevant detail view. A dialog description is optional,
+not a required paragraph. Empty Home exposes its package action directly;
+star-display choices describe their effect without explanatory prose.
 
 ## Active correction — maintainer rejection of a726010
 

@@ -203,14 +203,14 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                     onOpen={() => setInspection(null)}
                     onLocate={hit => { if (imageMode) imageReader.cancel(); return reader.locate(hit.anchor); }}
                     onReturn={point => imageMode ? imageReader.navigate(point) : reader.navigate(point)} /> : null}
-                <Dialog title="Contents" description="Navigate to the original document location."
+        <Dialog title="Contents"
                     open={contentsOpen} onOpenChange={open => {
                         setContentsOpen(open); setInspection(null);
                         if (open) void reader.loadContents(contentsAfter);
                     }} trigger={<Button label="Contents" icon="book" iconOnly variant="quiet" size="compact" disabled={!source} />}>
                     {contents}
                 </Dialog>
-                <Dialog title="Reader appearance" description="Changes are saved for this source and preserve its visible text position."
+          <Dialog title="Reader appearance"
                     open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
                     trigger={<Button ref={optionsTrigger} label="View options" icon="settings" iconOnly variant="quiet" size="compact" disabled={!source || reader.pending} />}>
                     {compact ? openDocument : null}
@@ -352,7 +352,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 <Button label="Save position" variant="quiet" size="compact" disabled={!source}
                     onPress={() => void reader.persist().catch(() => { /* Reader save feedback owns recovery. */ })} />
             </ScrollView>
-            {imageMode ? <ImageReaderFeedback reader={imageReader} cropMode={cropMode} magnifier={magnifier} /> : null}
+            {imageMode ? <ImageReaderFeedback reader={imageReader} /> : null}
             {reader.analysisError ? <Row><Text variant="caption" accessibilityRole="alert">{reader.analysisError}</Text>
                 <Button label="Retry analysis" variant="secondary" size="compact" onPress={reader.retryAnalysis} /></Row> : null}
             {reader.saveError ? <Row><Text variant="caption" accessibilityRole="alert">Progress not saved: {reader.saveError}</Text>

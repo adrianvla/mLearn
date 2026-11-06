@@ -27,7 +27,7 @@ for (const id of ['qa.saved-palette', initialTheme.id]) {
       .toHaveAttribute('aria-selected', 'true');
     await page.screenshot({ path: info.outputPath('saved-custom-theme.png') });
     await page.getByRole('option', { name: initialTheme.name, exact: true }).click();
-    await expect(page.getByText('Theme saved.', { exact: true })).toBeVisible();
+    await expect(selector).toHaveText(initialTheme.name);
     const snapshot = JSON.parse(await nativeCore.invoke('runtime_execute', {
       request: JSON.stringify({ type: 'snapshot' }),
     }));

@@ -108,7 +108,7 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                         <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
                                 </View>
                                 <ScrollView testID="inspector-body" onFocus={revealScrollFocus} style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-                                    {(!anchored || alwaysShowContext) && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
+                                    {(!anchored || alwaysShowContext) && sourceContext && sourceContext !== title ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"

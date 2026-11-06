@@ -215,7 +215,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
             <Row>
               {!contact.archived ? <Dialog open={directPerson?.id === contact.id}
                 onOpenChange={value => { if (!messenger.busy) { setDirectPerson(value ? contact : null); if (value) setDirectLanguage(messenger.languages[0]?.id ?? ''); } }}
-                title={`Message ${contact.name}`} description="Reuse this person's conversation in the selected language."
+                title={`Message ${contact.name}`}
                 trigger={<Button label="Message" variant="quiet" size="compact" disabled={messenger.busy} />}>
                 <Select label="Language for direct conversation" value={directLanguage} onValueChange={setDirectLanguage}
                   options={messenger.languages.map(language => ({ value: language.id, label: language.displayName ?? language.id }))} />
@@ -358,7 +358,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
             }} />
           <ActionFeedback actions={actions} origin="composer" />
         </View>
-      </> : !messenger.pending ? <View style={styles.empty}><Text muted>Select a conversation or message someone in People.</Text>
+      </> : !messenger.pending ? <View style={styles.empty}>
         <ActionFeedback actions={actions} origin="history" />
         {messenger.error && messenger.origin === 'history' ? <Button label="Reload conversation" variant="secondary" onPress={messenger.reload} /> : null}</View> : null}
     </View> : null}

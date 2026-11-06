@@ -207,7 +207,7 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
       {error ? <Text accessibilityRole="alert">{error}</Text> : null}
       {retry ? <Button label="Recover generation action" variant="secondary" disabled={pending || controlling}
         onPress={() => void execute(retry)} /> : null}
-      <Text variant="caption" muted>Closing this view does not cancel a job. Saved jobs remain available in Review proposals.</Text>
+      <Text variant="caption" muted>Jobs continue after closing.</Text>
       <Row><Button label="Refresh generation jobs" variant="quiet" disabled={loading || pending || controlling}
         onPress={() => setReload(value => value + 1)} /></Row>
       {loading ? <Text accessibilityLiveRegion="polite">Loading generation jobs…</Text> : null}

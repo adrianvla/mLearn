@@ -5,6 +5,31 @@ import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 import { builtInThemes } from '../../packages/theme/src/theme';
 
+test('empty Home exposes its package action without clipping or an unusable language selector', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('empty-home-profile') });
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/');
+    const packages = page.getByRole('button', { name: 'Get language packages', exact: true });
+    await expect(packages).toHaveText('Get language packages');
+    await expect(page.getByTestId('source-language-select')).toHaveCount(0);
+    for (const width of [1080, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(packages).toBeInViewport({ ratio: 1 });
+      const bounds = await packages.boundingBox();
+      if (!bounds) throw new Error('Package action has no visible bounds');
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: info.outputPath(`empty-home-${width}.png`) });
+    }
+    await packages.click();
+    await expect(page).toHaveURL(/\/settings\?section=languages$/);
+    expect(backend.metadata().providerRequests).toBe(0);
+  } finally {
+    await backend.close();
+  }
+});
+
 test('Home continuation gives real source metadata priority over placeholder geometry', async ({ page }, info) => {
   const backend = await startRuntimeBrowserQa({ profile: info.outputPath('native-profile') });
   const client = createRuntimeBrowserClient(backend);
@@ -82,7 +107,7 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
   await expect(selector).toBeFocused();
   await expect(heading).not.toHaveCSS('color', before);
-  await expect(page.getByText('Preview only. Changes have not been saved.')).toBeVisible();
+  await expect(page.getByText('Preview only. Changes are not saved.', { exact: true })).toBeVisible();
   const trigger = page.getByRole('button', { name: 'Edit theme JSON', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });

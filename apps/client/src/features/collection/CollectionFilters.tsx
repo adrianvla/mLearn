@@ -142,7 +142,7 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
     ...(catalog?.levels.length ? [{ value: 'level' as const, label: 'Level' }] : []),
     ...(catalog?.capabilities.length ? [{ value: 'capability' as const, label: 'Knowledge' }] : []),
     ...(catalog?.kinds.length ? [{ value: 'entity_kind' as const, label: 'Entity kind' }] : []),
-    ...(sources.length ? [{ value: 'source' as const, label: 'Saved Material source' }] : []),
+    ...(sources.length ? [{ value: 'source' as const, label: 'Recent Material source' }] : []),
   ];
   function render(node: Draft, remove?: () => void): ReactNode {
     const update = (next: Draft) => change(replace(draft, node.id, next));
@@ -204,7 +204,7 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
       </> : null}
     </View>;
   }
-  return <Dialog title="Filters" description="Combine conditions to narrow the collection."
+  return <Dialog title="Filters"
     open={expanded} onOpenChange={setExpanded} trigger={
       <Button label="Filters" variant="secondary" size="compact"
         icon={expanded ? 'chevronDown' : 'chevronRight'}
@@ -212,11 +212,10 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
       />
     }>
     <View style={styles.root}>
-      <Text variant="caption" muted>Also matches the current search and source/excluded controls. Source choices are recent saved sources.</Text>
       {loading ? <Text accessibilityLiveRegion="polite">Loading filter options…</Text> : null}
       {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry filter options" variant="secondary"
         onPress={() => setRetry(value => value + 1)} /></> : null}
-      {!packageId ? <Text variant="caption" muted>Choose a collection language for package scope, level and Knowledge filters.</Text> : null}
+      {!packageId ? <Text variant="caption" muted>Select a language for level and Knowledge filters.</Text> : null}
       {render(draft)}
       {draftError ? <Text accessibilityRole="alert">{draftError}</Text> : null}
       <Row><Button label="Apply filters" size="compact" disabled={loading || !!error} onPress={() => {

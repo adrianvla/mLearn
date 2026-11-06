@@ -9,7 +9,7 @@ import { KeyboardAvoidingView } from './KeyboardAvoidingView';
 import { revealScrollFocus } from './scrollFocus';
 
 type Props = PropsWithChildren<{
-  open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
+  open: boolean; onOpenChange: (open: boolean) => void; title: string; description?: string; presentation?: 'dialog' | 'sidebar';
   modal?: boolean;
   size?: 'standard' | 'wide';
   closeLabel?: string;
@@ -46,9 +46,9 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
     // Native Content has no onCloseAutoFocus; normally Trigger owns this return.
     if (Platform.OS !== 'web' && closed) restoreFocus();
   }, [open, restoreFocus]);
-  const descriptionText = <Primitive.Description asChild>
+  const descriptionText = description ? <Primitive.Description asChild>
     <Text muted variant={sidebar ? 'detail' : 'caption'} accessibilityLiveRegion={sidebar ? 'polite' : undefined}>{description}</Text>
-  </Primitive.Description>;
+  </Primitive.Description> : null;
   // Keep the same nonmodal content owner across the drawer breakpoint so
   // resizing cannot discard pending capture receipts inside the sidebar.
   const frame = <View pointerEvents={sidebar ? 'box-none' : 'auto'} style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
@@ -57,6 +57,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
             style={styles.keyboardFrame(sidebar)}>
           <View style={[styles.bounds(size === 'wide'), sidebar && styles.sidebarBounds]}>
             <Primitive.Content asChild
+              {...(!description ? { 'aria-describedby': undefined } : {})}
               onOpenAutoFocus={initialFocus === 'title' ? event => {
                 event.preventDefault(); titleTarget.current?.focus();
               } : sidebar && !modal ? event => event.preventDefault() : undefined}

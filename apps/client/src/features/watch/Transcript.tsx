@@ -203,7 +203,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     {analysisError ? <><Text accessibilityRole="alert">{analysisError}</Text>
       <Button label="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
         setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
-    {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues in this subtitle file.</Text> : null}
+    {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues</Text> : null}
   </>;
   const dictionaryFeedback = <>
     {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}

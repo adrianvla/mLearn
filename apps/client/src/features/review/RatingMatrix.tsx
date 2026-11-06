@@ -44,8 +44,7 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
       </View>)}
     </View>
     {state.expanded ? <>
-      <Text variant="caption" muted>Choose exceptions, then All. Press a rating twice for All, or a rating followed by a row letter.</Text>
-      <Text variant="caption" accessibilityLiveRegion="polite">{state.pending ? `Rating ${state.pending.key}: choose a row or repeat for All` : 'Adjust capability ratings'}</Text>
+      {state.pending ? <Text variant="caption" accessibilityLiveRegion="polite">{`Rating ${state.pending.key}: choose a row or repeat for All`}</Text> : null}
       <View style={styles.matrixRow}>
         <View style={styles.rowLabel} />
         {ratingActions.map(action => <View key={action.key} style={styles.cell}>

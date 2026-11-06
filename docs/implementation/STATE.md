@@ -4,6 +4,35 @@
 
 ### Workload-specific execution resumed
 
+The cross-frontend narrative pass removes redundant descriptions/headings,
+routine success prose and repeated metadata across Home, Settings, collections,
+Material, Reader/Watch, Messenger, Review/Word Sync/authoring and Inspector.
+Privacy, package prerequisites, destructive-action warnings, real failures,
+progress and technical records remain. Shared Dialog no longer reserves an
+empty description; repeated source text is suppressed centrally. Subtitle
+availability remains separate source metadata. Star choices describe their
+display effect; empty Home has a direct, unclipped package action.
+Current typecheck/lint/export pass. The serial tooling/client suites pass after
+updating the navigation fixture for the existing Menu composition (91 + 224
+checks); the affected star-rendering owner passes after final labels. All 22
+affected browser scenarios pass, including native theme restart, Word Sync
+recovery, frozen authored probes, source/context continuity and the new
+320/390px empty-Home regression. Removed-prose assertions now inspect actual
+selected state; domain assertions were preserved. Native desktop/mobile scripts
+were migrated but remain unrun; mobile YAML parses, and native Select exposes
+the selected-option state used by the flow.
+Before/after and connected captures remain under `concise-ui-*`, `concise-*`,
+`concise-home-final` and `concise-scope-final`. Current representative rendered
+states were inspected; native GUI/device/decoding and final review gates remain
+open. No owned QA browser/backend/server survives; sampled footprint 1300599752
+bytes, available 5391941632 bytes, normal pressure and unchanged swap.
+
+The retained Japanese profile was reused without ingestion: its real Character
+kind has 13108 entries. Dark desktop/phone before captures are
+`characters-before-{desktop,phone}.png`; its small body-sized glyphs in wide
+tiles remain a concrete next correction. The profile/theme were preserved and
+the bounded host closed cleanly. This finding is not retired by the copy pass.
+
 The connected Review setup increment is integrated: Word Sync uses compact
 language/skill rows and optional scope controls, while retaining a visible
 scope/limit summary; authored probes lead with saved content and put Practice

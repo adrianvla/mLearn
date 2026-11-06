@@ -4,6 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import type { AuthoredPracticePreview, Material } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
+import { Badge } from '@mlearn/ui/badge';
 import { Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 
@@ -73,13 +74,12 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
     } finally { flight.current = false; }
   }
   return <Stack>
-    <Text variant="section" accessibilityRole="header">Authored recall probes</Text>
     {loading ? <Text accessibilityLiveRegion="polite">Loading saved Material...</Text> : null}
     {material ? <>
       <Text variant="entryTitle" selectable>{material.content.phrase}</Text>
       <Text selectable>{material.content.meaning}</Text>
     </> : null}
-    <Text variant="caption" muted>You rate your own recall. Seeing these answers makes this source-assisted practice.</Text>
+    <Row><Badge label="Self-rated" variant="label" /><Badge label="Source-assisted" variant="label" /></Row>
     <Row>
     <Button label="Edit cue and answer" variant="quiet" disabled={disabled || pending} onPress={onEdit} />
     <Button label="Preview authored probes" variant={preview ? 'secondary' : 'primary'}
@@ -98,7 +98,6 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
         <Text variant="caption" muted>Recall targets</Text>
         {probe.targets.map(target => <Text key={target.id} selectable>{target.label}
           {!target.key ? ' · no Knowledge measurement' : ''}</Text>)}
-        <Text variant="caption" muted>Response: self-report</Text>
         {assessmentDetails ? <>
           <Text variant="caption" muted>Package contract {probe.contractVersion}</Text>
           {probe.targets.map(target => target.key ? <Text key={target.id} variant="caption" muted selectable>
@@ -113,9 +112,7 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
       icon={assessmentDetails ? 'chevronDown' : 'chevronRight'} iconPosition="trailing"
       accessibilityState={{ expanded: assessmentDetails }} onPress={() => setAssessmentDetails(value => !value)} />
     {assessmentDetails ? <>
-      <Text variant="caption" muted>The package supplies these probes from saved Material.
-      They support self-report, not automatic response grading or linguistic correctness certification.
-      Previewed answers cannot establish independent assessment.</Text>
+      <Text variant="caption" muted>Self-rated. Previewed answers count as assistance.</Text>
       {material ? <>
         <Text variant="caption" muted>Material revision {material.revision}</Text>
         <Text variant="caption" muted selectable>Language package: {material.content.packageId}</Text>

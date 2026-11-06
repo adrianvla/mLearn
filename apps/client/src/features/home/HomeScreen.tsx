@@ -101,11 +101,13 @@ export function HomeScreen() {
     const seconds = Math.floor(source.positionMs / 1000);
     const language = languages.find(plugin => plugin.id === source.packageId);
     return <SourceRow key={source.id} title={source.title} icon="video" disabled={busy}
-      detail={`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} · ${language?.displayName ?? 'Language package unavailable'}${source.subtitlePath ? ' · Subtitles' : ''}`}
+      detail={`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} · ${language?.displayName ?? 'Language package unavailable'}`}
+      {...(source.subtitlePath ? { meta: 'Subtitles' } : {})}
       progress={source.durationMs > 0 ? source.positionMs / source.durationMs * 100 : undefined}
       onPress={() => resume(source)} />;
   }
 
+  const needsPackages = !!snapshot && !busy && !languages.length;
   return <AppShell header={<View style={styles.header}>
     <View style={styles.topRow}>
       <View style={styles.brand}>
@@ -113,10 +115,10 @@ export function HomeScreen() {
         <Text variant="shellTitle" accessibilityRole="header" accessibilityLabel="Home">mLearn</Text>
       </View>
       <Row>
-        <View style={styles.languages}><Select label="Source language" testID="source-language-select" value={selected}
+        {!needsPackages ? <View key="language" style={styles.languages}><Select label="Source language" testID="source-language-select" value={selected}
           options={languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id, testID: `language-${plugin.id}` }))}
-          onValueChange={setSelected} disabled={busy} placeholder="Source language" /></View>
-        <Button label="Get language packages" icon="package" iconOnly size="compact" variant="quiet"
+          onValueChange={setSelected} disabled={busy} placeholder="Source language" /></View> : null}
+        <Button key="packages" label="Get language packages" icon="package" iconOnly={!needsPackages} size="compact" variant={needsPackages ? 'primary' : 'quiet'}
           onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
       </Row>
     </View>
@@ -129,7 +131,7 @@ export function HomeScreen() {
   </View>}>
     {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : null}
     {snapshot?.packageIssues?.length ? <Text accessibilityRole="alert">
-      Some language packages are unavailable. Open Settings to repair them; other installed packages remain usable.
+      Some language packages are unavailable. Open Settings to repair them.
     </Text> : null}
     {sourceImport.opening ? <Row>
       <Text accessibilityLiveRegion="polite">Opening dropped source…</Text>
@@ -140,7 +142,6 @@ export function HomeScreen() {
       <Button label="Retry sources" variant="secondary" disabled={busy}
         onPress={() => void refresh().then(() => setError('')).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))} />
     </View> : null}
-    {host.available && snapshot && !languages.length ? <Text muted>Choose a language package to get started.</Text> : null}
     <View style={styles.content}>
       <View style={styles.activities}>
         <View style={styles.activity(columns)}>

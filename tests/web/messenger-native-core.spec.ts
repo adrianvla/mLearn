@@ -210,7 +210,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-inspector.png') });
     // Message inspection must retain readable lexical copy over bright content.
-    const captionContrast = await inspector.getByText('In text: Children', { exact: true }).evaluate(caption => {
+    const captionContrast = await inspector.getByText('Children walked home.', { exact: true }).evaluate(caption => {
       const panel = caption.closest('[data-testid="inspector-panel"]');
       if (!panel) throw new Error('Inspector caption has no rendered panel');
       const bounds = panel.getBoundingClientRect();
@@ -340,7 +340,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await page.getByRole('combobox', { name: /^Select theme/ }).click();
     await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
     expect(JSON.parse((await (await savedTheme).json()).value)).toMatchObject({ type: 'saved' });
-    await expect(page.getByText('Theme saved.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Select theme:/ })).toHaveText('Dark Quartz');
     await backend.crashRestart();
     await page.goto('/');
     await page.getByRole('button', { name: 'Conversation', exact: true }).click();

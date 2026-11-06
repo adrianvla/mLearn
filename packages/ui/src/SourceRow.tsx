@@ -6,9 +6,10 @@ import { Progress } from './Progress';
 import { Text } from './Text';
 
 /** One source continuation target; unavailable progress stays explicitly unknown. */
-export function SourceRow({ title, detail, icon, progress, disabled = false, onPress }: {
+export function SourceRow({ title, detail, meta, icon, progress, disabled = false, onPress }: {
   readonly title: string;
   readonly detail: string;
+  readonly meta?: string;
   readonly icon: IconName;
   readonly progress?: number;
   readonly disabled?: boolean;
@@ -21,7 +22,7 @@ export function SourceRow({ title, detail, icon, progress, disabled = false, onP
   // UIKit groups these descendants; its value keeps detail separate from the
   // action label. Android would append that value to the label instead.
   return <Pressable accessibilityRole="button" accessibilityLabel={`Continue ${title}`}
-    accessibilityValue={Platform.OS === 'ios' ? { text: detail } : undefined}
+    accessibilityValue={Platform.OS === 'ios' ? { text: meta ? `${detail}, ${meta}` : detail } : undefined}
     disabled={disabled} onPress={onPress}
     onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
     onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -30,7 +31,10 @@ export function SourceRow({ title, detail, icon, progress, disabled = false, onP
     <Icon name={icon} size={24} color={theme.colors.muted} />
     <View style={styles.info}>
       <Text variant="sourceTitle" numberOfLines={1}>{title}</Text>
-      <Text variant="detail" muted numberOfLines={2}>{detail}</Text>
+      <View style={styles.metadata}>
+        <Text variant="detail" muted numberOfLines={2}>{detail}</Text>
+        {meta ? <Text variant="detail" muted>{meta}</Text> : null}
+      </View>
       {progress !== undefined ? <Progress label={`${title} progress`} value={progress} /> : null}
     </View>
     {width > 600 && progress !== undefined ? <Text variant="caption">{Math.round(progress)}%</Text> : null}
@@ -43,6 +47,7 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius + 4,
     backgroundColor: theme.surfaces.glass },
   info: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
+  metadata: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small },
   hover: { backgroundColor: theme.surfaces.secondary, borderColor: theme.controls.outline },
   focus: { _web: { outlineWidth: 2, outlineStyle: 'solid',
     outlineColor: theme.colors.accent, outlineOffset: 2 } },

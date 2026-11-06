@@ -231,7 +231,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
     </Stack> : null}
     <Dialog open={proposal !== null} onOpenChange={open => { if (!open) setProposal(null); }}
       title={proposal ? `${label(proposal.action)}: ${proposedCount} items` : 'Bulk change'}
-      description="Only this frozen selection is affected. Changed or unavailable items are reported individually."
+      description="Selected items only. Changed or unavailable items are reported."
       focusTarget={() => confirmation.current}>
       {proposal?.action.kind === 'add' ? <Text>
         The installed package supplies each target's default sense. These entries have no source association.
@@ -246,8 +246,8 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
           multiline value={replacement} onChangeText={setReplacement} maxLength={field === 'phrase' || field === 'reading' ? 2048 : 32768} />
         <Text variant="caption">This replaces the chosen field on every selected item. Empty text clears that field.</Text>
       </> : null}
-      {proposal?.action.kind === 'exclude' ? <Text>Exclusion changes Material selection, not demonstrated Knowledge or retained learner evidence.</Text> : null}
-      {proposal?.action.kind === 'remove' ? <Text>Authored content will be deleted. There is no undo. Learner evidence and already admitted Review work are retained.</Text> : null}
+      {proposal?.action.kind === 'exclude' ? <Text>Keeps Knowledge and learner evidence.</Text> : null}
+      {proposal?.action.kind === 'remove' ? <Text>Deletes authored content. No undo. Active reviews and learner evidence are kept.</Text> : null}
       <Row><Button label="Cancel change" variant="secondary" onPress={() => setProposal(null)} />
         <Button label="Apply bulk change" tone={proposal?.action.kind === 'remove' ? 'negative' : 'neutral'}
           onPress={() => {
