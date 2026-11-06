@@ -209,6 +209,36 @@ test('normal Messenger UI consumes actual native content and prepared language o
     const inspector = page.getByTestId('inspector-panel');
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-inspector.png') });
+    // Message inspection must retain readable lexical copy over bright content.
+    const captionContrast = await inspector.getByText('In text: Children', { exact: true }).evaluate(caption => {
+      const panel = caption.closest('[data-testid="inspector-panel"]');
+      if (!panel) throw new Error('Inspector caption has no rendered panel');
+      const bounds = panel.getBoundingClientRect();
+      const material = Array.from(panel.children).find(child => {
+        const box = child.getBoundingClientRect();
+        return getComputedStyle(child).pointerEvents === 'none'
+          && box.width >= bounds.width - 2 && box.height >= bounds.height - 2;
+      });
+      if (!material) throw new Error('Inspector has no full-size material backing');
+      const foreground = getComputedStyle(caption).color.match(/[\d.]+/g)?.map(Number);
+      const background = getComputedStyle(material).backgroundColor.match(/[\d.]+/g)?.map(Number);
+      if (!foreground || !background || foreground.length < 3 || background.length < 3)
+        throw new Error('Inspector colors are not measurable');
+      const alpha = background[3] ?? 1;
+      const luminance = (channels: number[]) => channels.slice(0, 3).map(value => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+      const ink = luminance(foreground);
+      const surface = luminance(background.slice(0, 3).map(value => value * alpha + 255 * (1 - alpha)));
+      return (Math.max(ink, surface) + 0.05) / (Math.min(ink, surface) + 0.05);
+    });
+    expect(captionContrast).toBeGreaterThanOrEqual(4.5);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(inspector).toBeInViewport({ ratio: 1 });
+    await expect(inspector.getByRole('button', { name: /^Close Inspect/ })).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: info.outputPath('messenger-phone-inspector.png') });
+    await page.setViewportSize({ width: 1212, height: 872 });
     await inspector.getByRole('button', { name: /^Close Inspect/ }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     const narrowBack = await page.getByRole('button', { name: 'Chats and People', exact: true }).boundingBox();
@@ -325,6 +355,10 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('messenger-desktop-dark-inspector.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(inspector).toBeInViewport({ ratio: 1 });
+    await expect(inspector.getByRole('button', { name: /^Close Inspect/ })).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ path: info.outputPath('messenger-phone-dark-inspector.png') });
     const snapshot = JSON.parse(await backend.invoke('runtime_execute', { request: JSON.stringify({ type: 'snapshot' }) }));
     expect(snapshot.snapshot.theme.id).toBe('mlearn.dark-quartz');
     await info.attach('native-source-and-profile.json', {

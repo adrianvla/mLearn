@@ -1040,6 +1040,7 @@ test('nested capture focus wrap reveals its action without moving the source', a
 test('source Inspector capture options remain readable on their shared menu material', async ({ page }, testInfo) => {
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await page.getByRole('button', { name: 'Inspect', exact: true }).click();
   await page.getByRole('button', { name: 'Capture options', exact: true }).click();
   const action = page.getByRole('menuitem', { name: 'Open saved 東京', exact: true });
   await expect(action).toBeVisible();

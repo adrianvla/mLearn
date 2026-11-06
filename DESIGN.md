@@ -32,7 +32,9 @@ reading flow. Knowledge, Capture and Explain retain the stable footer.
 Their pills resolve against the dark media surface even when the surrounding
 application uses a light theme. Existing content surfaces retain their own
 palette. The shared ContextPanel and Button boundaries carry these choices
-to every real Inspector caller.
+to every real Inspector caller. On light content, ContextPanel and its attached
+popover use the existing readable dark media backing; the weaker translucent
+video material cannot carry lexical captions over a bright conversation.
 
 Layout: source readings and difficulty markers stay attached to their word.
 Automatic markers in compact vocabulary headings respect the available row;

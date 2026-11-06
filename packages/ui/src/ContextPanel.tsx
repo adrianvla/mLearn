@@ -24,7 +24,9 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
     const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
     const { width, height } = viewport ?? window;
     const { theme } = useUnistyles();
-    const material = opaque ? theme.media.panel : theme.media.translucentPanel;
+    // Bright content needs the readable dark backing, including message sources.
+    const solid = opaque || theme.shell.light;
+    const material = solid ? theme.media.panel : theme.media.translucentPanel;
     const [bounds, setBounds] = useState<TextBounds>(anchor);
     const [headerHeight, setHeaderHeight] = useState(0);
     const [footerHeight, setFooterHeight] = useState(0);
@@ -117,7 +119,7 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                     contentContainerStyle={[styles.footerContent, !desktop && styles.footerWrap]} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
-                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(opaque), { bottom: footerHeight,
+                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(solid), { bottom: footerHeight,
                                     maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
                                     contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
                                     {popover}

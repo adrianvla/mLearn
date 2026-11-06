@@ -127,6 +127,42 @@ exact scroll, native persistence and retry assertions remain intact, with
 navigation selectors migrated to the menu and scroll scoped to Material's
 retained shell. Typecheck, lint and export pass. No destination guard was added.
 
+Review continuation on product candidate `9ce5992c`: two focused native-core
+Practice cases pass (4.5s, exit 0). The actual package-validated typed response
+survives native crash/restart; Stop drains its precise registration before
+recovery and Pause/Resume preserves the same draft. All fourteen sessions,
+question, revealed and stopping captures were inspected across Quartz/Dark
+Quartz and desktop/phone in `review-integrated-continuity`. Lower rating rows
+continue through ordinary scrolling; the test reaches and submits All Fluent.
+No source repair was indicated by these frames. Before/after physical footprint
+was 1101419488/1105630176 bytes, pressure normal and swap unchanged; no owned
+browser/backend/server survived. The predeclared scenario/result note is
+`review-continuation-20261106.md` in the same experience directory. This is
+browser/native-core evidence and leaves actual native-host/device gates open.
+
+The connected native-core Messenger workflow passes (6.3s): real package
+analysis/Inspector, composer growth/shrink, exact Material/unsent-draft return,
+source/history identity and persisted dark theme through native restart.
+Its ten captures in `messenger-integrated-continuity` were inspected. That
+inspection exposed insufficient light-theme Inspector caption contrast:
+ContextPanel used the weak translucent video material for message sources.
+The rendered regression reproduced at 1.107:1 against bright source pixels.
+ContextPanel now chooses its existing readable dark backing on light shells
+and propagates that choice to its popover, following the existing media policy.
+Typecheck, ownership lint and export pass; the connected native case passes
+after repair (6.5s). Light/dark desktop frames in
+`messenger-inspector-contrast-green` were inspected. Final phone containment,
+native Messenger continuity and three adjacent Inspector cases pass. A fifth
+case initially timed out because it skipped the now-required Inspect disclosure;
+its navigation was migrated without changing its contrast/Axe assertions, then
+that case passed in 1.7s. All ten theme-owner tests pass. Light/dark phone
+Inspector frames and the capture-menu frame were inspected in
+`inspector-backing-integrated` and `inspector-menu-integrated`. No owned
+Chrome/backend/server remains; pressure is normal and swap unchanged.
+Fresh LSP diagnostics timed out; the completed full TypeScript check is clean.
+Native consuming GUI proof remains deferred. No language, source, persistence
+or command owner changed.
+
 ### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.
