@@ -1,6 +1,59 @@
 # mLearn visual specification — reference parity
 
-## Current reconstruction brief — November 5, 2026
+## Current correction — edited-reference fidelity
+
+The 21 edited images are the design authority. Current v3 compositions,
+functional tests and the agent-authored briefs below cannot authorize their
+own appearance. Use legacy runtime only when the edited packet and source
+cannot resolve a decision. Extrapolate unpictured states from the edited
+hierarchy, density and materials while preserving real capabilities.
+
+Layout: Reader has compact source-specific chrome, an independently scrolling
+preview rail and the source viewport as its dominant region. Each preview is
+one navigation target containing genuine source text or an image thumbnail;
+it does not repeat the preview inside a separate Read button. Image pages may
+show their authoritative page number; text blocks must not invent a global
+EPUB page count. Thumbnails retain their actual aspect ratio, and short text
+excerpts do not imitate full-page rectangles. Search and contents are quiet icon actions, view preferences
+remain scoped to Reader, and adjacent navigation controls form the trailing
+group. At narrow widths, preserve the title and accessible touch controls in
+at most two rows. Existing document anchors, source return, cancellation and
+saved positions remain unchanged.
+
+Layout: contextual Inspector leads with the headword, selected source form
+when different, meaning, package pronunciation/metadata, dictionary alternatives
+and senses. The header's Inspect action discloses relationships, provenance
+and authoring rather than placing their controls in the default lexical
+reading flow. Knowledge, Capture and Explain retain the stable footer.
+Their pills resolve against the dark media surface even when the surrounding
+application uses a light theme. Existing content surfaces retain their own
+palette. The shared ContextPanel and Button boundaries carry these choices
+to every real Inspector caller.
+
+Layout: source readings and difficulty markers stay attached to their word.
+Automatic markers in compact vocabulary headings respect the available row;
+prose retains its neighboring-word clearance. A collapsed marker preserves
+the selected package rank as a count beside its star.
+
+Vocabulary headwords use the existing 16px semibold list-title role, with
+secondary meaning alongside them. The approved Watch sidebar establishes
+that hierarchy; `UnknownWordsSidebar.css` at reference `39c83e89` confirms
+the medium-size/semibold mechanism. Ruby and pitch-contour text share the
+word's semantic role rather than forcing ordinary body weight.
+
+## Active correction — maintainer rejection of a726010
+
+The maintainer rejected the sidebar-and-recents workspace introduced by
+`a726010`. The Home and shared-navigation interpretation below was authored by
+the agent; it was not approval to replace the intended composition. It is
+retained as evidence of the design mistake, not as the target for further work.
+
+Correct the underlying compositions against actual approved references and
+the corresponding isolated running reference application. Inspect unreferenced
+states in the real UI. Preserve legitimate functional improvements and native
+authorities. Passing tests and this document do not grant visual acceptance.
+
+## Rejected reconstruction brief — November 5, 2026
 
 The current task reconstructs the whole implemented experience around the
 learner's activity, attention and continuity. Older layout notes below are

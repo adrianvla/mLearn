@@ -1,6 +1,425 @@
 # Current implementation checkpoint
 
-## Frontend reconstruction candidate in progress - 2026-11-05
+## Active continuation - 2026-11-06
+
+The maintainer shut down the unused Colima VM and OpenWebUI and explicitly
+resumed the existing frontend reconstruction. RustDesk must remain running:
+the maintainer is connected remotely. Branch `agent/m10-m11` now has three
+local source checkpoints based on `dccbea988af731a68fc2203607d6ebf7e7f60ed7`:
+`53a1392a` bounds inline stars, `ab46f028` restores activity-centered Home and
+contextual navigation, and source checkpoint `ad654057` preserves context across
+Reader/Inspector and shared lexical presentation. The first contains exactly
+two paths, the second thirteen and the third thirty; their staged whitespace
+checks passed. Retained six-owner, 89-tool/223-client, 46-Reader/four-Watch,
+typecheck/lint/export and inspected capture evidence remains scoped below.
+Native smoke syntax also passes; its real execution and the native-core
+graph/Watch regressions remain unrun on this candidate. No source byte changed
+when recording these checkpoints, and no settled check was repeated. None is
+pushed. Checkpoint/DESIGN updates are separate from product/test changes;
+unrelated untracked files, profiles and artifacts are preserved. These commits are
+source continuity, not whole-frontend verification or acceptance.
+Full product/test checkpoint is `ad654057fc37f55966cdf8b5210a45b24bedc069`,
+tree `6feb80a5a7b8bf66cc73f3c04442ff9485e30f49`. Its source review found no
+confirmed new defect after tracing the navigation, shared preview formatting,
+Reader source/thumbnail continuity, Inspector disclosure/palette, sidebar
+focus and semantic word-role changes and their tests. Missing real state and
+native execution evidence remains a gate, not a source-review pass for the
+whole request. The existing notepad is now retained with the artifacts at
+`.mlearn/experience-20261105/journal.md`, rather than in the OS temporary tree.
+All eight administratively deferred requirements are restored in the active
+graph, preceded by fresh resource admission. None was completed or waived.
+Reuse the passing 89 tool / 223 package-client checks, 46 Reader fixtures and
+four inspected horizontal annotation captures; do not repeat settled work.
+Fresh full 1536 MiB admission remained held with the existing 4 GiB reserve.
+The separate unchanged 1024 MiB stage admitted and its native Watch capture
+passed: 13 tokens, eight real targets, six-plus-two dictionary reads and clean
+shutdown. The separate document and caption/vocabulary replays now pass at
+both widths/themes, including the reproduced vocabulary star-containment
+regression described below; their frozen transport certifies presentation
+only. No device/reference-app/test-server
+workload is automatically restarted. All acceptance limits remain open;
+no merge, release or maintainer acceptance is authorized.
+
+Latest verified source increment: vocabulary headwords now use
+the existing 16px/600 `listTitle` role. The approved Watch sidebar and the
+clean secondary reference `39c83e89d008696d36f326cffc49dc98d1152af0`
+(`UnknownWordsSidebar.css`) establish that hierarchy; no larger font was
+inferred from the high-DPI screenshot. The shared word-content and
+pitch-contour APIs carry the role across web/native, while CaptureList selects
+it for real cards. Package-file diagnostics initially lacked the existing
+Unistyles augmentation; opening `packages/theme/src/runtime.ts` restored the
+real context and all six changed files checked clean. No suppression or
+product configuration workaround was added. Full typecheck, architecture lint
+and the one-worker workspace export pass. All four Watch cases and all 46
+Reader cases pass on the fresh export. Vocabulary tops and scrolled kana rows
+were inspected in both themes at 1080/393px, along with the unchanged captions
+and affected Reader sidebar/pending/practice states. Desktop kana framing was
+corrected in the capture driver only; its two cases then passed again.
+Current entry is `index-75c00cf2ce4ddac49596d6c2bc4ebafb.js`, SHA256
+`a7b5852b1788ce4196de54ada653805d0b2c8d9c74919f3051655e664562504b`.
+Artifacts: `.mlearn/experience-20261105/vocabulary-heading-{watch,reader,desktop-framed}*`.
+All 118 reserve observations were safe: minimum available 5,328,945,152 bytes,
+maximum tracked OmO footprint 1,394,381,768 bytes, ending 983,946,184 bytes,
+pressure 1 and unchanged swap usage 522,059,776 bytes. The owned guard and
+diagnostic pair were stopped; RustDesk was untouched. Current todo: 3/9
+verified, with the broader implemented-state matrix, live native workflows,
+integrated reviews and delivery still open. These frontend checks do not
+certify native-device rendering, playback or complete visual acceptance.
+
+### Native metadata state matrix - incomplete, 2026-11-06
+
+The retained 1024 MiB metadata stage used the existing Rust/SQLite owner and
+isolated profile, current export `75c00cf2`, and a managed disposable browser.
+Home, Settings, Knowledge, Material and its editor were inspected in both
+themes at desktop1440 and true iPhone14 emulation. Paused Review, Word Sync
+setup, Messenger's unselected directory, People and compound-filter disclosure
+were inspected in dark mode. Home's lower scroll state and actual native
+conversation preview were preserved; Knowledge still reports its real
+206,979-entry collection and Material its two retained items. Quartz was
+restored through the native settings owner. No conversation was selected or
+sent, no session was started/answered, and no source analysis was launched.
+Captures are `candidate-*.png` in the current experience artifact directory.
+
+The first Word Sync role locator timed out because of a same-label retained
+route; the visible snapshot ref activated it successfully. Use visible refs
+for these retained screens rather than interpreting that as a product failure.
+The People search field's visual visibility needs a geometry check; the
+remaining light Review/Word Sync/Messenger states and active workflows are
+not complete.
+
+Teardown did NOT pass: the agent allowed the monitor's 15-minute kill deadline
+to expire. Browser disconnect completed, but the external browser and native
+host reached their monitor deadlines. The native log has no
+`EXPERIENCE_STOPPED` receipt. A subsequent process audit found no surviving
+native QA owner, static server or owned Chrome; absence is not clean shutdown
+evidence. Preserve this failure. Future long-lived hosts must use a background
+session plus readiness-only observation and a controller-owned graceful stop,
+not a monitor deadline that can kill their native child group.
+The corrected owner is `.mlearn/experience-20261105/metadata-host.mjs`: it owns
+the browser context and native backend, with an eight-minute graceful lifetime
+and Node-only signal handling. Its syntax/project diagnostics pass; actual
+startup/teardown is not yet verified. The unchanged 1024 MiB follow-up admission
+expired without launching. No substantial unused owned process remained to
+release; user applications and RustDesk were untouched. A nonblocking capacity
+question is pending. The larger 1536 MiB native workflow stays unadmitted.
+The existing `.github/workflows/v3-desktop-e2e.yml` offers actual Linux desktop
+IPC/plugin/media/restart verification on branch push, while foundation covers
+the native browser regressions. Neither workflow was dispatched or claimed as
+passing for these local checkpoints.
+Read-only draft-PR inspection through `gh pr view agent/m10-m11` failed TLS
+certificate verification; no validation was disabled and no remote state
+was changed. Current draft status is therefore not freshly verified.
+All 178 reserve observations were safe, minimum available 4,794,449,920 bytes,
+maximum tracked OmO footprint 1,129,550,792 bytes and unchanged swap usage
+522,059,776 bytes. RustDesk was untouched. This is partial state/persistence
+evidence, not a completed native workflow or acceptance gate.
+
+### Verified inline annotation repair - 2026-11-06
+
+Native-backed presentation exposed a real bounded-heading defect: the first
+star SVG for 道 began at x=775.359375 while its card began at x=777.
+The existing missing-neighbor clearance deliberately permits unbounded prose
+edges; a horizontal flex heading must also respect its row. Shared
+`LevelStars.web.tsx` now caps automatic clearance by that row and observes its
+resize through the existing single, ref-counted ResizeObserver. Rank, glyph,
+palette, size, margin, forced modes and prose-edge rules remain intact.
+
+The permanent owner regression failed before the fix with
+`Row resize did not collapse annotations`. It waits for initial layout, then
+shrinks only the containing row while the word keeps its dimensions. All six
+owner tests now pass, including legacy clearance, palette and shared-observer
+cleanup. Full client typecheck, architecture lint and the serial workspace
+export pass. The first export command forwarded the worker flag incorrectly
+through nested npm scripts and failed before bundling; invoking the existing
+workspace script directly succeeded. No product failure was hidden.
+
+Current entry: `index-76930cff748602c97ee2de598b3b2771.js`, SHA256
+`8aecf957301563989a0c3cf8f563c1d4a48cf8378b87702afff8c941996e73b5`.
+The fresh document replay passes 4/4 and Watch replay passes 4/4 at 1080/393px
+in both built-in themes. All twelve captures were personally inspected:
+document readings remain aligned, caption stars retain their expected
+expansion, and compact vocabulary markers stay inside their cards.
+Artifacts: `.mlearn/experience-20261105/star-{owner,document,watch}-green*`.
+These are frozen native-data frontend replays, not live native workflow,
+device, playback or full accessibility acceptance.
+
+All 90 reserve-guard observations were safe: minimum available memory
+5,417,435,136 bytes, tracked OmO maximum physical footprint 1,064,473,544 bytes,
+ending footprint 1,055,822,792 bytes, pressure level 1 and unchanged swap usage
+522,059,776 bytes. The guard was stopped after the managed renderers exited.
+RustDesk remained untouched. The separate 1536 MiB native-workflow gate is
+still open. Current todo: 2/9 verified; continue reference language across
+implemented surfaces, then the remaining integration/review/delivery gates.
+
+## Current reference-led correction - 2026-11-06
+
+The complete edited screenshot packet was reopened and mapped to actual
+presentation owners. It governs composition and action placement; current v3,
+the agent-authored briefs and functional tests are not visual authority.
+Legacy runtime is a fallback where the edited packet and source are
+insufficient. Prior generic Home/workspace appearance remains rejected.
+
+HEAD remains `dccbea988`; all corrections below are uncommitted. The newest
+Reader increment makes each genuine source preview its navigation target,
+removes the extra Read control, quiets Search/Contents and groups adjacent
+navigation. It preserves native anchors and does not invent EPUB page counts.
+The new shared control is `packages/ui/src/SourcePreview.tsx`. Normal
+typecheck, ownership lint and web export pass. Current entry is
+`index-bce1ad8c5e505109f009e947dd6503b7.js`, SHA256
+`6978f1f0e82454e54303953499720d2bd02586bcdce5175c61749fea17e11244`.
+Rendered verification is pending; no next visual increment precedes it.
+
+The first fixture run then passed all 46 Reader cases, and its desktop/narrow
+captures were inspected. That inspection caught introduced preview defects:
+short text was padded into 160-point tiles, landscape thumbnails were forced
+into portrait frames, and selected preview buttons lacked pressed state.
+The strengthened existing thumbnail scenario reproduced the latter two
+failures on the unchanged export. The repair now uses natural image
+dimensions, content-sized excerpts and proper selected state, with readable
+source/page action labels. Two subsequent replays each passed 44 cases but
+failed the unchanged displayed-aspect assertion (one case remained unrun).
+The selected-state assertion passed. The first event handler threw because
+RN Web supplied a different event shape; the next handler stopped throwing
+but still left a square preview. Neither is verified as a repair.
+
+The current change carries the actual bounded canvas width/height alongside
+its PNG URI through the existing source-identity guards and thumbnail cache.
+SourcePreview uses those producer dimensions directly; the load-event
+workaround is removed. The first static run passed typecheck but exposed an
+isolated-document import violation. The display type now lives in the
+theme-free document owner and is re-exported by SourcePreview. Normal
+typecheck, architecture lint and export now pass. Entry
+`index-42eec8a36d81e2730c4a2cca2b7b3b3d.js`, SHA256
+`b642ca9c5f615ba97da97673187e7e0ea8fc764f4bdff1bc86f9b3fa9470e63b`.
+The original failing thumbnail scenario passes unchanged (1/1, 1.5 seconds).
+The full affected replay passed all 46 cases (26.6 seconds). Desktop 1500px
+and narrow 393px toolbar/appearance and narrow text captures were inspected:
+source previews retain their ratio, controls fit and source text reflows.
+This is fixture-backed frontend evidence, not native acceptance.
+No architecture assertion was relaxed.
+
+The next Reader increment moves Page words from nested appearance settings
+to the trailing panel toggle. Its existing Dialog/CaptureList becomes
+nonmodal on desktop, and Reader reserves the shared sidebar width exactly
+as Watch already does. The same mounted owner retains capture receipts across
+resizes; source/package guards and practice semantics remain unchanged.
+Tests now open this action directly and check source/sidebar containment
+alongside existing retry, Inspector, Locate and focus assertions. Its first
+replay exposed narrow outside-focus dismissal and a third toolbar row.
+The shared persistent-sidebar outside-interaction rule now spans both widths,
+and compact spacing keeps all six touch controls in two rows. Typecheck,
+ownership lint and export pass; all 46 affected cases pass (26.4 seconds),
+including token focus return. Both sidebar widths and the narrow toolbar were
+personally inspected. Current entry is
+`index-82b9ca158fd64bbf75a83ee1eab5cbcf.js`, SHA256
+`47cda18ba39137f778bd78cbdb07b89069d5245dc90386f9cccfc3232d3f88be`.
+Watch's native Transcript coverage remains required for the shared Dialog
+change; this fixture-only replay does not certify that workflow.
+
+The active correction is now Inspector. Its current desktop/narrow images
+show Capture/Explain using a pale content palette on a dark contextual panel.
+The existing footer test has been strengthened to reproduce this surface
+mismatch. The unchanged export reproduced the failure: Capture text was
+darker than its pale surface. Shared Button now accepts its actual surface
+and resolves background, gradient, hover, label and icon through the theme's
+media palette when used on dark media. CaptureList/SourceActions forward
+their existing presentation tone; content palettes retain their theme choices.
+Typecheck, ownership lint and export pass. All 46 affected cases pass
+(26.6 seconds), including the reproduced media polarity/contrast assertion.
+Both footer captures were inspected against the edited reference.
+
+The current Inspector increment makes the header Inspect action disclose
+relationships, provenance and authoring. Its default body prioritizes lexical
+content and keeps the existing footer. Graph refs/navigation and the real
+MaterialEditor dialog trigger remain intact. Existing graph/native scenarios
+now take the explicit Inspect step; desktop readiness uses enabled Inspect
+rather than a secondary provenance control. No identity, persistence or
+failure assertions were removed. Typecheck, ownership lint, six focused client
+navigation tests and export pass. All 46 affected Reader/Inspector fixture
+cases pass (26.6 seconds), including default/details disclosure and nested
+authoring. Default and expanded captures were inspected at 1080/393px.
+Current entry is `index-d531c14ffc122434aa8c3102a096a20b.js`, SHA256
+`85606bbe5ba78d4564ef719ee65e1fb45a2cde063da56b07f703b6417315ae3b`.
+Native-backed English graph/source/restart verification could not admit its
+full 1536 MiB budget. Its admission was stopped before the test launched;
+the unchanged native gate remains outstanding. No native pass is claimed.
+
+The active presentation task is inline annotation alignment. Shared owners
+and package metadata are being traced before choosing a repair; no change to
+the tuned LevelStars count, palette or geometry is justified by English
+captures without level data. A staged native-only capture now uses the
+existing QA owner and typed client, without a browser, to record actual
+Japanese package analysis from the available corpus EPUB in an isolated
+profile. Both supplied EPUBs were rejected by existing native boundaries:
+the Aozora book for XML DTD/entity declarations, and the 86 volume for an
+entry-byte limit. Both owners closed cleanly; neither failure is waived or
+fixed by this UI change. Capture now uses the existing supported mixed-language
+`tests/fixtures/reader/journey.txt`, with all levels still produced by the real
+Japanese package. Its separate 1024 MiB workflow does not reduce the combined
+native/browser budget. The selected Japanese paragraph capture passed:
+six native tokens include package-owned 歩く / JLPT N5 / rank 5, with native
+shutdown recorded. The exported Reader replay at both built-in themes and
+1080/393px never reached admission before its deadline. The subsequent one-hour
+readiness-only wait also expired without admission: last available memory
+5,277,138,944 bytes on the subsequent three-sample reassessment, still below
+the 5 GiB required for the 1 GiB render allowance plus 4 GiB reserve.
+Both capacity/resource-choice questions timed out unanswered. No owned
+native QA worker, browser or test server remains to release, and no resumption
+channel remained active at that checkpoint. A later cleanup audit found the
+session-owned diagnostic language server pair (86909/86910), under this
+root's tool host, retaining about 380 MiB RSS. Only that pair was terminated;
+the tool host and user applications were preserved. Fresh unchanged 1024 MiB
+admission then passed: all four annotation replay cases passed in 2.6 seconds.
+Both widths and themes were inspected; horizontal document readings and the
+real N5 marker show no overlap, so no tuned geometry was changed. This does
+not certify the other annotation consumers or admit the larger native workflow.
+Do not relaunch workloads on recovery. Four tasks are verified; all eight
+remaining execution entries are dropped under the renewed capacity blocker.
+The todo tool counts dropped entries as closed, not as verified work. The
+full goal remains blocked and incomplete. Restore all eight unmet requirements
+before continuation; none is waived or accepted.
+
+Aggregate owner checks passed 89/89 tool checks and 222/223 package/client
+checks. The failure is the Knowledge character test host missing Menu and
+SegmentedControl exports now used by real ActivityNavigation. Its existing UI
+boundary now supplies those controlled/action components; all Knowledge
+assertions and real screen/navigation imports remain unchanged. Diagnostics
+pass. The initial 768 MiB classification missed that this client case launches
+Chromium after bundling; it failed before launch. Actual available memory
+stayed at least 5,119,393,792 bytes, with unchanged swap; its guard was stopped.
+The corrected package/client rerun initially could not admit the unchanged
+1024 MiB browser allowance; its reserve guard was stopped. The exact test
+build expression then compiled successfully under 768 MiB without launching
+Chromium: 660,563-byte bundle, SHA256
+`693fcdabc6e5d467f73aa48e8a03acd76276be520787bb7fef68e0e497a9924b`.
+After owned-service cleanup, the complete package/client rerun passed 223/223,
+including every unchanged Knowledge interaction assertion. Tool checks remain
+settled at 89/89. Its guard was stopped. No native build/device/model execution
+was involved in those checks. No prior passing
+typecheck/lint/export or focused Reader run is repeated. Broader rendered,
+native, review and delivery gates remain unsatisfied.
+
+Next annotation evidence is a separate native-only Watch capture using the
+existing isolated profile/package and authored QA subtitles from journey.txt.
+It will record real cue analysis, dictionary and inspection data without
+Chromium or media decoding; later replay remains presentation-only. The
+private capture script's LSP freshness check timed out (not a clean typecheck).
+The automatically restarted owned language-server pair was released before
+admission; no product source or language contract was changed.
+
+The Watch capture reached native analysis but its QA dictionary request
+exceeded the existing six-target bound. The producer now follows the actual
+Watch/source-capture serial groups of six and retains raw analysis first.
+Its corrected retry was held before launch. Removing concurrent helper
+overlap left admission about 24 MiB short. The unchanged resource-policy
+tests pass 9/9 under installed Bun 1.4.2. Its unchanged three-sample CLI also
+rejected admission: last available memory 5,212,848,128 bytes, below the
+5,368,709,120-byte requirement. No native retry launched. Helper overlap and
+owned diagnostic allocations were removed without reducing the 1024 MiB
+allowance, 4 GiB reserve or any policy rule. All helpers/guards have exited;
+no question remains pending. Native/body annotation work is blocked again on
+external capacity. Preserve the corrected capture, first failure, 4/4 Reader
+captures and 89+223 passing owner checks; the full goal remains incomplete.
+Frozen-data rendering counts only as presentation evidence; checkpoint
+responses in that isolated replay are simulated and certify no persistence.
+Whole-product native, theme/state, review and candidate delivery gates remain
+open.
+
+The full native-backed renderer did not meet its 1536 MiB admission budget.
+A separate single-worker JS export passed with capped 256 MiB Node heaps
+under 1024 MiB admission and the unchanged 4 GiB actual reserve. The existing
+Reader/Reader-image fixture-only browser checks are now running separately
+with capped Node heaps and the same reserve. They render the real exported
+frontend with substituted IPC; they cannot certify native execution,
+persistence or actual native GUI behavior. Logs and captures are under
+`.mlearn/experience-20261105/reference-reader-*`.
+
+The remaining work includes Inspector hierarchy/media materials, real leveled
+annotation geometry, Home and cross-application density, the complete
+state/width/theme and native preservation matrix, integrated self-review and
+one independent project gate, verified checkpoints and owned-resource cleanup.
+Preserve every historical M07/platform blocker and provisional acceptance
+limit. No merge, release or maintainer acceptance is claimed.
+
+## Active design correction after maintainer rejection - 2026-11-05
+
+The maintainer rejected `a726010`'s generic sidebar-and-recents workspace.
+The agent-authored Home interpretation in `DESIGN.md` is not approval to
+replace the intended composition. Prior visual-completion claims are
+withdrawn. The active work compares actual before/after implementation and
+approved references, corrects the underlying design choices across implemented
+surfaces and unreferenced states, then verifies the real running UI while
+preserving legitimate functional improvements.
+
+Committed HEAD is `dccbea988af731a68fc2203607d6ebf7e7f60ed7`.
+The correction is uncommitted and incomplete. Home now restores activity-led
+Read, Watch, Messenger, Review and supported Word Sync entries, with source
+continuation inside its activity and remaining history secondary. It no longer
+uses the universal workspace rail. No general grammar/mock evaluation is
+inferred as delivered functionality.
+
+The second Home export (`8ffe29e142d99ab8f01ca8881fc354ba76e2d7f4f120e34d62ff1e640ee5b4b8`)
+passed typecheck, ownership lint and export, and was inspected at desktop and
+narrow widths in Quartz and Dark Quartz. Actual interaction reproduced and
+repaired an incorrect Word Sync link: `mode=sync` opened ordinary Review;
+`activity=calibration` opens the native Word Sync setup with its real language,
+capability and scope controls. No learning session was started. Evidence is
+under `.mlearn/experience-20261105/design-correction/home-actions-*` and
+`home-sync-{before,after}.png`. Some background-tab captures had missing tiles;
+use the activated-page surface captures, not the invalid native-window capture.
+
+The conversation-preview export
+`60ae52886e6dc7d804993ec9be335177dcebe056e447114d9ff33a3977431786`
+passed architecture lint and export after repairing a private cross-feature
+import through Messenger's public API. Home and the existing Messenger
+directory were inspected at desktop/narrow widths in both themes with genuine
+native titles and message previews. The Home continuation click into an
+analyzed conversation remains for functional verification; it was not run in
+the metadata-only pass.
+
+The next uncommitted increment replaces the universal rail with contextual
+header navigation: collection peers on desktop and a quiet destination menu
+on narrow screens, preserving the existing destinations and route semantics.
+Active Review exits and its departure guard remain unchanged. Workspace-only
+AppShell geometry is removed; Settings keeps its section navigation. All
+touched files have zero diagnostics. Its first export (`9b9f5b26`) passed
+checks and was inspected on all three screens at desktop/narrow widths.
+That inspection exposed a media-colored overflow icon on a content surface
+and misplaced back/heading order. The newest source repair gives Menu an
+optional quiet trigger while preserving existing media defaults, and composes
+each heading after its Home exit. This repair still needs its export/render
+check. Keyboard menu activation and the real Knowledge-to-Material and
+Material-to-Review transitions worked; stable desktop pointer activation still
+needs rechecking after one post-emulation click only focused the trigger.
+Fresh Knowledge, Material and Review baselines are
+`design-correction/*-frame-before-{desktop,phone}.png`.
+The isolated legacy onboarding entry showed its EULA and first-run setup.
+No terms were accepted, data installed or live legacy profile accessed; this
+does not establish a running legacy main-window Home comparison.
+
+The targeted action pass kept the 4 GiB reserve: 155 samples were safe,
+minimum available memory was 5,271,158,784 bytes, and swap stayed unchanged.
+Its browser, native metadata host and guard are stopped; the original Quartz
+theme was restored through the real settings UI. Full workflow and native-build
+admission remain separate. The following metadata pass also stayed safe across
+264 samples: minimum available memory was 5,201,494,016 bytes and swap stayed
+unchanged. Its browser and guard are stopped; the native host ended at its
+deadline. Next: build and inspect the contextual frame while preserving
+existing owners, session exits, collection state and Material departure guards.
+The first contextual host's Ctrl+C teardown triggered the existing unclean
+native-owner assertion; this is recorded as a driver failure, not a clean
+shutdown pass. Ports closed and no learning session was started. Subsequent
+teardown must use the verified owned Node host's shutdown handler and preserve
+the assertion.
+
+Functional evidence below remains scope-bound historical evidence; it does not
+certify the rejected design. The uncommitted Messenger list-key experiment
+failed its controlled-idle case and was completely restored. Its exported
+bundle is diagnostic-only, not a new product candidate. The owned diagnostic
+browser, native QA host and resource guard are stopped. No new review approval,
+merge, release or maintainer acceptance is claimed.
+
+## Rejected frontend candidate and functional evidence - 2026-11-05
 
 The current user goal reconstructs the implemented frontend around reading,
 watching, conversation, learning and retained context. It authorizes presentation
