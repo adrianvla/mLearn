@@ -26,13 +26,14 @@ const running = (generation: ConversationGeneration | null) =>
   generation?.status === 'pending' || generation?.status === 'streaming';
 
 /** Presentation lifetime only; the shared native generation owner owns the job. */
-export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, secondaryActionsMenuLabel, onReturnToSource, onOpenMaterial }: {
+export function SourceActions({ client, source, tone = 'content', explanationDisabledReason, disabled = false, secondaryActionsMenuLabel, secondaryActionsVisible = true, onReturnToSource, onOpenMaterial }: {
   readonly client: RuntimeClient;
   readonly source: SourceAnchor;
   readonly tone?: 'content' | 'media';
   readonly explanationDisabledReason?: string;
   readonly disabled?: boolean;
   readonly secondaryActionsMenuLabel?: string;
+  readonly secondaryActionsVisible?: boolean;
   readonly onReturnToSource?: () => void;
   readonly onOpenMaterial?: (id: string) => void;
 }) {
@@ -263,7 +264,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     <Row wrap={tone !== 'media'}>
       <Dialog open={open} onOpenChange={changeOpen} title="Explain selected text"
         description="Feedback is linked to the original source, not learner evidence."
-        trigger={<Button label="Explain" variant={variant} size="compact"
+        trigger={<Button label="Explain" variant={variant} size={tone === 'media' ? 'default' : 'compact'}
           tone={tone === 'media' ? 'info' : undefined} surface={tone} icon={tone === 'media' ? 'conversation' : undefined}
           disabled={disabled || !selected || !!explanationDisabledReason} />}>
         <Text selectable>{selected}</Text>
@@ -298,7 +299,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
           }} />
         </Row>
       </Dialog>
-      {secondaryActionsMenuLabel ? <Menu ref={proposalTrigger} label={secondaryActionsMenuLabel} icon="more"
+      {secondaryActionsVisible && (secondaryActionsMenuLabel ? <Menu ref={proposalTrigger} label={secondaryActionsMenuLabel} icon="more"
         disabled={disabled} actions={[
           { id: 'copy-selected-text', label: 'Copy selected text', disabled: !selected,
             onPress: () => void copy(selected) },
@@ -313,7 +314,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         onPress={() => void copy(source.text)} />
       <Button ref={proposalTrigger} label="Propose Material" variant={variant} size="compact" disabled={disabled || !selected}
         onPress={() => setProposalsOpen(true)} />
-      </>}
+      </>)}
     </Row>
     <MaterialProposalReview client={client} open={proposalsOpen} onOpenChange={setProposalsOpen}
       focusTarget={() => proposalTrigger.current} seed={null} source={source}

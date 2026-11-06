@@ -14,10 +14,14 @@ one navigation target containing genuine source text or an image thumbnail;
 it does not repeat the preview inside a separate Read button. Image pages may
 show their authoritative page number; text blocks must not invent a global
 EPUB page count. Thumbnails retain their actual aspect ratio, and short text
-excerpts do not imitate full-page rectangles. Search and contents are quiet icon actions, view preferences
-remain scoped to Reader, and adjacent navigation controls form the trailing
-group. At narrow widths, preserve the title and accessible touch controls in
-at most two rows. Existing document anchors, source return, cancellation and
+excerpts do not imitate full-page rectangles. Search, contents and secondary
+preferences are quiet icon actions. The leading group follows the approved
+sidebar -> Home -> source order. Desktop image fit, spread, direction and
+first-page controls belong in the top chrome; image interaction/recognition
+controls belong in the compact bottom strip, not a settings form between the
+learner and the source. At narrower widths the bottom strip scrolls
+horizontally and the title/essential toolbar retain at most two rows.
+Existing document anchors, source return, cancellation and
 saved positions remain unchanged.
 
 Layout: contextual Inspector leads with the headword, selected source form
@@ -40,6 +44,12 @@ secondary meaning alongside them. The approved Watch sidebar establishes
 that hierarchy; `UnknownWordsSidebar.css` at reference `39c83e89` confirms
 the medium-size/semibold mechanism. Ruby and pitch-contour text share the
 word's semantic role rather than forcing ordinary body weight.
+
+Layout: shared search fields keep the compact desktop input height while
+providing a 44px input target below the shared 720px touch-layout breakpoint.
+The field retains its palette, type role, focus/input behavior and parent
+scroll owner. Knowledge, Material, Messenger and Settings receive the change
+through TextField rather than feature-local sizing.
 
 ## Active correction — maintainer rejection of a726010
 

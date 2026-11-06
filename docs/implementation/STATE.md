@@ -2,7 +2,57 @@
 
 ## Active continuation - 2026-11-06
 
-### Capacity pause - incomplete
+### Workload-specific execution resumed
+
+The maintainer explicitly replaced the blanket execution block. All unmet
+requirements are active in the twelve-task work graph; earlier commits,
+profiles, captures and passing results remain valid within their recorded
+scope. Routine capacity questions and prolonged admission polling stop here.
+
+`tools/resource-guard.mjs` now has a bounded `frontend` profile for one serial
+browser/compiled-metadata inspection, without builds, devices or models.
+Its measured browser/native/guard group was 206.30 MiB with the bounded
+206,979-entry Knowledge projection loaded; equivalent inspection reserves
+512 MiB, capped by policy at 1024 MiB, with a 3.5 GiB host reserve.
+All 57 guard samples were safe; minimum available memory was 4.39 GiB,
+pressure remained normal and swap stayed at 505282560 bytes. The owned
+host closed its browser, backend and guard with exit 0. Host pressure, sustained swap traffic,
+physical-footprint growth and remaining headroom checks remain enforced.
+The default heavyweight quarter-RAM reserve is unchanged (4 GiB here);
+heavy native work stays separate and may use existing CI.
+
+Admission now exits after three samples, including the former unbounded mode.
+Both new regressions failed on the old owner; all eleven resource-owner tests
+pass after the change, including existing safety checks. Diagnostics pass.
+The retained metadata owner automatically closes its browser/native backend
+if the frontend guard trips, as well as on its eight-minute graceful limit.
+No application is automatically restored by resumption.
+
+### Reader, Inspector and search presentation increment
+
+Reader now uses compact source-first chrome, top image layout controls and a
+scrolling bottom interaction strip. Document writing/font selectors and compact
+size/spacing controls replace the oversized appearance button groups. Inspector
+shows the three primary Knowledge/Capture/Explain actions at the reference
+hierarchy; Inspect exposes the retained secondary actions. Shared search inputs
+preserve 44px phone targets and compact desktop geometry.
+
+Typecheck, ownership lint and the serial web export pass. Reader owner coverage
+passed 47 tests before the final appearance adjustment; four focused appearance,
+source-preview and dark-layout cases then passed. Two Inspector footer/menu
+cases pass. The search regression failed at 32px before the fix and passes at
+44px on phone and 32px on desktop. The existing real-native Material lost-save,
+draft/departure and origin-restoration case passes. Desktop/phone captures were
+opened and inspected under `.mlearn/experience-20261105/`, including
+`reader-chrome-refined`, `inspector-primary-composition`,
+`reader-appearance-composition` and `search-target-green`.
+
+These are scoped engineering increments, not completion of reconstruction.
+Inline annotation corrections, remaining surface comparisons, broader theme
+and native-host verification and independent review remain open. No merge,
+release or maintainer acceptance is claimed.
+
+### Historical capacity pause - preserved, superseded
 
 The standing admission wait was investigated and stopped, not restarted.
 Across 414 samples over about 34.5 minutes, no sample admitted the unchanged

@@ -8,7 +8,7 @@ import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { AppShell, Row } from '@mlearn/ui/layout';
+import { AppShell, Row, SettingRow } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { SourcePreview, type SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/dialog';
@@ -78,7 +78,6 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const [contentsAfter, setContentsAfter] = useState<number | null>(null);
     const [cropMode, setCropMode] = useState(false);
     const [cropDraft, setCropDraft] = useState<ImageCropDraft | null>(null);
-    useEffect(() => { if (cropDraft) setOptionsOpen(true); }, [cropDraft]);
     const [magnifier, setMagnifier] = useState(false);
     const [highlighted, setHighlighted] = useState<SourceAnchor | null>(null);
     const source = reader.window?.source;
@@ -134,6 +133,15 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const compact = toolbarWidth < 700 * theme.textScale;
     const layoutInline = toolbarWidth >= 1200 * theme.textScale;
     const rail = wide && railOpen && sourceWindow;
+    const writingControl = source ? <Select label="Writing mode" size="compact" value={source.appearance.writingMode}
+        disabled={reader.pending} options={[
+            { value: 'auto', label: 'Automatic' }, { value: 'horizontal', label: 'Horizontal' }, { value: 'vertical', label: 'Vertical' },
+        ]} onValueChange={value => {
+            if (value === 'auto' || value === 'horizontal' || value === 'vertical') changeAppearance({ writingMode: value });
+        }} /> : null;
+    const openDocument = <Button label="Open document" size="compact" variant="secondary"
+        disabled={!source || reader.pending || departing}
+        onPress={() => void depart(() => router.push({ pathname: '/reader', params: { packageId: source?.packageId ?? '' } }))} />;
     const navigation = <Row wrap={false}>
         <Button label={imageMode ? 'Previous page' : 'Previous passage'} icon="arrowLeft" iconOnly
             variant="secondary" size="compact" disabled={reader.pending || (imageMode
@@ -166,17 +174,23 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     </>;
     return <View style={[styles.screen(insets.top, insets.bottom), { paddingRight: sidebarInset }]}>
         <View testID="reader-toolbar" onLayout={event => setToolbarWidth(event.nativeEvent.layout.width)}
-            style={[styles.header,
-            { paddingLeft: host.available ? Math.max(8, host.windowControlsWidth ?? 0) : 8 }]}
+            style={styles.header}
             >
             <View style={[styles.toolbar, compact && styles.compactToolbar]}>
+                <View style={[styles.leading(compact), {
+                    paddingLeft: host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0,
+                }]}>
+                {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
+                    icon="sidebarLeft" iconOnly size="compact" variant="secondary" accessibilityState={{ expanded: !!rail }}
+                    onPress={() => setRailOpen(value => !value)} /> : null}
                 <Button label="Home" icon="arrowLeft" iconOnly={compact} size="compact" variant="secondary"
                     disabled={reader.pending || departing} onPress={() => router.dismissTo('/')} />
-                {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
-                    icon="transcript" iconOnly size="compact" variant="quiet" accessibilityState={{ expanded: !!rail }}
-                    onPress={() => setRailOpen(value => !value)} /> : null}
-                <View style={[styles.title, compact && styles.compactTitle]}><Text variant="navigation" numberOfLines={1}
+                <View style={styles.title}><Text variant="navigation" numberOfLines={1}
                     accessibilityRole="header" testID="reader-title">{source?.title ?? 'Reader'}</Text></View>
+                </View>
+                <View style={styles.actions(compact)}>
+                {!imageMode && !compact ? writingControl : null}
+                {!compact ? openDocument : null}
                 {reader.pending ? <Button label="Cancel loading" icon="stop" iconOnly={compact} variant="secondary" size="compact"
                     onPress={() => void reader.cancel()} /> : null}
                 {imageMode && imageReader.recognizing ? <Button label="Cancel recognition" icon="stop" iconOnly={compact}
@@ -198,58 +212,38 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 </Dialog>
                 <Dialog title="Reader appearance" description="Changes are saved for this source and preserve its visible text position."
                     open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
-                    trigger={<Button ref={optionsTrigger} label="View options" icon="settings" iconOnly={compact} variant="secondary" size="compact" disabled={!source || reader.pending} />}>
+                    trigger={<Button ref={optionsTrigger} label="View options" icon="settings" iconOnly variant="quiet" size="compact" disabled={!source || reader.pending} />}>
+                    {compact ? openDocument : null}
                     {source?.format === 'pdf' ? <Button
                         label={imageMode ? 'Read available PDF text' : 'View original PDF pages'} variant="secondary" size="compact"
                         onPress={() => { setInspection(null); setImageView(!imageMode); setOptionsOpen(false); }} /> : null}
-                    {imageMode ? <ImageReaderControls reader={imageReader} cropMode={cropMode} cropDraft={cropDraft} magnifier={magnifier}
-                        layoutInline={layoutInline}
-                        onCropMode={enabled => { setCropMode(enabled); if (enabled) setMagnifier(false); }}
-                        onMagnifier={enabled => { setMagnifier(enabled); if (enabled) setCropMode(false); }}
-                        onBeforeAction={() => setInspection(null)} onReturnToSource={() => setOptionsOpen(false)}
-                        onCropConsumed={() => setCropDraft(null)}>
-                        <Button ref={recognitionTrigger} label="Recognition details" variant="secondary" size="compact"
-                            disabled={!imageReader.pages.some(page => page.page?.regions.length)}
-                            onPress={() => { setInspection(null); setMagnifier(false); setCropMode(false); setRecognitionOpen(true); }} />
-                    </ImageReaderControls> : null}
                     {source ? <>
                         {!imageMode ? <>
-                        <Text variant="groupTitle">Writing</Text>
-                        <Row>{([
-                            ['auto', 'Automatic'], ['horizontal', 'Horizontal'], ['vertical', 'Vertical'],
-                        ] as const).map(([writingMode, label]) => <Button key={writingMode} label={label}
-                            disabled={reader.pending}
-                            variant="secondary" accessibilityState={{ selected: source.appearance.writingMode === writingMode }}
-                            onPress={() => changeAppearance({ writingMode })} />)}</Row>
-                        <Text variant="caption" muted>Automatic follows authored writing direction. Without an authored direction, text flows horizontally.</Text>
-                        <Text variant="groupTitle">Font</Text>
-                        <Row>{([
-                            ['source', 'Source default'], ['serif', 'Serif'], ['sans', 'Sans serif'],
-                        ] as const).map(([font, label]) => <Button key={font} label={label}
-                            disabled={reader.pending}
-                            variant="secondary" accessibilityState={{ selected: source.appearance.font === font }}
-                            onPress={() => changeAppearance({ font })} />)}</Row>
-                        <Text>Text size · {source.appearance.fontSize}</Text>
-                        <Row>
-                            <Button label="Smaller text" variant="secondary" disabled={reader.pending || source.appearance.fontSize <= 12}
+                        {compact ? <SettingRow label="Writing">{writingControl}</SettingRow> : null}
+                        <SettingRow label="Font"><Select label="Reader font" size="compact" value={source.appearance.font} disabled={reader.pending}
+                            options={[{ value: 'source', label: 'Source default' }, { value: 'serif', label: 'Serif' }, { value: 'sans', label: 'Sans serif' }]}
+                            onValueChange={font => { if (font === 'source' || font === 'serif' || font === 'sans') changeAppearance({ font }); }} /></SettingRow>
+                        <SettingRow label="Text size"><Row wrap={false}>
+                            <Button label="Smaller text" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.fontSize <= 12}
                                 onPress={() => changeAppearance({ fontSize: Math.max(12, source.appearance.fontSize - 2) })} />
-                            <Button label="Larger text" variant="secondary" disabled={reader.pending || source.appearance.fontSize >= 48}
+                            <Text variant="caption">{source.appearance.fontSize}</Text>
+                            <Button label="Larger text" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.fontSize >= 48}
                                 onPress={() => changeAppearance({ fontSize: Math.min(48, source.appearance.fontSize + 2) })} />
-                        </Row>
-                        <Text>Line height · {source.appearance.lineHeight.toFixed(1)}</Text>
-                        <Row>
-                            <Button label="Tighter lines" variant="secondary" disabled={reader.pending || source.appearance.lineHeight <= 1}
+                        </Row></SettingRow>
+                        <SettingRow label="Line height"><Row wrap={false}>
+                            <Button label="Tighter lines" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.lineHeight <= 1}
                                 onPress={() => changeAppearance({ lineHeight: Math.max(1, Math.round((source.appearance.lineHeight - 0.1) * 10) / 10) })} />
-                            <Button label="Looser lines" variant="secondary" disabled={reader.pending || source.appearance.lineHeight >= 2.5}
+                            <Text variant="caption">{source.appearance.lineHeight.toFixed(1)}</Text>
+                            <Button label="Looser lines" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.lineHeight >= 2.5}
                                 onPress={() => changeAppearance({ lineHeight: Math.min(2.5, Math.round((source.appearance.lineHeight + 0.1) * 10) / 10) })} />
-                        </Row>
-                        <Text>Letter spacing · {source.appearance.letterSpacing.toFixed(1)}</Text>
-                        <Row>
-                            <Button label="Tighter letters" variant="secondary" disabled={reader.pending || source.appearance.letterSpacing <= -1}
+                        </Row></SettingRow>
+                        <SettingRow label="Letter spacing"><Row wrap={false}>
+                            <Button label="Tighter letters" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.letterSpacing <= -1}
                                 onPress={() => changeAppearance({ letterSpacing: Math.max(-1, source.appearance.letterSpacing - 0.5) })} />
-                            <Button label="Looser letters" variant="secondary" disabled={reader.pending || source.appearance.letterSpacing >= 4}
+                            <Text variant="caption">{source.appearance.letterSpacing.toFixed(1)}</Text>
+                            <Button label="Looser letters" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.letterSpacing >= 4}
                                 onPress={() => changeAppearance({ letterSpacing: Math.min(4, source.appearance.letterSpacing + 0.5) })} />
-                        </Row>
+                        </Row></SettingRow>
                         </> : null}
                         <Text variant="groupTitle">Source language</Text>
                         <Select testID="reader-language-select" label="Document source language" value={source.packageId} disabled={reader.pending}
@@ -271,9 +265,9 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                     variant="quiet" size="compact" accessibilityState={{ expanded: wordsOpen }}
                     disabled={!imageReader.pages.some(page => page.batch)}
                     onPress={() => { setInspection(null); setMagnifier(false); setWordsOpen(value => !value); }} /> : null}
+                </View>
             </View>
         </View>
-        {imageMode ? <ImageReaderFeedback reader={imageReader} cropMode={cropMode} magnifier={magnifier} /> : null}
             {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
                 <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
                     <Button label="Reselect from Home" variant="quiet" size="compact" disabled={departing}
@@ -336,7 +330,8 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 </Text></View> : null}
         </View>
         <View testID="reader-status" style={styles.status}>
-            <Row wrap={false}>
+            <ScrollView horizontal style={styles.statusViewport} keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.statusControls}>
                 <View style={styles.position}><Text variant="detail" muted numberOfLines={1} testID="reader-position">
                     {imageMode && imageReader.pages.length ? `Page ${imageReader.pages.map(item => item.descriptor.pageIndex + 1).join('–')} of ${source?.totalPages ?? 0}`
                         : reader.position ? currentBlock?.image ? currentBlock.image.alt || 'Image' : currentBlock?.text : 'No visible position'}
@@ -344,9 +339,20 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 {source && !compact ? <Text variant="detail" muted>{source.format.toUpperCase()}</Text> : null}
                 {(imageMode ? imageReader.pages.some(item => item.analyzing) : reader.analysisPending)
                     ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
+                {imageMode ? <ImageReaderControls reader={imageReader} cropMode={cropMode} cropDraft={cropDraft} magnifier={magnifier}
+                    layoutInline={layoutInline}
+                    onCropMode={enabled => { setCropMode(enabled); if (enabled) setMagnifier(false); }}
+                    onMagnifier={enabled => { setMagnifier(enabled); if (enabled) setCropMode(false); }}
+                    onBeforeAction={() => setInspection(null)} onReturnToSource={() => setOptionsOpen(false)}
+                    onCropConsumed={() => setCropDraft(null)}>
+                    <Button ref={recognitionTrigger} label="Recognition details" variant="quiet" size="compact"
+                        disabled={!imageReader.pages.some(page => page.page?.regions.length)}
+                        onPress={() => { setInspection(null); setMagnifier(false); setCropMode(false); setRecognitionOpen(true); }} />
+                </ImageReaderControls> : null}
                 <Button label="Save position" variant="quiet" size="compact" disabled={!source}
                     onPress={() => void reader.persist().catch(() => { /* Reader save feedback owns recovery. */ })} />
-            </Row>
+            </ScrollView>
+            {imageMode ? <ImageReaderFeedback reader={imageReader} cropMode={cropMode} magnifier={magnifier} /> : null}
             {reader.analysisError ? <Row><Text variant="caption" accessibilityRole="alert">{reader.analysisError}</Text>
                 <Button label="Retry analysis" variant="secondary" size="compact" onPress={reader.retryAnalysis} /></Row> : null}
             {reader.saveError ? <Row><Text variant="caption" accessibilityRole="alert">Progress not saved: {reader.saveError}</Text>
@@ -384,8 +390,11 @@ const styles = StyleSheet.create(theme => ({
         borderBottomWidth: 1, borderColor: theme.colors.border },
     toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small, minWidth: 0 },
     compactToolbar: { flexWrap: 'wrap', gap: theme.spacing.tiny },
+    leading: (compact: boolean) => ({ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
+        flex: compact ? undefined : 1, flexBasis: compact ? '100%' : undefined, minWidth: 0 }),
+    actions: (compact: boolean) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? theme.spacing.tiny : theme.spacing.small,
+        width: compact ? '100%' : undefined, minWidth: 0 }),
     title: { flex: 1, minWidth: 0 },
-    compactTitle: { flexBasis: '70%', minWidth: 120 },
     workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
     rail: { width: 160, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderColor: theme.colors.border },
     railContent: { padding: theme.spacing.small, gap: theme.spacing.small },
@@ -393,5 +402,7 @@ const styles = StyleSheet.create(theme => ({
     feedback: { gap: theme.spacing.small },
     status: { paddingHorizontal: theme.spacing.small,
         borderTopWidth: 1, borderColor: theme.colors.border, maxHeight: '30%', gap: theme.spacing.tiny },
-    position: { flex: 1, minWidth: 0 },
+    statusControls: { flexGrow: 1, alignItems: 'center', gap: theme.spacing.small },
+    statusViewport: { flexGrow: 0, flexShrink: 0 },
+    position: { flexGrow: 1, minWidth: 0, maxWidth: 320 },
 }));

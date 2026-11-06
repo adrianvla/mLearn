@@ -29,7 +29,7 @@ export default StyleSheet.create(theme => ({
     return {
       minHeight: variant === 'sourcePreview' ? 160 : size === 'row' ? 72 : 44,
       width: variant === 'sourcePreview' ? '100%' : variant === 'dictionary' ? 300 : undefined,
-      minWidth: variant === 'mediaSelect' ? 56 : variant === 'select' ? 166 : iconOnly || touchLayout || Platform.OS !== 'web' ? 44 : undefined,
+      minWidth: variant === 'mediaSelect' ? 56 : variant === 'select' && size !== 'compact' ? 166 : iconOnly || touchLayout || Platform.OS !== 'web' ? 44 : undefined,
       paddingVertical: theme.spacing.small,
       paddingHorizontal: variant === 'dictionary' ? theme.spacing.comfortable : variant === 'disclosure' ? 0 : iconOnly ? theme.spacing.small
         : size === 'compact' ? theme.spacing.compact : theme.spacing.medium,
@@ -57,6 +57,7 @@ export default StyleSheet.create(theme => ({
         ...(variant === 'pill' ? {
           backgroundImage: `linear-gradient(${pills[tone].top}, ${pills[tone].surface})`,
           boxShadow: 'inset 0 1px 0 #FFFFFF08',
+          minHeight: touchLayout ? 44 : 32, paddingVertical: 5,
           ...(size === 'compact' ? { minHeight: touchLayout ? 44 : 28, paddingVertical: 5, paddingHorizontal: 10, borderRadius: theme.radius + 2 } : {}),
         } : {}),
         ...(variant === 'dictionary' ? { minHeight: touchLayout ? 44 : 30, paddingVertical: 0,

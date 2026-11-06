@@ -300,13 +300,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     </>}
                 </View> : null}
             footer={<>
-                {history.length ? <>
-                    <Button ref={returnTrigger} label="Return to source entry" size="compact" variant="media"
-                        disabled={busy} onPress={() => navigate([])} />
-                    {history.length > 1 ? <Button label="Previous graph target" size="compact" variant="media"
-                        disabled={busy} onPress={() => navigate(history.slice(0, -1))} /> : null}
-                </> : null}
-                {entry && claim ? <Button ref={knowledgeTrigger} size="compact" variant="pill" surface="media"
+                {entry && claim ? <Button ref={knowledgeTrigger} variant="pill" surface="media"
                 label={claim.label}
                 tone={claim.tone}
                 icon={claim.icon}
@@ -318,7 +312,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     : practiceRetry?.capability ?? entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                    client={client} tone="media" presentation="actions" disabled={busy}
+                    client={client} tone="media" presentation="actions" disabled={busy} optionsVisible={showDetails}
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                     onOpenMaterial={id => void openMaterial(id)} /> : null}
                 {busy && openingMaterial.current === scope.current ? <Text tone="media" variant="caption"
@@ -326,9 +320,16 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
                 {inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
                     secondaryActionsMenuLabel="Inspector actions"
+                    secondaryActionsVisible={showDetails}
                     disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close}
                     onOpenMaterial={id => void openMaterial(id)} /> : null}
             </>}>
+            {history.length ? <Row>
+                <Button ref={returnTrigger} label="Return to source entry" size="compact" variant="media"
+                    disabled={busy} onPress={() => navigate([])} />
+                {history.length > 1 ? <Button label="Previous graph target" size="compact" variant="media"
+                    disabled={busy} onPress={() => navigate(history.slice(0, -1))} /> : null}
+            </Row> : null}
             {entry && evidenceCapability ? <KnowledgeEvidence
                 key={JSON.stringify([packageId, entry.targetId, evidenceCapability])} client={client}
                 knowledgeKey={{ packageId, targetId: entry.targetId, capability: evidenceCapability }}

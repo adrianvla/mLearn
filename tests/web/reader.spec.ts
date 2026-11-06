@@ -265,7 +265,9 @@ test('narrow Reader reflows without losing the original source location or hidin
   await page.getByRole('button', { name: 'Next passage', exact: true }).click();
   await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
   await page.getByRole('button', { name: 'View options', exact: true }).click();
-  await page.getByRole('button', { name: 'Horizontal', exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath('reader-appearance-narrow.png') });
+  await page.getByRole('combobox', { name: /^Writing mode:/ }).click();
+  await page.getByRole('option', { name: 'Horizontal', exact: true }).click();
   await page.getByRole('button', { name: 'Larger text', exact: true }).click();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');

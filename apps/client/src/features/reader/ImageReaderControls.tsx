@@ -27,6 +27,12 @@ export function ImageLayoutControls({ reader, onBeforeAction }: {
         <Select label="Page layout" size="compact" value={settings.paired ? 'paired' : 'single'} disabled={reader.saving}
             options={[{ value: 'single', label: 'Single page' }, { value: 'paired', label: 'Double page' }]}
             onValueChange={value => change({ paired: value === 'paired' })} />
+        <Select label="Page reading direction" size="compact" value={settings.direction} disabled={reader.saving}
+            options={[{ value: 'ltr', label: 'Pages L→R' }, { value: 'rtl', label: 'Pages R→L' }]}
+            onValueChange={value => change({ direction: value === 'rtl' ? 'rtl' : 'ltr' })} />
+        <Button label="First solo" accessibilityLabel="First page single" variant="secondary" size="compact" disabled={reader.saving || !settings.paired}
+            accessibilityState={{ selected: settings.firstPageSingle }}
+            onPress={() => change({ firstPageSingle: !settings.firstPageSingle })} />
     </Row>;
 }
 
@@ -68,36 +74,30 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
         onBeforeAction(); void reader.changeSettings(value);
     }
     return <>
-        {settings ? <Row>
+        {settings ? <Row wrap={false}>
             {!layoutInline ? <ImageLayoutControls reader={reader} onBeforeAction={onBeforeAction} /> : null}
-            <Select label="Page reading direction" size="compact" value={settings.direction} disabled={reader.saving}
-                options={[{ value: 'ltr', label: 'Left to right' }, { value: 'rtl', label: 'Right to left' }]}
-                onValueChange={value => change({ direction: value === 'rtl' ? 'rtl' : 'ltr' })} />
-            <Button label="First page single" variant="secondary" size="compact" disabled={reader.saving || !settings.paired}
-                accessibilityState={{ selected: settings.firstPageSingle }}
-                onPress={() => change({ firstPageSingle: !settings.firstPageSingle })} />
-            <Button label="Collate spreads" variant="secondary" size="compact" disabled={reader.saving || !settings.paired}
+            <Button label="Collate spreads" variant="quiet" size="compact" disabled={reader.saving || !settings.paired}
                 accessibilityState={{ selected: settings.collate }}
                 onPress={() => change({ collate: !settings.collate })} />
-            <Button label="Interactive text" variant="secondary" size="compact" disabled={reader.saving}
+            <Button label="Interactive text" variant="quiet" size="compact" disabled={reader.saving}
                 accessibilityState={{ selected: settings.showOverlay }}
                 onPress={() => change({ showOverlay: !settings.showOverlay })} />
             {reader.pages.some(item => item.page?.regions.some(region => region.readingOf)) ? <Button
-                label="Hide publisher readings" variant="secondary" size="compact" disabled={reader.saving || !settings.showOverlay}
+                label="Hide publisher readings" variant="quiet" size="compact" disabled={reader.saving || !settings.showOverlay}
                 accessibilityState={{ selected: !settings.showAnnotations }}
                 onPress={() => change({ showAnnotations: !settings.showAnnotations })} /> : null}
-            <Button label={cropMode ? 'Cancel crop selection' : 'Select crop'} variant="secondary" size="compact"
+            <Button label={cropMode ? 'Cancel crop selection' : 'Select crop'} variant="quiet" size="compact"
                 disabled={reader.pending || !reader.pages.length}
                 accessibilityState={{ selected: cropMode }}
                 onPress={() => { onBeforeAction(); onCropMode(!cropMode); onReturnToSource(); }} />
-            <Button label="Image magnifier" variant="secondary" size="compact" disabled={reader.pending || !reader.pages.length}
+            <Button label="Image magnifier" variant="quiet" size="compact" disabled={reader.pending || !reader.pages.length}
                 accessibilityState={{ selected: magnifier }}
                 onPress={() => { onBeforeAction(); onMagnifier(!magnifier); onReturnToSource(); }} />
             {children}
             <Dialog title="Recognize source image" description="Results and crop geometry are saved with the original source."
                 open={recognitionOpen} onOpenChange={open => {
                 onBeforeAction(); setRecognitionOpen(open);
-            }} trigger={<Button label="Recognize" variant="secondary" size="compact" disabled={reader.pending || !reader.pages.length} />}>
+            }} trigger={<Button label="Recognize" variant="quiet" size="compact" disabled={reader.pending || !reader.pages.length} />}>
                 {reader.pages.length > 1 ? <Select label="Recognition page" value={activeResource}
                     options={reader.pages.map(page => ({ value: page.descriptor.resourceId, label: `Page ${page.descriptor.pageIndex + 1}` }))}
                     onValueChange={setSelectedResource} /> : null}

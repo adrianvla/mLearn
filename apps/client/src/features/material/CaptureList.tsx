@@ -22,7 +22,7 @@ export type CaptureCandidate = {
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, optionsVisible = true }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
@@ -33,6 +33,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   readonly presentation?: 'rows' | 'cards' | 'actions';
   readonly header?: ReactNode;
   readonly disabled?: boolean;
+  readonly optionsVisible?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
@@ -196,7 +197,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           {!item && status?.state === 'eligible' ? <Button label={compact ? 'Capture' : `Capture ${candidate.content.phrase}`}
             accessibilityLabel={`Capture ${candidate.content.phrase}`} variant={compact ? 'pill' : primary}
             tone={compact ? 'info' : 'neutral'} surface={tone} icon={compact ? 'plusCircle' : undefined}
-            size="compact" disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
+            size={actions ? 'default' : 'compact'} disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
           {!actions && status?.state === 'existing' ? <Button label={cards ? 'Saved' : `Open saved ${candidate.content.phrase}`}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} surface={tone} size="compact"
             disabled={disabled}
@@ -204,12 +205,12 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           {!item && status?.state === 'existing' && !excluded ? <Button label={compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
             accessibilityLabel={`Capture this context: ${candidate.content.phrase}`}
             icon={actions ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined} surface={tone}
-            size="compact" variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
+            size={actions ? 'default' : 'compact'} variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
           {actions && result?.state === 'saved' ? <Button label={result.reused ? 'Reused' : 'Saved'}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`}
             accessibilityValue={{ text: `revision ${result.committedRevision}` }} accessibilityLiveRegion="polite"
-            variant="pill" surface={tone} size="compact" disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
-          {actions && status ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={[
+            variant="pill" surface={tone} disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
+          {actions && status && optionsVisible ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={[
             ...(status.state === 'existing' && result?.state !== 'saved' ? [{ id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
               onPress: () => onOpenMaterial?.(status.materialId) }] : []),
             ...(candidate.content.targetId ? [{ id: 'capture-exclusion',
