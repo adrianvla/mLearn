@@ -6,10 +6,12 @@ import type { ResolvedTheme } from '@mlearn/theme';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'mediaClose' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'sourcePreview' | 'dictionary';
 export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'info';
 export type ButtonSize = 'default' | 'compact' | 'row';
+export type ButtonSurface = 'content' | 'media';
 
-export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false) {
+export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false, surface: ButtonSurface = 'content') {
+  const pills = surface === 'media' ? theme.media.pills : theme.pills;
   return variant === 'mediaClose' ? theme.media.closeIcon
-    : variant === 'pill' || tone === 'warning' ? theme.pills[tone].text
+    : variant === 'pill' || tone === 'warning' ? pills[tone].text
     : (variant === 'navigation' || variant === 'segment') && !selected ? theme.colors.muted
     : variant === 'sourcePreview' ? theme.colors.muted
     : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
@@ -17,7 +19,8 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
 }
 
 export default StyleSheet.create(theme => ({
-  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean, touchLayout: boolean) => {
+  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean, touchLayout: boolean, surface: ButtonSurface) => {
+    const pills = surface === 'media' ? theme.media.pills : theme.pills;
     const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'segment' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
       || variant === 'media' && iconOnly;
     const borderless = variant === 'segment' || variant === 'navigation' && size === 'row' || variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
@@ -36,13 +39,13 @@ export default StyleSheet.create(theme => ({
       flexDirection: variant === 'sourcePreview' ? 'column' : 'row', gap: theme.spacing.small, maxWidth: '100%',
       borderRadius: variant === 'preview' ? 999 : variant === 'pill' ? theme.radius + 4 : theme.radius,
       borderWidth: borderless ? 0 : 1,
-      borderColor: tone === 'warning' ? theme.pills.warning.top : variant === 'navigation' && !selected ? 'transparent'
+      borderColor: tone === 'warning' ? pills.warning.top : variant === 'navigation' && !selected ? 'transparent'
         : variant === 'preview' ? theme.controls.outline
         : variant === 'primary' ? theme.colors.accent : variant === 'media' || variant === 'mediaFloating' ? theme.media.border : theme.colors.border,
-      backgroundColor: tone === 'warning' ? theme.pills.warning.surface : selected && variant === 'navigation' && size === 'row' ? theme.surfaces.secondary : selectedSurface ? theme.controls.selected
+      backgroundColor: tone === 'warning' ? pills.warning.surface : selected && variant === 'navigation' && size === 'row' ? theme.surfaces.secondary : selectedSurface ? theme.controls.selected
         : variant === 'preview' || variant === 'sourcePreview' ? theme.surfaces.glass
         : variant === 'select' || variant === 'secondary' ? theme.controls.field
-        : transparent ? 'transparent' : variant === 'pill' ? theme.pills[tone].surface
+        : transparent ? 'transparent' : variant === 'pill' ? pills[tone].surface
         : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}1F`
         : variant === 'dictionary' ? theme.media.panel : theme.media.chrome,
       _web: {
@@ -52,7 +55,7 @@ export default StyleSheet.create(theme => ({
           : variant === 'select' ? { minHeight: touchLayout ? 44 : 36, paddingVertical: theme.spacing.tiny * 1.5 }
           : variant === 'media' || variant === 'navigation' ? { minHeight: touchLayout ? 44 : 36, paddingVertical: theme.spacing.tiny } : {}),
         ...(variant === 'pill' ? {
-          backgroundImage: `linear-gradient(${theme.pills[tone].top}, ${theme.pills[tone].surface})`,
+          backgroundImage: `linear-gradient(${pills[tone].top}, ${pills[tone].surface})`,
           boxShadow: 'inset 0 1px 0 #FFFFFF08',
           ...(size === 'compact' ? { minHeight: touchLayout ? 44 : 28, paddingVertical: 5, paddingHorizontal: 10, borderRadius: theme.radius + 2 } : {}),
         } : {}),
@@ -65,13 +68,13 @@ export default StyleSheet.create(theme => ({
       },
     };
   },
-  label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean) => ({
+  label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, surface: ButtonSurface) => ({
     ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
       : variant === 'navigation' ? 'navigation' : variant === 'select' || variant === 'sourcePreview' ? 'caption'
       : variant === 'pill' ? size === 'compact' ? 'compactPill' : 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
       : size === 'default' ? 'action' : 'compactAction'],
     flexShrink: 1, ...(variant === 'dictionary' ? { flex: 1, minWidth: 0 } : {}),
-    color: buttonForeground(theme, variant, tone, selected),
+    color: buttonForeground(theme, variant, tone, selected, surface),
   }),
   detail: { ...theme.typography.dictionaryReading, flexShrink: 1, maxWidth: '40%', color: theme.media.muted },
   rowCopy: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
@@ -80,9 +83,9 @@ export default StyleSheet.create(theme => ({
   rowMeta: { ...theme.typography.detail, color: theme.colors.muted, flexShrink: 0 },
   rowDetail: { ...theme.typography.caption, color: theme.colors.muted },
   disabled: { opacity: 0.5 },
-  hover: (variant: ButtonVariant, tone: ButtonTone) => ({
-    backgroundColor: tone === 'warning' ? theme.pills.warning.top : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
-      : variant === 'pill' ? theme.pills[tone].top
+  hover: (variant: ButtonVariant, tone: ButtonTone, surface: ButtonSurface) => ({
+    backgroundColor: tone === 'warning' ? (surface === 'media' ? theme.media.pills : theme.pills).warning.top : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
+      : variant === 'pill' ? (surface === 'media' ? theme.media.pills : theme.pills)[tone].top
       : variant === 'sourcePreview' ? theme.surfaces.secondary
       : variant === 'mediaFloating' ? theme.media.border
       : variant === 'mediaSync' || variant === 'mediaClose' ? theme.media.actionHover

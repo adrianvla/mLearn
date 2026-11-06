@@ -55,6 +55,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
     const [history, setHistory] = useState<string[]>([]);
     const targetId = history.at(-1) ?? inspection.targets[index];
     const [showGraph, setShowGraph] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
     const graphTrigger = useRef<View>(null);
     const returnTrigger = useRef<View>(null);
     const navigationFocus = useRef(false);
@@ -242,6 +243,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
     } as const)[result.knowledge.claim] : null;
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={close} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
+            headerAction={<Button label="Inspect" variant="mediaSelect" size="compact" disabled={!entry}
+                accessibilityState={{ expanded: showDetails }} onPress={() => setShowDetails(value => !value)} />}
             opaque={!inspection.sourceAnchor || inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
             onPopoverClose={() => {
                 setExpandedCapability(null);
@@ -270,10 +273,10 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
                     <Row>
                         <Button size="compact" label="Known" accessibilityLabel={`Claim ${activeCapability.label} known`}
-                            variant="pill" tone="positive" disabled={busy}
+                            variant="pill" tone="positive" surface="media" disabled={busy}
                             onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, true))} />
                         <Button size="compact" label="Unknown" accessibilityLabel={`Claim ${activeCapability.label} unknown`}
-                            variant="pill" tone="negative" disabled={busy}
+                            variant="pill" tone="negative" surface="media" disabled={busy}
                             onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, false))} />
                         <Button size="compact" label="Withdraw" accessibilityLabel={`Withdraw ${activeCapability.label} claim`}
                             variant="media" disabled={busy || activeProjection?.claim == null}
@@ -303,7 +306,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     {history.length > 1 ? <Button label="Previous graph target" size="compact" variant="media"
                         disabled={busy} onPress={() => navigate(history.slice(0, -1))} /> : null}
                 </> : null}
-                {entry && claim ? <Button ref={knowledgeTrigger} size="compact" variant="pill"
+                {entry && claim ? <Button ref={knowledgeTrigger} size="compact" variant="pill" surface="media"
                 label={claim.label}
                 tone={claim.tone}
                 icon={claim.icon}
@@ -334,6 +337,9 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     setExpandedCapability(evidenceCapability); setEvidenceCapability(null);
                     requestAnimationFrame(() => evidenceTrigger.current?.focus());
                 }} /> : entry ? <>
+                {history.length || inspection.sourceForm !== entry.headword ? (
+                    <Text tone="media" muted variant="caption" selectable>{history.length ? 'Source selection' : 'In text'}: {inspection.sourceForm}</Text>
+                ) : null}
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
                 <Row>
                 <Pronunciation presentation={entry.presentation} reading={entry.reading} expanded={showPronunciation} />
@@ -374,9 +380,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 </View> : entry.partOfSpeech ? <View style={styles.metadata}>
                         <Badge label={entry.partOfSpeech} />
                     </View> : null}
-                    {history.length || inspection.sourceForm !== entry.headword ? (
-                        <Text tone="media" muted variant="caption" selectable>{history.length ? 'Source selection' : 'In text'}: {inspection.sourceForm}</Text>
-                    ) : null}
+                    {showDetails ? <>
                     <Button ref={graphTrigger} size="compact" label="Linguistic relationships" variant="disclosure"
                         icon={showGraph ? 'chevronDown' : 'chevronRight'}
                         accessibilityState={{ expanded: showGraph }} onPress={() => setShowGraph(value => !value)} />
@@ -400,6 +404,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                             <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
                                 onSaved={() => setCaptureRefresh(value => value + 1)} />
                         </Dialog>
+                    </> : null}
                     </> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
             {error && !retry ? <>

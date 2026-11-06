@@ -31,6 +31,13 @@ export function resolveTheme(saved: ThemeDocument) {
     && Object.entries(preset.colors).every(([key, value]) => document.colors[key as keyof ThemeDocument['colors']] === value));
   const canvas = lightSurface ? '#F3F5F7' : '#000000';
   const secondary = lightSurface ? '#FFFFFF99' : `${document.colors.text.slice(0, 7)}26`;
+  const mediaPills = {
+    neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
+    info: { text: '#4DA3FF', surface: '#07253D', top: '#1A384E' },
+    positive: { text: '#00D000', surface: '#003300', top: '#2D4C25' },
+    negative: { text: '#FF90AA', surface: '#481024', top: '#693146' },
+    warning: { text: '#F1C40F', surface: '#F1C40F40', top: '#F1C40F66' },
+  };
   const authored = `#${[1, 3, 5].map(offset => {
     const base = Number.parseInt(secondary.slice(offset, offset + 2), 16);
     const alpha = Number.parseInt(secondary.slice(7, 9), 16) / 255;
@@ -90,6 +97,7 @@ export function resolveTheme(saved: ThemeDocument) {
       footer: '#FFFFFF08',
       badge: '#FFFFFF20',
       metadata: '#565656',
+      pills: mediaPills,
     },
     typography: {
       heading: textRole(20, 30, '600'),
@@ -128,12 +136,10 @@ export function resolveTheme(saved: ThemeDocument) {
       badge: textRole(15, 20, '600'),
     },
     pills: {
-      neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
+      ...mediaPills,
       info: lightSurface ? { text: '#176AC0', surface: '#DFF4FF', top: '#EDF8FF' }
-        : { text: '#4DA3FF', surface: '#07253D', top: '#1A384E' },
-      positive: { text: '#00D000', surface: '#003300', top: '#2D4C25' },
-      negative: { text: '#FF90AA', surface: '#481024', top: '#693146' },
-      warning: { text: lightSurface ? '#7A5B00' : '#F1C40F', surface: '#F1C40F40', top: '#F1C40F66' },
+        : mediaPills.info,
+      warning: { ...mediaPills.warning, text: lightSurface ? '#7A5B00' : mediaPills.warning.text },
     },
     radius: document.radius,
     textScale: document.textScale,

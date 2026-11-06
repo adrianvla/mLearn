@@ -174,12 +174,12 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       const exclusion = status && candidate.content.targetId ? <Button label={cards ? excluded ? 'Allow' : 'Exclude'
         : excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
         accessibilityLabel={excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
-        variant={cards ? 'pill' : quiet} size="compact" disabled={disabled || pending} onPress={() => {
+        variant={cards ? 'pill' : quiet} surface={tone} size="compact" disabled={disabled || pending} onPress={() => {
           if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({ packageId: candidate.content.packageId, targetId: candidate.content.targetId }, !excluded));
         }} /> : null;
       const content = <View style={actions ? styles.action : cards ? styles.card : styles.item(tone === 'media')}>
         {!actions ? <View style={styles.wordHeading(cards)}>
-        {onInspect && cards ? <LinguisticWord text={candidate.content.phrase} presentation={candidate.presentation}
+        {onInspect && cards ? <LinguisticWord text={candidate.content.phrase} presentation={candidate.presentation} variant="listTitle"
           activation={{ status: candidate.knowledgeStatus ?? 'pending', onActivate: anchor => onInspect(candidate, anchor) }} />
           : onInspect ? <InlineWord text={candidate.content.phrase} status={candidate.knowledgeStatus ?? 'pending'}
           variant="body" onActivate={anchor => onInspect(candidate, anchor)} />
@@ -195,20 +195,20 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           {cards ? exclusion : null}
           {!item && status?.state === 'eligible' ? <Button label={compact ? 'Capture' : `Capture ${candidate.content.phrase}`}
             accessibilityLabel={`Capture ${candidate.content.phrase}`} variant={compact ? 'pill' : primary}
-            tone={compact ? 'info' : 'neutral'} icon={compact ? 'plusCircle' : undefined}
+            tone={compact ? 'info' : 'neutral'} surface={tone} icon={compact ? 'plusCircle' : undefined}
             size="compact" disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
           {!actions && status?.state === 'existing' ? <Button label={cards ? 'Saved' : `Open saved ${candidate.content.phrase}`}
-            accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} size="compact"
+            accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} surface={tone} size="compact"
             disabled={disabled}
             onPress={() => onOpenMaterial?.(status.materialId)} /> : null}
           {!item && status?.state === 'existing' && !excluded ? <Button label={compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
             accessibilityLabel={`Capture this context: ${candidate.content.phrase}`}
-            icon={actions ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined}
+            icon={actions ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined} surface={tone}
             size="compact" variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
           {actions && result?.state === 'saved' ? <Button label={result.reused ? 'Reused' : 'Saved'}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`}
             accessibilityValue={{ text: `revision ${result.committedRevision}` }} accessibilityLiveRegion="polite"
-            variant="pill" size="compact" disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
+            variant="pill" surface={tone} size="compact" disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
           {actions && status ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={[
             ...(status.state === 'existing' && result?.state !== 'saved' ? [{ id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
               onPress: () => onOpenMaterial?.(status.materialId) }] : []),

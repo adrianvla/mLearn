@@ -37,7 +37,7 @@ export type InlineWordContentProps = {
         /** Authored ruby can span several independently actionable occurrences. */
         readonly content?: ReactNode;
     }[];
-    readonly variant?: 'subtitle' | 'body' | 'inspectionTitle';
+    readonly variant?: 'subtitle' | 'body' | 'listTitle' | 'inspectionTitle';
     readonly status?: string;
     readonly level?: InlineLevel;
     readonly starCollapse?: StarCollapse;

@@ -114,7 +114,7 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
         {practice.error ? <Text variant="caption" accessibilityRole="alert">{practice.error}</Text> : null}
     </>;
     return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
-        presentation="sidebar" open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
+        presentation="sidebar" modal={false} open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <CaptureList client={client} candidates={visible.map(word => word.candidate)}
             presentation="cards" header={header}
             onInspect={(candidate, anchor) => {

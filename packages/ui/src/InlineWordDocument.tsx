@@ -5,6 +5,12 @@ import type { InlineDocumentFlow, InlineWordProps } from './InlineWord.types';
 import { DocumentWordContent, InlineWordElement } from './InlineWordElement.web';
 import { readingSegments } from './readingSegments';
 
+export type SourceThumbnail = {
+    readonly uri: string;
+    readonly width: number;
+    readonly height: number;
+};
+
 export function DocumentWord({ text, presentation, display, status, sourceStart, highlighted, hiddenText = false, onActivate }: {
     readonly text: string;
     readonly presentation?: LinguisticPresentation | null;
@@ -35,7 +41,7 @@ export function DocumentFigure({ uri, alt, error, caption, muted, onLoad, onErro
     readonly muted: string;
     readonly onLoad: () => void;
     readonly onError: () => void;
-    readonly onThumbnail: (uri: string) => void;
+    readonly onThumbnail: (thumbnail: SourceThumbnail) => void;
 }) {
     return <figure style={{ margin: 0, writingMode: 'horizontal-tb', color: muted,
         fontFamily: caption._web.fontFamily, fontSize: caption.fontSize,
@@ -52,7 +58,7 @@ export function DocumentFigure({ uri, alt, error, caption, muted, onLoad, onErro
                 const context = canvas.getContext('2d');
                 if (!context) return;
                 context.drawImage(image, 0, 0, canvas.width, canvas.height);
-                onThumbnail(canvas.toDataURL('image/png'));
+                onThumbnail({ uri: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height });
             }} onError={onError}
             style={{ display: 'block', maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', margin: '0 auto' }} />
             : <figcaption role={error ? 'alert' : 'status'}>{error || 'Loading image…'}</figcaption>}

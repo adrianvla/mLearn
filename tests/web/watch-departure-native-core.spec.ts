@@ -98,6 +98,7 @@ test('Watch proposal Return restores its exact captured subtitle selection', asy
     await expect(proposals).toBeHidden();
     await expect(page.getByTestId('returned-source-selection')).toContainText('cat');
     await expect(page.getByTestId('inspector-panel')).toHaveCount(1);
+    await page.getByTestId('inspector-panel').getByRole('button', { name: 'Inspect', exact: true }).click();
     await expect(page.getByTestId('inspector-panel').getByRole('button', { name: 'Dictionary source', exact: true })).toBeVisible();
     expect(new URL(page.url()).searchParams.get('proposalId')).toBeTruthy();
     for (const width of [1080, 390]) {

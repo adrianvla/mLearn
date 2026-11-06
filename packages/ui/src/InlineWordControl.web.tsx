@@ -18,7 +18,7 @@ function ThemedWordContent({ segments, variant = 'body', status, level, starColl
     return <span style={{
         display: level ? 'inline-block' : undefined, position: level ? 'relative' : undefined,
         ...source, ...sourceWeb, lineHeight: `${source.lineHeight}px`,
-        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' || variant === 'listTitle' ? theme.colors.text : theme.media.text,
         whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
         ...(variant === 'subtitle' ? { textShadow: `0 1px 4px ${theme.media.background}` } : {}),
     }}>{segments.map((segment, index) => segment.reading ? <ruby key={index} style={{

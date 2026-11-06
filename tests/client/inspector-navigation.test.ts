@@ -145,10 +145,10 @@ test('Inspector graph navigation keeps source identity separate from active targ
             export const Button = React.forwardRef(({ label, accessibilityLabel, accessibilityState, disabled, onPress }, ref) =>
               <button ref={ref} aria-label={accessibilityLabel ?? label}
                 aria-expanded={accessibilityState?.expanded} disabled={disabled} onClick={onPress}>{label}</button>);
-            export const ContextPanel = ({ title, anchor, sourceContext, footer, popover, children }) =>
+            export const ContextPanel = ({ title, anchor, sourceContext, headerAction, footer, popover, children }) =>
               <section data-testid="panel" data-original-anchor={anchor === window.originalAnchor}>
                 <h1>{title}</h1><output data-testid="context">{sourceContext}</output>
-                {children}<footer>{footer}</footer>{popover}
+                {headerAction}{children}<footer>{footer}</footer>{popover}
               </section>;
             export const Dialog = ({ trigger }) => trigger;
             export const useRouter = () => ({ push() {} });
@@ -172,6 +172,7 @@ test('Inspector graph navigation keeps source identity separate from active targ
           await page.addScriptTag({ content: script.text });
           await page.evaluate(scenario => Reflect.get(window, 'mount')(scenario), scenario);
           await expect(page.getByRole('heading')).toHaveText('headword alternative');
+          await page.getByRole('button', { name: 'Inspect', exact: true }).click();
           await page.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
 
           if (scenario === 'knowledge') {

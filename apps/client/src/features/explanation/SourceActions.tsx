@@ -264,7 +264,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       <Dialog open={open} onOpenChange={changeOpen} title="Explain selected text"
         description="Feedback is linked to the original source, not learner evidence."
         trigger={<Button label="Explain" variant={variant} size="compact"
-          tone={tone === 'media' ? 'info' : undefined} icon={tone === 'media' ? 'conversation' : undefined}
+          tone={tone === 'media' ? 'info' : undefined} surface={tone} icon={tone === 'media' ? 'conversation' : undefined}
           disabled={disabled || !selected || !!explanationDisabledReason} />}>
         <Text selectable>{selected}</Text>
         <Button label={contextOpen ? 'Hide original context' : 'Show original context'} variant="quiet"

@@ -46,6 +46,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     const related = first.connections.find(value => value.entity.targetId !== null
       && value.entity.targetId !== targetId);
     if (!related?.entity.targetId) throw new Error('Native graph has no distinct inspectable target');
+    await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
     await inspector.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
     const graph = inspector.getByTestId('graph-details');
     await expect(graph.getByTestId('graph-relation')).toHaveCount(first.connections.length);
@@ -153,6 +154,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.goto(`/reader?id=${document.source.id}`);
       await page.getByRole('button', { name: `run: ${reopened.knowledge.claim}`, exact: true }).click();
+      await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
       await inspector.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
       await expect(graph.getByText(`${capability.label}: claimed known`, { exact: true })).toHaveCount(1);
       for (const width of [1080, 390]) {
@@ -254,6 +256,7 @@ test('packaged characters retain their identity from Knowledge through Material 
         const trigger = page.getByRole('button', { name: /^橋:/ });
         await trigger.click();
         const inspector = page.getByTestId('inspector-panel');
+        await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
         await inspector.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
         const graph = inspector.getByTestId('graph-details');
         await expect(graph.getByTestId('graph-relation')).toHaveCount(nativeGraph.connections.length);

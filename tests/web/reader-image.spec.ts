@@ -438,7 +438,7 @@ test(`Reader toolbar stays compact and retains accessible controls at ${width}px
   const toolbar = await page.getByTestId('reader-toolbar').boundingBox();
   if (!home || !toolbar) throw new Error('Reader navigation geometry is unavailable');
   const rows = new Set([home.y]);
-  for (const name of ['Previous page', 'Next page', 'Search source', 'Contents', 'View options']) {
+  for (const name of ['Previous page', 'Next page', 'Search source', 'Contents', 'View options', 'Page words']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
     if (!box) throw new Error('Reader navigation geometry is unavailable');
     if (width >= 700) expect(box.y).toBe(home.y);
@@ -578,7 +578,6 @@ test('cancelled native image selection cannot admit or navigate a late picker re
 
 test('source practice retries one frozen request and opens its actually admitted shared encounter', async ({ page }, testInfo) => {
   await start(page);
-  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
   for (const width of [1080, 390]) {
@@ -591,8 +590,6 @@ test('source practice retries one frozen request and opens its actually admitted
   await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
   await words.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Page words', exact: true })).toBeFocused();
-  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
-  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
   await words.getByRole('button', { name: 'Retry original Word Practice request', exact: true }).click();
@@ -717,7 +714,7 @@ test(`${entry} source navigation cancels running recognition without waiting for
     await page.getByRole('document', { name: 'Image pages', exact: true }).focus();
     await page.keyboard.press('PageDown');
   } else if (entry === 'rail') {
-    await page.getByRole('button', { name: 'Read image-1 page-1', exact: true }).click();
+    await page.getByRole('button', { name: 'Page 2', exact: true }).click();
   } else if (entry === 'contents') {
     await page.getByRole('button', { name: 'Contents', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Page 2', exact: true }).click();
@@ -857,6 +854,18 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
   await page.setViewportSize({ width, height: 900 });
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  const inspector = page.getByTestId('inspector-panel');
+  const details = inspector.getByRole('button', { name: 'Inspect', exact: true });
+  await expect(details).toHaveAttribute('aria-expanded', 'false');
+  for (const name of ['Linguistic relationships', 'Dictionary source', 'Edit before capture'])
+    await expect(inspector.getByRole('button', { name, exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath(`inspector-default-${width}.png`) });
+  await details.click();
+  await expect(details).toHaveAttribute('aria-expanded', 'true');
+  for (const name of ['Linguistic relationships', 'Dictionary source', 'Edit before capture'])
+    await expect(inspector.getByRole('button', { name, exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath(`inspector-details-${width}.png`) });
+  await details.click();
   const footer = page.getByTestId('inspector-footer');
   const knowledge = footer.getByRole('button', { name: /^Knowledge/ });
   await expect(knowledge).toBeVisible();
@@ -885,6 +894,25 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
   await expect(captureOptions).toBeFocused();
   const explain = footer.getByRole('button', { name: 'Explain', exact: true });
   await expect(explain).toBeInViewport({ ratio: 1 });
+  const mediaActions = [
+    footer.getByRole('button', { name: 'Capture this context: 東京', exact: true }),
+    explain,
+  ];
+  for (const action of mediaActions) {
+    const background = (await action.evaluate(node => getComputedStyle(node).backgroundColor))
+      .match(/\d+(?:\.\d+)?/g)?.map(Number);
+    const foreground = (await action.getByText(/^(Capture context|Explain)$/)
+      .evaluate(node => getComputedStyle(node).color)).match(/\d+(?:\.\d+)?/g)?.map(Number);
+    expect(background).toHaveLength(3);
+    expect(foreground).toHaveLength(3);
+    const luminance = (rgb: number[]) => rgb.map(value => {
+      const channel = value / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+    const ink = luminance(foreground!), surface = luminance(background!);
+    expect(ink).toBeGreaterThan(surface);
+    expect((ink + 0.05) / (surface + 0.05)).toBeGreaterThanOrEqual(4.5);
+  }
   const more = footer.getByRole('button', { name: 'Inspector actions', exact: true });
   for (const action of [knowledge, explain, more]) {
     await action.focus();
@@ -947,6 +975,7 @@ test('nested capture focus wrap reveals its action without moving the source', a
   await start(page);
   await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
   const inspector = page.getByTestId('inspector-panel');
+  await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
   const author = inspector.getByRole('button', { name: 'Edit before capture', exact: true });
   await author.click();
   const dialog = page.getByRole('dialog', { name: 'Capture Material', exact: true });
@@ -1050,7 +1079,6 @@ test('pending availability leaves a short source word on one readable line', asy
   await start(page);
   await page.evaluate(() => { window.__imageEligibilityControl.hold = true; });
   const entered = page.evaluate(() => window.__imageEligibilityControl.entered);
-  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   await entered;
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
@@ -1081,10 +1109,18 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`page word operations reuse shared capture and Inspector and locate the exact original token on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
-  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
   await expect(words.getByRole('button', { name: 'Open saved 東京', exact: true })).toBeVisible();
+  if (viewport.name === 'desktop') {
+    const source = page.getByRole('document', { name: 'Image pages' });
+    await expect(source).toBeVisible();
+    await expect.poll(async () => {
+      const content = await source.boundingBox();
+      const panel = await words.boundingBox();
+      return content && panel ? content.x + content.width <= panel.x : false;
+    }).toBe(true);
+  }
   await page.screenshot({ path: testInfo.outputPath('source-word-sidebar.png') });
   const token = words.getByRole('button', { name: '東京: untracked', exact: true });
   await token.click();
@@ -1092,6 +1128,7 @@ test(`page word operations reuse shared capture and Inspector and locate the exa
   await expect(page.getByTestId('inspector-panel').getByText('Tokyo', { exact: true }).first()).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(words).toBeVisible();
+  await expect(token).toBeFocused();
   await words.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
   const receipt = words.getByText(`Saved · material-${'c'.repeat(64)} · revision 1`, { exact: true });
   await expect(receipt).toBeVisible();

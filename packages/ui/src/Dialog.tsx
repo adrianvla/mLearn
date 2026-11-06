@@ -60,7 +60,9 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
               onOpenAutoFocus={initialFocus === 'title' ? event => {
                 event.preventDefault(); titleTarget.current?.focus();
               } : sidebar && !modal ? event => event.preventDefault() : undefined}
-              onInteractOutside={sidebar && !modal ? event => event.preventDefault() : undefined}
+              // An Inspector can take focus outside the persistent sidebar at
+              // either width. Resizing must not change that sidebar lifetime.
+              onInteractOutside={webSidebar && !modal ? event => event.preventDefault() : undefined}
               onCloseAutoFocus={focusTarget ? event => { event.preventDefault(); restoreFocus(); } : undefined}
               // Native Content claims the initial responder by default.
               // Leave pan ownership to its ScrollView, not the wrapper.

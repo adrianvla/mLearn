@@ -10,12 +10,11 @@ import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 
-export function ReaderSearch({ client, source, scope, position, compact, disabled, onLocate, onReturn, onOpen }: {
+export function ReaderSearch({ client, source, scope, position, disabled, onLocate, onReturn, onOpen }: {
     readonly client: RuntimeClient;
     readonly source: DocumentRecord;
     readonly scope: DocumentSearchScope;
     readonly position: DocumentPosition | null;
-    readonly compact: boolean;
     readonly disabled: boolean;
     readonly onLocate: (hit: DocumentSearchHit) => Promise<boolean>;
     readonly onReturn: (position: DocumentPosition) => Promise<boolean>;
@@ -99,8 +98,8 @@ export function ReaderSearch({ client, source, scope, position, compact, disable
             setOpen(value);
             if (value) onOpen();
             else if (operation.current && !navigating) stop();
-        }} trigger={<Button label="Search source" icon="search" iconOnly={compact}
-            variant="secondary" size="compact" disabled={disabled} />}>
+        }} trigger={<Button label="Search source" icon="search" iconOnly
+            variant="quiet" size="compact" disabled={disabled} />}>
         <View style={styles.stack}>
             <TextField label="Search this source" value={text} maxLength={1024} editable={!pending}
                 onChangeText={value => { setText(value); setError(''); }}

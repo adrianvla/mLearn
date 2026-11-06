@@ -46,7 +46,7 @@ async function closeInspector() {
         const current=document.querySelector('[data-testid="inspector-panel"]');
         if(current!==panel){if(panel)resize.unobserve(panel);panel=current;if(panel)resize.observe(panel);}
         const button=panel?.querySelector('[aria-label="Close Inspector"]');
-        if(!button||!panel.querySelector('[aria-label="Dictionary source"]'))return;
+        if(!button||!panel.querySelector('[aria-label="Inspect"][aria-disabled="false"]'))return;
         const r=button.getBoundingClientRect();
         const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
         if(r.width&&r.height&&hit?.closest('[aria-label="Close Inspector"]')===button)
@@ -356,6 +356,7 @@ try {
   assert.ok(liveCards.length > 0 && liveCards.length <= 6, JSON.stringify(liveCards));
   assert.ok(liveCards.every(card=>card.width > 0));
   await click(liveCards[0].label);
+  await click('Inspect');
   await text('Dictionary source');
   await closeInspector();
   await observeSourceView('document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")==="false"');
@@ -567,7 +568,7 @@ try {
   }
   assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
   assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
-  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Dictionary source"]\')');
+  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]\')');
   // Modifier/Knowledge rendering can replace the token node between input
   // ticks. A real pointer targets viewport geometry, not a retained DOM handle.
   const child=await script(`
@@ -666,7 +667,7 @@ try {
   await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
-  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]')&&
+  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]')&&
     document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect().bottom<=
     document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect().top`);
   await click('home: untracked');

@@ -236,9 +236,11 @@ test('Review Return preserves its admitted passage after the Material source is 
   await page.screenshot({ path: testInfo.outputPath('review-original-document-return.png') });
 });
 
-test('source image navigation exposes a real bounded thumbnail without changing the image aspect ratio', async ({ page }) => {
+test('source image navigation exposes a real bounded thumbnail without changing the image aspect ratio', async ({ page }, testInfo) => {
   await start(page);
-  await page.getByRole('button', { name: 'Read chapter image', exact: true }).click();
+  const preview = page.getByRole('button', { name: 'Read Blue bridge', exact: true });
+  await preview.click();
+  await expect.soft(preview).toHaveAttribute('aria-pressed', 'true');
   const images = page.getByRole('img', { name: 'Blue bridge', exact: true });
   await expect(images).toHaveCount(2);
   const sizes = await images.evaluateAll(nodes => nodes.map(node => {
@@ -247,7 +249,14 @@ test('source image navigation exposes a real bounded thumbnail without changing 
   }));
   expect(sizes.some(size => size.source.startsWith('data:image/png;') && size.width <= 128
     && size.height <= 160 && size.width / size.height === 2)).toBe(true);
+  await expect.poll(() => images.evaluateAll(nodes => nodes
+    .filter(node => node.getAttribute('src')?.startsWith('data:image/png;'))
+    .map(node => {
+      const bounds = node.getBoundingClientRect();
+      return bounds.width / bounds.height;
+    }))).toEqual([2]);
   await expect(page.getByTestId('reader-position')).toHaveText('Blue bridge');
+  await page.screenshot({ path: testInfo.outputPath('reader-source-preview.png') });
 });
 
 test('narrow Reader reflows without losing the original source location or hiding navigation', async ({ page }, testInfo) => {

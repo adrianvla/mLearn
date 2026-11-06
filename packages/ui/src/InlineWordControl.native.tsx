@@ -31,14 +31,14 @@ const contentStyles = StyleSheet.create(theme => ({
     source: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant],
         flexShrink: 1,
-        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' || variant === 'listTitle' ? theme.colors.text : theme.media.text,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
         textDecorationLine: status === 'claimed_unknown' || status === 'assessed_unknown' || status === 'mixed' ? 'underline' : 'none',
         textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid',
     }),
     reading: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant === 'subtitle' ? 'subtitleRuby' : variant === 'inspectionTitle' ? 'inspectionRuby' : 'bodyRuby'],
-        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' || variant === 'listTitle' ? theme.colors.text : theme.media.text,
     }),
 }));
 

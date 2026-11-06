@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react';
 import type { LinguisticPresentation } from '@mlearn/contracts';
 import type { InlineWord } from '@mlearn/ui/inline-word';
 
-export type LinguisticVariant = 'subtitle' | 'body' | 'inspectionTitle';
+export type LinguisticVariant = 'subtitle' | 'body' | 'listTitle' | 'inspectionTitle';
 export type LinguisticWordProps = {
     readonly text: string;
     /** Offsets are relative to text, which must be the untouched package source. */

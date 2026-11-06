@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useState, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { Platform, View, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -8,10 +8,11 @@ import { DialogPortalContext } from './Dialog';
 import { revealScrollFocus } from './scrollFocus';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, headerAction, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
+    headerAction?: ReactElement;
     footer?: ReactNode;
     popover?: ReactNode;
     onPopoverClose?: () => void;
@@ -100,7 +101,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                             </Primitive.Title>
                                         </View>
                                         <Primitive.Description asChild>
-                                            <Text tone="media" muted variant="caption">Inspect</Text>
+                                            {headerAction ?? <Text tone="media" muted variant="caption">Inspect</Text>}
                                         </Primitive.Description>
                                         <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
                                 </View>
