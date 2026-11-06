@@ -19,6 +19,15 @@ with their broader executions deferred. Final captures are retained in
 `inspector-final-interactions`; before/intermediate captures remain preserved.
 Frontend correction continues independently of deferred native consuming builds.
 
+Review now keeps four worded recall choices in a balanced two-column group
+above expanded capability adjustment, replacing the prominent 11/22/33/44
+controls. Grading, exceptions, Untested, Worked out and keyboard chords retain
+their existing owners. Typecheck/lint/export, two exception/retry/Undo cases
+and the real native typed-response/restart case pass. All four light/dark
+desktop/phone frames were inspected in `review-human-actions-settled`.
+The new layout assertion was corrected to the existing desktop/touch target
+contracts and waits for responsive sizing; no product fallback was added.
+
 The maintainer explicitly replaced the blanket execution block. All unmet
 requirements are active in the twelve-task work graph; earlier commits,
 profiles, captures and passing results remain valid within their recorded

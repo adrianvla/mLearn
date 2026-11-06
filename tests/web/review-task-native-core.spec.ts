@@ -98,6 +98,16 @@ test('typed Practice preserves the actual package-validated response through res
       expect((await client.reviewSession(started.id)).encounter).toEqual(revealed.encounter);
       for (const width of [1080, 390]) {
         await page.setViewportSize({ width, height: 900 });
+        for (const label of ['All Missed', 'All Struggled', 'All Fluent', 'All Easy']) {
+          const rating = page.getByRole('button', { name: label, exact: true });
+          await expect(rating).toHaveText(label);
+          await expect.poll(async () => (await rating.boundingBox())?.height ?? 0)
+            .toBeGreaterThanOrEqual(width < 720 ? 44 : 24);
+          const bounds = await rating.boundingBox();
+          if (!bounds) throw new Error('Recall choice has no rendered bounds');
+          expect(bounds.x).toBeGreaterThanOrEqual(0);
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        }
         await page.screenshot({ path: info.outputPath(`typed-revealed-${theme.id}-${width}.png`) });
       }
     }

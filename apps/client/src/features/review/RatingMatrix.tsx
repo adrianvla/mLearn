@@ -37,12 +37,13 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
     <Text variant="groupTitle">How did you recall it?</Text>
     <Row>{targets.map(target =>
       <Badge key={target.id} label={target.label} variant="label" />)}</Row>
-    {!state.expanded ? <View style={styles.actions}>
+    <View style={styles.actions}>
       {ratingActions.map(action => <View key={action.key} style={styles.bulk}>
-        <Button label={action.label} tone={action.tone} variant="pill" disabled={disabled}
+        <Button label={state.expanded ? `All ${action.label}` : action.label} tone={action.tone} variant="pill" disabled={disabled}
           onPress={() => submit(rateAll(targets, current.current, action, method))} />
       </View>)}
-    </View> : <>
+    </View>
+    {state.expanded ? <>
       <Text variant="caption" muted>Choose exceptions, then All. Press a rating twice for All, or a rating followed by a row letter.</Text>
       <Text variant="caption" accessibilityLiveRegion="polite">{state.pending ? `Rating ${state.pending.key}: choose a row or repeat for All` : 'Adjust capability ratings'}</Text>
       <View style={styles.matrixRow}>
@@ -51,13 +52,6 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
           <Text variant="detail" align="center">{action.label}</Text>
         </View>)}
       </View>
-      <View style={styles.matrixRow}>
-        <View style={styles.rowLabel}><Text variant="caption">All</Text></View>
-        {ratingActions.map(action => <View key={action.key} style={styles.cell}>
-        <Button label={`${action.key}${action.key}`} tone={action.tone} variant="pill" disabled={disabled}
-          accessibilityLabel={`All ${action.label}`}
-          onPress={() => submit(rateAll(targets, current.current, action, method))} />
-      </View>)}</View>
       {targets.map(target => <View key={target.id} style={styles.target}>
         <View style={styles.matrixRow}>
           <View style={styles.rowLabel}><Text variant="caption">{target.label}</Text>
@@ -75,7 +69,7 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
             accessibilityLabel={`${target.label}: Untested`} accessibilityState={{ selected: state.drafts[target.id]?.quality === null }}
             onPress={() => apply(rateTarget(targets, current.current, { targetId: target.id, quality: null, method, easy: false }))} /></Row>
       </View>)}
-    </>}
+    </> : null}
     <Row><Button label={state.expanded ? 'Close Adjust' : 'Adjust'} variant="quiet"
       accessibilityState={{ expanded: state.expanded }} disabled={disabled}
       onPress={() => update({ ...current.current, expanded: !current.current.expanded, pending: null })} />
@@ -87,7 +81,7 @@ export function RatingMatrix({ targets, disabled, focused = false, onSubmit }: {
 const styles = StyleSheet.create(theme => ({
   matrix: { gap: theme.spacing.small, width: '100%', minWidth: 0 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small, alignItems: 'stretch' },
-  bulk: { flexGrow: 1, flexBasis: '30%', minWidth: 120 },
+  bulk: { flexGrow: 1, flexBasis: '45%', minWidth: 120 },
   matrixRow: { flexDirection: 'row', gap: theme.spacing.small, alignItems: 'center' },
   rowLabel: { flex: 1.5, minWidth: 0 },
   cell: { flex: 1, minWidth: 0 },

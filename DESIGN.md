@@ -62,6 +62,11 @@ thumbnail. Document/video entry uses compact actions rather than tall empty
 preview tiles when no source pixels exist. The shared SourceRow owns this
 treatment for both document and video history.
 
+Layout: Review leads with readable recall choices in a balanced two-column
+group. Expanded capability adjustment keeps the same worded All actions above
+its detailed rows; keyboard chord codes do not replace action labels.
+Existing exception grades, Untested, Worked out and keyboard behavior remain.
+
 ## Active correction — maintainer rejection of a726010
 
 The maintainer rejected the sidebar-and-recents workspace introduced by
