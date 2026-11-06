@@ -2,6 +2,32 @@
 
 ## Active continuation - 2026-11-06
 
+### Capacity pause - incomplete
+
+The standing admission wait was investigated and stopped, not restarted.
+Across 414 samples over about 34.5 minutes, no sample admitted the unchanged
+1024 MiB metadata allowance plus 4 GiB reserve. Available memory ranged
+5,108,137,984..5,298,552,832 bytes, below the 5,368,709,120-byte requirement;
+the last sample had 5,150,687,232 bytes available, pressure1, footprint
+884,904,856 bytes and unchanged swap513,671,168. The larger 1536 MiB combined
+workflow also remains unadmitted. The capacity question timed out unanswered.
+
+Monitor `mon_X24AFCNXKDQRB7JQ` / bash552 was stopped. No owned native QA,
+Chrome, test server or diagnostic worker remains; no monitor or pending
+question can deliver capacity. User applications and RustDesk were untouched.
+All six verification/review/delivery tasks remain open; the full frontend
+request is incomplete. The matrix below preserves the exact missing rows.
+No independent reviewer was spent on a candidate with known missing QA.
+Remote push permission remains unanswered; no push, dispatch, merge or release
+occurred, and TLS verification was not weakened.
+
+Resume with fresh three-sample admission after additional capacity is actually
+available: 5 GiB for metadata, 5.5 GiB for the combined native workflow, plus
+any measured sustained growth. Do not automatically restore a workload.
+Run the already-recorded metadata scenarios with the controller-owned graceful
+stop, preserve its actual teardown result, then finish native workflows and
+the remaining review/delivery gates. This pause changes no acceptance rule.
+
 The maintainer shut down the unused Colima VM and OpenWebUI and explicitly
 resumed the existing frontend reconstruction. RustDesk must remain running:
 the maintainer is connected remotely. Branch `agent/m10-m11` now has three
@@ -83,7 +109,8 @@ Captures are `candidate-*.png` in the current experience artifact directory.
 The first Word Sync role locator timed out because of a same-label retained
 route; the visible snapshot ref activated it successfully. Use visible refs
 for these retained screens rather than interpreting that as a product failure.
-The People search field's visual visibility needs a geometry check; the
+The retained People screenshot visibly contains the search wrapper and icon;
+input geometry/editing/filter behavior still needs interaction proof. The
 remaining light Review/Word Sync/Messenger states and active workflows are
 not complete.
 
@@ -100,8 +127,8 @@ the browser context and native backend, with an eight-minute graceful lifetime
 and Node-only signal handling. Its syntax/project diagnostics pass; actual
 startup/teardown is not yet verified. The unchanged 1024 MiB follow-up admission
 expired without launching. No substantial unused owned process remained to
-release; user applications and RustDesk were untouched. A nonblocking capacity
-question is pending. The larger 1536 MiB native workflow stays unadmitted.
+release; user applications and RustDesk were untouched. The nonblocking capacity
+question timed out unanswered. The larger 1536 MiB native workflow stays unadmitted.
 The existing `.github/workflows/v3-desktop-e2e.yml` offers actual Linux desktop
 IPC/plugin/media/restart verification on branch push, while foundation covers
 the native browser regressions. Neither workflow was dispatched or claimed as
@@ -113,6 +140,41 @@ All 178 reserve observations were safe, minimum available 4,794,449,920 bytes,
 maximum tracked OmO footprint 1,129,550,792 bytes and unchanged swap usage
 522,059,776 bytes. RustDesk was untouched. This is partial state/persistence
 evidence, not a completed native workflow or acceptance gate.
+
+### Current evidence coverage - audited, not acceptance
+
+Source remains `7153e9acd20e768d4c9d07a5d3a8c84004066b44`, with no
+tracked product/test edits. All 31 `candidate-*.png` files have valid PNG
+headers and the expected 1440x900 desktop or 1170x2532 phone dimensions.
+The phone captures use 390x844 CSS pixels at DPR3; they are browser emulation,
+not native-device evidence. Header checks establish artifact integrity only;
+the earlier direct visual inspections establish their limited visual claims.
+The artifact directory for the following filenames is
+`.mlearn/experience-20261105/`.
+
+| Surface/state | Retained evidence | Proves / still open |
+| --- | --- | --- |
+| Home with retained sources/conversation | `candidate-home-{light,dark}-{desktop,phone}.png`, separate phone top/bottom captures | Both themes/widths inspected against real metadata; empty/loading/recoverable-error and current native GUI rows remain open. The dark `phone.png` is a retained lower scroll state, not the top. |
+| Appearance settings | `candidate-settings-{light,dark}-{desktop,phone}.png` | Native theme write and Quartz restoration observed; clean restart and native-device rendering unproved. |
+| Knowledge list | `candidate-knowledge-{light,dark}-{desktop,phone}.png` | Real bounded projection of 206,979 entries; grid/characters, applied compound selection/bulk operations and native graph/evidence interactions remain open. |
+| Knowledge filter disclosure | `candidate-knowledge-dark-{desktop,phone}-filters.png` | Dark disclosure inspected and canceled unchanged; light disclosure and applying filters not run in this stage. |
+| Material collection/editor | `candidate-material-{light,dark}-{desktop,phone}.png`, `candidate-material-editor-{light,dark}-{desktop,phone}.png` | Two real saved items and unchanged editor inspected; dirty Save/Discard/Cancel, recoverable writes, proposals/bulk operations and restart remain open. |
+| Paused Review | `candidate-review-dark-{desktop,phone}.png` | Real paused-session setup inspected; light setup, response execution, exact resume, source return and restart remain open. |
+| Word Sync | `candidate-word-sync-dark-{desktop,phone}.png` | Package-declared setup inspected without starting; light/lower phone controls, calibration execution/recovery and restart remain open. |
+| Word Practice, grammar and expert probes | Existing scoped owner evidence only | Current rendered task/validator/authoring workflows are not certified by the setup captures or Reader fixtures. |
+| Messenger directory/People | `candidate-messenger-dark-{desktop,phone}.png`, `candidate-messenger-people-dark-phone.png` | Real unselected directory and People inspected; search wrapper is visibly present. Editing/filter behavior, light states, selected conversation/composer and current native workflow remain open. Do not resume the old controlled-idle investigation. |
+| Reader text/image and source words | `vocabulary-heading-reader.log`, `vocabulary-heading-reader/**/source-word-sidebar.png` | 46 fixture-backed cases pass; source previews, sidebar, pending/practice and affected Inspector states inspected. These substituted transports do not establish native persistence or mobile DOM-bridge execution. |
+| Watch annotations and vocabulary | `vocabulary-heading-watch.log`, `vocabulary-heading-watch/`, `vocabulary-heading-desktop-framed/` | Four replay cases pass in both themes at 1080/393px, including actual captured annotation data and bounded stars; replay is presentation-only. Current player/transcript/caption controls, media decoding, native windows and restart remain open. |
+| Inspector/corrections/relationships | Reader captures and owner navigation tests; changed native-core graph/Watch specs | Default/details/footer presentation and fixture interactions covered; current native claims, evidence, corrections, graph/source continuity and failures still need their real workflows. |
+| Package management, Runtime Inspector and other Settings dialogs | No new candidate-stage capture | Supported current states/actions need their existing scenario rows executed; appearance captures do not cover them. |
+| Teardown and independent review | Metadata host log lacks `EXPERIENCE_STOPPED`; corrected owner has static checks only | Last native teardown failed. No final gate reviewer is launched while these manual QA rows remain open. No workflow/PR status, merge, release or acceptance claim is made. |
+
+The new three-sample capacity check after the unanswered question still held:
+available 5,240,291,328 / 5,227,675,648 / 5,201,739,776 bytes, pressure1,
+footprint 883,708,824..883,856,280 bytes and unchanged swap513,671,168.
+No application launched, no resource limit changed, and no user process was
+stopped. The capacity question is not repeated. Missing rows above remain
+required rather than being retired by this audit.
 
 ### Verified inline annotation repair - 2026-11-06
 
