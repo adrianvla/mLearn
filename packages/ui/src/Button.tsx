@@ -45,7 +45,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
       aria-expanded={props['aria-expanded'] ?? state.expanded}
       aria-selected={Platform.OS === 'web' && accessibilityRole === 'button' ? undefined : props['aria-selected'] ?? state.selected}
       disabled={blocked}
-      style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly, touchLayout, surface),
+      style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly, touchLayout, surface, resolvedIconPosition),
         hovered && !blocked && styles.hover(variant, tone, surface), pressed && styles.pressed, blocked && styles.disabled]}>
       {icon && resolvedIconPosition === 'leading' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected, surface)} /> : null}
       {row ? <View style={styles.rowCopy}>

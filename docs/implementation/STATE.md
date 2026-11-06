@@ -24,6 +24,21 @@ experience evidence directory. Source/Knowledge/capture identity, commands
 and persistence are unchanged. This is not acceptance or current native-device
 certification; the downloaded macOS binary remains source-bound to `ef2b73b8`.
 
+Further direct comparison restores the alternatives disclosure's compact leading
+icon/label group. An explicit caller position alone exposed shared Button's
+unconditional space-between layout; its private root now honors the resolved
+position while retaining trailing defaults. Both incorrect ordering and detached
+label layouts fail the native geometry regression. Typecheck/lint/export and
+the corrected native Messenger case pass; all four actual theme/width frames
+were inspected in `alternatives-adjacent-final`.
+
+The SDK/theme native assertion repair has a fresh real SDK installation,
+execution and crash/restart test (2.3s, no providers); its full Linux GUI rerun
+remains open. The macOS executable's first launch used the ordinary v3dev profile
+because an assumed profile environment variable is unsupported; it was stopped
+before UI input. Supported HOME isolation was source-traced, but its bounded
+relaunch was not admitted. No isolated current macOS workflow is certified.
+
 Annotation continuation from `687e369d`: current Reader/Watch replays of the
 retained genuine Japanese batches pass eight cases across both themes and
 1080/393 widths. Readings, ranks, caption flow and vocabulary-edge stars were

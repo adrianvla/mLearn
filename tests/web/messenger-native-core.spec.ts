@@ -210,6 +210,12 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await expect(inspector.getByText('child', { exact: true }).first()).toBeVisible();
     await expect(inspector.getByRole('button', { name: 'Inspect', exact: true })).toHaveAttribute('aria-expanded', 'false');
     await expect(inspector.getByText('In text: Children', { exact: true })).toBeVisible();
+    const alternatives = inspector.getByRole('button', { name: /^Dictionary alternatives \(/ });
+    const alternativeLabel = await alternatives.getByText(/^Dictionary alternatives \(/).boundingBox();
+    const alternativeIcon = await alternatives.locator('svg').boundingBox();
+    if (!alternativeLabel || !alternativeIcon) throw new Error('Dictionary alternative disclosure is not visible');
+    expect(alternativeIcon.x + alternativeIcon.width).toBeLessThanOrEqual(alternativeLabel.x);
+    expect(alternativeLabel.x - alternativeIcon.x - alternativeIcon.width).toBeLessThan(alternativeLabel.width / 4);
     await page.screenshot({ path: info.outputPath('messenger-desktop-inspector.png') });
     // Message inspection must retain readable lexical copy over bright content.
     const captionContrast = await inspector.getByText('Children walked home.', { exact: true }).evaluate(caption => {

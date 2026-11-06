@@ -19,7 +19,7 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
 }
 
 export default StyleSheet.create(theme => ({
-  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean, touchLayout: boolean, surface: ButtonSurface) => {
+  root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean, touchLayout: boolean, surface: ButtonSurface, iconPosition: 'leading' | 'trailing') => {
     const pills = surface === 'media' ? theme.media.pills : theme.pills;
     const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'segment' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
       || variant === 'media' && iconOnly;
@@ -33,7 +33,7 @@ export default StyleSheet.create(theme => ({
       paddingVertical: theme.spacing.small,
       paddingHorizontal: variant === 'dictionary' ? theme.spacing.comfortable : variant === 'disclosure' ? 0 : iconOnly ? theme.spacing.small
         : size === 'compact' ? theme.spacing.compact : theme.spacing.medium,
-      justifyContent: variant === 'navigation' ? 'flex-start'
+      justifyContent: variant === 'navigation' || variant === 'disclosure' && iconPosition === 'leading' ? 'flex-start'
         : variant === 'select' || variant === 'dictionary' || variant === 'disclosure' ? 'space-between' : 'center',
       alignItems: 'center', alignSelf: variant === 'mediaFloating' ? 'flex-start' : variant === 'disclosure' ? 'stretch' : undefined,
       flexDirection: 'row', gap: theme.spacing.small, maxWidth: '100%',

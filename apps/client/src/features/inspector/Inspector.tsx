@@ -360,7 +360,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     onPress={() => setShowPronunciation(value => !value)} /> : null}
                 </Row>
                 {!history.length && inspection.targets.length > 1 ? <>
-                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure" surface="media"
+                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure" surface="media" iconPosition="leading"
                     icon={showAlternatives ? 'chevronDown' : 'chevronRight'}
                     accessibilityState={{ expanded: showAlternatives }} onPress={() => setShowAlternatives(v => !v)} />
                 {showAlternatives ? <View style={styles.alternatives}>
