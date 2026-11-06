@@ -4,6 +4,17 @@
 
 ### Workload-specific execution resumed
 
+Inspector continuation from `d4e506ca`: ordinary chevron buttons exposing
+expanded state now default to trailing affordances through shared Button;
+explicit icon positions and ordinary directional actions retain their contract.
+The real evidence-row geometry regression failed before repair. Typecheck,
+ownership lint, export and six affected cases pass: real claim/physical-attempt/
+source paging and restart, Inspector footer/menu/contrast/focus at both widths,
+content controls, runtime theme/focus and automated WCAG checks. Actual default,
+expanded and evidence frames in both themes were inspected under
+`disclosure-placement-final`; before evidence is `disclosure-placement-red`.
+No new Inspector semantic owner or native authority was introduced.
+
 Reader continuation from `dcf21090`: current compact image/text chrome,
 bounded source previews and phone reflow were inspected against the edited
 Reader hierarchy. Eight selected current-surface/native-search scenarios pass.

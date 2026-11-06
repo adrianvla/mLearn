@@ -175,7 +175,14 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     await expect(evidence.getByText('Explicit claim: unknown', { exact: false })).toBeVisible();
     await expect(evidence.getByText('Assessed state: known', { exact: true })).toBeVisible();
     await expect(evidence.getByRole('button', { name: /^Attempt \d+ details$/ })).toHaveCount(16);
-    await evidence.getByRole('button', { name: `Attempt ${physical.sequence} details`, exact: true }).click();
+    const observation = evidence.getByRole('button', { name: `Attempt ${physical.sequence} details`, exact: true });
+    await observation.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath('evidence-disclosure-placement.png') });
+    const observationLabel = await observation.getByText(/· (Remembered|Worked out) ·/).boundingBox();
+    const observationChevron = await observation.locator('svg').boundingBox();
+    if (!observationLabel || !observationChevron) throw new Error('Evidence disclosure has no visible label or chevron');
+    expect(observationChevron.x).toBeGreaterThanOrEqual(observationLabel.x + observationLabel.width);
+    await observation.click();
     await expect(evidence.getByText(`Target: ${key.targetId}`, { exact: true })).toBeVisible();
     await expect(evidence.getByText(/^Source: document/)).toContainText(document.source.id);
     await page.screenshot({ path: info.outputPath('evidence-expanded-source-desktop.png') });
