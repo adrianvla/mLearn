@@ -178,13 +178,13 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
         <View style={styles.grow}><Text variant="heading">{tab === 'chats' ? 'Chats' : 'People'}</Text></View>
         {tab === 'chats' ? <ConversationEditor key={`new:${messenger.id}`} actions={actions} conversation={null}
           people={messenger.contacts} languages={messenger.languages} onSaved={openCreated}
-          trigger={<Button label="New Thread" variant="quiet" size="compact" disabled={messenger.busy} />} />
+          trigger={<Button label="New Thread" icon="plus" iconOnly variant="quiet" size="compact" disabled={messenger.busy} />} />
           : <ContactEditor actions={actions} contact={null} onSaved={messenger.contactChanged}
-            trigger={<Button label="New person" variant="quiet" size="compact" disabled={messenger.busy} />} />}
+            trigger={<Button label="New person" icon="plus" iconOnly variant="quiet" size="compact" disabled={messenger.busy} />} />}
       </Row></View>
       <View style={styles.railControls}>
         <TextField testID="conversation-search" label={tab === 'chats' ? 'Search conversations and history' : 'Search People'} variant="search"
-          value={messenger.listQuery} onChangeText={messenger.setListQuery} maxLength={256} />
+          placeholder="Search" value={messenger.listQuery} onChangeText={messenger.setListQuery} maxLength={256} />
         <SegmentedControl value={tab} options={[{ value: 'chats', label: 'Chats' }, { value: 'people', label: 'People' }]}
           onValueChange={value => setTab(value === 'people' ? 'people' : 'chats')} />
         {tab === 'chats' ? <Select label="Conversation filter" value={filter} onValueChange={setFilter}
@@ -200,7 +200,8 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
           {chats.map(value => {
             const preview = messenger.previews.find(item => item.conversationId === value.id);
             return <Button key={value.id} label={value.title}
-              description={value.purpose || (value.kind === 'thread' ? 'Temporary Thread' : undefined)}
+              icon={value.participants.length > 1 ? 'people' : 'person'}
+              description={value.purpose || (value.kind === 'thread' ? 'Temporary Thread' : 'Conversation')}
               detail={preview ? conversationPreviewText(preview) : undefined}
               meta={preview ? new Date(preview.createdAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : undefined}
               variant="navigation" size="row" accessibilityState={{ selected: messenger.id === value.id }} disabled={messenger.busy}
@@ -210,7 +211,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
         </> : <>
           {messenger.contacts.map(contact => <View key={contact.id} style={styles.person}>
             <ContactEditor key={`${contact.id}:${contact.revision}`} actions={actions} contact={contact} onSaved={messenger.contactChanged}
-              trigger={<Button label={contact.name} detail={contact.description} variant="navigation" size="row" disabled={messenger.busy} />} />
+              trigger={<Button label={contact.name} icon="person" detail={contact.description} variant="navigation" size="row" disabled={messenger.busy} />} />
             <Row>
               {!contact.archived ? <Dialog open={directPerson?.id === contact.id}
                 onOpenChange={value => { if (!messenger.busy) { setDirectPerson(value ? contact : null); if (value) setDirectLanguage(messenger.languages[0]?.id ?? ''); } }}

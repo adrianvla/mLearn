@@ -17,6 +17,13 @@ test('Messenger directory search preserves touch targets and compact desktop lay
   try {
     await attachRuntimeBrowserQa(page, backend.url);
     await page.goto('/messenger');
+    await page.getByRole('button', { name: 'People', exact: true }).click();
+    await page.getByRole('button', { name: 'New person', exact: true }).click();
+    const person = page.getByRole('dialog', { name: 'New person', exact: true });
+    await person.getByRole('textbox', { name: 'Name', exact: true }).fill('Reading partner');
+    await person.getByRole('textbox', { name: 'Description', exact: true }).fill('Discuss the current book.');
+    await person.getByRole('button', { name: 'Save person', exact: true }).click();
+    await expect(person).toBeHidden();
     for (const width of [390, 1080]) {
       await page.setViewportSize({ width, height: 844 });
       for (const tab of ['Chats', 'People']) {
@@ -33,6 +40,16 @@ test('Messenger directory search preserves touch targets and compact desktop lay
         expect(bounds.height).toBeGreaterThanOrEqual(width < 720 ? 44 : 32);
         if (width >= 720) expect(bounds.height).toBeLessThan(44);
         await search.fill('');
+        await expect(search).toHaveAttribute('placeholder', 'Search');
+        if (tab === 'People') {
+          const savedPerson = page.getByRole('button', { name: 'Reading partner', exact: true });
+          await expect(savedPerson).toBeVisible();
+          await expect(savedPerson).toContainText('Discuss the current book.');
+          const row = await savedPerson.boundingBox();
+          if (!row) throw new Error('Saved person has no layout bounds');
+          expect(row.height).toBeGreaterThanOrEqual(44);
+          expect(row.x + row.width).toBeLessThanOrEqual(width);
+        }
         await page.screenshot({ path: info.outputPath(`directory-search-${tab}-${width}.png`) });
       }
     }
