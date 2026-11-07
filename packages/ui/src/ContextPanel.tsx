@@ -56,9 +56,10 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
     // Keep at least one readable body/action region when enlarged text leaves
     // too little space beside the cue. Compact inspection retains its context.
     const anchored = desktop && Math.max(above, below) >= headerHeight + 128;
-    const placeAbove = above >= Math.min(350 * theme.textScale, height * 0.72) || above >= below;
+    const preferredHeight = (desktop ? 350 : 480) * theme.textScale;
+    const placeAbove = above >= Math.min(preferredHeight, height * 0.72) || above >= below;
     const maxHeight = anchored
-        ? Math.min(350 * theme.textScale, placeAbove ? above : below)
+        ? Math.min(preferredHeight, placeAbove ? above : below)
         : Math.min(height - 40, height * 0.75);
     return (
         <DialogPortalContext.Provider value={portal}><Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
@@ -85,6 +86,7 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                     borderRadius: theme.radius + 4,
                                     width: panelWidth,
                                     maxHeight,
+                                    minHeight: popover ? Math.min(maxHeight, preferredHeight) : undefined,
                                 },
                                 anchored ? {
                                     position: 'absolute',
@@ -119,7 +121,7 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                     contentContainerStyle={[styles.footerContent, !desktop && styles.footerWrap]} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
-                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(solid), { bottom: footerHeight,
+                                {popover ? <ScrollView onFocus={revealScrollFocus} style={[styles.popover(solid), { top: headerHeight, bottom: footerHeight,
                                     maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
                                     contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
                                     {popover}

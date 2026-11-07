@@ -143,9 +143,11 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     if (!claimed) throw new Error('Next page has no target supporting the claimed capability');
     await page.getByTestId(`knowledge-target-${claimed.summary.targetId}`).getByRole('button').click();
     await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
+    await page.screenshot({ path: info.outputPath('knowledge-capability-picker.png') });
     await inspector.getByRole('button', { name: capability.label, exact: true }).click();
     await inspector.getByRole('button', { name: `Claim ${capability.label} known`, exact: true }).click();
     await expect(inspector.getByText(`${capability.label} · claimed known`, { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath('knowledge-claim-controls.png') });
     await inspector.getByRole('button', { name: 'Inspect evidence', exact: true }).click();
     const evidence = inspector.getByTestId('knowledge-evidence');
     await expect(evidence.getByText(/^Explicit claim: known/)).toBeVisible();
@@ -238,6 +240,14 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     });
     // When switching management routes, retain unsaved presentation state and
     // the actual bounded page, without creating another native data authority.
+    async function switchManagement(destination: 'Knowledge' | 'Material', width: number) {
+      if (width < 720) {
+        await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+        await page.getByRole('menuitem', { name: destination, exact: true }).click();
+      } else await page.getByRole('button', { name: destination, exact: true }).click();
+      await expect(page).toHaveURL(destination === 'Knowledge' ? /\/knowledge(?:\?|$)/ : /\/materials(?:\?|$)/);
+      if (destination === 'Knowledge') await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
+    }
     const reentryReceipts = [];
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 900 });
@@ -245,7 +255,23 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await expect(page).toHaveURL(/\/knowledge(?:\?|$)/);
       await expect(page.getByRole('heading', { name: 'Knowledge', exact: true })).toBeVisible();
       await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue('');
-      await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
+      let releaseLookup = () => {};
+      if (width === 1080) {
+        const lookup = new Promise<void>(resolve => { releaseLookup = resolve; });
+        await page.route(`${backend.url}/invoke`, async route => {
+          const payload = route.request().postDataJSON();
+          const request = typeof payload.args?.request === 'string' ? JSON.parse(payload.args.request) : null;
+          if (request?.type === 'inspect_target') await lookup;
+          await route.continue();
+        });
+      }
+      try {
+        await page.getByTestId(`knowledge-target-${target.summary.targetId}`).getByRole('button').click();
+        if (width === 1080) await expect(inspector.getByRole('button', { name: 'Inspector actions', exact: true })).toBeDisabled();
+      } finally {
+        releaseLookup();
+        if (width === 1080) await page.unrouteAll({ behavior: 'wait' });
+      }
       await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
       const materialReentry = page.waitForResponse(response => {
         if (response.url() !== `${backend.url}/invoke` || response.request().method() !== 'POST') return false;
@@ -268,7 +294,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     await writeFile(info.outputPath('material-closed-reentry.json'), JSON.stringify(reentryReceipts));
     await page.getByRole('button', { name: 'Close editor', exact: true }).click();
     await expect(page).toHaveURL(/\/knowledge(?:\?|$)/);
-    await page.getByRole('button', { name: 'Material', exact: true }).click();
+    await switchManagement('Material', 390);
     const materialDraft = 'NAV-02 unsubmitted Material search';
     const knowledgeDraft = 'NAV-02 unsubmitted Knowledge search';
     const navigationReceipts: {
@@ -279,7 +305,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await page.setViewportSize({ width, height: 900 });
       await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(materialDraft);
       await page.screenshot({ path: info.outputPath(`navigation-material-${width}-before.png`) });
-      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await switchManagement('Knowledge', width);
       if (width < 700) await page.getByRole('button', { name: 'View options', exact: true }).click();
       await page.getByRole('combobox', { name: /^Knowledge order:/ }).click();
       await page.getByRole('option', { name: 'Entry Z–A', exact: true }).click();
@@ -293,11 +319,11 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       expect(identities).toHaveLength(24);
       await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(knowledgeDraft);
       await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-before.png`) });
-      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await switchManagement('Material', width);
       await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
       const materialAfterSwitch = await page.getByRole('textbox', { name: 'Search Material', exact: true }).inputValue();
       await page.screenshot({ path: info.outputPath(`navigation-material-${width}-after-switch.png`) });
-      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await switchManagement('Knowledge', width);
       await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
       const knowledgeAfterSwitch = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
       await page.getByRole('button', { name: 'Home', exact: true }).click();
@@ -310,7 +336,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       const knowledgeAfterHome = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
       await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-home.png`) });
       navigationReceipts.push({ width, materialAfterSwitch, knowledgeAfterSwitch, knowledgeAfterHome });
-      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await switchManagement('Material', width);
     }
     const navigationReceipt = JSON.stringify({ materialDraft, knowledgeDraft, navigationReceipts });
     await writeFile(info.outputPath('navigation-restoration.json'), navigationReceipt);
@@ -321,7 +347,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     const activityReceipts = [];
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+      await switchManagement('Knowledge', width);
       const rows = page.locator('[data-testid^="knowledge-target-"]');
       const identities = await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')));
       expect(identities).toHaveLength(24);
@@ -346,7 +372,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await expect(page.getByRole('button', { name: 'First Knowledge page', exact: true })).toBeEnabled();
       expect(await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')))).toEqual(identities);
       expect((await client.resumeDocument(document.source.id)).source.position).toEqual(saved);
-      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await switchManagement('Material', width);
       await expect(page.getByRole('textbox', { name: 'Search Material', exact: true })).toHaveValue(materialDraft);
     }
     // A deliberate source-bearing entry must use its actual saved Material
@@ -354,7 +380,11 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     const sourceEntryReceipts = [];
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      if (width === 1080) await page.getByRole('button', { name: 'Home', exact: true }).click();
+      else {
+        await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Home', exact: true }).click();
+      }
       await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
       await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
       await expect(inspector).toBeVisible();
@@ -384,7 +414,8 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       const request = JSON.parse(sourceReceipt.request().postDataJSON().args.request);
       expect(request.query.filter.filters).toContainEqual({ kind: 'source', sourceId: document.source.id });
       await page.screenshot({ path: info.outputPath(`navigation-source-material-${width}.png`) });
-      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Home', exact: true }).click();
       await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
       const after = await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).inputValue();
       sourceEntryReceipts.push({ width, sourceId: document.source.id, materialId: saved.items[0].id,
@@ -392,10 +423,11 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       await writeFile(info.outputPath('navigation-source-entry.json'), JSON.stringify(sourceEntryReceipts));
       await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-after-source-entry.png`) });
       await expect(page.getByRole('textbox', { name: 'Search Knowledge', exact: true })).toHaveValue(knowledgeDraft);
-      await page.getByRole('button', { name: 'Material', exact: true }).click();
+      await switchManagement('Material', width);
       await expect(page.getByRole('textbox', { name: 'Search Material', exact: true, includeHidden: true })).toHaveValue(materialDraft);
     }
     await backend.crashRestart();
+    await page.setViewportSize({ width: 1080, height: 900 });
     await page.goto('/knowledge');
     const known = page.getByTestId(`knowledge-target-${target.summary.targetId}`)
       .getByRole('button', { name: `${target.summary.headword}: claimed known`, exact: true });

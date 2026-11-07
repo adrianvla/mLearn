@@ -47,8 +47,8 @@ export const Menu = forwardRef<View, {
     action.onPress();
   }, []);
   return <Primitive.Root onOpenChange={open => { if (open) chosen.current = false; }}>
-    <Primitive.Trigger asChild disabled={disabled}>
-      <Button ref={triggerRef} label={label} icon={icon} iconOnly variant={variant} size="compact" disabled={disabled} />
+    <Primitive.Trigger asChild disabled={disabled || actions.length === 0}>
+      <Button ref={triggerRef} label={label} icon={icon} iconOnly variant={variant} size="compact" disabled={disabled || actions.length === 0} />
     </Primitive.Trigger>
     <Primitive.Portal container={portal ?? undefined}>
       <Primitive.Overlay style={styles.overlay}>

@@ -1,6 +1,44 @@
 # Current implementation checkpoint
 
-## Active continuation - 2026-11-06
+## Active continuation - 2026-11-07
+
+### Exact-source CI recovery
+
+The approved push through `ef2b73b8` completed normally. PR #45 remains draft
+and unmerged. Foundation `42305664227` passed Rust, detector, Windows and macOS
+builds; its web job had 189 passes and six failures. All six failed paths now
+have focused passing local evidence: four destination migrations, Material
+list recovery and the complete native-backed Knowledge workflow (2.7m in
+`ci-knowledge-ready-final`). Original draft, source, paging, identity,
+cancellation, claim/evidence and restart assertions remain intact.
+
+Two shared UI defects were reproduced and repaired. Internal Knowledge
+popovers now stay between the measured header/footer and gain bounded readable
+space, including 44px phone controls. Desktop and phone frames in both themes
+were inspected; the exact native-owned theme was restored. Empty menus remain
+disabled while their actions are unavailable; a held real target read fails
+before this repair and passes afterward. Material's apparent hidden feedback
+was instead its fixture delivering the injected error to Knowledge; injection
+now targets the Material query. A later phone hit-test failure was a test
+querying a retained control before queued menu navigation completed; navigation
+now awaits the actual destination. No forced clicks or product overlay patch.
+
+Linux native GUI assertions now wait for accepted SDK/theme state rather than
+removed success prose. Android reached the correct paused `0:15` state; only
+its obsolete combined metadata assertion was split, retaining exact native
+seconds and post-restart assertions. Both mobile builds passed; iOS stopped at
+the Files picker assertion `m01-watch, mp4`, within the preserved deferred
+FileProvider scope. Full repaired native CI reruns and independent approval
+remain open. Further pushes have been requested and are not yet authorized.
+
+The development catalog expired at 2026-11-07T00:31:58Z during verification.
+The existing `--sign-bundle` path renewed its signature/expiry without builds,
+downloads or changed plugin identities (digest `d92ea9674f72874bb77bcf0d29c7c2f00bbef37999f13c8e0fec911fbf69b613`).
+Expiry validation remains unchanged. Typecheck, ownership lint, export and
+changed UI-owner diagnostics pass; fresh web-test LSP diagnostics timed out.
+Physical footprint is about 1.1 GB, pressure normal and swap unchanged at
+505 MB. Disk is about 1.9 GiB free: retain profiles/artifacts, reuse prepared
+inputs and leave further broad native verification to CI.
 
 ### Workload-specific execution resumed
 
@@ -36,8 +74,12 @@ The SDK/theme native assertion repair has a fresh real SDK installation,
 execution and crash/restart test (2.3s, no providers); its full Linux GUI rerun
 remains open. The macOS executable's first launch used the ordinary v3dev profile
 because an assumed profile environment variable is unsupported; it was stopped
-before UI input. Supported HOME isolation was source-traced, but its bounded
-relaunch was not admitted. No isolated current macOS workflow is certified.
+before UI input. A subsequent supported child-only HOME launch was verified
+with lsof before interaction. Empty Home, native theme selection and dark
+Home/Settings were inspected. The artifact has no compile-time catalog trust,
+so SDK installation truthfully remains unavailable. Its isolated theme restart
+and remaining GUI workflows are still open; this is scoped `ef2b73b8` evidence,
+not certification of newer embedded UI.
 
 Annotation continuation from `687e369d`: current Reader/Watch replays of the
 retained genuine Japanese batches pass eight cases across both themes and

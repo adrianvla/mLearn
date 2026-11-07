@@ -97,7 +97,7 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
             return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
           }
           if (command !== 'runtime_execute') throw new Error(`Unexpected host call: ${command}`);
-          const request: { type: string; id?: string; command?: MaterialEdit } = JSON.parse(args.request ?? '');
+          const request: { type: string; id?: string; command?: MaterialEdit; query?: Pick<CollectionQuery, 'surface'> } = JSON.parse(args.request ?? '');
           state.requests.push(request);
           const failure = (message: string) => JSON.stringify({ type: 'error', code: 'unavailable', message });
           switch (request.type) {
@@ -108,7 +108,9 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
             } });
             case 'collection':
             case 'refresh_material_collection':
-              if (state.failList) { state.failList = false; return failure('List unavailable'); }
+              if (state.failList && request.query?.surface === 'material') {
+                state.failList = false; return failure('List unavailable');
+              }
               return JSON.stringify({ type: 'collection', result: { state: 'ready', page: {
                 items: materials.map(material => ({ kind: 'material', material, target: null, knowledge: [] })),
                 count: materials.length, next: null, previous: null, packageRevision: null, knowledgeRevision: 0, materialRevision: 1,
@@ -248,7 +250,8 @@ test('list recovery preserves an open draft and repeats only the list request', 
   await start(page);
   await page.getByRole('button', { name: 'Edit First', exact: true }).click();
   await page.getByTestId('material-notes').fill('Draft survives list recovery');
-  await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+  await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
   await page.evaluate(() => { window.__materialTest.failList = true; });
   await page.getByRole('button', { name: 'Material', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('List unavailable');
@@ -291,7 +294,8 @@ test('direct-entry switching keeps the current item and saved label across Knowl
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.getByRole('combobox', { name: /^Current Material selection:/ })).toHaveText('Second renamed');
   await page.getByTestId('material-notes').fill('Retained current-item draft');
-  await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+  await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
   await page.getByRole('button', { name: 'Material', exact: true }).click();
   await expect(page.getByTestId('material-phrase')).toHaveValue('Second renamed');
   await expect(page.getByTestId('material-notes')).toHaveValue('Retained current-item draft');

@@ -188,10 +188,19 @@ test(`unavailable Review ${destination} preserves the retained Knowledge search`
     await page.screenshot({ path: info.outputPath(`unavailable-review-before-home-${width}.png`) });
     const targetPath = destination === 'Home' ? '/' : destination === 'Knowledge' ? '/knowledge' : '/materials';
     const returned = page.waitForURL(url => url.pathname === targetPath, { timeout: 5000 });
-    await page.getByRole('button', { name: destination, exact: true }).click();
+    if (destination === 'Home') await page.getByRole('button', { name: 'Home', exact: true }).click();
+    else {
+      await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+      await page.getByRole('menuitem', { name: destination, exact: true }).click();
+    }
     await returned;
     await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
-    if (destination !== 'Knowledge') await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    if (destination !== 'Knowledge') {
+      if (destination === 'Material' && width < 700) {
+        await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
+      } else await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    }
     await page.screenshot({ path: info.outputPath(`unavailable-review-retained-${width}.png`) });
     await expect(search).toHaveValue(draft);
     await page.getByRole('button', { name: 'Home', exact: true }).click();

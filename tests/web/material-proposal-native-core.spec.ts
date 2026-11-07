@@ -564,7 +564,8 @@ test('opening an accepted replacement explicitly reloads the saved revision inst
     await page.goto('/materials');
     await page.getByRole('button', { name: 'Edit bird', exact: true }).click();
     await page.getByRole('textbox', { name: 'Notes', exact: true }).fill('Unsubmitted old draft.');
-    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await page.getByRole('button', { name: 'Material destinations', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
     await page.getByRole('button', { name: 'Material', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toHaveValue('Unsubmitted old draft.');
     await page.getByRole('button', { name: 'Propose changes to saved Material', exact: true }).click();

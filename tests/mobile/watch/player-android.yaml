@@ -59,7 +59,8 @@ appId: net.kikan.mlearn.v3dev
     text: Play
 - takeScreenshot: native-paused-seek
 - tapOn: Home
-- assertVisible: '0:${output.savedSeconds} · English · Subtitles'
+- assertVisible: '0:${output.savedSeconds} · English'
+- assertVisible: Subtitles
 - stopApp
 - launchApp:
     clearState: false
