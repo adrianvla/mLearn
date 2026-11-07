@@ -2,6 +2,33 @@
 
 ## Active continuation - 2026-11-07
 
+### Authorized current-source CI
+
+The maintainer authorized the six-checkpoint normal push through `1e20d8a0`
+and subsequent verified reconstruction checkpoints to the same branch, without
+repeated approval unless operation/risk changes. After confirming
+`agent/m10-m11`, the expected remote `ef2b73b8`, ancestry and exactly six commits,
+the normal push succeeded. PR #45 was read back OPEN/draft at `1e20d8a0`.
+No force, rebase, merge or release.
+
+Exact-source runs started with read-only completion subscriptions:
+foundation `42407319284`, real desktop `42407319183`, native mobile `42407319252`.
+The desktop run built/launched but failed the SDK readiness predicate. Its current
+failure frame shows enabled Run hello with no installation error. Installed
+React Native Web 0.21.4 emits `aria-disabled` only for disabled controls, so waiting
+for the literal string `false` cannot complete. SDK, accepted-theme and all three
+Inspector readiness selectors now require an existing control that is neither
+ARIA-disabled nor natively disabled. Real hello output, adjacent feedback,
+theme styling, source clearance, cancellation and restart assertions remain.
+Syntax/diagnostics pass; complete repaired native execution still requires CI.
+Evidence: `ci-desktop-1e20d8a0-failed.log`, its exact failure PNG and artifact ZIP.
+
+The same independent reviewer approves repaired source `1e20d8a0` with no source
+finding remaining; overall verification stays rejected pending current native
+and integration outcomes. All prior platform/acceptance limits remain explicit.
+At approximately 2 GiB disk, no heavyweight local native build or unrelated
+cleanup is authorized; retain existing artifacts and continue bounded inspection.
+
 ### Independent review and narrow repair
 
 The single current reviewer completed the entire 112-path reconstruction diff

@@ -46,7 +46,7 @@ async function closeInspector() {
         const current=document.querySelector('[data-testid="inspector-panel"]');
         if(current!==panel){if(panel)resize.unobserve(panel);panel=current;if(panel)resize.observe(panel);}
         const button=panel?.querySelector('[aria-label="Close Inspector"]');
-        if(!button||!panel.querySelector('[aria-label="Inspect"][aria-disabled="false"]'))return;
+        if(!button||!panel.querySelector('[aria-label="Inspect"]:not([aria-disabled="true"]):not(:disabled)'))return;
         const r=button.getBoundingClientRect();
         const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
         if(r.width&&r.height&&hit?.closest('[aria-label="Close Inspector"]')===button)
@@ -169,7 +169,8 @@ try {
   await launch();
   await assertStyled('quartz', 'rgb(17, 20, 24)');
   await screenshot('initial-quartz');
-  await observeSourceView(`document.querySelector('[aria-label="Run hello"]')?.getAttribute('aria-disabled') === 'false'`);
+  // React Native Web omits aria-disabled on enabled controls.
+  await observeSourceView(`!!document.querySelector('[aria-label="Run hello"]:not([aria-disabled="true"]):not(:disabled)')`);
   await click('Install SDK example');
   await observedSourceView('Native SDK installation must enable its execution action');
   await click('Run hello');
@@ -178,7 +179,7 @@ try {
   await screenshot('hello-result-beside-action');
   await click('Appearance');
   await click('Select theme: Quartz');
-  await observeSourceView(`document.querySelector('[aria-label="Select theme: Dark Quartz"]')?.getAttribute('aria-disabled') === 'false'`);
+  await observeSourceView(`!!document.querySelector('[aria-label="Select theme: Dark Quartz"]:not([aria-disabled="true"]):not(:disabled)')`);
   await click('Dark Quartz');
   await observedSourceView('Saved theme appearance must be visible after the native acknowledgement');
   await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
@@ -567,7 +568,7 @@ try {
   }
   assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
   assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
-  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]\')');
+  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Inspect"]:not([aria-disabled="true"]):not(:disabled)\')');
   // Modifier/Knowledge rendering can replace the token node between input
   // ticks. A real pointer targets viewport geometry, not a retained DOM handle.
   const child=await script(`
@@ -666,7 +667,7 @@ try {
   await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
-  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Inspect"][aria-disabled="false"]')&&
+  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Inspect"]:not([aria-disabled="true"]):not(:disabled)')&&
     document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect().bottom<=
     document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect().top`);
   await click('home: untracked');
