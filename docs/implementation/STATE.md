@@ -2,6 +2,78 @@
 
 ## Active continuation - 2026-11-07
 
+### Frontend reconstruction review package - paused_incomplete
+
+Product source is `5c38e700a38a1a3e09270b31cc0b40246711655d`, tree
+`f21ba1096f6021070ca7ebb545771b191335ed8b`, on `agent/m10-m11`.
+PR #45 was read back OPEN/draft at that exact head. This update records evidence;
+it changes no application, test, package, generated binding or workflow source.
+The following current results supersede pending status in the historical entries
+below without erasing their failures or original source bindings.
+
+| Check / consumer | Source and result | Scope and limit |
+| --- | --- | --- |
+| Foundation `42417079537` | Exact 5c source; all five jobs passed | 198 integrated web cases in 31.9 minutes, Rust, OCR detector, macOS and Windows builds. No failure was skipped or rebaselined. |
+| Real Linux desktop `42416373012` | 8c source; passed | Real IPC, signed packages, playback/seek, Inspector, claims, exact restart and missing-source recovery. Application source is unchanged in 5c; its delta is mobile YAML and this checkpoint. |
+| Actual arm64 macOS app | Final 5c artifact; observed scenarios passed | Quartz Settings/Home, Dark Quartz selection and persistence after explicit process restart, actual playback/seek/decoded frame, package-backed Watch/Reader Inspectors, source forms and Escape/focus restoration at 1080x800. Minimum-size Mac proof remains missing. |
+| Android `42417079544` | Exact 5c source; job passed | Existing full native UI/persistence flow, including repaired Japanese source restart navigation, synchronization/reset and English continuity assertions. |
+| iOS `42417079544` | Exact 5c source; job failed | Exact retained log line 1557: `m01-watch, mp4 is not visible`. This is the historically deferred Files picker assertion, not a passing iOS workflow. No diagnostic variant was launched. |
+
+The same independent reviewer approved the complete reconstruction source and all
+subsequent repair deltas through 5c. Its final foundation, Linux desktop, Android
+and observed macOS evidence portions are closed. Overall verification remains
+REJECT while Mac minimum-size proof is absent; maintainer acceptance remains
+open. The earlier M03-M07 provisional status, deferred iOS gate and recorded
+visual/source discrepancies remain intact. No merge or release is authorized.
+
+The final repairs address demonstrated causes: ContextPanel no longer scales
+its readable-body reserve twice after measuring enlarged chrome; Messenger
+refreshes actual measured viewability across the web empty-list boundary and
+data updates while idle callbacks are held; shared focus scrolling rounds
+outward rather than leaving a fractional action edge clipped; mobile restart
+navigation locates the existing activity before retaining its original source
+and persistence assertions. Their failing-before/passing-after evidence and
+owner mappings remain in the sections below and the single gate report.
+
+Review artifacts are retained under `.mlearn/experience-20261105/`:
+
+- `gate-review-bac0e61b.md`: the one independent review and source/evidence
+  follow-ups; later source-bound verdicts supersede historical verdicts.
+- `review-continuation-20261106.md`: compact recovery/current-evidence record.
+- `ci-foundation-5c38e700.log:117-118,3800`: final source and integrated web result.
+- `ci-desktop-8c52ca38.log:128-129,5140`: unchanged-application Linux receipt.
+- `ci-mobile-5c38e700-status.json` and `ci-ios-5c38e700.log:1557-1564`:
+  exact mobile conclusions and inspected current iOS failure.
+- `macos-5c38e700/`: nine actual native captures, native observations, exact
+  original-theme records, isolated profile link and source-matching executable.
+  `macos-5c38e700.zip` retains artifact 13593040270. ZIP SHA256 is
+  `57b525d7bc460f0844f297835517959251399e8f41bab083cb7962fdb75d099e`;
+  executable SHA256 is
+  `825085e584e9a5c7ba63a78277052b552edc03e7ce875f9f76754889307a341b`.
+
+All macOS captures are 1080x800 logical / 2160x1600 physical. Background,
+foreground and display-level border dragging did not resize the native window;
+this is an uncompleted verification step, not a diagnosed product defect.
+The manual-resize question timed out. No answer is treated as approval or proof,
+and the question is not repeated. Required next proof remains the actual
+minimum-size Mac layout and its affected Inspector interactions; existing narrow
+browser and Linux minimum evidence do not certify that Mac state.
+
+Both bounded native runs restored the exact original theme through the Rust
+owner and logged `NATIVE_THEME_RESTORED`, `NATIVE_MACOS_CLEAN exit=0`.
+No owned native app/host/profile owner remains, and foreground control is
+released. The follow-up main app RSS was 131616 KiB. Latest OmO footprint is
+1347196376 bytes, RSS 3793027072, available memory 5326372864, pressure1 and
+unchanged swap505282560. Disk558324 KiB is below the enforced576 MiB native
+launch floor. No new local workload, build, model or device is admitted.
+
+Fresh shell network reads failed against the engine's empty TLS trust store.
+The supported fetch route and authenticated in-kernel HTTPS retrieved the exact
+iOS log with certificate verification enabled; no trust policy was changed and
+no credential or signed download URL was logged. Public API identity and the
+draft PR were also read back. This resolved the log-access classification gap,
+not the deferred iOS platform failure or missing Mac minimum proof.
+
 ### Fractional focus scrolling and retained CI evidence
 
 The focus repair is committed/pushed as `8c52ca38`; the same reviewer approves
