@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
-import { builtInThemes } from '../../packages/theme/src/theme';
+import { builtInThemes, initialTheme } from '../../packages/theme/src/theme';
 
 test('Inspector Practice retries its exact canonical admission with honest assistance and source return', async ({ page }, info) => {
   test.setTimeout(180_000);
@@ -117,7 +117,10 @@ test('enlarged source Inspector keeps focused Practice readable in short viewpor
     await writeFile(path, 'These flowers are zygomorphous.');
     const document = await client.openDocument(path, 'org.mlearn.english');
     await attachRuntimeBrowserQa(page, backend.url);
-    for (const theme of builtInThemes) {
+    // Fractional theme spacing must not leave a focused action clipped by a pixel.
+    for (const theme of [...builtInThemes, {
+      ...initialTheme, id: 'qa.fractional-spacing', name: 'Fractional spacing', spacingScale: 1.01,
+    }]) {
       await client.saveTheme({ ...theme, textScale: 2 }, (await client.snapshot()).revision);
       for (const width of [390, 1080]) {
         await page.setViewportSize({ width, height: 560 });
@@ -139,6 +142,7 @@ test('enlarged source Inspector keeps focused Practice readable in short viewpor
           await action.focus();
           await expect(action).toBeInViewport({ ratio: 1 });
         }
+        await page.screenshot({ path: info.outputPath(`readable-footer-${theme.id}-${width}.png`) });
         await page.keyboard.press('Escape');
         await expect(inspector).toHaveCount(0);
         await expect(word).toBeFocused();

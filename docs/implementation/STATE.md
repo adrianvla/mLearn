@@ -2,6 +2,46 @@
 
 ## Active continuation - 2026-11-07
 
+### Fractional focus scrolling and retained CI evidence
+
+Current-source desktop `42414269474` passes at `c6d70ebe`/tree `163eb291`.
+Its full real IPC/package/playback/Inspector/claim/restart/recovery receipt is
+retained in `ci-desktop-c6d70ebe.log:128-129,5140`. Native cue geometry is
+cueTop 456, panel bottom 444; both actual enlarged/second-line frames were
+directly inspected. The same independent reviewer approves all source deltas
+through c6; complete foundation/mobile and maintainer acceptance remain open.
+
+Older e52 foundation `42410017872` has 194 passes and three failures. Its footer
+failure reproduces with a valid saved spacingScale 1.01: Explain ends at
+839.359375 while the viewport ends at 839 after scrollLeft quantizes to 8.
+The existing strengthened owner test fails before repair (ratio 0.99790716).
+Shared scrollFocus now rounds outward in both axes, preserving source ancestors.
+No containment assertion was loosened. Native Practice/retry/source return
+passes; six affected enlarged/footer/dialog cases pass in 6.8s. Both built-in
+themes and the fractional custom theme were inspected at desktop/phone widths.
+Typecheck, ownership lint, export and fresh helper diagnostics pass. Test-file
+LSP freshness timed out; it is not labeled clean. The first test command included
+a nonexistent extra filename and ran only the two actual Practice cases; the
+subsequent six-case command names the real footer/dialog suites.
+
+The guarded manual host stopped on a process-group interrupt without its normal
+cleanup receipt. Inspection found no surviving owned process/listener. A bounded
+native-only recovery restored the exact captured original theme and logged
+EXACT_THEME_RESTORED and RESTORE_OWNER_CLOSED, exit 0. No browser was relaunched
+for recovery. Post-check footprint 1419465792/RSS 1862516736, normal pressure,
+unchanged swap 505282560; disk about 900 MiB. No heavyweight native build.
+
+The other older failures are preparation-budget failures, not proven learner UI
+defects: calibration's native preparation succeeds about 92ms before its 300s
+test deadline, before browser attachment. Knowledge's prepare_collection request
+waits 254966ms and ends with SIGKILL during the 15s shutdown guard. The discarded
+primary preparation error is not explained by the cleanup exception. Three
+selectively extracted traces pass ZIP integrity checks (`ci-e52-failures`);
+no full 691MB archive was stored. Source tracing identifies serial 24-entry
+English enumeration/fresh guest execution and atomic per-page storage, but no
+deadlock or dominant cost is proven. No timeout/retry/execution-policy change
+was made; complete current-source foundation proof remains required.
+
 ### Current-source integration repairs
 
 The normal follow-up push reached `e52d71b4`; PR #45 remains OPEN/draft.
