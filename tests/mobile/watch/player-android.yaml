@@ -59,6 +59,11 @@ appId: net.kikan.mlearn.v3dev
     text: Play
 - takeScreenshot: native-paused-seek
 - tapOn: Home
+- scrollUntilVisible:
+    element: Continue m01-watch.mp4
+    direction: UP
+    timeout: 60000
+    centerElement: true
 - assertVisible: '0:${output.savedSeconds} · English'
 - assertVisible: Subtitles
 - stopApp
