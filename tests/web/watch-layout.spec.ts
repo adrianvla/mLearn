@@ -4,6 +4,54 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from './messenger-native-fixture';
+import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
+import { builtInThemes } from '../../packages/theme/src/theme';
+
+test('enlarged Inspector clears the whole authored cue after caption reflow', async ({ page, nativeCore }, info) => {
+  test.setTimeout(90_000);
+  const directory = await mkdtemp(path.join(tmpdir(), 'mlearn-cue-clearance-'));
+  const client = createRuntimeBrowserClient(nativeCore);
+  try {
+    // Native analysis and layout are real; this transport does not certify decoding.
+    const video = path.join(directory, 'cue.mp4');
+    const subtitles = path.join(directory, 'cue.srt');
+    await writeFile(video, 'authored media identity for the layout fixture');
+    await writeFile(subtitles, '1\n00:00:00,000 --> 00:00:10,000\nChildren came\nhome.\n');
+    await client.availablePackages();
+    await client.installPackage(client.prepareInstall('org.mlearn.english'));
+    const opened = JSON.parse(await nativeCore.invoke('runtime_execute', {
+      request: JSON.stringify({ type: 'open_source', path: video, packageId: 'org.mlearn.english' }),
+    }));
+    expect(opened).toMatchObject({ type: 'source' });
+    const sourceId = opened.window.source.id;
+    expect(JSON.parse(await nativeCore.invoke('runtime_execute', {
+      request: JSON.stringify({ type: 'attach_subtitles', sourceId, path: subtitles }),
+    }))).toMatchObject({ type: 'source' });
+    for (const theme of builtInThemes) {
+      await client.saveTheme({ ...theme, textScale: 2 }, (await client.snapshot()).revision);
+      await page.setViewportSize({ width: 1080, height: 800 });
+      await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
+      const cue = page.getByTestId('subtitle-window').getByTestId('annotated-text');
+      await cue.getByRole('button', { name: 'home: untracked', exact: true }).click();
+      const inspector = page.getByTestId('inspector-panel');
+      await expect(inspector.getByRole('button', { name: 'Inspect', exact: true })).toBeEnabled();
+      for (const height of [800, 720]) {
+        await page.setViewportSize({ width: 1080, height });
+        await expect(cue).toBeInViewport({ ratio: 1 });
+        await expect(cue.getByRole('button', { name: 'home: untracked', exact: true, includeHidden: true })).toBeInViewport({ ratio: 1 });
+        await expect.poll(async () => {
+          const panelBounds = await inspector.boundingBox();
+          const cueBounds = await cue.boundingBox();
+          return !!panelBounds && !!cueBounds && panelBounds.y + panelBounds.height <= cueBounds.y;
+        }).toBe(true);
+        await page.screenshot({ path: info.outputPath(`cue-clearance-${theme.id}-${height}.png`) });
+      }
+      await page.getByRole('button', { name: 'Close Inspector', exact: true }).click();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 for (const width of [1200, 500, 320] as const) {
 test(`focused live word card fits the ${width}px overlay when its close control appears`, async ({ page, nativeCore }, info) => {

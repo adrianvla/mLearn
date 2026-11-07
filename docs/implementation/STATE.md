@@ -2,6 +2,47 @@
 
 ## Active continuation - 2026-11-07
 
+### Current-source integration repairs
+
+The normal follow-up push reached `e52d71b4`; PR #45 remains OPEN/draft.
+Foundation `42410017872` and mobile `42410017933` have read-only completion
+subscriptions. Desktop `42410017864` passed the repaired SDK/theme readiness
+predicates and failed the unchanged entire-cue clearance assertion at line 674.
+Its enlarged two-line cue was overlapped by the unanchored Inspector.
+
+Measured header/footer already include enlarged chrome. ContextPanel now reserves
+the existing 128px readable body without scaling that reserve a second time,
+allowing the usable above-cue slot. The new actual-native-analysis Watch regression
+fails before this repair and passes afterward in both themes at 1080x800 and
+1080x720, with the entire authored cue physically visible after reflow. All four
+final frames were directly inspected in `cue-visible-final`. Background role
+queries explicitly include aria-hidden content because the Inspector is modal;
+the full-viewport and non-overlap assertions still apply. This browser transport
+does not decode video; the original consuming-native assertion remains required.
+
+Typecheck, ownership lint and web export pass. Six affected cases pass (9.7s)
+in `cue-and-inspector-final`, preserving enlarged Practice hit-testing, focus,
+source return and normal footer/menu behavior. The strengthened physical-cue
+visibility case also passes (2.1s). Existing enlarged desktop/phone captures were
+inspected before further presentation changes. No provider was requested.
+
+At `1e20d8a0`, foundation `42407319284` failed Messenger's disabled Show analysis
+action. Its trace admits native analysis only after the five-second assertion
+fails; teardown then explains the connection refusal. A held-idle local run
+reproduces the failure. The first attempted public list refresh did not fix it
+and was removed. A runtime probe instead found measured visible rows with the
+virtualized render window still `{first: 0, last: -1}`; a narrow empty-list
+lifecycle repair is under verification. No retry, timeout increase or analysis
+of offscreen messages is authorized by this finding.
+
+Mobile `42407319252` failed Android Home metadata visibility while the source
+row was scrolled above the viewport; its exact failure image was inspected.
+The flow now scrolls up to the existing continuation before asserting the same
+15-second position, language and subtitle state. YAML parsing passes; actual
+Android execution remains open. iOS still fails the explicitly deferred picker
+assertion `m01-watch, mp4`; no additional diagnostic variant was launched.
+The YAML language server is unavailable; no dependency was installed for it.
+
 ### Enlarged Inspector readability repair
 
 Independent review during CI reproduced a real 2x-text source Inspector defect
@@ -10,7 +51,7 @@ owner regression fails before repair (viewport ratio 0.6667). The first rendered
 repair fixed phone but exposed the same desktop admission error (ratio 0.9245).
 Both failure frames were inspected before the next presentation change.
 
-Shared ContextPanel now uses measured header/footer plus its scaled readable-body
+Shared ContextPanel now uses measured header/footer plus its readable-body
 budget for anchor admission and bounded fallback height. Ordinary compact
 presentation, typography, source identity, scroll owners and footer actions stay
 shared. Typecheck, ownership lint and export pass. Five affected native/renderer
