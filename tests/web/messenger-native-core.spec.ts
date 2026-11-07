@@ -60,7 +60,6 @@ test('Messenger directory search preserves touch targets and compact desktop lay
 
 test('normal Messenger UI consumes actual native content and prepared language on desktop and phone', async ({ page }, info) => {
   test.setTimeout(120_000);
-  const holdIdle = process.env.MLEARN_TEST_HOLD_MESSENGER_IDLE === '1';
   const backend = await startRuntimeBrowserQa({
     profile: `.mlearn/m03-m07/m07-messenger/browser-${randomUUID()}`,
   });
@@ -68,7 +67,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await attachRuntimeBrowserQa(page, backend.url);
     // Exercise the real macOS overlay-chrome reservation on every CI host.
     await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
-    if (holdIdle) await page.addInitScript(() => {
+    await page.addInitScript(() => {
       const request = window.requestIdleCallback.bind(window);
       const cancel = window.cancelIdleCallback.bind(window);
       const pending = new Map<number, { readonly callback: IdleRequestCallback; readonly deadline: IdleDeadline }>();
@@ -187,17 +186,16 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await composer.fill('Say a short sentence.');
     expect(await shrinking.evaluate(value => value.changed)).not.toBeNull();
     await shrinking.dispose();
-    if (holdIdle) await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:hold-idle')));
+    // Visible completed messages must become inspectable while idle work is busy.
+    await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:hold-idle')));
     await page.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(page.getByTestId('conversation-history').getByText('Children walked home.', { exact: true })).toBeVisible();
     const showAnalysis = page.getByRole('button', { name: 'Show analysis', exact: true }).last();
     try {
       await expect(showAnalysis).toBeEnabled();
     } finally {
-      if (holdIdle) {
-        await page.screenshot({ path: info.outputPath('messenger-analysis-with-idle-held.png') });
-        await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:release-idle')));
-      }
+      await page.screenshot({ path: info.outputPath('messenger-analysis-with-idle-held.png') });
+      await page.evaluate(() => window.dispatchEvent(new Event('mlearn-test:release-idle')));
     }
     expect(backend.metadata().counts['conversation:analyze_visible_messages']).toBeGreaterThan(0);
     await showAnalysis.click();

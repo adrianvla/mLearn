@@ -29,11 +29,29 @@ inspected before further presentation changes. No provider was requested.
 At `1e20d8a0`, foundation `42407319284` failed Messenger's disabled Show analysis
 action. Its trace admits native analysis only after the five-second assertion
 fails; teardown then explains the connection refusal. A held-idle local run
-reproduces the failure. The first attempted public list refresh did not fix it
-and was removed. A runtime probe instead found measured visible rows with the
-virtualized render window still `{first: 0, last: -1}`; a narrow empty-list
-lifecycle repair is under verification. No retry, timeout increase or analysis
-of offscreen messages is authorized by this finding.
+reproduces the failure. Runtime probes found two distinct framework transitions:
+the initially empty render window stayed `{first: 0, last: -1}` despite measured
+visible rows; remounting the web list at its empty boundary repaired that range
+but data updates still cleared viewability indices until idle work ran. A public
+`recordInteraction()` alone could not repair the empty range. Together, the web
+empty-boundary lifetime and an explicit measured-viewability refresh on data
+updates pass the unchanged five-second assertion while idle callbacks remain
+held. Domain batching, visible-only IDs, complete-message filtering, revisions
+and cancellation stay with their existing owners. No dependency patch or scan
+of all message content was added.
+
+The existing native-core Messenger case now always exercises idle starvation
+through this admission, then releases it for its remaining Inspector, source,
+draft, theme and restart checks. Both Messenger cases pass (8.1s), including
+desktop/phone layouts; prior held-idle verification also passes (6.7s).
+The enabled action, phone conversation, desktop dark restart and phone dark
+Inspector frames were directly inspected. Typecheck, ownership lint and web
+export pass. Temporary runtime probes and the failed standalone attempts were
+removed. Fresh LSP requests sometimes time out at three seconds; these timeouts
+are not clean diagnostics. Current full CI and the narrow gate review remain open.
+Post-run physical footprint is 1672827920 bytes (RSS 2790326272); pressure level 1,
+swap unchanged at 505282560 bytes, disk approximately 1.1 GiB. Port 4173 has no
+listener. Further consuming-native verification uses remote artifacts/CI.
 
 Mobile `42407319252` failed Android Home metadata visibility while the source
 row was scrolled above the viewport; its exact failure image was inspected.

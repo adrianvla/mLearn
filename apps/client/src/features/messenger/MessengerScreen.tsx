@@ -102,7 +102,12 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
       list.current?.scrollToOffset({ offset: Math.max(0, position.current.y + y - previous.y), animated: false });
     });
   }
-  useLayoutEffect(() => { restorePrepend(); }, [messenger.messages]);
+  useLayoutEffect(() => {
+    restorePrepend();
+    // Data updates also clear FlatList's viewability cache. Refresh its measured
+    // viewport before admitting analysis of the completed message revisions.
+    list.current?.recordInteraction();
+  }, [messenger.messages]);
   useEffect(() => {
     setParticipantId(chat?.participants[0] ?? ''); setInspection(null); setTraceId(null); setTraceOpenRevision(0);
     setDirectPerson(null); setToolsOpen(false);
@@ -259,7 +264,10 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
       <ActionFeedback actions={actions} origin="header" />
       {messenger.pending ? <Text accessibilityLiveRegion="polite">Loading conversation…</Text> : null}
       {chat ? <>
-        <FlatList ref={list} testID="conversation-history" style={styles.scroll} contentContainerStyle={styles.history}
+        {/* RN Web retains an empty render window until idle work runs. Remount at
+            the empty boundary until its list initializes newly arrived rows eagerly. */}
+        <FlatList key={Platform.OS === 'web' && messenger.messages.length === 0 ? 'empty' : 'history'}
+          ref={list} testID="conversation-history" style={styles.scroll} contentContainerStyle={styles.history}
           data={messenger.messages} keyExtractor={message => message.id}
           keyboardShouldPersistTaps="handled" onViewableItemsChanged={visibleChanged}
           viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
