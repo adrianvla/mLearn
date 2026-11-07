@@ -317,6 +317,23 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       const rows = page.locator('[data-testid^="knowledge-target-"]');
       const identities = await rows.evaluateAll(elements => elements.map(element => element.getAttribute('data-testid')));
       expect(identities).toHaveLength(24);
+      if (width === 390) {
+        const fragmented = await rows.evaluateAll(entries => entries.flatMap(entry => {
+          const walker = window.document.createTreeWalker(entry, NodeFilter.SHOW_TEXT);
+          const tops = new Set<number>();
+          let text;
+          while ((text = walker.nextNode())) {
+            if (!text.textContent?.trim()) continue;
+            const range = window.document.createRange();
+            range.selectNodeContents(text);
+            for (const rect of range.getClientRects()) {
+              if (rect.width > 1 && rect.height > 1) tops.add(Math.round(rect.top));
+            }
+          }
+          return tops.size < 1 || tops.size > 2 ? [{ word: entry.textContent, lines: tops.size }] : [];
+        }));
+        expect(fragmented).toEqual([]);
+      }
       await page.getByRole('textbox', { name: 'Search Knowledge', exact: true }).fill(knowledgeDraft);
       await page.screenshot({ path: info.outputPath(`navigation-knowledge-${width}-before.png`) });
       await switchManagement('Material', width);

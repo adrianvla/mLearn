@@ -2,6 +2,43 @@
 
 ## Active continuation - 2026-11-07
 
+### Orchestration interruption recovery
+
+Recovered `agent/m10-m11` at `0d4bbfa3`, four commits ahead of its local
+upstream reference. Three tracked modifications survived: natural-width lexical
+tiles/singular counts, grouped Inspector header actions/measured popover space,
+and the native Knowledge word-fragment regression. All unrelated untracked
+artifacts remain untouched. The persisted twelve-task snapshot has eight complete;
+candidate review, source checkpoints, cleanup and handoff were unfinished.
+The interrupted Japanese host subsequently recorded exact theme restoration,
+`EXPERIENCE_STOPPED` and exit 0; no owned QA browser/backend/server survives.
+
+Retained Japanese inspection completed both themes at 1080/390 for the real
+13108-character collection: compact targets remain 96x74. Its installed identity
+is `org.mlearn.japanese`
+`0.1.14-sudachi20260116-jmdict20261017-graph1-characters1-practice2-calibration1-ocr2`.
+Actual Reader morphology and light Inspector captures exist for owned
+`inspector-japanese.txt`, including `横切っ -> 横切る` and `つまり -> 詰まり`.
+These are actual native package results, not injected reference labels.
+The remaining Japanese Inspector comparisons now cover both themes at 1080/390;
+all four `japanese-tsumari-reference-*` frames were directly inspected. Source
+form, pronunciation/level hierarchy and footer remain contained, with no phone
+horizontal overflow. Actual canonical spelling, pitch variants and senses differ
+from the edited image's dictionary state and were preserved. The resumed host
+also restored its exact native theme and exited 0.
+
+Current `npm run typecheck`, `npm run lint`, changed UI-owner diagnostics and
+`git diff --check` pass. Three affected rendered Inspector footer/menu tests pass
+(3.6s), including primary-action containment, secondary actions, keyboard focus
+and contrast. Phone/footer and capture-menu artifacts were directly inspected in
+`recovery-inspector-checks`. Earlier long-word/header captures and the exact
+24-entry fragment probe remain valid; the complete native Knowledge scenario
+was not reinstalled/reprepared locally after its new assertion. Verified commits,
+repaired native CI reruns and independent review stay open.
+No device/server was automatically restarted. Recovery admission: approximately
+2 GiB disk, 1161 MB OmO physical footprint, normal pressure, 482 MB swap.
+This is orchestration recovery, not a newly observed product failure.
+
 ### Exact-source CI recovery
 
 The approved push through `ef2b73b8` completed normally. PR #45 remains draft

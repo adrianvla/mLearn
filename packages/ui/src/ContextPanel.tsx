@@ -56,7 +56,7 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
     // Keep at least one readable body/action region when enlarged text leaves
     // too little space beside the cue. Compact inspection retains its context.
     const anchored = desktop && Math.max(above, below) >= headerHeight + 128;
-    const preferredHeight = (desktop ? 350 : 480) * theme.textScale;
+    const preferredHeight = 350 * theme.textScale;
     const placeAbove = above >= Math.min(preferredHeight, height * 0.72) || above >= below;
     const maxHeight = anchored
         ? Math.min(preferredHeight, placeAbove ? above : below)
@@ -86,7 +86,8 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                     borderRadius: theme.radius + 4,
                                     width: panelWidth,
                                     maxHeight,
-                                    minHeight: popover ? Math.min(maxHeight, preferredHeight) : undefined,
+                                    minHeight: popover ? Math.min(maxHeight,
+                                        headerHeight + footerHeight + (desktop ? 240 : 340) * theme.textScale) : undefined,
                                 },
                                 anchored ? {
                                     position: 'absolute',
@@ -104,10 +105,12 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
                                                 <Text selectable numberOfLines={2} variant="inspectionTitle" tone="media">{title}</Text>
                                             </Primitive.Title>
                                         </View>
-                                        <Primitive.Description asChild>
-                                            {headerAction ?? <Text tone="media" muted variant="caption">Inspect</Text>}
-                                        </Primitive.Description>
-                                        <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
+                                        <View style={styles.headerActions}>
+                                            <Primitive.Description asChild>
+                                                {headerAction ?? <Text tone="media" muted variant="caption">Inspect</Text>}
+                                            </Primitive.Description>
+                                            <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
+                                        </View>
                                 </View>
                                 <ScrollView testID="inspector-body" onFocus={revealScrollFocus} style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                                     {(!anchored || alwaysShowContext) && sourceContext && sourceContext !== title ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
@@ -149,10 +152,12 @@ const styles = StyleSheet.create(theme => ({
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
         _web: { backdropFilter: theme.media.backdrop }
     }, header: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, flexShrink: 0,
+        flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: theme.spacing.small, flexShrink: 0,
         paddingHorizontal: theme.spacing.medium, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.small
     }, heading: {
-        flex: 1, minWidth: 0
+        flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: '100%'
+    }, headerActions: {
+        flexDirection: 'row', alignItems: 'center', flexShrink: 0, gap: theme.spacing.small, marginLeft: 'auto'
     }, scroll: {
         flexShrink: 1, minHeight: 0
     }, body: {

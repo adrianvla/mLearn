@@ -222,7 +222,7 @@ export function KnowledgeScreen() {
       </View>
       <View style={styles.results} accessibilityLiveRegion="polite">
         <View style={styles.notice}><View style={styles.summary}>
-          {page ? <Text variant="caption">{page.count} entries</Text> : null}
+          {page ? <Text variant="caption">{page.count} {page.count === 1 ? 'entry' : 'entries'}</Text> : null}
           <View style={styles.selection(selection.enabled)}><CollectionSelectionControls state={selection} count={page?.count ?? 0}
           ready={!!page && !pending} surface="knowledge" packages={packages} client={host.client}
           onChanged={() => { setAfter(null); setReload(value => value + 1); }} /></View>
@@ -346,7 +346,7 @@ const styles = StyleSheet.create(theme => ({
   // Shared inline controls retain activation, Knowledge color and focus semantics.
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.tiny,
     paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small },
-  gridEntry: { width: 96, maxWidth: '100%', minWidth: 0,
+  gridEntry: { minWidth: 96, maxWidth: '100%',
     gap: theme.spacing.tiny, borderWidth: 1, borderColor: theme.colors.border,
     borderRadius: theme.radius, backgroundColor: theme.colors.background },
   gridWord: { minWidth: 0, alignSelf: 'stretch' },
