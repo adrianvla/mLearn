@@ -2,6 +2,29 @@
 
 ## Active continuation - 2026-11-07
 
+### Independent review and narrow repair
+
+The single current reviewer completed the entire 112-path reconstruction diff
+at `bac0e61b` and all 21 approved images. It found no confirmed production-code
+defect, but rejected source/verification gates for one obsolete desktop wait
+and the preserved integration/native/delivery gaps. Report:
+`.mlearn/experience-20261105/gate-review-bac0e61b.md`.
+
+Removed the nonexistent `Watching` text wait after browser Back. The immediately
+following `resumeWatch()` already waits for the exact visible, enabled, hittable
+`Continue watch-fixture.mp4` action through the existing WebDriver owner.
+Cancellation, persisted offset, exact resumed position and subsequent checkpoint
+assertions remain intact. Syntax, fresh diagnostics and diff checks pass; the
+actual repaired Linux smoke still requires CI. No prose-pinning test was added.
+
+The retained ef2b73b8 macOS artifact's isolated theme restart now passes: actual
+Home is dark and Appearance's native AX combobox reads Dark Quartz. Before input,
+lsof verified its owned learner profile; captures are `macos-ef2b73b8/restart-dark-*`.
+App/guard cleanup logged `NATIVE_MACOS_CLEAN`, exit 0. This closes only that
+artifact's persistence row, not current embedded UI/native CI. Source checkpoint
+`bac0e61b` preserves the preceding recovered implementation; the assertion repair
+is the next coherent checkpoint. Normal follow-up push permission remains pending.
+
 ### Orchestration interruption recovery
 
 Recovered `agent/m10-m11` at `0d4bbfa3`, four commits ahead of its local
