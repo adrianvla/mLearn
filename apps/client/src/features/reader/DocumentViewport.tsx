@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentAnalysisBatch, DocumentPosition, DocumentWindow, SourceAnchor } from '@mlearn/contracts';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
+import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
@@ -21,7 +22,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
     readonly inspecting: boolean;
     readonly onPosition: (position: DocumentPosition, checkpoint: boolean) => void;
     readonly onInspect: (resource: string, blockId: string, start: number, anchor: TextAnchor) => void;
-    readonly onThumbnail: (resourceId: string, uri: string) => void;
+    readonly onThumbnail: (resourceId: string, thumbnail: SourceThumbnail) => void;
     readonly onNavigate: (direction: 'previous' | 'next') => void;
 }) {
     const host = useRuntime();
@@ -104,8 +105,8 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
                 if (key === active.current) updateImages(previous => previous.map(item => item.resourceId === resourceId
                     ? { ...item, uri: null, error: 'The source image could not be displayed.' } : item));
             }}
-            onThumbnail={async (key, resourceId, uri) => {
-                if (key === active.current) handlers.current.onThumbnail(resourceId, uri);
+            onThumbnail={async (key, resourceId, thumbnail) => {
+                if (key === active.current) handlers.current.onThumbnail(resourceId, thumbnail);
             }}
             onNavigate={async (key, direction) => { if (key === active.current) handlers.current.onNavigate(direction); }} />,
         [identity, window, batch, imageState, inspecting, inlineLevelScale, starCollapse, theme.shell.canvas, theme.colors.text, theme.feedback.success,

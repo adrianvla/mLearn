@@ -6,6 +6,17 @@ pub(crate) fn validate(
     response: &ReviewResponse,
     encounter: &ReviewEncounter,
 ) -> Result<(), StorageError> {
+    let requires_capture = encounter
+        .task
+        .as_ref()
+        .is_some_and(|task| !matches!(task.response_spec, ResponseSpec::SelfReport));
+    if requires_capture != response.capture_id.is_some()
+        || response.capture_id.as_ref() != encounter.capture.as_ref().map(|capture| &capture.id)
+    {
+        return Err(StorageError::Invalid(
+            "Submit the immutable captured response for this task".into(),
+        ));
+    }
     if response.encounter_id != encounter.id
         || !encounter.conditions.revealed
         || response.grades.len() != encounter.targets.len()
@@ -69,11 +80,47 @@ pub(crate) fn observe(
             .iter()
             .find(|g| g.target_id == target.id)
             .ok_or_else(|| StorageError::Invalid("Missing Review target grade".into()))?;
-        if let (Some(key), Some(quality)) = (&target.key, grade.quality) {
-            let assessed = if independent && grade.method == ResponseMethod::Remembered {
-                Some(quality == AttemptQuality::Fluent)
-            } else {
-                None
+        if let Some(key) = &target.key {
+            let assessed = match &encounter.capture {
+                Some(capture) => {
+                    let output = capture.feedback.as_ref().ok_or_else(|| {
+                        StorageError::Invalid("Reveal captured validation before submitting".into())
+                    })?;
+                    let outcome = output
+                        .outcomes
+                        .iter()
+                        .find(|row| row.target_id == target.id)
+                        .ok_or_else(|| {
+                            StorageError::Invalid("Missing captured validation row".into())
+                        })?;
+                    if !capture.conditions.revealed
+                        && capture.conditions.assistance.is_empty()
+                        && capture.conditions.exposure_count == 1
+                        && matches!(
+                            capture.conditions.delivery,
+                            ReviewDelivery::NotRequired | ReviewDelivery::Completed
+                        )
+                        && grade.method == ResponseMethod::Remembered
+                    {
+                        match outcome.result {
+                            ValidationResult::Accepted => Some(true),
+                            ValidationResult::Rejected => Some(false),
+                            ValidationResult::Unassessed => None,
+                        }
+                    } else {
+                        None
+                    }
+                }
+                None => {
+                    let Some(quality) = grade.quality else {
+                        continue;
+                    };
+                    if independent && grade.method == ResponseMethod::Remembered {
+                        Some(quality == AttemptQuality::Fluent)
+                    } else {
+                        None
+                    }
+                }
             };
             db.execute(
                 "INSERT INTO review_observations VALUES(?1,?2,?3,?4,?5,?6,?7)",
@@ -101,15 +148,19 @@ pub(crate) fn write_schedule(
     admission: &ReviewAdmission,
     value: Option<&ReviewSchedule>,
 ) -> Result<(), StorageError> {
+    let (material_id, _) = admission
+        .subject
+        .material()
+        .ok_or_else(|| StorageError::Invalid("Canonical tasks have no Material schedule".into()))?;
     match value {
         Some(schedule) => {
             db.execute("INSERT INTO review_schedules VALUES(?1,?2,?3) ON CONFLICT(material_id,probe_id) DO UPDATE SET document=excluded.document",
-                params![admission.material_id.0, admission.probe.id, serde_json::to_string(schedule)?])?;
+                params![material_id.0, admission.probe.id, serde_json::to_string(schedule)?])?;
         }
         None => {
             db.execute(
                 "DELETE FROM review_schedules WHERE material_id=?1 AND probe_id=?2",
-                params![admission.material_id.0, admission.probe.id],
+                params![material_id.0, admission.probe.id],
             )?;
         }
     }

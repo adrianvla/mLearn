@@ -17,14 +17,15 @@ export class WebDriverTransportError extends Error {
 
 export async function rpc(method, endpoint, body) {
   let response;
+  let result;
   try {
     response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+    result = await response.json();
   } catch (error) {
     // A fetch timeout's own stack loses the awaiting scenario. Retain that
     // caller and endpoint without recording scripts, payloads or profile data.
     throw new WebDriverTransportError(method, endpoint, error);
   }
-  const result = await response.json();
   if (!response.ok || typeof result.value?.error === 'string') throw new WebDriverError(result);
   return result.value;
 }

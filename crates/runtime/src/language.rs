@@ -4,45 +4,91 @@ use mlearn_core::{
 };
 use serde_json::Value;
 
+pub(super) fn description(
+    package: &crate::Installed,
+    cancellation: &crate::execution::Cancellation,
+) -> Result<LanguageDescription, Failure> {
+    let id = &package.manifest.id;
+    let mut description: LanguageDescription = serde_json::from_value(cancellation.invoke(
+        package,
+        "language.describe.v1",
+        Value::Null,
+    )?)
+    .map_err(|e| Failure::Operation(e.to_string()))?;
+    // Optional metadata cannot expand an authenticated manifest's authority.
+    // Retained ABI1 manifests can predate this extension of the same ABI.
+    if !package
+        .manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == "collection.targets.v1")
+    {
+        description.catalog = None;
+    }
+    if !description
+        .capabilities
+        .iter()
+        .any(|c| c.id == description.annotation_capability)
+        || description.capabilities.is_empty()
+        || description.capabilities.len() > 8
+        || description.capabilities.iter().any(|c| {
+            !c.id.starts_with(&format!("{id}:")) || c.id.len() > 256 || c.label.len() > 128
+        })
+    {
+        return Err(Failure::Operation(
+            "Invalid package capability schema".into(),
+        ));
+    }
+    let mut scales = std::collections::BTreeSet::new();
+    let declared_scales = description.level_scales.as_deref().unwrap_or_default();
+    if declared_scales.len() > 16
+        || declared_scales.iter().any(|scale| {
+            !scale.id.starts_with(&format!("{id}:"))
+                || scale.id.len() > 512
+                || !scales.insert(&scale.id)
+                || scale.label.is_empty()
+                || scale.label.len() > 128
+                || scale.attribution.is_empty()
+                || scale.attribution.len() > 2048
+        })
+    {
+        return Err(Failure::Operation("Invalid package level scales".into()));
+    }
+    if let Some(catalog) = &description.catalog {
+        catalog.validate(id).map_err(Failure::Operation)?;
+        if catalog
+            .capabilities
+            .iter()
+            .any(|capability| !description.capabilities.contains(capability))
+            || catalog.levels.iter().any(|level| {
+                !declared_scales
+                    .iter()
+                    .any(|scale| scale.id == level.scale_id)
+            })
+        {
+            return Err(Failure::Operation(
+                "Catalog declares an unavailable capability or level scale".into(),
+            ));
+        }
+    }
+    if !package
+        .manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == "learning.probes.v2")
+        && let Some(catalog) = &mut description.catalog
+    {
+        catalog.calibration_capabilities = None;
+    }
+    Ok(description)
+}
+
 impl LanguageWork {
     pub(super) fn invoke(&self, capability: &str, input: Value) -> Result<Value, Failure> {
         self.cancellation.invoke(&self.package, capability, input)
     }
     pub(super) fn description(&self) -> Result<LanguageDescription, Failure> {
-        let id = &self.package.manifest.id;
-        let description: LanguageDescription =
-            serde_json::from_value(self.invoke("language.describe.v1", Value::Null)?)
-                .map_err(|e| Failure::Operation(e.to_string()))?;
-        if !description
-            .capabilities
-            .iter()
-            .any(|c| c.id == description.annotation_capability)
-            || description.capabilities.is_empty()
-            || description.capabilities.len() > 8
-            || description.capabilities.iter().any(|c| {
-                !c.id.starts_with(&format!("{id}:")) || c.id.len() > 256 || c.label.len() > 128
-            })
-        {
-            return Err(Failure::Operation(
-                "Invalid package capability schema".into(),
-            ));
-        }
-        let mut scales = std::collections::BTreeSet::new();
-        let declared_scales = description.level_scales.as_deref().unwrap_or_default();
-        if declared_scales.len() > 16
-            || declared_scales.iter().any(|scale| {
-                !scale.id.starts_with(&format!("{id}:"))
-                    || scale.id.len() > 512
-                    || !scales.insert(&scale.id)
-                    || scale.label.is_empty()
-                    || scale.label.len() > 128
-                    || scale.attribution.is_empty()
-                    || scale.attribution.len() > 2048
-            })
-        {
-            return Err(Failure::Operation("Invalid package level scales".into()));
-        }
-        Ok(description)
+        description(&self.package, &self.cancellation)
     }
     pub(super) fn entry(&self, target: &str) -> Result<LexicalEntry, Failure> {
         self.entry_with_schema(target, &self.description()?)
@@ -55,7 +101,7 @@ impl LanguageWork {
         if target.len() > 512 {
             return Err(Failure::Operation("Target id exceeds limit".into()));
         }
-        let entry: LexicalEntry = serde_json::from_value(
+        let mut entry: LexicalEntry = serde_json::from_value(
             self.invoke("target.inspect.v1", serde_json::json!({"targetId":target}))?,
         )
         .map_err(|e| Failure::Operation(e.to_string()))?;
@@ -110,6 +156,30 @@ impl LanguageWork {
             return Err(Failure::Operation(
                 "Entry declares an unavailable capability".into(),
             ));
+        }
+        if let Some(canonical) = &entry.canonical_practice_capabilities {
+            let unique = canonical.iter().collect::<std::collections::BTreeSet<_>>();
+            if canonical.len() > 8
+                || unique.len() != canonical.len()
+                || canonical
+                    .iter()
+                    .any(|id| !entry.capabilities.iter().any(|cap| cap.id == *id))
+            {
+                return Err(Failure::Operation(
+                    "Entry declares unavailable canonical practice".into(),
+                ));
+            }
+        }
+        // Retained ABI1 manifests still own ordinary dictionary inspection.
+        // Optional task metadata cannot grant an undeclared execution capability.
+        if !self
+            .package
+            .manifest
+            .capabilities
+            .iter()
+            .any(|capability| capability == "learning.probes.v2")
+        {
+            entry.canonical_practice_capabilities = None;
         }
         Ok(entry)
     }

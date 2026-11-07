@@ -82,10 +82,8 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
       {pending && !busy ? <Button label={target === 'scale' ? 'Retry saving inline level scale' : 'Retry saving star collapse'}
         variant="quiet" onPress={() => void save(pending)} /> : null}</>;
   }
-  return <><SettingRow label="Inline level scale" description={
-    <Text variant="detail" muted>Choose the curriculum shown beneath words. This changes only the stars; all learning goals remain active.</Text>
-  }>
-    <Select label="Inline level scale" value={selected ?? 'none'} options={options}
+  return <><SettingRow label="Stars">
+    <Select label="Stars scale" value={selected ?? 'none'} options={options}
       disabled={loading || !!loadError || busy || pending !== null}
       onValueChange={value => {
         const scale = value === 'none' ? null : value;
@@ -96,11 +94,9 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
       <Button label="Reload level scales" variant="quiet" onPress={() => setReload(value => value + 1)} /></> : null}
     {feedback('scale')}
   </SettingRow>
-  <SettingRow label="Star collapse" description={
-    <Text variant="detail" muted>Auto uses a number and one star when the full row will not fit beneath the word.</Text>
-  }>
-    <Select label="Star collapse" value={snapshot.viewPreferences?.starCollapse ?? 'auto'}
-      options={[{value:'auto',label:'Auto'},{value:'always',label:'Always'},{value:'never',label:'Never'}]}
+  <SettingRow label="Star display">
+    <Select label="Star display" value={snapshot.viewPreferences?.starCollapse ?? 'auto'}
+      options={[{value:'auto',label:'Fit to word'},{value:'always',label:'Compact'},{value:'never',label:'Full stars'}]}
       disabled={busy || pending !== null} onValueChange={value => {
         if ((value === 'auto' || value === 'always' || value === 'never') && value !== (snapshot.viewPreferences?.starCollapse ?? 'auto'))
           void save(client.prepareStarCollapse(value, snapshot.viewPreferences?.revision ?? 0));

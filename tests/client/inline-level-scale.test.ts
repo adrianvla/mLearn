@@ -89,7 +89,7 @@ test('the real cosmetic selector updates shared annotations without learning com
     page.on('pageerror', error => errors.push(error.message));
     await page.setContent('<div id="root"></div>');
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
-    const selector = page.getByRole('combobox', { name: 'Inline level scale' });
+  const selector = page.getByRole('combobox', { name: 'Stars scale' });
     await expect(selector).toBeEnabled();
     await expect(page.locator('[data-level-star]')).toHaveCount(0);
     await selector.selectOption('p:exam');
@@ -100,7 +100,7 @@ test('the real cosmetic selector updates shared annotations without learning com
     await expect(page.locator('[data-level-star]')).toHaveCount(4);
     await selector.selectOption('p:course');
     await expect(page.locator('[data-level-star]')).toHaveCount(2);
-    const collapse = page.getByRole('combobox', { name: 'Star collapse' });
+    const collapse = page.getByRole('combobox', { name: 'Star display' });
     await collapse.selectOption('always');
     await expect(page.locator('[data-level-star]')).toHaveCount(1);
     await expect(page.locator('[data-level-stars-count]')).toHaveText('2');

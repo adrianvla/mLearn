@@ -91,7 +91,7 @@ test('web text roles retain a sans-serif fallback when the reference font is una
   }
 });
 
-test('Inspector copy remains legible over both black media and white source images', () => {
+test('Inspector copy and action labels remain legible over their shared materials', () => {
   const media = resolveTheme(initialTheme).media;
   const channels = (color: string) => [1, 3, 5].map(offset => Number.parseInt(color.slice(offset, offset + 2), 16));
   const compose = (color: string, backdrop: number[]) => {
@@ -109,6 +109,17 @@ test('Inspector copy remains legible over both black media and white source imag
         const a = luminance(channels(foreground)), b = luminance(background);
         assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5,
           `Inspector foreground ${foreground} is unreadable over source brightness ${source}`);
+      }
+    }
+  }
+  for (const theme of builtInThemes) {
+    const { pills } = resolveTheme(theme);
+    for (const tone of ['neutral', 'info', 'positive', 'negative'] as const) {
+      const pill = pills[tone];
+      for (const background of [pill.surface, pill.top]) {
+        const a = luminance(channels(pill.text)), b = luminance(channels(background));
+        assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5,
+          `${theme.name} ${tone} action text ${pill.text} is unreadable over ${background}`);
       }
     }
   }

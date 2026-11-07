@@ -49,7 +49,7 @@ export function SourceEntryScreen({ kind, preferredPackage }: {
     ? 'Cancel image opening' : sourceImport.opening === 'document' ? 'Cancel document opening' : 'Cancel opening';
   return <View style={styles.root(insets.bottom)}>
     <View style={styles.header(insets.top, host.available ? host.windowControlsWidth ?? 0 : 0)}>
-      <Button label="Home" icon="arrowLeft" size="compact" variant="secondary" onPress={() => router.replace('/')} />
+      <Button label="Home" icon="arrowLeft" size="compact" variant="secondary" onPress={() => router.dismissTo('/')} />
     </View>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">

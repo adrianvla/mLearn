@@ -1,13 +1,13 @@
-import type { Request, ReviewCommand, ReviewMode, ReviewSession } from '@mlearn/contracts';
+import type { CalibrationQuery, Request, ReviewCommand, ReviewMode, ReviewSession, SourcePracticeTarget } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
-import { isMaterialResponse } from './materialProtocol';
-import { isReviewCommand, isReviewResponse } from './reviewProtocol';
+import { isMaterialResponse, isSourceAnchor } from './materialProtocol';
+import { isCalibrationQuery, isReviewCommand, isReviewResponse } from './reviewProtocol';
 
 type Mutation = Exclude<ReviewCommand, { kind: 'start' }>;
 export type ReviewAction = Mutation extends infer Command
   ? Command extends Mutation ? Omit<Command, 'mutation'> : never : never;
 
-export function createReviewClient(request: (command: Request) => Promise<unknown>, commandId: () => string) {
+export function createReviewClient(request: (command: Request, signal?: AbortSignal) => Promise<unknown>, commandId: () => string) {
   // Only revision fences are retained, never encounter content or learner history.
   const revisions = new Map<string, number>();
   const malformed = () => new RuntimeError('protocol', 'Malformed or mismatched Review response.');
@@ -29,6 +29,46 @@ export function createReviewClient(request: (command: Request) => Promise<unknow
     return structuredClone(command);
   }
   return {
+    async authoredPracticePreview(materialId: string, materialRevision: number, signal?: AbortSignal) {
+      if (!materialId || materialId.length > 512 || !Number.isInteger(materialRevision) || materialRevision < 1)
+        throw new RuntimeError('invalid_review', 'A saved Material revision is required.');
+      const value = await request({ type: 'preview_authored_practice', materialId, materialRevision }, signal);
+      if (!isReviewResponse(value) || value.type !== 'authored_practice_preview'
+        || value.preview.materialId !== materialId || value.preview.materialRevision !== materialRevision)
+        throw new RuntimeError('protocol', 'Malformed authored probe preview.');
+      return value.preview;
+    },
+    async calibrationCandidates(query: CalibrationQuery, signal?: AbortSignal) {
+      const scope = structuredClone(query);
+      if (!isCalibrationQuery(scope))
+        throw new RuntimeError('invalid_request', 'Invalid Word Sync scope.');
+      const value = await request({ type: 'prepare_calibration', query: scope }, signal);
+      if (!isReviewResponse(value) || value.type !== 'calibration' || value.items.length > scope.limit
+        || value.items.some(item => item.packageId !== scope.packageId || item.capabilities[0] !== scope.capability))
+        throw malformed();
+      return value.items;
+    },
+    async sourcePractice(packageId: string, packageRevision: string, targets: readonly SourcePracticeTarget[], signal?: AbortSignal) {
+      const selected = structuredClone(targets);
+      if (!packageId || !packageRevision || selected.length === 0 || selected.length > 128
+        || selected.some(item => !item.targetId || item.targetId.length > 512 || !isSourceAnchor(item.source)
+          || item.source.packageId !== packageId)
+        || new Set(selected.map(item => item.targetId)).size !== selected.length)
+        throw new RuntimeError('invalid_request', 'Invalid visible Practice target scope.');
+      const value = await request({ type: 'prepare_source_practice', packageId, packageRevision, targets: [...selected] }, signal);
+      if (!isReviewResponse(value) || value.type !== 'source_practice' || value.items.length !== selected.length
+        || value.items.some((item, index) => {
+          const original = selected[index];
+          const source = item.source;
+          return !original || !source || item.packageId !== packageId || item.packageRevision !== packageRevision
+            || item.targetId !== original.targetId || source.sourceId !== original.source.sourceId
+            || source.contentRevision !== original.source.contentRevision || source.packageId !== original.source.packageId
+            || source.packageVersion !== original.source.packageVersion || source.text !== original.source.text
+            || Object.entries(source.locator).some(([key, value]) => Reflect.get(original.source.locator, key) !== value);
+        }))
+        throw malformed();
+      return value.items;
+    },
     prepareReviewStart(mode: ReviewMode): ReviewCommand {
       return prepared({ kind: 'start', start: { commandId: commandId(), sessionId: commandId(), mode } });
     },
@@ -37,10 +77,12 @@ export function createReviewClient(request: (command: Request) => Promise<unknow
         commandId: commandId(), sessionId: session.id, expectedRevision: session.revision,
       } });
     },
-    async review(command: ReviewCommand) {
+    async review(command: ReviewCommand, signal?: AbortSignal) {
       const snapshot = prepared(command);
+      if(signal&&snapshot.kind!=='capture_response')
+        throw new RuntimeError('invalid_request','Only response validation supports operation cancellation.');
       const identity = snapshot.kind === 'start' ? snapshot.start : snapshot.mutation;
-      const value = await request({ type: 'review', command: snapshot });
+      const value = await request({ type: 'review', command: snapshot },signal);
       if (!isReviewResponse(value) || value.type !== 'review' || value.commit.commandId !== identity.commandId
         || value.commit.session.id !== identity.sessionId
         || value.commit.committedRevision !== (snapshot.kind === 'start' ? 1 : snapshot.mutation.expectedRevision + 1))

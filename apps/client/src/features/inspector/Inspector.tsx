@@ -1,5 +1,5 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { View } from 'react-native';
+import { useState, useEffect, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
@@ -8,51 +8,86 @@ import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Badge } from '@mlearn/ui/badge';
 import { Dialog } from '@mlearn/ui/dialog';
+import { Menu } from '@mlearn/ui/menu';
 import { useRouter } from 'expo-router';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
-import type { ClaimChange, LexicalSense, SourceAnchor } from '@mlearn/contracts';
+import type { ClaimChange, LexicalSense, ReviewCommand, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Pronunciation } from '../linguistic';
 import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
 import { SourceActions } from '../explanation';
+import { KnowledgeEvidence } from './KnowledgeEvidence';
+import { GraphDetails } from './GraphDetails';
 export type Inspection = {
     sourceForm: string;
     context: string;
     targets: string[];
     anchor: TextAnchor;
-    sourceAnchor: SourceAnchor;
+    sourceAnchor: SourceAnchor | null;
     packageRevision?: string;
     initialTargetId?: string;
     showContext?: boolean;
     onChanged?: () => Promise<void>;
 };
-export function Inspector({ inspection, packageId, client, onChanged, onClose, readOnlySourceReason }: {
+type InspectorProps = {
     inspection: Inspection;
     packageId: string;
     client: RuntimeClient;
     onChanged: () => Promise<void>;
     onClose: () => void;
+    onBeforeNavigate?: () => Promise<void>;
     readOnlySourceReason?: string;
-}) {
+};
+export function Inspector(props: InspectorProps) {
+    const { inspection, packageId } = props;
+    // Source/package replacement ends the navigation and pending request lifetime,
+    // including callers that do not key Inspector themselves.
+    return <InspectorSession key={JSON.stringify([packageId, inspection.packageRevision,
+        inspection.sourceAnchor, inspection.sourceForm, inspection.context, inspection.targets,
+        inspection.initialTargetId])} {...props} />;
+}
+function InspectorSession({ inspection, packageId, client, onChanged, onClose, onBeforeNavigate, readOnlySourceReason }: InspectorProps) {
     const router = useRouter();
     const host = useRuntime();
     const [selectedSense, setSelectedSense] = useState<LexicalSense | null>(null);
     const [captureOpen, setCaptureOpen] = useState(false);
     const [captureRefresh, setCaptureRefresh] = useState(0);
     const [index, setIndex] = useState(() => Math.max(0, inspection.targets.indexOf(inspection.initialTargetId ?? '')));
+    const [history, setHistory] = useState<string[]>([]);
+    const targetId = history.at(-1) ?? inspection.targets[index];
+    const [showGraph, setShowGraph] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
+    const graphTrigger = useRef<View>(null);
+    const returnTrigger = useRef<View>(null);
+    const navigationFocus = useRef(false);
     const [result, setResult] = useState<Awaited<ReturnType<RuntimeClient['inspectTarget']>> | null>(null);
     const entry = result?.entry ?? null;
     const knowledge = result?.knowledge.projections ?? [];
     const scope = useRef<object | null>(null);
+    const openingMaterial = useRef<object | null>(null);
+    const startingPractice = useRef<object | null>(null);
+    const [practiceRetry, setPracticeRetry] = useState<{
+        readonly capability: string; readonly command: ReviewCommand;
+    } | null>(null);
+    const [practiceError, setPracticeError] = useState('');
+    const [materialError, setMaterialError] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState<ClaimChange | null>(null);
     const [lookupVersion, setLookupVersion] = useState(0);
     const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
+    const [evidenceCapability, setEvidenceCapability] = useState<string | null>(null);
+    const evidenceTrigger = useRef<View>(null);
     const knowledgeTrigger = useRef<View>(null);
     const [showSource, setShowSource] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
     const [showPronunciation, setShowPronunciation] = useState(false);
+    useLayoutEffect(() => {
+        if (!entry || !navigationFocus.current) return;
+        navigationFocus.current = false;
+        if (history.length) returnTrigger.current?.focus();
+        else graphTrigger.current?.focus();
+    }, [entry, history.length]);
     useLayoutEffect(() => {
         if (!entry || process.env.EXPO_PUBLIC_MLEARN_METRICS !== '1') return;
         const frame = requestAnimationFrame(() => {
@@ -64,24 +99,109 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
         let active = true;
         const owner = {};
         scope.current = owner;
+        setMaterialError('');
+        setPracticeError('');
+        setPracticeRetry(null);
         setError('');
         setResult(null);
         setBusy(false);
         setRetry(null);
         setExpandedCapability(null);
+        setEvidenceCapability(null);
         setShowSource(false);
         setShowPronunciation(false);
         setSelectedSense(null);
         setCaptureOpen(false);
-        client.inspectTarget(packageId, inspection.targets[index], inspection.packageRevision ?? null).then(value => {
-            if (active)
+        client.inspectTarget(packageId, targetId, inspection.packageRevision ?? null).then(value => {
+            if (active && scope.current === owner)
                 setResult(value);
         }).catch(e => {
-            if (active)
+            if (active && scope.current === owner)
                 setError(String(e.message ?? e));
         });
         return () => { active = false; if (scope.current === owner) scope.current = null; };
-    }, [client, packageId, inspection.targets, inspection.packageRevision, inspection.sourceAnchor, index, lookupVersion]);
+    }, [client, packageId, inspection.packageRevision, targetId, lookupVersion]);
+    function navigate(targets: string[]) {
+        // Invalidate the previous lookup/claim before React runs effect cleanup.
+        scope.current = null;
+        setMaterialError('');
+        setPracticeError('');
+        setPracticeRetry(null);
+        setResult(null);
+        setError('');
+        setRetry(null);
+        setExpandedCapability(null);
+        setEvidenceCapability(null);
+        setSelectedSense(null);
+        setCaptureOpen(false);
+        navigationFocus.current = true;
+        setHistory(targets);
+    }
+    function close() {
+        scope.current = null;
+        onClose();
+    }
+    async function openMaterial(id: string) {
+        const owner = scope.current;
+        if (!owner || busy || openingMaterial.current === owner) return;
+        openingMaterial.current = owner;
+        setBusy(true);
+        setMaterialError('');
+        try {
+            await onBeforeNavigate?.();
+            if (scope.current !== owner) return;
+            close();
+            if (inspection.sourceAnchor) {
+                router.dismissTo({ pathname: '/materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+            } else {
+                router.navigate({ pathname: '/materials', params: { id } });
+            }
+        } catch (cause) {
+            if (scope.current === owner) setMaterialError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (openingMaterial.current === owner) openingMaterial.current = null;
+            if (scope.current === owner) setBusy(false);
+        }
+    }
+    async function practice(capability: string, prepared?: ReviewCommand) {
+        const owner = scope.current;
+        if (!owner || !result || !entry || busy || startingPractice.current === owner) return;
+        const command = prepared ?? client.prepareReviewStart({
+            kind: 'target_practice', assistance: ['inspector'], items: [{
+                packageId, packageRevision: result.packageRevision, targetId: entry.targetId,
+                capabilities: [capability],
+                source: inspection.targets.includes(entry.targetId) ? inspection.sourceAnchor : null,
+            }],
+        });
+        startingPractice.current = owner;
+        setBusy(true);
+        setPracticeError('');
+        try {
+            const committed = await client.review(command);
+            if (scope.current !== owner) return;
+            await onBeforeNavigate?.();
+            if (scope.current !== owner) return;
+            setPracticeRetry(null);
+            close();
+            router.navigate({ pathname: '/review', params: { sessionId: committed.session.id } });
+        } catch (cause) {
+            if (scope.current === owner) {
+                setPracticeRetry({ capability, command });
+                setPracticeError(cause instanceof Error ? cause.message : String(cause));
+                setEvidenceCapability(null);
+                setExpandedCapability(capability);
+            }
+        } finally {
+            if (startingPractice.current === owner) startingPractice.current = null;
+            if (scope.current === owner) setBusy(false);
+        }
+    }
+    function inspectGraphTarget(nextTargetId: string) {
+        if (busy || nextTargetId === targetId) return;
+        // Root is retained separately, so Return survives history eviction.
+        navigate(nextTargetId === inspection.targets[index]
+            ? [] : [...history, nextTargetId].slice(-16));
+    }
     async function commit(change: ClaimChange) {
         const owner = scope.current;
         setBusy(true);
@@ -108,7 +228,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     const activeCapability = entry?.capabilities.find(cap => cap.id === expandedCapability);
     const materialContent = entry && result ? {
         ...emptyMaterial(packageId), targetId: entry.targetId, packageRevision: result.packageRevision,
-        sense: selectedSense, phrase: inspection.sourceForm, reading: entry.reading ?? '',
+        sense: selectedSense, phrase: history.length ? entry.headword : inspection.sourceForm, reading: entry.reading ?? '',
         meaning: selectedSense?.definitions.join('; ') ?? entry.summary ?? entry.definition,
         context: inspection.context, source: inspection.sourceAnchor,
     } : null;
@@ -122,27 +242,56 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
         claimed_unknown: { label: 'Unknown', tone: 'negative', icon: 'closeCircle' },
         mixed: { label: 'Mixed', tone: 'neutral', icon: 'circle' },
     } as const)[result.knowledge.claim] : null;
+    const narrow = useWindowDimensions().width < 720;
+    const actionsTrigger = useRef<View>(null);
+    const moreActions = (captureActions: ComponentProps<typeof Menu>['actions'] = []) => {
+        const actions = [...captureActions, ...(materialContent && !readOnlySourceReason ? [{
+            id: 'edit-before-capture', label: 'Edit before capture', disabled: busy,
+            onPress: () => setCaptureOpen(true),
+        }] : [])];
+        return inspection.sourceAnchor ? <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
+            secondaryActionsMenuLabel="Inspector actions" additionalActions={actions}
+            menuRef={node => { actionsTrigger.current = node; }}
+            disabled={busy} explanationDisabledReason={readOnlySourceReason} onReturnToSource={close}
+            onOpenMaterial={id => void openMaterial(id)} />
+            : <Menu ref={actionsTrigger} label="Inspector actions" icon="more" actions={actions} disabled={busy} />;
+    };
     return (
-        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
-            opaque={inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
+        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={close} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
+            headerAction={<Button label="Inspect" variant="mediaSelect" size="compact" disabled={!entry}
+                accessibilityState={{ expanded: showDetails }} onPress={() => setShowDetails(value => !value)} />}
+            opaque={!inspection.sourceAnchor || inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
             onPopoverClose={() => {
                 setExpandedCapability(null);
                 knowledgeTrigger.current?.focus();
             }}
             popover={entry && activeCapability ? <View style={styles.adjustment}>
+                    {busy && startingPractice.current === scope.current ? <>
+                        <Text tone="media">{`Practice ${activeCapability.label}`}</Text>
+                        <Text tone="media" variant="caption" accessibilityLiveRegion="polite">Starting Word Practice…</Text>
+                    </> : practiceRetry?.capability === activeCapability.id ? <>
+                        <Text tone="media">{`Practice ${activeCapability.label}`}</Text>
+                        <Text tone="media" accessibilityRole="alert">{practiceError}</Text>
+                        <Row>
+                            <Button label="Retry practice" variant="media" size="compact" disabled={busy}
+                                onPress={() => void practice(practiceRetry.capability, practiceRetry.command)} />
+                            <Button label="Dismiss practice retry" variant="media" size="compact" disabled={busy}
+                                onPress={() => { setPracticeRetry(null); setPracticeError(''); }} />
+                        </Row>
+                    </> : <>
                     <View style={styles.pills}>
                         {entry.capabilities.map(cap => <Button key={cap.id} size="compact" variant="media"
-                            label={cap.label} disabled={busy}
+                            label={cap.label} disabled={busy || practiceRetry !== null}
                             accessibilityState={{ selected: expandedCapability === cap.id }}
                             onPress={() => setExpandedCapability(cap.id)} />)}
                     </View>
                     <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
                     <Row>
                         <Button size="compact" label="Known" accessibilityLabel={`Claim ${activeCapability.label} known`}
-                            variant="pill" tone="positive" disabled={busy}
+                            variant="pill" tone="positive" surface="media" disabled={busy}
                             onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, true))} />
                         <Button size="compact" label="Unknown" accessibilityLabel={`Claim ${activeCapability.label} unknown`}
-                            variant="pill" tone="negative" disabled={busy}
+                            variant="pill" tone="negative" surface="media" disabled={busy}
                             onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, false))} />
                         <Button size="compact" label="Withdraw" accessibilityLabel={`Withdraw ${activeCapability.label} claim`}
                             variant="media" disabled={busy || activeProjection?.claim == null}
@@ -151,32 +300,58 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                     <Text tone="media" muted variant="caption">
                         Assessed: {activeProjection?.assessed == null ? 'unmeasured' : String(activeProjection.assessed)} · Prediction: {activeProjection?.prediction == null ? 'unavailable' : String(activeProjection.prediction)}
                     </Text>
+                    <Row>
+                        <Button ref={evidenceTrigger} label="Inspect evidence" variant="media" size="compact" disabled={busy}
+                            onPress={() => { setEvidenceCapability(activeCapability.id); setExpandedCapability(null); }} />
+                        {!readOnlySourceReason && entry.canonicalPracticeCapabilities?.includes(activeCapability.id) ?
+                        <Button label={`Practice ${activeCapability.label}`} variant="media" size="compact"
+                            disabled={busy}
+                            onPress={() => void practice(activeCapability.id)} /> : null}
+                    </Row>
                     {error && retry?.key.capability === activeCapability.id ? <>
                         <Text tone="media" accessibilityRole="alert">{error}</Text>
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
+                    </>}
                 </View> : null}
-            footer={<>{entry && claim ? <Button ref={knowledgeTrigger} size="compact" variant="pill"
+            footer={<>
+                {entry && claim ? <Button ref={knowledgeTrigger} variant="pill" surface="media" size={narrow ? 'compact' : 'default'}
                 label={claim.label}
                 tone={claim.tone}
-                icon={claim.icon}
+                icon={narrow ? undefined : claim.icon}
                 accessibilityLabel="Knowledge"
                 accessibilityValue={{ text: claim.label }}
                 accessibilityState={{ expanded: expandedCapability !== null }}
                 disabled={busy || result?.knowledge.claim === 'unavailable'}
-                onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}
+                onPress={() => { setEvidenceCapability(null); setExpandedCapability(value => value ? null
+                    : practiceRetry?.capability ?? entry.capabilities[0]?.id ?? null); }} /> : null}
                 {materialContent && entry && !readOnlySourceReason ? <CaptureList
                     key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                    client={client} tone="media" presentation="actions"
+                    client={client} tone="media" presentation="actions" disabled={busy} renderMenu={moreActions}
                     candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
-                    onOpenMaterial={id => {
-                        onClose();
-                        router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
-                    }} /> : null}
-                <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
-                    explanationDisabledReason={readOnlySourceReason} />
+                    onOpenMaterial={id => void openMaterial(id)} /> : null}
+                {busy && openingMaterial.current === scope.current ? <Text tone="media" variant="caption"
+                    accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
+                {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
+                {(!materialContent || !entry || readOnlySourceReason) ? moreActions() : null}
             </>}>
-            {entry ? <>
+            {history.length ? <Row>
+                <Button ref={returnTrigger} label="Return to source entry" size="compact" variant="media"
+                    disabled={busy} onPress={() => navigate([])} />
+                {history.length > 1 ? <Button label="Previous graph target" size="compact" variant="media"
+                    disabled={busy} onPress={() => navigate(history.slice(0, -1))} /> : null}
+            </Row> : null}
+            {entry && evidenceCapability ? <KnowledgeEvidence
+                key={JSON.stringify([packageId, entry.targetId, evidenceCapability])} client={client}
+                knowledgeKey={{ packageId, targetId: entry.targetId, capability: evidenceCapability }}
+                label={entry.capabilities.find(cap => cap.id === evidenceCapability)?.label ?? evidenceCapability}
+                onBack={() => {
+                    setExpandedCapability(evidenceCapability); setEvidenceCapability(null);
+                    requestAnimationFrame(() => evidenceTrigger.current?.focus());
+                }} /> : entry ? <>
+                {history.length || inspection.sourceForm !== entry.headword ? (
+                    <Text tone="media" muted variant="caption" selectable>{history.length ? 'Source selection' : 'In text'}: {inspection.sourceForm}</Text>
+                ) : null}
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
                 <Row>
                 <Pronunciation presentation={entry.presentation} reading={entry.reading} expanded={showPronunciation} />
@@ -184,8 +359,8 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                     accessibilityState={{ expanded: showPronunciation }}
                     onPress={() => setShowPronunciation(value => !value)} /> : null}
                 </Row>
-                {inspection.targets.length > 1 ? <>
-                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure"
+                {!history.length && inspection.targets.length > 1 ? <>
+                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure" surface="media" iconPosition="leading"
                     icon={showAlternatives ? 'chevronDown' : 'chevronRight'}
                     accessibilityState={{ expanded: showAlternatives }} onPress={() => setShowAlternatives(v => !v)} />
                 {showAlternatives ? <View style={styles.alternatives}>
@@ -217,9 +392,15 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                 </View> : entry.partOfSpeech ? <View style={styles.metadata}>
                         <Badge label={entry.partOfSpeech} />
                     </View> : null}
-                    {inspection.sourceForm !== entry.headword ? (
-                        <Text tone="media" muted variant="caption" selectable>In text: {inspection.sourceForm}</Text>
-                    ) : null}
+                    {showDetails ? <>
+                    <Button ref={graphTrigger} size="compact" label="Linguistic relationships" variant="disclosure" surface="media"
+                        icon={showGraph ? 'chevronDown' : 'chevronRight'}
+                        accessibilityState={{ expanded: showGraph }} onPress={() => setShowGraph(value => !value)} />
+                    {showGraph && result ? <GraphDetails
+                        key={JSON.stringify([packageId, entry.targetId, result.packageRevision,
+                            knowledge.map(projection => [projection.key.capability, projection.revision])])}
+                        client={client} packageId={packageId} targetId={entry.targetId}
+                        packageRevision={result.packageRevision} onInspectTarget={inspectGraphTarget} /> : null}
                     <View style={styles.metadata}>
                         <Button size="compact" label="Dictionary source" variant="media"
                             accessibilityState={{ expanded: showSource }} onPress={() => setShowSource(v => !v)} />
@@ -228,14 +409,12 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                         <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
                         {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
                     </> : null}
-                    {materialContent && !readOnlySourceReason ? <>
-                        <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
-                            description="Author this Material without changing its source reference or selected dictionary sense."
-                            trigger={<Button label="Edit before capture" size="compact" variant="media" />}>
-                            <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
-                                onSaved={() => setCaptureRefresh(value => value + 1)} />
-                        </Dialog>
                     </> : null}
+                {materialContent && !readOnlySourceReason ? <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
+                    focusTarget={() => actionsTrigger.current}>
+                    <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
+                        onSaved={() => setCaptureRefresh(value => value + 1)} />
+                </Dialog> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
             {error && !retry ? <>
                 <Text tone="media" accessibilityRole="alert">{error}</Text>

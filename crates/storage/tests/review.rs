@@ -5,6 +5,39 @@ use mlearn_storage::{ProfileStore, StorageError};
 use support::*;
 
 #[test]
+fn authored_admission_rejects_changed_private_content_and_retains_assistance() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile")).unwrap();
+    let mut item = admission(&mut store, "authored");
+    item.source = None;
+    let mode = ReviewMode::AuthoredPractice {
+        material_id: material_id(&item),
+        material_revision: 1,
+        package_revision: item.package_revision.clone(),
+        fingerprint: authored_probe_fingerprint(&[item.probe.clone()]).unwrap(),
+    };
+    let intent = ReviewStart {
+        command_id: "authored-start".into(),
+        session_id: ReviewSessionId("authored-session".into()),
+        mode,
+    };
+    let mut changed = item.clone();
+    changed.probe.answer = "unpreviewed answer".into();
+    assert!(store.review_start(&intent, &[changed], 100).is_err());
+    assert!(store.review_sessions().unwrap().is_empty());
+    let started = store.review_start(&intent, &[item], 100).unwrap().session;
+    let encounter = started.encounter.as_ref().unwrap();
+    assert!(
+        encounter
+            .conditions
+            .assistance
+            .contains(&ReviewAssistance::Source)
+    );
+    assert_eq!(encounter.answer, None);
+    assert!(encounter.task.is_none());
+}
+
+#[test]
 fn frozen_membership_hidden_answers_and_exact_paused_restart() {
     // Given duplicate admission inputs and a finite user-selected limit.
     let dir = tempfile::tempdir().unwrap();

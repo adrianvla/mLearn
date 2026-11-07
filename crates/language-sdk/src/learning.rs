@@ -1,6 +1,9 @@
 //! Versioned learning task wire types. Packages own linguistic task semantics.
 use serde::{Deserialize, Serialize};
 
+pub mod tasks;
+pub use mlearn_core::{KnowledgeKey, ReviewDirection, ReviewProbe, ReviewTarget};
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProbeInput {
@@ -66,44 +69,6 @@ pub enum MediaKind {
 pub struct ProbeOutput {
     pub contract_version: u32,
     pub probes: Vec<ReviewProbe>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReviewProbe {
-    pub id: String,
-    pub contract_version: u32,
-    pub direction: ReviewDirection,
-    pub cue: String,
-    pub answer: String,
-    pub targets: Vec<ReviewTarget>,
-    pub supplied: Vec<KnowledgeKey>,
-    pub required_media: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ReviewDirection {
-    Written,
-    Focused,
-    Audio,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReviewTarget {
-    pub id: String,
-    pub label: String,
-    pub mnemonic: Option<String>,
-    pub key: Option<KnowledgeKey>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct KnowledgeKey {
-    pub package_id: String,
-    pub target_id: String,
-    pub capability: String,
 }
 
 #[cfg(test)]

@@ -10,9 +10,11 @@ const fields = ['pid', 'timeMs', 'physicalFootprintBytes', 'rssBytes', 'totalByt
 
 export class ResourceMeasurementError extends Error {}
 
-export function evaluateResources(samples, workloadBytes) {
+export function evaluateResources(samples, workloadBytes, profile = 'heavy') {
   if (!Array.isArray(samples) || !samples.length || samples.length > 3
-    || !Number.isSafeInteger(workloadBytes) || workloadBytes < 0)
+    || !Number.isSafeInteger(workloadBytes) || workloadBytes < 0
+    || !['heavy', 'frontend'].includes(profile)
+    || profile === 'frontend' && workloadBytes > 1024 * MiB)
     throw new ResourceMeasurementError('Invalid resource assessment');
   for (const sample of samples) {
     if (!sample || fields.some(field => !Number.isSafeInteger(sample[field]) || sample[field] < 0)
@@ -35,7 +37,11 @@ export function evaluateResources(samples, workloadBytes) {
   });
   // Extrapolate sustained growth, not a single wake-up spike or historical peak.
   const growthBytes = intervals.length === 2 ? Math.ceil(Math.min(...intervals.map(i => i.growth)) * 10) : 0;
-  const reserveBytes = Math.ceil(current.totalBytes / 4);
+  // A serial browser/compiled-metadata inspection is bounded to 1 GiB and
+  // cannot launch builds, devices or models. Keep the heavier default intact.
+  const reserveBytes = profile === 'frontend'
+    ? Math.min(Math.ceil(current.totalBytes / 4), 3584 * MiB)
+    : Math.ceil(current.totalBytes / 4);
   const projectedHeadroomBytes = current.availableBytes - workloadBytes - growthBytes;
   const reasons = [];
   if (current.pressureLevel !== 1) reasons.push('host_pressure');
@@ -43,16 +49,17 @@ export function evaluateResources(samples, workloadBytes) {
   if (intervals.length === 2 && intervals.every(i => i.swapGrowth >= 8 * MiB && i.swapOut >= 16 * MiB))
     reasons.push('sustained_swap_growth');
   return { safe: reasons.length === 0, sampled: samples.length === 3, reasons,
-    reserveBytes, projectedHeadroomBytes, growthBytes };
+    reserveBytes, projectedHeadroomBytes, growthBytes, profile };
 }
 
 async function run() {
-  const [pidText, mode, sampler, budgetText] = process.argv.slice(2);
+  const [pidText, mode, sampler, budgetText, profile = 'heavy'] = process.argv.slice(2);
   const pid = Number(pidText);
   const budgetMiB = Number(budgetText);
   if (!Number.isSafeInteger(pid) || pid <= 0 || !['admission', 'guard', 'once'].includes(mode)
-    || !sampler || !Number.isSafeInteger(budgetMiB) || budgetMiB < 0)
-    throw new ResourceMeasurementError('Usage: resource-guard PID admission|guard|once SAMPLER WORKLOAD_MIB');
+    || !sampler || !Number.isSafeInteger(budgetMiB) || budgetMiB < 0
+    || !['heavy', 'frontend'].includes(profile))
+    throw new ResourceMeasurementError('Usage: resource-guard PID admission|guard|once SAMPLER WORKLOAD_MIB [heavy|frontend]');
   const samples = [];
   let healthy = 0;
   for (;;) {
@@ -61,7 +68,7 @@ async function run() {
     if (sample.pid !== pid) throw new ResourceMeasurementError('Wrong sampled process');
     samples.push(sample);
     if (samples.length > 3) samples.shift();
-    const result = evaluateResources(samples, budgetMiB * MiB);
+    const result = evaluateResources(samples, budgetMiB * MiB, profile);
     console.log(JSON.stringify({ event: 'RESOURCE_SAMPLE', ...sample, workloadBytes: budgetMiB * MiB, ...result }));
     healthy = result.safe ? healthy + 1 : 0;
     if (!result.safe && mode === 'guard') {
@@ -73,7 +80,7 @@ async function run() {
       console.log('RESOURCE_READY consecutive=3');
       return;
     }
-    if (samples.length === 3 && mode === 'once') {
+    if (samples.length === 3 && mode !== 'guard') {
       console.log('RESOURCE_ADMISSION_HELD');
       process.exitCode = 70;
       return;

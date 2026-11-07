@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test('Settings header keeps its Home action clear of the description', async ({ page }) => {
+test('Settings header keeps its Home action clear of the section heading', async ({ page }) => {
   await page.setViewportSize({ width: 500, height: 850 });
   await page.goto('/settings');
   const home = page.getByRole('button', { name: 'Home', exact: true });
-  const description = page.getByText('Configure mLearn to your preferences', { exact: true });
+  const description = page.getByRole('heading', { name: 'Appearance', exact: true });
   await expect(home).toBeVisible();
   await expect(description).toBeVisible();
   const actionBounds = await home.boundingBox();

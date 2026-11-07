@@ -49,7 +49,7 @@ export function ContactEditor({ actions, contact, trigger, onSaved }: {
     if (value) { setName(contact?.name ?? ''); setDescription(contact?.description ?? ''); }
     setOpen(value);
   }}
-    title={contact ? 'Edit person' : 'New person'} description="People are independent of conversations."
+    title={contact ? 'Edit person' : 'New person'}
     trigger={trigger}>
     <TextField testID="conversation-person-name" label="Name" value={name} onChangeText={setName} maxLength={256} editable={!actions.busy} />
     <TextField testID="conversation-person-description" label="Description" value={description} onChangeText={setDescription} multiline maxLength={8192} editable={!actions.busy} />
@@ -196,14 +196,14 @@ export function ProviderDialog({ client }: { readonly client: RuntimeClient }) {
     if (busy) return;
     setOpen(value); setCredential('');
     if (value) void load(); else { epoch.current++; pending.current = null; }
-  }} title="Conversation provider" description="Endpoint and model are saved natively. Requests run only when you send or ask for an explanation."
+  }} title="Conversation provider"
     trigger={<Button label="Provider" size="compact" variant="quiet" />}>
     <TextField testID="conversation-provider-endpoint" label="Chat completions endpoint" value={endpoint} autoCapitalize="none" autoCorrect={false}
       editable={!busy && !pending.current} onChangeText={setEndpoint} maxLength={2048} />
     <TextField testID="conversation-provider-model" label="Model" value={model} autoCapitalize="none" autoCorrect={false}
       editable={!busy && !pending.current} onChangeText={setModel} maxLength={256} />
     <Button label={pending.current ? 'Retry saving settings' : 'Save endpoint and model'} disabled={busy || !settings} onPress={() => void save()} />
-    <Text variant="caption">API key: SESSION ONLY. It is held in native memory and is not saved or included in execution traces.</Text>
+    <Text variant="caption">API key is not saved or included in traces.</Text>
     <TextField label="Session-only API key" value={credential} onChangeText={setCredential} secureTextEntry
       autoCapitalize="none" autoCorrect={false} autoComplete="off" editable={!busy} maxLength={4096} />
     <Row><Button label="Set session key" disabled={busy || !credential} onPress={() => void setKey()} />
@@ -235,7 +235,7 @@ export function RuntimeTrace({ client, generationId, openRevision = 0 }: {
     return () => { active = false; };
   }, [client, open, generationId, after, attempt]);
   return <Dialog open={open} onOpenChange={value => { setOpen(value); if (value) setAfter(null); }}
-    title="Runtime Inspector" description="Actual native generation records. No external request is made by opening this view."
+    title="Runtime Inspector"
     trigger={<Button label="Runtime Inspector" variant="quiet" size="compact" />}>
     {!generationId ? <Text muted>Select a generated message to inspect its execution.</Text> : null}
     {busy ? <Text accessibilityLiveRegion="polite">Reading execution trace…</Text> : null}

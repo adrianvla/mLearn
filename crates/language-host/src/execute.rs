@@ -1,5 +1,8 @@
 use crate::{Resource, ResourceKind};
-use mlearn_language_sdk::{ABI_VERSION, Call, MAX_MESSAGE_BYTES};
+use mlearn_language_sdk::{
+    ABI_VERSION, Call, MAX_MESSAGE_BYTES, RESOURCE_KEYS_MAX_OUTPUT_BYTES,
+    RESOURCE_KEYS_MAX_PAGE_SIZE,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -8,7 +11,8 @@ use std::{
     path::PathBuf,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        TryLockError,
     },
     time::{Duration, Instant},
 };
@@ -20,6 +24,28 @@ use wasmi::{
 pub type AssetMap = BTreeMap<String, Arc<[u8]>>;
 pub type ResourcePaths = BTreeMap<String, PathBuf>;
 pub type Resources = BTreeMap<String, Resource>;
+
+/// Scoped callers must not wait on another executor's process-global guest.
+#[derive(Debug)]
+pub enum InvocationError {
+    Busy,
+    Operation(String),
+}
+impl InvocationError {
+    pub fn is_busy(&self) -> bool { matches!(self, Self::Busy) }
+}
+impl From<String> for InvocationError {
+    fn from(message: String) -> Self { Self::Operation(message) }
+}
+impl std::fmt::Display for InvocationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Busy => f.write_str("Native language execution is busy; retry the action"),
+            Self::Operation(message) => f.write_str(message),
+        }
+    }
+}
+impl std::error::Error for InvocationError {}
 const HOST_READ_BUDGET: usize = 8 * 1024 * 1024;
 const CALL_FUEL: u64 = 32_000_000;
 const FUEL_SLICE: u64 = 1_000_000;
@@ -71,12 +97,15 @@ struct State {
     resource_elapsed: Duration,
     cancellation: Arc<AtomicU64>,
     epoch: u64,
+    operation: Option<Arc<AtomicBool>>,
     fuel_remaining: u64,
     fuel_granted: u64,
 }
 impl State {
     fn check(&self) -> Result<(), String> {
-        if self.cancellation.load(Ordering::Relaxed) == self.epoch {
+        if self.cancellation.load(Ordering::Relaxed) == self.epoch
+            && self.operation.as_ref().is_none_or(|flag| !flag.load(Ordering::Acquire))
+        {
             Ok(())
         } else {
             Err("Plugin execution cancelled".into())
@@ -91,6 +120,15 @@ fn key(caller: &Caller<'_, State>, pointer: i32, length: i32) -> Option<String> 
     let mut bytes = vec![0; length as usize];
     memory.read(caller, pointer as usize, &mut bytes).ok()?;
     String::from_utf8(bytes).ok()
+}
+fn optional_key(caller: &Caller<'_, State>, pointer: i32, length: i32) -> Option<String> {
+    if length == 0 && pointer >= 0 {
+        let memory = caller.get_export("memory")?.into_memory()?;
+        memory.read(caller, pointer as usize, &mut []).ok()?;
+        Some(String::new())
+    } else {
+        key(caller, pointer, length)
+    }
 }
 
 struct Active {
@@ -201,7 +239,12 @@ impl CompiledPlugin {
         })
     }
 
-    fn instantiate(&self, cancellation: Arc<AtomicU64>, epoch: u64) -> Result<Active, String> {
+    fn instantiate(
+        &self,
+        cancellation: Arc<AtomicU64>,
+        epoch: u64,
+        operation: Option<Arc<AtomicBool>>,
+    ) -> Result<Active, String> {
         // Wasmi 2's trap_on_grow_failure also converts resumable fuel exhaustion
         // during memory.grow into a terminal limit trap. Keep ordinary Wasm
         // failed-growth semantics; the same hard byte/count ceilings still apply.
@@ -226,11 +269,13 @@ impl CompiledPlugin {
                 resource_elapsed: Duration::ZERO,
                 cancellation,
                 epoch,
+                operation,
                 fuel_remaining: 0,
                 fuel_granted: CALL_FUEL,
             },
         );
         store.limiter(|s| &mut s.limits);
+        store.data().check()?;
         store.set_fuel(CALL_FUEL).map_err(|e| e.to_string())?;
         let mut linker = Linker::<State>::new(&self.engine);
         linker
@@ -238,6 +283,7 @@ impl CompiledPlugin {
                 "mlearn",
                 "asset_len",
                 |caller: Caller<'_, State>, p: i32, l: i32| -> i32 {
+                    if caller.data().check().is_err() { return -1; }
                     let Some(key) = key(&caller, p, l) else {
                         return -1;
                     };
@@ -285,6 +331,7 @@ impl CompiledPlugin {
                 "mlearn",
                 "resource_len",
                 |caller: Caller<'_, State>, p: i32, l: i32| -> i64 {
+                    if caller.data().check().is_err() { return -1; }
                     let Some(key) = key(&caller, p, l) else {
                         return -1;
                     };
@@ -302,6 +349,7 @@ impl CompiledPlugin {
                 "mlearn",
                 "resource_digest",
                 |mut caller: Caller<'_, State>, p: i32, l: i32, out: i32| -> i32 {
+                    if caller.data().check().is_err() { return -1; }
                     let Some(key) = key(&caller, p, l) else {
                         return -1;
                     };
@@ -371,7 +419,7 @@ impl CompiledPlugin {
                     if let Some(started) = started {
                         caller.data_mut().resource_elapsed += started.elapsed();
                     }
-                    if result.is_err() {
+                    if result.is_err() || caller.data().check().is_err() {
                         return -1;
                     }
                     caller.data_mut().read_bytes += cap as usize;
@@ -420,7 +468,8 @@ impl CompiledPlugin {
                         Ok(None) => return -2,
                         Err(_) => return -1,
                     };
-                    if bytes.len() > 65536
+                    if caller.data().check().is_err()
+                        || bytes.len() > 65536
                         || caller.data().read_bytes + bytes.len() > caller.data().read_limit
                     {
                         return -1;
@@ -442,16 +491,107 @@ impl CompiledPlugin {
                 },
             )
             .map_err(|e| e.to_string())?;
+        linker
+            .func_wrap(
+                "mlearn",
+                "resource_keys",
+                |mut caller: Caller<'_, State>,
+                 rp: i32,
+                 rl: i32,
+                 pp: i32,
+                 pl: i32,
+                 ap: i32,
+                 al: i32,
+                 limit: i32,
+                 out: i32,
+                 cap: i32|
+                 -> i32 {
+                    let Some(resource) = key(&caller, rp, rl) else {
+                        return -1;
+                    };
+                    let Some(prefix) = optional_key(&caller, pp, pl) else {
+                        return -1;
+                    };
+                    let Some(after) = optional_key(&caller, ap, al) else {
+                        return -1;
+                    };
+                    if out < 0
+                        || cap < 1
+                        || cap as usize > RESOURCE_KEYS_MAX_OUTPUT_BYTES
+                        || limit < 1
+                        || limit as usize > RESOURCE_KEYS_MAX_PAGE_SIZE
+                        || caller.data().resource_queries >= 1024
+                        || caller.data().check().is_err()
+                    {
+                        return -1;
+                    }
+                    let Some(memory) = caller.get_export("memory").and_then(Extern::into_memory)
+                    else {
+                        return -1;
+                    };
+                    let Some(end) = (out as usize).checked_add(cap as usize) else {
+                        return -1;
+                    };
+                    // Reject invalid destinations before native SQL or allocation.
+                    if memory.data(&caller).get(out as usize..end).is_none() {
+                        return -1;
+                    }
+                    caller.data_mut().resource_queries += 1;
+                    let started = caller.data().metrics_enabled.then(Instant::now);
+                    let result = caller
+                        .data()
+                        .resources
+                        .get(&resource)
+                        .ok_or_else(|| "Undeclared resource".to_owned())
+                        .and_then(|resource| {
+                            resource.keys(
+                                &prefix,
+                                (!after.is_empty()).then_some(after.as_str()),
+                                limit as usize,
+                            )
+                        })
+                        .and_then(|page| {
+                            serde_json::to_vec(&page).map_err(|error| error.to_string())
+                        });
+                    if let Some(started) = started {
+                        caller.data_mut().resource_elapsed += started.elapsed();
+                    }
+                    let Ok(bytes) = result else {
+                        return -1;
+                    };
+                    if bytes.len() > RESOURCE_KEYS_MAX_OUTPUT_BYTES
+                        || caller.data().read_bytes + bytes.len() > caller.data().read_limit
+                    {
+                        return -1;
+                    }
+                    // Negotiation consumes the same query/output budget as a write.
+                    caller.data_mut().read_bytes += bytes.len();
+                    if caller.data().check().is_err() {
+                        return -1;
+                    }
+                    if bytes.len() > cap as usize {
+                        return bytes.len() as i32;
+                    }
+                    if memory.write(&mut caller, out as usize, &bytes).is_err() {
+                        return -1;
+                    }
+                    bytes.len() as i32
+                },
+            )
+            .map_err(|e| e.to_string())?;
         // Start functions have the small default allowance; substantial setup
         // belongs to the explicit resumable initialization export.
+        store.data().check()?;
         let instance = linker
             .instantiate_and_start(&mut store, &self.module)
             .map_err(|e| e.to_string())?;
+        store.data().check()?;
         let abi = instance
             .get_typed_func::<(), i32>(&store, "mlearn_abi_version")
             .map_err(|e| e.to_string())?
             .call(&mut store, ())
             .map_err(|e| e.to_string())?;
+        store.data().check()?;
         if abi != ABI_VERSION as i32 {
             return Err("Plugin ABI mismatch".into());
         }
@@ -516,7 +656,7 @@ impl CompiledPlugin {
             slot_metrics(active.owner, "evict", "validation");
         }
         *slot = None;
-        let active = self.instantiate(Arc::new(AtomicU64::new(0)), 0)?;
+        let active = self.instantiate(Arc::new(AtomicU64::new(0)), 0, None)?;
         active
             .instance
             .get_memory(&active.store, "memory")
@@ -555,39 +695,78 @@ impl CompiledPlugin {
         cancellation: Arc<AtomicU64>,
         epoch: u64,
     ) -> Result<serde_json::Value, String> {
+        self.invoke_cancellable_with_operation(capability, input, cancellation, epoch, None)
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn invoke_cancellable_with_operation(
+        &self,
+        capability: &str,
+        input: serde_json::Value,
+        cancellation: Arc<AtomicU64>,
+        epoch: u64,
+        operation: Option<Arc<AtomicBool>>,
+    ) -> Result<serde_json::Value, InvocationError> {
+        let check = || -> Result<(), String> {
+            if cancellation.load(Ordering::Relaxed) == epoch
+                && operation.as_ref().is_none_or(|flag| !flag.load(Ordering::Acquire))
+            {
+                Ok(())
+            } else {
+                Err("Plugin execution cancelled".into())
+            }
+        };
+        // Scoped cancellation must be nonwaiting; ordinary cancellation still
+        // retires its persistent guest through the error path below.
+        if operation.is_some() { check()?; }
         let bytes = serde_json::to_vec(&Call {
             capability: capability.into(),
             input,
         })
         .map_err(|e| e.to_string())?;
         if bytes.len() > MAX_MESSAGE_BYTES {
-            return Err("Plugin input exceeds message limit".into());
+            return Err(InvocationError::Operation("Plugin input exceeds message limit".into()));
         }
-        let mut slot = match ACTIVE.lock() {
+        // Source-only users retain their ordinary blocking policy. Scoped reads
+        // return typed Busy rather than becoming an uncancellable global waiter.
+        let admission = match operation {
+            Some(_) => ACTIVE.try_lock(),
+            None => ACTIVE.lock().map_err(TryLockError::Poisoned),
+        };
+        let mut slot = match admission {
             Ok(slot) => slot,
-            Err(poison) => {
+            Err(TryLockError::WouldBlock) => {
+                check()?;
+                return Err(InvocationError::Busy);
+            }
+            Err(TryLockError::Poisoned(poison)) => {
                 let mut slot = poison.into_inner();
                 if let Some(active) = slot.as_ref() {
                     slot_metrics(active.owner, "evict", "poison");
                 }
                 *slot = None;
                 ACTIVE.clear_poison();
-                return Err("Plugin execution owner was poisoned and evicted".into());
+                return Err(InvocationError::Operation(
+                    "Plugin execution owner was poisoned and evicted".into(),
+                ));
             }
         };
+        if operation.is_some() { check()?; }
         if slot.as_ref().is_none_or(|a| a.owner != self.owner) {
             if let Some(active) = slot.as_ref() {
                 slot_metrics(active.owner, "evict", "owner-switch");
             }
             *slot = None;
-            *slot = Some(self.instantiate(cancellation.clone(), epoch)?);
+            *slot = Some(self.instantiate(cancellation.clone(), epoch, operation.clone())?);
         } else {
             slot_metrics(self.owner, "reuse", "same-owner");
         }
-        let result = (|| {
+        let result: Result<serde_json::Value, String> = (|| {
             let active = slot.as_mut().ok_or("Execution slot unavailable")?;
-            active.store.data_mut().cancellation = cancellation;
+            active.store.data_mut().cancellation = Arc::clone(&cancellation);
             active.store.data_mut().epoch = epoch;
+            active.store.data_mut().operation = operation.clone();
+            check()?;
             match self.policy {
                 ExecutionPolicy::PersistentV1 => {
                     reset(&mut active.store, self.policy.call_fuel(), HOST_READ_BUDGET)?
@@ -596,7 +775,9 @@ impl CompiledPlugin {
                 // original ABI1 allowance, including fuel consumed during startup.
                 ExecutionPolicy::Fresh => active.store.data().check()?,
             }
-            active.invoke(capability, &bytes)
+            let output = active.invoke(capability, &bytes)?;
+            active.store.data().check()?;
+            Ok(output)
         })();
         if result.is_err() || self.policy == ExecutionPolicy::Fresh {
             let cause = if slot
@@ -611,8 +792,12 @@ impl CompiledPlugin {
             };
             slot_metrics(self.owner, "evict", cause);
             *slot = None;
+        } else if let Some(active) = slot.as_mut() {
+            // Persistent guest reuse must not retain a completed operation's
+            // token; the source lifetime and compiled owner remain unchanged.
+            active.store.data_mut().operation = None;
         }
-        result
+        result.map_err(InvocationError::Operation)
     }
 }
 fn reset(store: &mut Store<State>, fuel: u64, read_limit: usize) -> Result<(), String> {
@@ -794,7 +979,7 @@ mod tests {
         )
         .unwrap();
         let plugin = CompiledPlugin::new(&code, AssetMap::new()).unwrap();
-        let mut active = plugin.instantiate(Arc::new(AtomicU64::new(0)), 0).unwrap();
+        let mut active = plugin.instantiate(Arc::new(AtomicU64::new(0)), 0, None).unwrap();
         let available = active.store.get_fuel().unwrap() + active.store.data().fuel_remaining;
         assert!(
             available < CALL_FUEL,
@@ -826,7 +1011,7 @@ mod tests {
         .unwrap();
         let plugin = CompiledPlugin::new(&code, AssetMap::new()).unwrap();
         let cancellation = Arc::new(AtomicU64::new(0));
-        let mut active = plugin.instantiate(cancellation.clone(), 0).unwrap();
+        let mut active = plugin.instantiate(cancellation.clone(), 0, None).unwrap();
         reset(&mut active.store, CALL_FUEL, HOST_READ_BUDGET).unwrap();
         // The exact execution event changes the epoch, with no thread timing,
         // sleep or polling. The returned value must never reach the caller.
@@ -840,5 +1025,55 @@ mod tests {
             run(&mut active.store, function, ()).unwrap_err(),
             "Plugin execution cancelled"
         );
+    }
+
+    #[test]
+    fn bounded_read_operation_cancellation_interrupts_actual_execution_without_changing_source() {
+        // Given a real Wasmi store with conjunctive source/operation cancellation.
+        let code = wat::parse_str(r#"(module
+            (memory (export "memory") 1)
+            (func (export "mlearn_abi_version") (result i32) i32.const 1)
+        )"#).unwrap();
+        let plugin = CompiledPlugin::new(&code, AssetMap::new()).unwrap();
+        let source = Arc::new(AtomicU64::new(0));
+        let operation = Arc::new(AtomicBool::new(false));
+        let mut active = plugin.instantiate(Arc::clone(&source), 0, Some(Arc::clone(&operation))).unwrap();
+        reset(&mut active.store, CALL_FUEL, HOST_READ_BUDGET).unwrap();
+        // When the actual execution event signals only its operation flag.
+        let function = wasmi::Func::wrap(&mut active.store, move || -> i32 {
+            operation.store(true, Ordering::Release);
+            99
+        }).typed::<(), i32>(&active.store).unwrap();
+        assert_eq!(run(&mut active.store, function, ()).unwrap_err(), "Plugin execution cancelled");
+        // Then the result is rejected while the same source remains usable.
+        assert_eq!(source.load(Ordering::Relaxed), 0);
+        let mut sibling = plugin.instantiate(source, 0, None).unwrap();
+        reset(&mut sibling.store, CALL_FUEL, HOST_READ_BUDGET).unwrap();
+        let function = wasmi::Func::wrap(&mut sibling.store, || -> i32 { 7 })
+            .typed::<(), i32>(&sibling.store).unwrap();
+        assert_eq!(run(&mut sibling.store, function, ()).unwrap(), 7);
+    }
+
+    #[test]
+    fn bounded_read_scoped_global_admission_is_nonwaiting_and_preserves_occupied_owner() {
+        // Given another execution owner holding the actual process-global slot.
+        let code = wat::parse_str(r#"(module
+            (memory (export "memory") 1)
+            (func (export "mlearn_abi_version") (result i32) i32.const 1)
+        )"#).unwrap();
+        let plugin = CompiledPlugin::new(&code, AssetMap::new()).unwrap();
+        let slot = ACTIVE.lock().unwrap();
+        let owner = slot.as_ref().map(|active| active.owner);
+        let source = Arc::new(AtomicU64::new(0));
+        // When a scoped call attempts admission with the lock still occupied.
+        let result = plugin.invoke_cancellable_with_operation(
+            "test", serde_json::Value::Null, Arc::clone(&source), 0,
+            Some(Arc::new(AtomicBool::new(false))),
+        );
+        // Then typed Busy returns before the blocker is released or touched.
+        assert!(result.unwrap_err().is_busy());
+        assert_eq!(slot.as_ref().map(|active| active.owner), owner);
+        assert_eq!(source.load(Ordering::Relaxed), 0);
+        drop(slot); // Must precede CompiledPlugin::drop, which also owns ACTIVE.
     }
 }

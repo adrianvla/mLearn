@@ -12,9 +12,12 @@ export function Badge({ label, color, variant = 'partOfSpeech', tone = 'content'
   readonly size?: 'default' | 'compact';
 }) {
   const { theme } = useUnistyles();
-  const backgroundColor = color ? `${color}20` : variant === 'reading' ? theme.pills.neutral.surface
+  const channels = color ? [1, 3, 5].map(offset => Number.parseInt(color.slice(offset, offset + 2), 16)) : null;
+  // Package hues are valid hex colors, not contrast-certified ink. Own the
+  // opaque 0x20 tint and lighten its ink so parent content/media cannot wash it out.
+  const backgroundColor = channels ? `rgb(${channels.map(channel => Math.round(channel * 32 / 255)).join(',')})` : variant === 'reading' ? theme.pills.neutral.surface
     : variant === 'partOfSpeech' ? theme.media.metadata : tone === 'media' ? theme.media.badge : theme.controls.surface;
-  const foreground = color ?? (variant === 'reading' ? theme.pills.neutral.text
+  const foreground = channels ? `rgb(${channels.map(channel => Math.round(channel * 0.4 + 255 * 0.6)).join(',')})` : (variant === 'reading' ? theme.pills.neutral.text
     : variant === 'label' && tone === 'content' ? theme.colors.text : theme.media.text);
   return <View style={[styles.root(variant, size === 'compact'), { backgroundColor }]}>
     <NativeText selectable={selectable} style={[styles.label(variant, size === 'compact'), { color: foreground }]}>{label}</NativeText>

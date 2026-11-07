@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -179,7 +180,7 @@ test('real renderer preserves rank, filter palette, measured collapse and shared
       assert.deepEqual(await page.evaluate(`({
         created:starTest.counts.created, observed:starTest.counts.observed.size,
         observeCalls:starTest.counts.observeCalls
-      })`), { created: 1, observed: 3, observeCalls: 3 });
+      })`), { created: 1, observed: 4, observeCalls: 4 });
 
       // When the actual word grows to the exact fit threshold, subscribe first.
       await page.evaluate(`new Promise((resolve, reject) => {
@@ -203,9 +204,48 @@ test('real renderer preserves rank, filter palette, measured collapse and shared
       assert.deepEqual(await page.evaluate(`({
         observed:starTest.counts.observed.size, unobserved:starTest.counts.unobserved,
         disconnected:starTest.counts.disconnected
-      })`), { observed: 0, unobserved: 3, disconnected: 1 });
+      })`), { observed: 0, unobserved: 4, disconnected: 1 });
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();
     }
   });
+
+test('auto collapse respects bounded flex rows during resize', { timeout: 30_000 }, async () => {
+  const modules = await rendererModules();
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`<style>
+      #line { display:flex; justify-content:center; width:100px; border:1px solid }
+      #word { display:inline-block; position:relative; flex:none; width:18px; height:44px }
+    </style><div id="line"><span id="word">道</span></div>`);
+    await page.addScriptTag({ content: rendererScript(modules) });
+    await page.evaluate(`starTest.render('word', { rank:5, label:'rank five' })`);
+    assert.equal(await page.locator('#word [data-level-star]').count(), 5);
+
+    // The word keeps its size while the containing row loses annotation room.
+    await page.evaluate(`new Promise((resolve, reject) => {
+      const stars = document.querySelector('#word [data-level-stars]');
+      const initialLayout = new ResizeObserver(() => {
+        initialLayout.disconnect();
+        document.getElementById('line').style.width = '30px';
+      });
+      const observer = new MutationObserver(() => {
+        if (stars.dataset.collapsed === 'true') {
+          clearTimeout(deadline); observer.disconnect(); resolve();
+        }
+      });
+      const deadline = setTimeout(() => {
+        initialLayout.disconnect(); observer.disconnect(); reject(new Error('Row resize did not collapse annotations'));
+      }, 5000);
+      observer.observe(stars, { attributes:true, attributeFilter:['data-collapsed'] });
+      initialLayout.observe(document.getElementById('word'));
+    })`);
+    assert.equal(await page.locator('#word [data-level-star]').count(), 1);
+    assert.equal(await page.locator('#word [data-level-stars-count]').textContent(), '5');
+    await page.evaluate(`starTest.unmount('word')`);
+  } finally {
+    await browser.close();
+  }
+});

@@ -44,7 +44,7 @@ pub(crate) fn read_resource(
         .transpose()
 }
 
-fn decode_block(value: &str) -> Result<DocumentBlock, StorageError> {
+pub(crate) fn decode_block(value: &str) -> Result<DocumentBlock, StorageError> {
     let block: DocumentBlock = serde_json::from_str(value)?;
     if block.readings.len() > 4096 || payload(&block) > WINDOW_BYTES {
         return Err(invalid("Stored document block exceeds payload bound"));

@@ -1,5 +1,6 @@
-import type { DocumentAppearance, DocumentPosition, DocumentRecord, DocumentWindow, Response } from '@mlearn/contracts';
+import type { DocumentAppearance, DocumentPosition, DocumentRecord, DocumentSearchPage, DocumentWindow, Response } from '@mlearn/contracts';
 import { isAnalyzedToken, isKnowledgeProjection } from './watchProtocol';
+import { isSourceAnchor } from './sourceProtocol';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -86,11 +87,46 @@ function analyzedBlock(value: unknown) {
   }
   return cursor === value.start + bytes.length;
 }
-type DocumentResponse = Extract<Response, { type: 'document' | 'documents' | 'document_contents' | 'document_analysis' | 'document_resource' }>;
+function isDocumentSearchPage(value: unknown): value is DocumentSearchPage {
+  if (!object(value) || !text(value.sourceId) || !text(value.contentRevision) || !text(value.parserRevision)
+    || value.scope !== 'text' && value.scope !== 'recognized_pages' || !text(value.text, 1024)
+    || !uint(value.scanned) || !uint(value.total) || value.total > 1024 || value.scanned > value.total
+    || !uint(value.unavailable) || value.unavailable > value.scanned || !Array.isArray(value.hits)
+    || value.hits.length > 16 || encoder.encode(JSON.stringify(value)).length > 196608) return false;
+  const scope = value.scope;
+  const parser = value.parserRevision;
+  const search = value.text;
+  const total = value.total;
+  if (!value.hits.every(hit => {
+    if (!object(hit) || !isDocumentPosition(hit.position) || hit.position.parserRevision !== parser
+      || !isSourceAnchor(hit.anchor) || hit.anchor.sourceId !== value.sourceId
+      || hit.anchor.contentRevision !== value.contentRevision) return false;
+    const anchor = hit.anchor;
+    const locator = anchor.locator;
+    const selected = decoder.decode(encoder.encode(anchor.text).subarray(locator.selectionStart, locator.selectionEnd));
+    if (selected !== search) return false;
+    switch (locator.kind) {
+      case 'document': return scope === 'text' && locator.parserRevision === parser
+        && hit.position.resource === locator.resource && hit.position.blockId === locator.blockId
+        && hit.position.offset === locator.contextStart + locator.selectionStart;
+      case 'image': return scope === 'recognized_pages' && locator.pageIndex !== null
+        && locator.pageIndex < total && hit.position.offset === 0;
+      case 'message': case 'video': return false;
+    }
+  })) return false;
+  if (value.next === null) return value.scanned === total;
+  const next = value.next;
+  return object(next) && typeof next.identity === 'string' && /^[a-f0-9]{64}$/.test(next.identity)
+    && uint(next.index) && next.index === value.scanned && next.index < total
+    && uint(next.region) && next.region <= 512 && (scope !== 'text' || next.region === 0)
+    && uint(next.offset) && next.offset <= 65536 && next.unavailable === value.unavailable;
+}
+type DocumentResponse = Extract<Response, { type: 'document' | 'documents' | 'document_contents' | 'document_analysis' | 'document_resource' | 'document_search' }>;
 export function isDocumentResponse(value: unknown): value is DocumentResponse {
   if (!object(value)) return false;
   switch (value.type) {
     case 'document': return isDocumentWindow(value.window);
+    case 'document_search': return isDocumentSearchPage(value.page);
     case 'documents': return list(value.sources, 16, isDocumentRecord);
     case 'document_contents': {
       const page = value.page;

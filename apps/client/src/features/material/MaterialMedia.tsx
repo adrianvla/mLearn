@@ -59,8 +59,9 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
     return () => {
       if (owner.current === scope) owner.current = null;
       abort.current?.abort();
+      onBusyChange(false);
     };
-  }, []);
+  }, [onBusyChange]);
   const mediaById = new Map((base?.media ?? []).map(item => [item.id, item]));
   const full = attachments.length + staged.length >= MAX_ATTACHMENTS;
   const busy = disabled || pickPending !== null || capturePending !== null;
@@ -166,7 +167,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       <Text accessibilityLiveRegion="polite">{capturePending}…</Text>
       <Button label="Cancel capture" size="compact" variant="quiet" onPress={() => abort.current?.abort()} />
     </Row> : null}
-    {full ? <Text variant="caption" muted>Material supports up to {MAX_ATTACHMENTS} attachments.</Text> : null}
+    {full ? <Text variant="caption" muted>{MAX_ATTACHMENTS} attachment limit</Text> : null}
     {staged.some(item => item.kind === 'audio') || attachments.some(item => mediaById.get(item.mediaId)?.kind === 'audio')
       ? <Text variant="caption" muted>For listening, select audio that speaks this phrase. Changing the phrase clears the selection.</Text> : null}
     {staged.map(item => <View key={item.key} style={styles.attachment}>

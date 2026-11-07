@@ -1,5 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { evaluateResources, ResourceMeasurementError } from '../resource-guard.mjs';
 
 const GiB = 1024 ** 3;
@@ -24,8 +30,9 @@ test('current physical footprint above the former fixed cap can fit safely', () 
 });
 
 test('warning and critical pressure reject even with nominal available memory', () => {
-  for (const pressureLevel of [2, 4])
-    assert.deepEqual(evaluateResources(samples({ pressureLevel }), GiB).reasons, ['host_pressure']);
+  for (const profile of ['heavy', 'frontend'])
+    for (const pressureLevel of [2, 4])
+      assert.deepEqual(evaluateResources(samples({ pressureLevel }), GiB, profile).reasons, ['host_pressure']);
 });
 
 test('a workload that would consume the host reserve is rejected', () => {
@@ -71,4 +78,38 @@ test('missing or inconsistent process metrics fail closed', () => {
     samples().map(sample => ({ ...sample, timeMs: 1000 })),
   ]) assert.throws(() => evaluateResources(readings, GiB), ResourceMeasurementError);
   assert.equal(evaluateResources(samples().slice(0, 1), GiB).sampled, false);
+});
+
+test('bounded frontend inspection can fit while heavyweight admission stays closed', () => {
+  const readings = samples({ availableBytes: 5_201_739_776 });
+  const frontend = evaluateResources(readings, 768 * MiB, 'frontend');
+  assert.equal(frontend.safe, true);
+  assert.equal(frontend.reserveBytes, 3584 * MiB);
+  const heavy = evaluateResources(readings, 1536 * MiB);
+  assert.equal(heavy.safe, false);
+  assert.equal(heavy.reserveBytes, 4 * GiB);
+  assert.throws(() => evaluateResources(readings, 1025 * MiB, 'frontend'), ResourceMeasurementError);
+});
+
+test('admission exits when three samples cannot admit a workload', { timeout: 20_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'mlearn-resource-admission-'));
+  try {
+    const sampler = join(directory, String(process.pid));
+    await writeFile(sampler, `console.log(JSON.stringify({
+  pid:${process.pid},timeMs:Math.round(performance.timeOrigin+performance.now()),
+  physicalFootprintBytes:100000000,rssBytes:100000000,totalBytes:17179869184,
+  availableBytes:4000000000,pressureLevel:1,swapUsedBytes:0,swapOutBytes:0
+}));`);
+    await assert.rejects(promisify(execFile)(process.execPath, [
+      fileURLToPath(new URL('../resource-guard.mjs', import.meta.url)),
+      String(process.pid), 'admission', process.execPath, '1024',
+    ], { cwd: directory, timeout: 15_000 }), error => {
+      assert.equal(error.code, 70);
+      assert.equal(error.signal, null);
+      assert.equal(error.stdout.split('\n').filter(line => line.startsWith('{')).length, 3);
+      return true;
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -1,3 +1,4 @@
+use crate::native_test_profile::NativeTestProfile;
 use crate::{BundledPlugin, Runtime, RuntimeExecutor, catalog::Manifest};
 use mlearn_core::{Cue, Request, SourceRecord};
 use mlearn_language_host::CodePolicy;
@@ -38,8 +39,22 @@ pub(crate) fn hold_guest_result(capability: &str) {
         }
     });
 }
-pub(crate) fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
-    let directory = tempfile::tempdir().unwrap();
+pub(crate) fn observe_guest_result(
+    capability: &'static str,
+    returned: mpsc::SyncSender<()>,
+    release: mpsc::Receiver<()>,
+) {
+    GUEST_RETURN.with(|slot| {
+        *slot.borrow_mut() = Some(GuestReturnBarrier {
+            capability,
+            returned,
+            release,
+        });
+    });
+}
+
+pub(crate) fn fixture() -> (NativeTestProfile, Arc<RuntimeExecutor>, SourceRecord) {
+    let directory = NativeTestProfile::new();
     let profile = directory.path().join("profile");
     let cdn = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
     let manifests: Vec<Manifest> = serde_json::from_slice(
@@ -125,7 +140,9 @@ fn with_held_guest<T>(
         | Request::AnalyzeDocument { .. }
         | Request::AnalyzeOcr { .. } => "text.analyze.v1",
         Request::OpenDocument { .. } | Request::ImportImageCollection { .. } => "document.parse",
-        Request::ChangeClaim { .. } | Request::InspectTarget { .. } => "target.inspect.v1",
+        Request::ChangeClaim { .. }
+        | Request::InspectTarget { .. }
+        | Request::PrepareSourcePractice { .. } => "target.inspect.v1",
         _ => panic!("This fixture holds analysis, inspection or claim completion"),
     };
     let (returned, ready) = mpsc::sync_channel(1);
@@ -172,6 +189,115 @@ fn foreground_attempt(
     entered.recv_timeout(Duration::from_secs(10)).unwrap();
     let before_release = response.recv_timeout(Duration::from_secs(2));
     (before_release, worker, response)
+}
+
+fn source_practice_request(executor: &RuntimeExecutor, source: &SourceRecord) -> Request {
+    let analyzed: mlearn_core::Response = serde_json::from_str(
+        &executor.execute(
+            &json!({
+                "type":"analyze_source","sourceId":source.id,"positionMs":0,
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    let mlearn_core::Response::Analysis { batch } = analyzed else {
+        panic!("Expected real source analysis, received {analyzed:?}");
+    };
+    let cue = &batch.cues[0];
+    let token = cue
+        .tokens
+        .iter()
+        .find(|token| !token.targets.is_empty())
+        .unwrap();
+    serde_json::from_value(json!({
+        "type":"prepare_source_practice","packageId":batch.package_id,
+        "packageRevision":batch.package_revision,
+        "targets":[{"targetId":token.targets[0],"source":{
+            "sourceId":source.id,"contentRevision":source.media_revision,
+            "packageId":source.package_id,"packageVersion":source.package_version,"text":cue.cue.text,
+            "locator":{"kind":"video","subtitleRevision":source.subtitle_revision,"cueIndex":cue.cue.index,
+                "selectionStart":token.start,"selectionEnd":token.end,"positionMs":0,
+                "subtitleOffsetMs":source.subtitle_offset_ms,"playbackRate":source.playback_rate}
+        }}]
+    })).unwrap()
+}
+
+#[test]
+fn source_practice_prepares_unsaved_real_targets_and_rejects_changed_or_forged_scope() {
+    // Given actual package morphology and an attested subtitle selection with no saved Material.
+    let (_directory, executor, source) = fixture();
+    let request = source_practice_request(&executor, &source);
+    let raw = serde_json::to_string(&request).unwrap();
+    let ticket = executor.begin_bounded_read().unwrap();
+    // When the source view asks the existing scoped read owner for package-supported tasks.
+    let prepared: mlearn_core::Response =
+        serde_json::from_str(&executor.execute_bounded_read(&ticket, &raw)).unwrap();
+    let mlearn_core::Response::SourcePractice { items } = prepared else {
+        panic!("Expected canonical preparation, received {prepared:?}");
+    };
+    // Then native support and exact provenance are frozen without creating authored content.
+    let Request::PrepareSourcePractice {
+        package_id,
+        package_revision,
+        targets,
+    } = &request
+    else {
+        unreachable!();
+    };
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].package_id, *package_id);
+    assert_eq!(items[0].package_revision, *package_revision);
+    assert_eq!(items[0].target_id, targets[0].target_id);
+    assert_eq!(items[0].source.as_ref(), Some(&targets[0].source));
+    assert!(!items[0].capabilities.is_empty());
+    assert!(
+        executor
+            .runtime
+            .lock()
+            .unwrap()
+            .store
+            .materials(&mlearn_core::MaterialQuery {
+                after: None,
+                query: String::new(),
+                source_id: None,
+                include_excluded: true,
+            })
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    for invalid in [
+        json!({"type":"prepare_source_practice","packageId":package_id,"packageRevision":"stale","targets":targets}),
+        json!({"type":"prepare_source_practice","packageId":package_id,"packageRevision":package_revision,
+            "targets":[{"targetId":"org.mlearn.english:grammar/past-simple-negative","source":targets[0].source}]}),
+        json!({"type":"prepare_source_practice","packageId":package_id,"packageRevision":package_revision,
+            "targets":[targets[0],targets[0]]}),
+    ] {
+        let ticket = executor.begin_bounded_read().unwrap();
+        let rejected: Value =
+            serde_json::from_str(&executor.execute_bounded_read(&ticket, &invalid.to_string()))
+                .unwrap();
+        assert_eq!(rejected["type"], "error", "{rejected}");
+    }
+}
+
+#[test]
+fn source_practice_cancellation_rejects_real_guest_publication_and_recovers() {
+    // Given real preparation held after guest execution but before native publication.
+    let (_directory, executor, source) = fixture();
+    let request = source_practice_request(&executor, &source);
+    // When departure advances the source epoch at that exact boundary.
+    let (_, cancelled) =
+        with_held_guest(&executor, request.clone(), || executor.cancel_source_open());
+    // Then no stale preparation is published, and a fresh bounded operation can reuse the owner.
+    assert_eq!(cancelled["code"], "cancelled", "{cancelled}");
+    let ticket = executor.begin_bounded_read().unwrap();
+    let recovered: Value = serde_json::from_str(
+        &executor.execute_bounded_read(&ticket, &serde_json::to_string(&request).unwrap()),
+    )
+    .unwrap();
+    assert_eq!(recovered["type"], "source_practice", "{recovered}");
 }
 
 #[test]
@@ -653,3 +779,36 @@ fn explicit_cancellation_rejects_the_held_analysis_without_losing_a_checkpoint()
 }
 #[path = "guest_lifetime_tests.rs"]
 mod lifetime;
+
+#[test]
+fn bounded_read_cancel_preserves_unrelated_real_source_analysis_and_checkpoint() {
+    // Given actual package analysis held between guest return and publication.
+    let (_directory, executor, source) = fixture();
+    let epoch = executor.cancellation_handle().load(Ordering::Relaxed);
+    let id = executor.begin_bounded_read().unwrap();
+    // When an independent operation reservation is cancelled.
+    let (cancelled, completed) = with_held_guest(
+        &executor,
+        Request::AnalyzeSource {
+            source_id: source.id.clone(),
+            position_ms: 0,
+        },
+        || executor.cancel_bounded_read(&id),
+    );
+    // Then real annotations and ordinary checkpoint work still complete.
+    cancelled.unwrap();
+    assert_eq!(
+        executor.cancellation_handle().load(Ordering::Relaxed),
+        epoch
+    );
+    assert_eq!(completed["type"], "analysis");
+    let checkpoint: Value = serde_json::from_str(
+        &executor.execute(
+            &json!({"type":"save_position","sourceId":source.id,
+            "positionMs":1234,"durationMs":40_000})
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(checkpoint["type"], "position_saved");
+}

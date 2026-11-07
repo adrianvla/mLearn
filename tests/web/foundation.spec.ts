@@ -1,5 +1,68 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { resolve } from 'node:path';
+import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
+import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
+import { builtInThemes } from '../../packages/theme/src/theme';
+
+test('empty Home exposes its package action without clipping or an unusable language selector', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('empty-home-profile') });
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/');
+    const packages = page.getByRole('button', { name: 'Get language packages', exact: true });
+    await expect(packages).toHaveText('Get language packages');
+    await expect(page.getByTestId('source-language-select')).toHaveCount(0);
+    for (const width of [1080, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(packages).toBeInViewport({ ratio: 1 });
+      const bounds = await packages.boundingBox();
+      if (!bounds) throw new Error('Package action has no visible bounds');
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: info.outputPath(`empty-home-${width}.png`) });
+    }
+    await packages.click();
+    await expect(page).toHaveURL(/\/settings\?section=languages$/);
+    expect(backend.metadata().providerRequests).toBe(0);
+  } finally {
+    await backend.close();
+  }
+});
+
+test('Home continuation gives real source metadata priority over placeholder geometry', async ({ page }, info) => {
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('native-profile') });
+  const client = createRuntimeBrowserClient(backend);
+  try {
+    await attachRuntimeBrowserQa(page, backend.url);
+    await page.goto('/settings?section=languages');
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Install .*English/ }).click();
+    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    const document = await client.openDocument(resolve('tests/fixtures/reader/graph-navigation.txt'), 'org.mlearn.english');
+    for (const theme of builtInThemes) {
+      await client.saveTheme(theme, (await client.snapshot()).revision);
+      await page.goto('/');
+      for (const width of [1080, 390]) {
+        await page.setViewportSize({ width, height: 844 });
+        const source = page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true });
+        await expect(source).toBeVisible();
+        await page.screenshot({ path: info.outputPath(`home-source-${theme.id}-${width}.png`) });
+        const row = await source.boundingBox();
+        const title = await source.getByText(document.source.title, { exact: true }).boundingBox();
+        if (!row || !title) throw new Error('Source continuation has no metadata bounds');
+        expect(row.height).toBeGreaterThanOrEqual(44);
+        expect(title.width).toBeGreaterThan(row.width * 0.65);
+        expect(row.x + row.width).toBeLessThanOrEqual(width);
+      }
+    }
+    await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/reader\\?id=${document.source.id}`));
+    await expect(page.getByTestId('reader-title')).toHaveText(document.source.title);
+  } finally {
+    await backend.close();
+  }
+});
 
 test('one shared surface is honest about missing native capabilities', async ({ page }) => {
   const errors: string[] = [];
@@ -44,7 +107,7 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
   await expect(selector).toBeFocused();
   await expect(heading).not.toHaveCSS('color', before);
-  await expect(page.getByText('Unsaved visual preview. No native data was written.')).toBeVisible();
+  await expect(page.getByText('Preview only. Changes are not saved.', { exact: true })).toBeVisible();
   const trigger = page.getByRole('button', { name: 'Edit theme JSON', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });
@@ -95,10 +158,92 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });
 
-test('Home recovers a directly opened Watch route without navigation history', async ({ page }) => {
+for (const destination of ['Home', 'Knowledge', 'Material']) {
+test(`unavailable Review ${destination} preserves the retained Knowledge search`, async ({ page }, info) => {
+  await page.goto('/');
+  for (const width of [1080, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const draft = `Unsubmitted Knowledge search at ${width}`;
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    const search = page.getByRole('textbox', { name: 'Search Knowledge', exact: true });
+    await expect(search).toBeInViewport();
+    const bounds = await search.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width, 'Keep room to read and edit a collection query').toBeGreaterThanOrEqual(160);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await search.fill(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+
+    // Establish that ordinary management navigation retains this same draft
+    // before exercising the unavailable activity's departure.
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    await expect(search).toHaveValue(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    const review = page.waitForURL(url => url.pathname === '/review', { timeout: 5000 });
+    await page.getByTestId('home-open-review').click();
+    await review;
+    await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start Review', exact: true })).toHaveCount(0);
+    await page.screenshot({ path: info.outputPath(`unavailable-review-before-home-${width}.png`) });
+    const targetPath = destination === 'Home' ? '/' : destination === 'Knowledge' ? '/knowledge' : '/materials';
+    const returned = page.waitForURL(url => url.pathname === targetPath, { timeout: 5000 });
+    if (destination === 'Home') await page.getByRole('button', { name: 'Home', exact: true }).click();
+    else {
+      await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+      await page.getByRole('menuitem', { name: destination, exact: true }).click();
+    }
+    await returned;
+    await expect(page.getByRole('heading', { name: destination, exact: true })).toBeVisible();
+    if (destination !== 'Knowledge') {
+      if (destination === 'Material' && width < 700) {
+        await page.getByRole('button', { name: 'More destinations', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
+      } else await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
+    }
+    await page.screenshot({ path: info.outputPath(`unavailable-review-retained-${width}.png`) });
+    await expect(search).toHaveValue(draft);
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+  }
+});
+}
+
+test('Home recovers directly opened activities without navigation history', async ({ page }, info) => {
+  for (const width of [1080, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ['messenger', 'reader', 'review', 'watch']) {
+      await page.goto(`/${route}?id=unavailable`);
+      if (route !== 'watch') {
+        await expect(page.getByRole('alert').filter({
+          hasText: 'The browser preview has no native runtime.',
+        })).toBeVisible();
+      }
+      await page.screenshot({ path: info.outputPath(`unavailable-${route}-${width}.png`) });
+      if (route === 'reader') {
+        await expect(page.getByRole('heading', { name: 'Reader', exact: true })).toBeVisible();
+      }
+      await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+      const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+      await page.getByRole('button', { name: 'Home', exact: true }).click();
+      await home;
+      await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    }
+  }
+});
+
+for (const width of [1080, 390]) test(`unavailable Watch exposes its runtime failure and Home recovery at ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
   await page.goto('/watch?id=unavailable');
-  const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
-  await page.getByRole('button', { name: 'Home', exact: true }).click();
-  await home;
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  await expect(home).toBeVisible();
+  await page.screenshot({ path: info.outputPath(`unavailable-watch-${width}.png`) });
+  await expect(page.getByRole('alert').filter({
+    hasText: 'The browser preview has no native runtime.',
+  })).toBeVisible();
+  await expect(page.getByText('Opening source…', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Retry source', exact: true })).toHaveCount(0);
+  const returned = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+  await home.click();
+  await returned;
   await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 });

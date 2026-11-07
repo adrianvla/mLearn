@@ -5,6 +5,7 @@ import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from
 import type { ImageReaderSettings, OcrAnalysisBatch, OcrPage, OcrRect, OcrRegion } from '@mlearn/contracts';
 import { DocumentImageLens, DocumentReadingCover, DocumentWord, InlineWordContent, type InlineDocumentFlow, type TextAnchor, type TextBounds } from '@mlearn/ui/document';
 import { imageCrop, imageFrame } from './imageFlow';
+import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 
 export type ImageCanvasRef = { measure: DOMImperativeFactory[string]; restoreFocus: () => void };
 export type ImageCanvasPage = { readonly resourceId: string; readonly index: number;
@@ -40,7 +41,7 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
     readonly onMagnify: (sourceIdentity: string, resourceId: string, crop: OcrRect) => Promise<string>;
     readonly onMagnifierActive: (identity: string, active: boolean) => Promise<void>;
     readonly onImageError: (identity: string, resourceId: string) => Promise<void>;
-    readonly onThumbnail: (identity: string, resourceId: string, uri: string) => Promise<void>;
+    readonly onThumbnail: (identity: string, resourceId: string, thumbnail: SourceThumbnail) => Promise<void>;
     readonly onNavigate: (identity: string, direction: 'previous' | 'next') => Promise<void>;
 }) {
     const root = useRef<HTMLDivElement>(null);
@@ -210,7 +211,9 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
                             const context = preview.getContext('2d');
                             if (context) {
                                 context.drawImage(node, 0, 0, preview.width, preview.height);
-                                void onThumbnail(identity, page.resourceId, preview.toDataURL('image/png'));
+                                void onThumbnail(identity, page.resourceId, {
+                                    uri: preview.toDataURL('image/png'), width: preview.width, height: preview.height,
+                                });
                             }
                         }} onError={() => { void onImageError(identity, page.resourceId); }}
                         style={{ display: 'block', width: '100%', height: '100%', userSelect: 'none',
