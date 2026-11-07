@@ -2,6 +2,33 @@
 
 ## Active continuation - 2026-11-07
 
+### Enlarged Inspector readability repair
+
+Independent review during CI reproduced a real 2x-text source Inspector defect
+at 390x560: focused Practice is 90px tall inside a 62px picker. The actual-native
+owner regression fails before repair (viewport ratio 0.6667). The first rendered
+repair fixed phone but exposed the same desktop admission error (ratio 0.9245).
+Both failure frames were inspected before the next presentation change.
+
+Shared ContextPanel now uses measured header/footer plus its scaled readable-body
+budget for anchor admission and bounded fallback height. Ordinary compact
+presentation, typography, source identity, scroll owners and footer actions stay
+shared. Typecheck, ownership lint and export pass. Five affected native/renderer
+cases pass (8.5s): exact Practice admission/retry/restart/source return; full
+enlarged action visibility, unforced trial hit-testing and focus recovery in both
+themes at 390/1080x560; normal footer/menu/contrast flows at both widths. All four
+enlarged and both ordinary frames were directly inspected in `inspector-short-final`.
+No provider was requested. Fresh test diagnostics pass; UI-file freshness timed
+out, while the complete TypeScript command passed.
+
+Retained-profile theme restoration and local host cleanup logged exit 0; no
+owned QA browser/backend/server remains. Swap stays 481.88 MB; OmO physical
+footprint is 1536 MB and disk approximately 1.7 GiB. Manual inspection reused the
+prepared profile; the regression installed English in its own isolated profile
+without preparing a collection. No heavyweight local native build, unrelated
+cleanup or profile clone was performed. Current consuming-native,
+full integration and the narrow independent delta review remain open.
+
 ### Authorized current-source CI
 
 The maintainer authorized the six-checkpoint normal push through `1e20d8a0`

@@ -55,12 +55,13 @@ export function ContextPanel({ title, anchor, onClose, children, headerAction, f
     const below = Math.max(0, height - bounds.y - bounds.height - 24);
     // Keep at least one readable body/action region when enlarged text leaves
     // too little space beside the cue. Compact inspection retains its context.
-    const anchored = desktop && Math.max(above, below) >= headerHeight + 128;
+    const readableHeight = headerHeight + footerHeight + 128 * theme.textScale;
+    const anchored = desktop && Math.max(above, below) >= readableHeight;
     const preferredHeight = 350 * theme.textScale;
     const placeAbove = above >= Math.min(preferredHeight, height * 0.72) || above >= below;
     const maxHeight = anchored
         ? Math.min(preferredHeight, placeAbove ? above : below)
-        : Math.min(height - 40, height * 0.75);
+        : Math.min(height - 40, Math.max(height * 0.75, readableHeight));
     return (
         <DialogPortalContext.Provider value={portal}><Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
             <Primitive.Portal>

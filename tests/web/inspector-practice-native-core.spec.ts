@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
 import { createRuntimeBrowserClient } from '../../tools/runtime-browser-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 import { builtInThemes } from '../../packages/theme/src/theme';
@@ -101,6 +102,50 @@ test('Inspector Practice retries its exact canonical admission with honest assis
     expect(backend.metadata().providerRequests).toBe(0);
   } finally {
     release();
+    await backend.close();
+  }
+});
+
+test('enlarged source Inspector keeps focused Practice readable in short viewports', async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const backend = await startRuntimeBrowserQa({ profile: info.outputPath('readability-profile') });
+  const client = createRuntimeBrowserClient(backend);
+  try {
+    await client.availablePackages();
+    await client.installPackage(client.prepareInstall('org.mlearn.english'));
+    const path = info.outputPath('long-word.txt');
+    await writeFile(path, 'These flowers are zygomorphous.');
+    const document = await client.openDocument(path, 'org.mlearn.english');
+    await attachRuntimeBrowserQa(page, backend.url);
+    for (const theme of builtInThemes) {
+      await client.saveTheme({ ...theme, textScale: 2 }, (await client.snapshot()).revision);
+      for (const width of [390, 1080]) {
+        await page.setViewportSize({ width, height: 560 });
+        await page.goto(`/reader?id=${document.source.id}`);
+        const word = page.getByRole('button', { name: 'zygomorphous: untracked', exact: true });
+        await word.click();
+        const inspector = page.getByTestId('inspector-panel');
+        const knowledge = inspector.getByRole('button', { name: /^Knowledge:/ });
+        await knowledge.click();
+        const practice = inspector.getByRole('button', { name: /^Practice / });
+        await practice.focus();
+        await expect(practice).toBeInViewport({ ratio: 1 });
+        await practice.click({ trial: true });
+        await page.screenshot({ path: info.outputPath(`readable-practice-${theme.id}-${width}.png`) });
+        await page.keyboard.press('Escape');
+        await expect(knowledge).toBeFocused();
+        for (const action of await page.getByTestId('inspector-footer').getByRole('button').all()) {
+          await expect(action).toBeEnabled();
+          await action.focus();
+          await expect(action).toBeInViewport({ ratio: 1 });
+        }
+        await page.keyboard.press('Escape');
+        await expect(inspector).toHaveCount(0);
+        await expect(word).toBeFocused();
+      }
+    }
+    expect(backend.metadata().providerRequests).toBe(0);
+  } finally {
     await backend.close();
   }
 });
