@@ -99,6 +99,12 @@ appId: net.kikan.mlearn.v3dev
 - launchApp:
     clearState: false
     permissions: {}
+# The newest video is in Watch's activity card, above older recent sources.
+# Establish the start of the activity list before searching down from Home.
+- scrollUntilVisible:
+    element: Open document
+    direction: UP
+    timeout: 60000
 - scrollUntilVisible:
     element: Continue m01-japanese.mp4
     direction: DOWN

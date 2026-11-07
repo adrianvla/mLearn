@@ -4,7 +4,25 @@
 
 ### Fractional focus scrolling and retained CI evidence
 
-Current-source desktop `42414269474` passes at `c6d70ebe`/tree `163eb291`.
+The focus repair is committed/pushed as `8c52ca38`; the same reviewer approves
+its source and strict regression. PR #45 remains OPEN/draft. Exact-source runs:
+foundation `42416372979`, desktop `42416373012`, mobile `42416373000`, with
+completion and matching macOS artifact subscriptions. Earlier c6 outcomes remain
+distinct; its Rust, OCR detector, macOS and Windows build jobs pass while web
+integration is still running. No slow CI was cancelled.
+
+Older e52 mobile `42410017933` reaches a different Android restart failure:
+Continue m01-japanese.mp4 is not visible after scrolling down. The exact failure
+frame shows Home at its bottom, with only the older English video in Recent
+sources. Home's newest Japanese video lives above in the Watch activity card
+(`HomeScreen.tsx:155-159,189-196`). The flow now first scrolls UP to the first
+activity's Open document action, then retains its original downward search,
+exact Japanese source, 15000ms synchronization, reset and English claim checks.
+Two-document YAML parsing and diff checks pass; actual native execution is open.
+No learner data or product behavior changed. iOS still has its deferred Files
+picker failure; no diagnostic variant was launched.
+
+Consuming desktop `42414269474` passes at `c6d70ebe`/tree `163eb291`.
 Its full real IPC/package/playback/Inspector/claim/restart/recovery receipt is
 retained in `ci-desktop-c6d70ebe.log:128-129,5140`. Native cue geometry is
 cueTop 456, panel bottom 444; both actual enlarged/second-line frames were
