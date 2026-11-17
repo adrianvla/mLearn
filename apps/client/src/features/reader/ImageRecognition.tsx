@@ -109,10 +109,11 @@ export function ImageRecognition({ client, reader, onClose, children }: {
     }
     return <View style={styles.panel} testID="reader-recognition-panel">
         <View style={styles.heading}>
-            <View style={styles.title}><Text variant="groupTitle" accessibilityRole="header">Recognized text</Text></View>
-            <Button label="Close recognized text" icon="close" iconOnly variant="quiet" size="compact" onPress={onClose} />
+            <View style={styles.title}><Text variant="groupTitle" accessibilityRole="header">View options</Text></View>
+            <Button label="Close View options" icon="close" iconOnly variant="quiet" size="compact" onPress={onClose} />
         </View>
         {children}
+        <Text variant="groupTitle">Recognized text</Text>
         {!regions.length ? <Text muted>{reader.recognition === 'working' ? 'Recognizing…' : 'No recognized text on these pages yet.'}</Text> : null}
         {regions.length ? <Select label="Recognized text block" value={selected?.key ?? ''} disabled={pending}
             options={regions.map(value => ({ value: value.key,

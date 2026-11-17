@@ -23,9 +23,7 @@ declare global { interface Window {
 async function readerOptions(page: Page) {
   const panel = page.getByTestId('reader-options-panel');
   if (await panel.isVisible()) return panel;
-  const view = page.getByRole('button', { name: 'View options', exact: true });
-  if (await view.isVisible()) await view.click();
-  else await page.getByTestId('reader-status').getByRole('button', { name: /^Debug: / }).click();
+  await page.getByTestId('reader-toolbar').getByRole('button', { name: 'View options', exact: true }).click();
   await expect(panel).toBeVisible();
   return panel;
 }
@@ -469,7 +467,7 @@ test(`Reader toolbar and status strip keep the golden image controls accessible 
   }
   await expect(page.getByTestId('reader-title')).toBeVisible();
   const footer = page.getByTestId('reader-status');
-  for (const name of ['Crop: Off', 'Reading annotations: On', 'OCR reading filter: Off', 'Debug: Off', 'Press Z to open magnifier'])
+  for (const name of ['Crop: Off', 'Reading annotations: On', 'OCR reading filter: Off', 'Press Z to open magnifier'])
     await expect(footer.getByRole('button', { name, exact: true })).toHaveCount(1);
   await expect(footer.getByRole('combobox', { name: /^Show tooltip on:/ })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('reader-toolbar.png') });
@@ -498,7 +496,8 @@ test(`Reader chrome preserves the dark reference materials at ${width}px`, async
   await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
   const toolbar = page.getByTestId('reader-toolbar');
   const footer = page.getByTestId('reader-status');
-  await expect(footer.getByRole('button', { name: 'Debug: Off', exact: true })).toBeVisible();
+  await expect(page.getByTestId('reader-toolbar').getByRole('button', { name: 'View options', exact: true })).toBeVisible();
+  await expect(footer.getByRole('button', { name: /^Debug/ })).toHaveCount(0);
   const title = await toolbar.getByTestId('reader-title').boundingBox();
   const frame = await toolbar.boundingBox();
   if (!title || !frame) throw new Error('Reader chrome geometry is unavailable');
@@ -664,7 +663,7 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`recognition correction retains uncertain identity, refreshes alignment and exposes original evidence on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
-  const debug = page.getByTestId('reader-status').getByRole('button', { name: 'Debug: Off', exact: true });
+  const debug = page.getByTestId('reader-toolbar').getByRole('button', { name: 'View options', exact: true });
   await debug.click();
   const dialog = page.getByTestId('reader-recognition-panel');
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -673,7 +672,7 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
   await dialog.getByRole('textbox', { name: 'Top left X', exact: true }).fill('15');
   await dialog.getByRole('button', { name: 'Save correction', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveText('The correction wasn’t saved.');
-  await dialog.getByRole('button', { name: 'Close recognized text', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Close View options', exact: true }).click();
   await expect(debug).toBeFocused();
   await debug.click();
   await expect(dialog.getByRole('alert')).toHaveText('The correction wasn’t saved.');
@@ -695,7 +694,7 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
   expect(corrections[0]).toMatchObject({ correction: { expectedRevision: 1,
     region: { text: '東京都', quad: { topLeft: { x: 0.15 } } } } });
   await page.screenshot({ path: testInfo.outputPath('recognition-correction-evidence.png') });
-  await dialog.getByRole('button', { name: 'Close recognized text', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Close View options', exact: true }).click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await expect(canvas(page).getByRole('button', { name: '東京都: untracked', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null && request.resourceId === 'image-0').length)).toBe(1);

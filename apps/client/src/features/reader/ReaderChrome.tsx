@@ -14,7 +14,7 @@ import { notices } from './readerNotice';
 import type { useImageReader } from './useImageReader';
 import type { useReader } from './useReader';
 
-export type ReaderPanel = 'vocabulary' | 'appearance' | 'options' | 'recognition';
+export type ReaderPanel = 'vocabulary' | 'appearance' | 'options';
 type Strip = { readonly message: string; readonly action: 'retry' | 'install' | null; readonly onAction: () => void };
 
 const triggers: readonly { value: InspectionMode; label: string }[] = [
@@ -23,13 +23,14 @@ const triggers: readonly { value: InspectionMode; label: string }[] = [
 ];
 const onOff = (value: boolean) => value ? 'On' : 'Off';
 
-export function ReaderToolbar({ title, position, imageMode, wide, leadingInset, railOpen, panelOpen, appearanceOpen, optionsOpen,
+export function ReaderToolbar({ title, position, imageMode, wide, optionsRef, leadingInset, railOpen, panelOpen, appearanceOpen, optionsOpen,
     disabled, homeDisabled, writingMode, imageReader, previousDisabled, nextDisabled, onRail, onHome, onWritingMode,
     onAppearance, onOptions, onPanel, onBeforeLayout, onPrevious, onNext }: {
     readonly title: string;
     readonly position: string | null;
     readonly imageMode: boolean;
     readonly wide: boolean;
+    readonly optionsRef: RefObject<View | null>;
     readonly leadingInset: number;
     readonly railOpen: boolean;
     readonly panelOpen: boolean;
@@ -69,8 +70,8 @@ export function ReaderToolbar({ title, position, imageMode, wide, leadingInset, 
         }} /> : null;
     const appearance = !imageMode ? <Button label="Themes & Settings" variant="secondary" size="compact" disabled={disabled}
         accessibilityState={{ expanded: appearanceOpen }} onPress={onAppearance} /> : null;
-    const options = !imageMode ? <Button label="View options" variant="secondary" size="compact" disabled={disabled}
-        accessibilityState={{ expanded: optionsOpen }} onPress={onOptions} /> : null;
+    const options = <Button ref={optionsRef} label="View options" icon={imageMode ? 'settings' : undefined} iconOnly={imageMode}
+        variant="secondary" size="compact" disabled={disabled} accessibilityState={{ expanded: optionsOpen }} onPress={onOptions} />;
     const layout = imageMode || wide ? <ImageLayoutControls reader={imageReader} onBeforeAction={onBeforeLayout} /> : null;
     return <View testID="reader-toolbar" style={[styles.toolbar, !wide && styles.narrowToolbar]}>
         <View style={[styles.leading, { paddingLeft: leadingInset }]}>
@@ -94,12 +95,11 @@ function Actions({ wide, children }: { readonly wide: boolean; readonly children
         keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>{children}</ScrollView>;
 }
 
-export function ReaderStatusStrip({ position, imageMode, status, debugRef, inspectionMode, onInspectionMode, annotations, onAnnotations,
-    readingFilter, onReadingFilter, crop, onCrop, debug, onDebug, magnifier, onMagnifier, controlsDisabled, notice }: {
+export function ReaderStatusStrip({ position, imageMode, status, inspectionMode, onInspectionMode, annotations, onAnnotations,
+    readingFilter, onReadingFilter, crop, onCrop, magnifier, onMagnifier, controlsDisabled, notice }: {
     readonly position: string | null;
     readonly imageMode: boolean;
     readonly status: string;
-    readonly debugRef: RefObject<View | null>;
     readonly inspectionMode: InspectionMode;
     readonly onInspectionMode: (value: InspectionMode) => void;
     readonly annotations: boolean;
@@ -108,8 +108,6 @@ export function ReaderStatusStrip({ position, imageMode, status, debugRef, inspe
     readonly onReadingFilter: () => void;
     readonly crop: boolean;
     readonly onCrop: () => void;
-    readonly debug: boolean;
-    readonly onDebug: () => void;
     readonly magnifier: boolean;
     readonly onMagnifier: () => void;
     readonly controlsDisabled: boolean;
@@ -135,8 +133,6 @@ export function ReaderStatusStrip({ position, imageMode, status, debugRef, inspe
                 <Button label={`OCR reading filter: ${onOff(readingFilter)}`} variant="quiet" size="compact"
                     disabled={controlsDisabled || !annotations} accessibilityState={{ selected: readingFilter }}
                     onPress={onReadingFilter} />
-                <Button ref={debugRef} label={`Debug: ${onOff(debug)}`} variant="quiet" size="compact" disabled={controlsDisabled}
-                    accessibilityState={{ selected: debug }} onPress={onDebug} />
                 <Button label={magnifier ? 'Press Z to close magnifier' : 'Press Z to open magnifier'} variant="quiet" size="compact"
                     disabled={controlsDisabled} accessibilityState={{ selected: magnifier }} onPress={onMagnifier} />
             </> : null}
@@ -205,7 +201,7 @@ export function ReaderAppearancePanel({ appearance, disabled, onChange, onClose,
 }
 
 /** Less frequent source actions: search, contents, source language and the
- * PDF text/page view. Image sources reach the same block from Debug.
+ * PDF text/page view. Image sources show it above their recognized text.
  */
 export function ReaderOptionsPanel({ client, source, reader, imageMode, focused, onClose, onInspect, onTogglePdf, onLocate, onReturn, onOpenDocument }: {
     readonly client: RuntimeClient;

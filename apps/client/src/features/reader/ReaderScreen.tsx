@@ -97,7 +97,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         reader.languages.some(plugin => plugin.id === source?.packageId && plugin.capabilities.includes('image.ocr.postprocess.v1')),
         reader.navigate);
     const showRail = wide && railOpen;
-    const debugToggle = useRef<View>(null);
+    const optionsToggle = useRef<View>(null);
     const known = useRef({ thumbnails, recognized, spread: imageReader.indices });
     known.current = { thumbnails, recognized, spread: imageReader.indices };
     useEffect(() => {
@@ -223,15 +223,15 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         : null;
     // Vocabulary and recognition stay mounted while hidden so an uncertain
     // Practice admission or correction keeps its command identity for retry.
-    const recognitionPanel = imageMode && source ? <View style={panel === 'recognition' ? undefined : styles.hidden}>
+    const recognitionPanel = imageMode && source ? <View style={panel === 'options' ? undefined : styles.hidden}>
         <ImageRecognition client={client} reader={imageReader} onClose={() => {
-            setPanel(null); requestAnimationFrame(() => debugToggle.current?.focus());
+            setPanel(null); requestAnimationFrame(() => optionsToggle.current?.focus());
         }}>{languageControls}</ImageRecognition>
     </View> : null;
     const statusPosition = imageMode ? position
         : currentBlock ? currentBlock.image ? currentBlock.image.alt || 'Image' : currentBlock.text || null : null;
     return <View style={styles.screen(insets.top, insets.bottom)}>
-        <ReaderToolbar title={source?.title ?? ''} position={position} imageMode={imageMode} wide={wide}
+        <ReaderToolbar title={source?.title ?? ''} position={position} imageMode={imageMode} wide={wide} optionsRef={optionsToggle}
             leadingInset={host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0}
             railOpen={railOpen} panelOpen={panel === 'vocabulary'} appearanceOpen={panel === 'appearance'} optionsOpen={panel === 'options'}
             disabled={!source || reader.pending} homeDisabled={departing}
@@ -318,7 +318,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 {vocabularyPanel}{sidePanel}{recognitionPanel}
             </ScrollView> : null}
         </View>
-        <ReaderStatusStrip position={statusPosition} imageMode={imageMode} status={status} debugRef={debugToggle}
+        <ReaderStatusStrip position={statusPosition} imageMode={imageMode} status={status}
             inspectionMode={inspectionMode} onInspectionMode={setInspectionMode}
             annotations={imageMode ? imageReader.settings?.showOverlay ?? true : annotations}
             onAnnotations={() => {
@@ -332,7 +332,6 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 setInspection(null); void imageReader.changeSettings({ showAnnotations: !imageReader.settings.showAnnotations });
             }}
             crop={cropMode} onCrop={() => { setInspection(null); setMagnifier(false); setCropMode(value => !value); }}
-            debug={panel === 'recognition'} onDebug={() => togglePanel('recognition')}
             magnifier={magnifier} onMagnifier={() => { setInspection(null); setCropMode(false); setMagnifier(value => !value); }}
             controlsDisabled={!source || reader.pending || (imageMode && (!imageReader.settings || imageReader.saving))}
             notice={strip} />
