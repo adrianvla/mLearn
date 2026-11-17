@@ -1,11 +1,17 @@
 /// <reference types="node" />
-import { test, expect, type Request } from '@playwright/test';
+import { test, expect, type Page, type Request } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import type { CollectionQuery } from '@mlearn/contracts';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
+
+async function savePosition(page: Page) {
+  const panel = page.getByTestId('reader-options-panel');
+  if (!await panel.isVisible()) await page.getByRole('button', { name: 'View options', exact: true }).click();
+  await panel.getByRole('button', { name: 'Save position', exact: true }).click();
+}
 
 // Real Rust, signed package, catalog, Knowledge and Material storage. Only the
 // host transport is adapted; native window/media/clipboard are not claimed.
@@ -370,8 +376,8 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
       expect(identities).toHaveLength(24);
       await page.getByRole('button', { name: 'Home', exact: true }).click();
       await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
-      await page.getByRole('button', { name: 'Save position', exact: true }).click();
+      await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+      await savePosition(page);
       const saved = (await client.resumeDocument(document.source.id)).source.position;
       expect(saved).not.toBeNull();
       await page.screenshot({ path: info.outputPath(`navigation-reader-${width}.png`) });
@@ -403,7 +409,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
         await page.getByRole('menuitem', { name: 'Home', exact: true }).click();
       }
       await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
-      await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+      await page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true }).click();
       await expect(inspector).toBeVisible();
       if (width === 1080) {
         await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();

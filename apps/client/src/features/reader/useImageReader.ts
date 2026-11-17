@@ -5,6 +5,7 @@ import type { DocumentPosition, DocumentRecord, ImagePageDescriptor, ImageReader
 import { RuntimeError } from '@mlearn/runtime-client';
 import type { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { imageAnalysisWindow, pageSpread } from './imageFlow';
+import { notices, type ReaderNotice } from './readerNotice';
 
 export type ImageReaderPage = {
     readonly descriptor: ImagePageDescriptor;
@@ -15,41 +16,48 @@ export type ImageReaderPage = {
     readonly analysisOffset: number;
     readonly error: string;
 };
+export type RecognitionState = 'idle' | 'working' | 'stopped' | 'not_installed' | 'unavailable' | 'failed';
 type ImageHost = Pick<Extract<ReturnType<typeof useRuntime>, { available: true }>, 'client' | 'ocr'>;
-const message = (cause: unknown) => cause instanceof Error ? cause.message : String(cause);
+const tooLarge = 'This area has too much text to look up at once. Select a smaller crop.';
 
 /** Native owners retain work/evidence. React retains only the visible spread,
  * unsubmitted controls and one action identity for an uncertain transport retry.
+ * Opening a page without saved recognition starts recognition automatically.
  */
 export function useImageReader(host: ImageHost | null, source: DocumentRecord | undefined,
     pageIndex: number, enabled: boolean, frozen: OcrPage | null, canInterpret: boolean,
     onNavigate: (position: DocumentPosition) => Promise<boolean>) {
     const [settings, setSettings] = useState<ImageReaderSettings | null>(null);
-    const [providers, setProviders] = useState<OcrProvider[]>([]);
-    const [providerId, setProviderId] = useState('');
-    const [language, setLanguage] = useState('');
+    const [providers, setProviders] = useState<OcrProvider[] | null>(null);
     const [pages, setPages] = useState<ImageReaderPage[]>([]);
     const [pending, setPending] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [recognizing, setRecognizing] = useState(false);
-    const [error, setError] = useState('');
+    const [recognizing, setRecognizing] = useState<string | null>(null);
+    const [recognitionFailed, setRecognitionFailed] = useState(false);
+    const [stopped, setStopped] = useState(false);
+    const stopping = useRef(false);
+    const [notice, setNotice] = useState<ReaderNotice | null>(null);
     const [reload, setReload] = useState(0);
     const [pageReload, setPageReload] = useState(0);
     const scope = useRef<object | null>(null);
     const currentPages = useRef(pages); currentPages.current = pages;
     const operation = useRef<{ readonly owner: object; readonly controller: AbortController } | null>(null);
     const retry = useRef<{ readonly owner: object; readonly request: OcrRequest } | null>(null);
+    const attempted = useRef(new Set<string>());
     const analyses = useRef(new Map<string, object>());
     const preparedPages = useRef<ImageReaderPage[] | null>(null);
     const navigating = useRef(false);
     const settingsFlight = useRef(false);
     const sourceKey = source ? JSON.stringify([source.id, source.contentRevision, source.packageId, source.packageVersion]) : '';
     const callbacks = useRef({ navigate: onNavigate }); callbacks.current = { navigate: onNavigate };
+    const provider = providers?.find(value => value.availability === 'ready') ?? null;
 
     useEffect(() => {
         if (!host || !source || !enabled) return;
         const owner = {}; scope.current = owner;
-        setSettings(null); setProviders([]); setPages([]); setError(''); setPending(true); setRecognizing(false);
+        attempted.current = new Set();
+        setSettings(null); setProviders(null); setPages([]); setNotice(null); setPending(true);
+        setRecognizing(null); setRecognitionFailed(false); setStopped(false);
         const background = AppState.addEventListener('change', state => {
             if (state !== 'active') operation.current?.controller.abort();
         });
@@ -57,8 +65,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             .then(([view, available]) => {
                 if (scope.current !== owner) return;
                 setSettings(view); setProviders(available);
-                setProviderId(value => available.some(provider => provider.id === value) ? value : '');
-            }).catch((cause: unknown) => { if (scope.current === owner) setError(message(cause)); })
+            }).catch(() => { if (scope.current === owner) setNotice(notices.openFailed); })
             .finally(() => { if (scope.current === owner) setPending(false); });
         return () => {
             background.remove();
@@ -84,17 +91,16 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         update(page.resourceId, item => ({ ...item,
             batch: item.page?.ocrRevision === page.ocrRevision && item.analysisOffset === offset ? item.batch : null,
             analyzing: selected.ids.length > 0,
-            analysisOffset: offset, error: selected.total && !selected.ids.length
-                ? 'This region exceeds the text analysis limit. Recognize a smaller crop.' : '' }));
+            analysisOffset: offset, error: selected.total && !selected.ids.length ? tooLarge : '' }));
         if (!selected.ids.length) return;
         try {
             const batch = await host.client.analyzeOcr(page, selected.ids);
             if (scope.current === owner && analyses.current.get(page.resourceId) === token)
                 update(page.resourceId, item => item.page?.ocrRevision === page.ocrRevision
                     ? { ...item, batch, analyzing: false } : item);
-        } catch (cause) {
+        } catch {
             if (scope.current === owner && analyses.current.get(page.resourceId) === token)
-                update(page.resourceId, item => ({ ...item, analyzing: false, error: message(cause) }));
+                update(page.resourceId, item => ({ ...item, analyzing: false, error: notices.lookupFailed.message }));
         }
     }
     async function receive(raw: OcrPage, original = false) {
@@ -107,16 +113,16 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             if (!owner || scope.current !== owner) return;
             update(raw.resourceId, item => ({ ...item, page: interpreted }));
             await analyze(interpreted);
-        } catch (cause) {
+        } catch {
             if (scope.current === owner)
-                update(raw.resourceId, item => ({ ...item, error: message(cause), analyzing: false }));
+                update(raw.resourceId, item => ({ ...item, error: notices.lookupFailed.message, analyzing: false }));
         }
     }
     useEffect(() => {
         const owner = scope.current;
         if (!host || !source || !enabled || !settings || !indices.length || !owner) return;
         let live = true;
-        setPending(true); setError('');
+        setPending(true); setNotice(null);
         const previous = preparedPages.current ?? currentPages.current;
         preparedPages.current = null;
         void (async () => {
@@ -139,7 +145,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             for (const item of loaded) {
                 if (item.page && !item.batch) void receive(item.page, item.page === frozen);
             }
-        })().catch((cause: unknown) => { if (live && scope.current === owner) setError(message(cause)); })
+        })().catch(() => { if (live && scope.current === owner) setNotice(notices.pagesFailed); })
             .finally(() => { if (live && scope.current === owner) setPending(false); });
         return () => { live = false; };
     }, [host, sourceKey, enabled, spreadKey, settings === null, frozen, canInterpret, pageReload]);
@@ -147,11 +153,11 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
     async function changeSettings(change: Partial<ImageReaderSettings>) {
         if (!host || !source || !settings || settingsFlight.current) return;
         const owner = scope.current;
-        settingsFlight.current = true; setSaving(true); setError('');
+        settingsFlight.current = true; setSaving(true); setNotice(null);
         try {
             const accepted = await host.client.saveImageReaderSettings(source.id, { ...settings, ...change });
             if (scope.current === owner) setSettings(accepted);
-        } catch (cause) { if (scope.current === owner) setError(message(cause)); }
+        } catch { if (scope.current === owner) setNotice(notices.settingsFailed); }
         finally { settingsFlight.current = false; if (scope.current === owner) setSaving(false); }
     }
     async function recognize(resourceId: string, crop: OcrRect | null = null, retryAction = false) {
@@ -161,13 +167,13 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         let request: OcrRequest;
         if (retryAction && retry.current?.owner === owner) request = retry.current.request;
         else {
-            const provider = providers.find(value => value.id === providerId);
             if (!provider) return;
-            request = host.client.prepareOcr(source, resourceId, provider, language ? [language] : [], crop);
+            request = host.client.prepareOcr(source, resourceId, provider, [], crop);
         }
+        attempted.current.add(resourceId);
         const controller = new AbortController();
         const work = { owner, controller }; operation.current = work;
-        retry.current = { owner, request }; setRecognizing(true); setError('');
+        retry.current = { owner, request }; setRecognizing(resourceId); setRecognitionFailed(false); setStopped(false);
         try {
             if (retryAction) {
                 const recovery = await host.client.ocrRecovery(request);
@@ -178,7 +184,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
                     return;
                 }
                 if (recovery.state === 'cancelled') {
-                    const original = providers.find(provider => provider.id === request.providerId);
+                    const original = providers?.find(value => value.id === request.providerId);
                     if (!original) throw new RuntimeError('unavailable', 'The original recognition provider is unavailable.');
                     request = host.client.prepareOcr(source, request.resourceId, original, request.recognitionLanguages, request.crop);
                     retry.current = { owner, request };
@@ -190,21 +196,34 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
                 await receive(result);
             }
         } catch (cause) {
+            const stoppedByLearner = controller.signal.aborted && stopping.current;
+            if (controller.signal.aborted && !stoppedByLearner) attempted.current.delete(resourceId);
             if (scope.current === owner) {
                 if (controller.signal.aborted) retry.current = null;
-                if (!(controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled'))
-                    setError(message(cause));
+                if (stoppedByLearner) setStopped(true);
+                else if (!(controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled'))
+                    setRecognitionFailed(true);
             }
         } finally {
-            if (operation.current === work) { operation.current = null; setRecognizing(false); }
+            stopping.current = false;
+            if (operation.current === work) { operation.current = null; setRecognizing(null); }
         }
     }
+    // One page at a time: each completion re-renders and admits the next
+    // unrecognized page of the visible spread. A failed page waits for an
+    // explicit retry; a page whose work was cancelled restarts when shown again.
+    useEffect(() => {
+        if (!enabled || pending || recognizing || !provider || operation.current) return;
+        const next = pages.find(item => !item.page && !attempted.current.has(item.descriptor.resourceId));
+        if (next) void recognize(next.descriptor.resourceId);
+    }, [enabled, pending, recognizing, provider?.id, pages]);
+
     async function go(direction: 'previous' | 'next') {
         if (!host || !source || !settings || !indices.length || navigating.current) return;
         const index = direction === 'next' ? indices[indices.length - 1] + 1 : indices[0] - 1;
         if (index < 0 || index >= (source.totalPages ?? 0)) return;
         const owner = scope.current;
-        navigating.current = true; setPending(true); setError('');
+        navigating.current = true; setPending(true); setNotice(null);
         operation.current?.controller.abort();
         try {
             // Do not checkpoint a page whose original cannot be displayed.
@@ -219,7 +238,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             preparedPages.current = prepared;
             const target = prepared.find(item => item.descriptor.pageIndex === index);
             if (target && !await callbacks.current.navigate(target.descriptor.position)) preparedPages.current = null;
-        } catch (cause) { if (scope.current === owner) setError(message(cause)); }
+        } catch { if (scope.current === owner) setNotice(notices.pagesFailed); }
         finally { navigating.current = false; if (scope.current === owner) setPending(false); }
     }
     async function navigate(position: DocumentPosition) {
@@ -230,17 +249,26 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         for (const item of currentPages.current)
             if (item.page && item.batch) await analyze(item.page, item.analysisOffset);
     }
-    return { pages, settings, providers, providerId, language, pending, saving, recognizing, error, indices,
-        setProviderId: (value: string) => { setProviderId(value); setLanguage(''); },
-        setLanguage, changeSettings, recognize, go, navigate, refreshKnowledge, analyze, receive,
+    const unrecognized = pages.some(item => !item.page);
+    const recognition: RecognitionState = recognizing ? 'working'
+        : recognitionFailed ? 'failed'
+        : stopped && unrecognized ? 'stopped'
+        : providers && !provider && unrecognized ? providers.length ? 'not_installed' : 'unavailable'
+        : 'idle';
+    const recognizingIndex = recognizing ? pages.findIndex(item => item.descriptor.resourceId === recognizing) : -1;
+    return { pages, settings, provider, pending, saving, recognizing, recognition, notice, indices,
+        progress: recognizingIndex >= 0 ? { current: recognizingIndex + 1, total: pages.length } : null,
+        changeSettings, recognize, go, navigate, refreshKnowledge, analyze, receive,
         cancel: () => operation.current?.controller.abort(),
+        stop: () => { if (operation.current) { stopping.current = true; operation.current.controller.abort(); } },
         retry: () => {
             const previous = retry.current;
+            setRecognitionFailed(false); setStopped(false);
             if (previous) void recognize(previous.request.resourceId, previous.request.crop, true);
             // A failed pixel load already has accepted settings. Retry that
             // spread directly, rather than depending on a transient null
             // settings render during full initialization.
-            else if (settings) setPageReload(value => value + 1);
+            else if (settings) { attempted.current = new Set(); setPageReload(value => value + 1); }
             else setReload(value => value + 1);
         },
         retryPage: (item: ImageReaderPage) => { if (item.page) void receive(item.page, item.page === frozen); },

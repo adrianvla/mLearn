@@ -530,13 +530,16 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
         }
         await page.getByRole('button', { name: 'Capture all eligible in this view', exact: true }).click();
         if (mode !== 'availability') {
-          await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+          await expect(page.getByRole('alert')).toHaveText('These words weren’t saved.');
           await expect(page.getByRole('button', { name: 'Retry availability', exact: true })).toHaveCount(0);
           await expect(page.getByRole('button', { name: 'Capture word0', exact: true })).toHaveCount(0);
           await page.getByRole('button', { name: 'Retry failed captures (2)', exact: true }).click();
         }
-        await expect(page.getByText('Saved · saved-command-0 · revision 1', { exact: true })).toBeVisible();
-        await expect(page.getByText('Saved · saved-command-1 · revision 1', { exact: true })).toBeVisible();
+        if (mode === 'cards') await expect(page.getByText('Saved for review', { exact: true })).toHaveCount(2);
+        else {
+          await expect(page.getByText('Saved · saved-command-0 · revision 1', { exact: true })).toBeVisible();
+          await expect(page.getByText('Saved · saved-command-1 · revision 1', { exact: true })).toBeVisible();
+        }
         const state = await page.evaluate(() => Reflect.get(window, 'captureState')());
         assert.equal(state.prepared, 2);
         assert.equal(state.committed, 2);

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,23 +8,22 @@ import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { AppShell, Row, SettingRow } from '@mlearn/ui/layout';
-import { Select } from '@mlearn/ui/select';
+import { AppShell, Row } from '@mlearn/ui/layout';
+import type { InspectionMode } from '@mlearn/ui/inline-word';
 import { SourcePreview, type SourceThumbnail } from '@mlearn/ui/source-preview';
-import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Inspector, type Inspection } from '../inspector';
 import { blockPosition, documentAnchor } from './documentFlow';
 import { DocumentViewport } from './DocumentViewport';
 import { useReader } from './useReader';
 import { useImageReader } from './useImageReader';
-import { ImageViewport } from './ImageViewport';
-import { ImageLayoutControls, ImageReaderControls, ImageReaderFeedback, type ImageCropDraft } from './ImageReaderControls';
+import { ImageViewport, type PageNotice } from './ImageViewport';
 import { imageAnchor, imageContext } from './imageFlow';
-import { ImageSourceWords } from './ImageSourceWords';
 import { ImageRecognition } from './ImageRecognition';
 import { SourceEntryScreen } from '../source-entry';
-import { ReaderSearch } from './ReaderSearch';
+import { ReaderAppearancePanel, ReaderOptionsPanel, ReaderStatusStrip, ReaderToolbar, type ReaderPanel } from './ReaderChrome';
+import { VocabularyPanel, documentWords, imageWords } from './VocabularyPanel';
+import { notices } from './readerNotice';
 
 export function ReaderScreen() {
     const host = useRuntime();
@@ -35,7 +34,7 @@ export function ReaderScreen() {
     if (!host.available) return <AppShell header={<Row>
         <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
         <Text variant="heading" accessibilityRole="header">Reader</Text>
-    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
+    </Row>}><Text accessibilityRole="alert">Reading isn’t available here.</Text></AppShell>;
     return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
         materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
         proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
@@ -43,6 +42,10 @@ export function ReaderScreen() {
         reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined} />;
 }
 
+/** Reader regions: toolbar, page rail, source canvas, one right-hand panel and
+ * the bottom status strip. Settings and recognition details open in the right
+ * panel beside the source they change, never as a modal over it.
+ */
 function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, reviewEncounterId }: {
     readonly client: RuntimeClient; readonly id: string; readonly materialId?: string; readonly proposalId?: string;
     readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
@@ -54,54 +57,83 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const host = useRuntime();
     const viewport = useWindowDimensions();
     const { theme } = useUnistyles();
-    const [toolbarWidth, setToolbarWidth] = useState(viewport.width);
     const insets = useSafeAreaInsets();
+    const wide = viewport.width >= 900 * theme.textScale;
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [focused, setFocused] = useState(true);
     const [departing, setDeparting] = useState(false);
     const departure = useRef<object | null>(null);
     const [thumbnails, setThumbnails] = useState<Record<string, SourceThumbnail>>({});
-    useFocusEffect(useCallback(() => {
-        setFocused(true);
-        return () => { departure.current = null; setDeparting(false); setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
-            setRecognitionOpen(false); setWordsOpen(false); setThumbnails({}); };
-    }, []));
-    const [optionsOpen, setOptionsOpen] = useState(false);
-    const [contentsOpen, setContentsOpen] = useState(false);
-    const [recognitionOpen, setRecognitionOpen] = useState(false);
-    const [wordsOpen, setWordsOpen] = useState(false);
-    const optionsTrigger = useRef<View>(null);
-    const recognitionTrigger = useRef<View>(null);
-    const wordsTrigger = useRef<View>(null);
-    const [railOpen, setRailOpen] = useState(true);
-    const [navigationError, setNavigationError] = useState('');
-    const [contentsAfter, setContentsAfter] = useState<number | null>(null);
+    const [panel, setPanel] = useState<ReaderPanel | null>(wide ? 'vocabulary' : null);
+    const [railOpen, setRailOpen] = useState(wide);
+    const [navigationFailed, setNavigationFailed] = useState(false);
     const [cropMode, setCropMode] = useState(false);
-    const [cropDraft, setCropDraft] = useState<ImageCropDraft | null>(null);
     const [magnifier, setMagnifier] = useState(false);
     const [highlighted, setHighlighted] = useState<SourceAnchor | null>(null);
+    const [inspectionMode, setInspectionMode] = useState<InspectionMode>('modifier');
+    const [annotations, setAnnotations] = useState(true);
+    const [hovered, setHovered] = useState<ReadonlySet<string>>(new Set());
+    const [recognized, setRecognized] = useState<ReadonlySet<string>>(new Set());
+    useFocusEffect(useCallback(() => {
+        setFocused(true);
+        return () => { departure.current = null; setDeparting(false); setFocused(false); setInspection(null); setThumbnails({}); };
+    }, []));
     const source = reader.window?.source;
     const sourceIdentity = JSON.stringify([id, source?.contentRevision, source?.parserRevision,
         source?.packageId, source?.packageVersion, reader.window?.blocks.map(block => [block.resource, block.id])]);
-    useEffect(() => { setInspection(null); setRecognitionOpen(false); setWordsOpen(false); }, [sourceIdentity, reader.pending]);
+    useEffect(() => { setInspection(null); }, [sourceIdentity, reader.pending]);
     useEffect(() => { setThumbnails({}); }, [sourceIdentity]);
+    useEffect(() => { setHovered(new Set()); setRecognized(new Set()); }, [id, source?.contentRevision]);
     const current = useRef(sourceIdentity); current.current = sourceIdentity;
     const sourceWindow = reader.window;
     const visibleBlock = Math.max(0, sourceWindow?.blocks.findIndex(block =>
         block.resource === reader.position?.resource && block.id === reader.position.blockId) ?? 0);
     const currentBlock = sourceWindow?.blocks[visibleBlock];
     const imageMode = reader.imageMode;
-    const sidebarInset = imageMode && wordsOpen && Platform.OS === 'web'
-        && viewport.width >= dialogSidebarBreakpoint ? dialogSidebarWidth : 0;
     const pageIndex = currentBlock?.page
         ?? (reader.returned?.locator.kind === 'image' ? reader.returned.locator.pageIndex ?? 0 : 0);
     const imageReader = useImageReader(host.available ? host : null, source, pageIndex,
         imageMode && focused, reader.returnedPage,
         reader.languages.some(plugin => plugin.id === source?.packageId && plugin.capabilities.includes('image.ocr.postprocess.v1')),
         reader.navigate);
+    const showRail = wide && railOpen;
+    const debugToggle = useRef<View>(null);
+    const known = useRef({ thumbnails, recognized, spread: imageReader.indices });
+    known.current = { thumbnails, recognized, spread: imageReader.indices };
+    useEffect(() => {
+        if (!imageMode || !showRail || !sourceWindow || !host.available || !imageReader.indices.length) return;
+        const sourceId = sourceWindow.source.id;
+        let live = true;
+        void (async () => {
+            for (const block of sourceWindow.blocks) {
+                const resourceId = block.image?.resourceId;
+                // The visible spread publishes its own thumbnails and recognition.
+                if (!live || !resourceId || block.page !== null && known.current.spread.includes(block.page)) continue;
+                // A page whose pixels or saved text cannot be read keeps its
+                // numbered placeholder; opening the page reports the failure.
+                try {
+                    if (!known.current.thumbnails[resourceId]) {
+                        const uri = await host.ocr.uri(sourceId, resourceId);
+                        const size = await new Promise<{ width: number; height: number }>((resolve, reject) =>
+                            Image.getSize(uri, (width, height) => resolve({ width, height }), reject));
+                        if (live) setThumbnails(previous => previous[resourceId] ? previous : { ...previous, [resourceId]: { uri, ...size } });
+                    }
+                    if (!known.current.recognized.has(resourceId)) {
+                        const saved = await host.client.readOcr(sourceId, resourceId);
+                        if (live && saved?.regions.length) setRecognized(previous => new Set([...previous, resourceId]));
+                    }
+                } catch { continue; }
+            }
+        })();
+        return () => { live = false; };
+    }, [imageMode, showRail, sourceIdentity, imageReader.indices.length > 0]);
     const imageRevision = JSON.stringify(imageReader.pages.map(item => [item.descriptor.resourceId, item.page?.ocrRevision]));
     useEffect(() => { setImageView(null); }, [id, materialId, reviewSessionId, reviewEncounterId]);
-    useEffect(() => { setInspection(null); setCropMode(false); setCropDraft(null); setMagnifier(false); setHighlighted(null); }, [imageRevision]);
+    useEffect(() => { setInspection(null); setCropMode(false); setMagnifier(false); setHighlighted(null); }, [imageRevision]);
+    useEffect(() => {
+        const done = imageReader.pages.filter(item => item.page?.regions.length).map(item => item.descriptor.resourceId);
+        if (done.some(resource => !recognized.has(resource))) setRecognized(previous => new Set([...previous, ...done]));
+    }, [imageRevision]);
     const previousBlock = sourceWindow?.blocks[visibleBlock - 1];
     const nextBlock = sourceWindow?.blocks[visibleBlock + 1];
     const previous = sourceWindow && previousBlock
@@ -112,13 +144,12 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         if (departure.current) return;
         const request = {}; departure.current = request;
         const identity = current.current;
-        setDeparting(true); setNavigationError('');
+        setDeparting(true); setNavigationFailed(false);
         try {
             await reader.persist();
             if (departure.current === request && current.current === identity) complete();
-        } catch (cause) {
-            if (departure.current === request && current.current === identity)
-                setNavigationError(cause instanceof Error ? cause.message : String(cause));
+        } catch {
+            if (departure.current === request && current.current === identity) setNavigationFailed(true);
         } finally {
             if (departure.current === request) { departure.current = null; setDeparting(false); }
         }
@@ -129,280 +160,202 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         setInspection(null);
         reader.appearance({ ...source.appearance, ...change });
     }
-    const wide = toolbarWidth >= 900 * theme.textScale;
-    const compact = toolbarWidth < 700 * theme.textScale;
-    const layoutInline = toolbarWidth >= 1200 * theme.textScale;
-    const rail = wide && railOpen && sourceWindow;
-    const writingControl = source ? <Select label="Writing mode" size="compact" value={source.appearance.writingMode}
-        disabled={reader.pending} options={[
-            { value: 'auto', label: 'Automatic' }, { value: 'horizontal', label: 'Horizontal' }, { value: 'vertical', label: 'Vertical' },
-        ]} onValueChange={value => {
-            if (value === 'auto' || value === 'horizontal' || value === 'vertical') changeAppearance({ writingMode: value });
-        }} /> : null;
-    const openDocument = <Button label="Open document" size="compact" variant="secondary"
-        disabled={!source || reader.pending || departing}
-        onPress={() => void depart(() => router.push({ pathname: '/reader', params: { packageId: source?.packageId ?? '' } }))} />;
-    const navigation = <Row wrap={false}>
-        <Button label={imageMode ? 'Previous page' : 'Previous passage'} icon="arrowLeft" iconOnly
-            variant="secondary" size="compact" disabled={reader.pending || (imageMode
-                ? imageReader.pending || !imageReader.indices.length || imageReader.indices[0] === 0 : !previous)}
-            onPress={() => { setInspection(null); if (imageMode) void imageReader.go('previous'); else if (previous) void reader.navigate(previous); }} />
-        <Button label={imageMode ? 'Next page' : 'Next passage'} icon="chevronRight" iconOnly
-            variant="secondary" size="compact" disabled={reader.pending || (imageMode
-                ? imageReader.pending || !imageReader.indices.length
-                    || imageReader.indices[imageReader.indices.length - 1] + 1 >= (source?.totalPages ?? 0) : !next)}
-            onPress={() => { setInspection(null); if (imageMode) void imageReader.go('next'); else if (next) void reader.navigate(next); }} />
-    </Row>;
-    const contents = <>
-        {reader.contentsPending ? <Text accessibilityLiveRegion="polite">Loading contents…</Text> : null}
-        {reader.contentsError ? <><Text accessibilityRole="alert">{reader.contentsError}</Text>
-            <Button label="Retry contents" variant="secondary" disabled={reader.contentsPending}
-                onPress={() => void reader.loadContents(contentsAfter)} /></> : null}
-        {reader.contents?.items.map(item => <Button key={JSON.stringify(item.position)}
-            label={item.label} variant="secondary" disabled={reader.pending}
-            accessibilityState={{ selected: reader.position?.resource === item.position.resource
-                && reader.position.blockId === item.position.blockId }}
-            onPress={() => { setContentsOpen(false); void (imageMode ? imageReader.navigate(item.position) : reader.navigate(item.position)); }} />)}
-        {reader.contents && !reader.contents.items.length ? <Text muted>No contents entries in this document.</Text> : null}
-        <Row><Button label="First contents" variant="quiet" disabled={reader.contentsPending || contentsAfter === null}
-            onPress={() => { setContentsAfter(null); void reader.loadContents(); }} />
-            <Button label="More contents" variant="quiet" disabled={reader.contentsPending || reader.contents?.nextOffset == null}
-                onPress={() => {
-                    const next = reader.contents?.nextOffset;
-                    if (next != null) { setContentsAfter(next); void reader.loadContents(next); }
-                }} /></Row>
-    </>;
-    return <View style={[styles.screen(insets.top, insets.bottom), { paddingRight: sidebarInset }]}>
-        <View testID="reader-toolbar" onLayout={event => setToolbarWidth(event.nativeEvent.layout.width)}
-            style={styles.header}
-            >
-            <View style={[styles.toolbar, compact && styles.compactToolbar]}>
-                <View style={[styles.leading(compact), {
-                    paddingLeft: host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0,
-                }]}>
-                {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
-                    icon="sidebarLeft" iconOnly size="compact" variant="secondary" accessibilityState={{ expanded: !!rail }}
-                    onPress={() => setRailOpen(value => !value)} /> : null}
-                <Button label="Home" icon="arrowLeft" iconOnly={compact} size="compact" variant="secondary"
-                    disabled={reader.pending || departing} onPress={() => router.dismissTo('/')} />
-                <View style={styles.title}><Text variant="navigation" numberOfLines={1}
-                    accessibilityRole="header" testID="reader-title">{source?.title ?? 'Reader'}</Text></View>
-                </View>
-                <View style={styles.actions(compact)}>
-                {!imageMode && !compact ? writingControl : null}
-                {!compact ? openDocument : null}
-                {reader.pending ? <Button label="Cancel loading" icon="stop" iconOnly={compact} variant="secondary" size="compact"
-                    onPress={() => void reader.cancel()} /> : null}
-                {imageMode && imageReader.recognizing ? <Button label="Cancel recognition" icon="stop" iconOnly={compact}
-                    variant="secondary" size="compact" onPress={imageReader.cancel} /> : null}
-                {imageMode && layoutInline ? <ImageLayoutControls reader={imageReader} onBeforeAction={() => setInspection(null)} /> : null}
-                {source && focused ? <ReaderSearch key={JSON.stringify([source.id, source.contentRevision,
-                    source.parserRevision, source.packageId, source.packageVersion, imageMode])}
-                    client={client} source={source} scope={imageMode ? 'recognized_pages' : 'text'}
-                    position={reader.position} disabled={reader.pending}
-                    onOpen={() => setInspection(null)}
-                    onLocate={hit => { if (imageMode) imageReader.cancel(); return reader.locate(hit.anchor); }}
-                    onReturn={point => imageMode ? imageReader.navigate(point) : reader.navigate(point)} /> : null}
-        <Dialog title="Contents"
-                    open={contentsOpen} onOpenChange={open => {
-                        setContentsOpen(open); setInspection(null);
-                        if (open) void reader.loadContents(contentsAfter);
-                    }} trigger={<Button label="Contents" icon="book" iconOnly variant="quiet" size="compact" disabled={!source} />}>
-                    {contents}
-                </Dialog>
-          <Dialog title="Reader appearance"
-                    open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
-                    trigger={<Button ref={optionsTrigger} label="View options" icon="settings" iconOnly variant="quiet" size="compact" disabled={!source || reader.pending} />}>
-                    {compact ? openDocument : null}
-                    {source?.format === 'pdf' ? <Button
-                        label={imageMode ? 'Read available PDF text' : 'View original PDF pages'} variant="secondary" size="compact"
-                        onPress={() => { setInspection(null); setImageView(!imageMode); setOptionsOpen(false); }} /> : null}
-                    {source ? <>
-                        {!imageMode ? <>
-                        {compact ? <SettingRow label="Writing">{writingControl}</SettingRow> : null}
-                        <SettingRow label="Font"><Select label="Reader font" size="compact" value={source.appearance.font} disabled={reader.pending}
-                            options={[{ value: 'source', label: 'Source default' }, { value: 'serif', label: 'Serif' }, { value: 'sans', label: 'Sans serif' }]}
-                            onValueChange={font => { if (font === 'source' || font === 'serif' || font === 'sans') changeAppearance({ font }); }} /></SettingRow>
-                        <SettingRow label="Text size"><Row wrap={false}>
-                            <Button label="Smaller text" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.fontSize <= 12}
-                                onPress={() => changeAppearance({ fontSize: Math.max(12, source.appearance.fontSize - 2) })} />
-                            <Text variant="caption">{source.appearance.fontSize}</Text>
-                            <Button label="Larger text" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.fontSize >= 48}
-                                onPress={() => changeAppearance({ fontSize: Math.min(48, source.appearance.fontSize + 2) })} />
-                        </Row></SettingRow>
-                        <SettingRow label="Line height"><Row wrap={false}>
-                            <Button label="Tighter lines" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.lineHeight <= 1}
-                                onPress={() => changeAppearance({ lineHeight: Math.max(1, Math.round((source.appearance.lineHeight - 0.1) * 10) / 10) })} />
-                            <Text variant="caption">{source.appearance.lineHeight.toFixed(1)}</Text>
-                            <Button label="Looser lines" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.lineHeight >= 2.5}
-                                onPress={() => changeAppearance({ lineHeight: Math.min(2.5, Math.round((source.appearance.lineHeight + 0.1) * 10) / 10) })} />
-                        </Row></SettingRow>
-                        <SettingRow label="Letter spacing"><Row wrap={false}>
-                            <Button label="Tighter letters" icon="minus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.letterSpacing <= -1}
-                                onPress={() => changeAppearance({ letterSpacing: Math.max(-1, source.appearance.letterSpacing - 0.5) })} />
-                            <Text variant="caption">{source.appearance.letterSpacing.toFixed(1)}</Text>
-                            <Button label="Looser letters" icon="plus" iconOnly variant="secondary" size="compact" disabled={reader.pending || source.appearance.letterSpacing >= 4}
-                                onPress={() => changeAppearance({ letterSpacing: Math.min(4, source.appearance.letterSpacing + 0.5) })} />
-                        </Row></SettingRow>
-                        </> : null}
-                        <Text variant="groupTitle">Source language</Text>
-                        <Select testID="reader-language-select" label="Document source language" value={source.packageId} disabled={reader.pending}
-                            options={reader.languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id,
-                                testID: `reader-language-${plugin.id}` }))}
-                            onValueChange={packageId => { if (packageId !== source.packageId) void reader.setLanguage(packageId); }} />
-                        {reader.languages.some(plugin => plugin.id === source.packageId && plugin.version !== source.packageVersion)
-                            ? <Button label="Use installed language version" variant="secondary" disabled={reader.pending}
-                                onPress={() => void reader.setLanguage(source.packageId)} /> : null}
-                        <Button label="App appearance" variant="quiet" onPress={() => { setOptionsOpen(false); router.push('/settings'); }} />
-                        {source.fidelity.length ? <>
-                            <Text variant="groupTitle">Source fidelity</Text>
-                        <Text variant="detail" muted selectable testID="reader-fidelity">{source.fidelity.join('\n\n')}</Text>
-                        </> : null}
-                    </> : null}
-                </Dialog>
-                {navigation}
-                {imageMode ? <Button ref={wordsTrigger} label="Page words" icon="sidebarRight" iconOnly
-                    variant="quiet" size="compact" accessibilityState={{ expanded: wordsOpen }}
-                    disabled={!imageReader.pages.some(page => page.batch)}
-                    onPress={() => { setInspection(null); setMagnifier(false); setWordsOpen(value => !value); }} /> : null}
-                </View>
-            </View>
-        </View>
-            {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
-                <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
-                    <Button label="Reselect from Home" variant="quiet" size="compact" disabled={departing}
-                        onPress={() => router.dismissTo('/')} /></Row></View> : null}
-            {navigationError ? <Text accessibilityRole="alert">{navigationError}</Text> : null}
+    function inspect(value: Inspection) {
+        setInspection(value);
+        setHovered(previous => value.targets.every(target => previous.has(target)) ? previous
+            : new Set([...previous, ...value.targets]));
+    }
+    function togglePanel(value: ReaderPanel) {
+        setInspection(null); setPanel(previous => previous === value ? null : value);
+    }
+    const imageNavigationDisabled = (direction: 'previous' | 'next') => reader.pending || imageReader.pending
+        || !imageReader.indices.length || (direction === 'previous' ? imageReader.indices[0] === 0
+            : imageReader.indices[imageReader.indices.length - 1] + 1 >= (source?.totalPages ?? 0));
+    const position = imageMode
+        ? imageReader.indices.length && source?.totalPages ? `${imageReader.indices[0] + 1}/${source.totalPages}` : null
+        : currentBlock?.page != null && source?.totalPages ? `${currentBlock.page + 1}/${source.totalPages}` : null;
+    const words = useMemo(() => !source || panel !== 'vocabulary' ? []
+        : imageMode ? imageWords(source, imageReader.pages) : documentWords(source, reader.batch),
+    [source, panel, imageMode, imageReader.pages, reader.batch]);
+    const analyzing = imageMode ? imageReader.pages.some(item => item.analyzing) : reader.analysisPending;
+    const status = imageMode && imageReader.progress ? `Processing ${imageReader.progress.current}/${imageReader.progress.total}`
+        : reader.pending || imageReader.pending ? 'Opening…' : analyzing ? 'Looking up words…' : 'Ready';
+    const recognitionNotice: PageNotice | null = imageReader.recognition === 'not_installed'
+        ? { message: notices.recognitionNotInstalled.message, action: 'Install', onAction: () => void depart(() => router.push('/settings')) }
+        : imageReader.recognition === 'unavailable' ? { message: notices.recognitionUnavailable.message, action: null, onAction: () => {} }
+        : imageReader.recognition === 'failed' ? { message: notices.recognitionFailed.message, action: 'Retry', onAction: imageReader.retry }
+        : imageReader.recognition === 'stopped' ? { message: notices.recognitionStopped.message, action: 'Retry', onAction: imageReader.retry }
+        : null;
+    const strip = reader.error ? null
+        : navigationFailed || reader.saveError ? { ...notices.saveFailed, onAction: () => void reader.persist().catch(() => setNavigationFailed(true)) }
+        : imageMode && imageReader.notice ? { ...imageReader.notice, onAction: imageReader.retry }
+        : !imageMode && reader.analysisError ? { ...notices.lookupFailed, onAction: reader.retryAnalysis }
+        : null;
+    const languageControls = source ? <ReaderOptionsPanel client={client} source={source} reader={reader} imageMode={imageMode}
+        focused={focused} onClose={null} onInspect={() => setInspection(null)}
+        onTogglePdf={() => { setInspection(null); setImageView(!imageMode); }}
+        onLocate={hit => { if (imageMode) imageReader.cancel(); return reader.locate(hit.anchor); }}
+        onReturn={point => imageMode ? imageReader.navigate(point) : reader.navigate(point)}
+        onOpenDocument={() => void depart(() => router.push({ pathname: '/reader', params: { packageId: source.packageId } }))} /> : null;
+    const vocabularyPanel = source ? <View style={panel === 'vocabulary' ? undefined : styles.hidden}><VocabularyPanel client={client} source={source} words={words} hovered={hovered}
+            status={imageMode && imageReader.recognition === 'working' && !words.length ? 'Recognizing…'
+                : analyzing && !words.length ? 'Looking up words…' : null}
+            pages={imageMode ? imageReader.pages : undefined} onAnalyze={imageReader.analyze}
+            onInspect={inspect} onClose={() => setPanel(null)}
+            onLocate={anchor => {
+                setInspection(null);
+                if (!wide) setPanel(null);
+                if (anchor.locator.kind === 'image') {
+                    const locator = anchor.locator;
+                    const item = imageReader.pages.find(page => page.descriptor.resourceId === locator.resourceId);
+                    if (item) { reader.onPosition(item.descriptor.position, true); setHighlighted(anchor); }
+                } else void reader.locate(anchor);
+            }} /></View> : null;
+    const sidePanel = !source ? null
+        : panel === 'appearance' && !imageMode ? <ReaderAppearancePanel appearance={source.appearance} disabled={reader.pending}
+            onChange={changeAppearance} onClose={() => setPanel(null)}
+            onAppAppearance={() => void depart(() => router.push('/settings'))} />
+        : panel === 'options' && !imageMode ? <ReaderOptionsPanel client={client} source={source} reader={reader} imageMode={false}
+            focused={focused} onClose={() => setPanel(null)} onInspect={() => setInspection(null)}
+            onTogglePdf={() => { setInspection(null); setImageView(true); setPanel(null); }}
+            onLocate={hit => reader.locate(hit.anchor)} onReturn={point => reader.navigate(point)}
+            onOpenDocument={() => void depart(() => router.push({ pathname: '/reader', params: { packageId: source.packageId } }))} />
+        : null;
+    // Vocabulary and recognition stay mounted while hidden so an uncertain
+    // Practice admission or correction keeps its command identity for retry.
+    const recognitionPanel = imageMode && source ? <View style={panel === 'recognition' ? undefined : styles.hidden}>
+        <ImageRecognition client={client} reader={imageReader} onClose={() => {
+            setPanel(null); requestAnimationFrame(() => debugToggle.current?.focus());
+        }}>{languageControls}</ImageRecognition>
+    </View> : null;
+    const statusPosition = imageMode ? position
+        : currentBlock ? currentBlock.image ? currentBlock.image.alt || 'Image' : currentBlock.text || null : null;
+    return <View style={styles.screen(insets.top, insets.bottom)}>
+        <ReaderToolbar title={source?.title ?? ''} position={position} imageMode={imageMode} wide={wide}
+            leadingInset={host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0}
+            railOpen={railOpen} panelOpen={panel === 'vocabulary'} appearanceOpen={panel === 'appearance'} optionsOpen={panel === 'options'}
+            disabled={!source || reader.pending} homeDisabled={departing}
+            writingMode={source?.appearance.writingMode ?? 'auto'} imageReader={imageMode ? imageReader : null}
+            previousDisabled={imageMode ? imageNavigationDisabled('previous') : reader.pending || !previous}
+            nextDisabled={imageMode ? imageNavigationDisabled('next') : reader.pending || !next}
+            onRail={() => setRailOpen(value => !value)}
+            onHome={() => router.dismissTo('/')}
+            onWritingMode={writingMode => changeAppearance({ writingMode })}
+            onAppearance={() => togglePanel('appearance')} onOptions={() => togglePanel('options')}
+            onPanel={() => togglePanel('vocabulary')}
+            onBeforeLayout={() => setInspection(null)}
+            onPrevious={() => { setInspection(null); if (imageMode) void imageReader.go('previous'); else if (previous) void reader.navigate(previous); }}
+            onNext={() => { setInspection(null); if (imageMode) void imageReader.go('next'); else if (next) void reader.navigate(next); }} />
         <View style={styles.workspace}>
-            {rail && sourceWindow ? <ScrollView style={styles.rail} contentContainerStyle={styles.railContent}>
+            {showRail && sourceWindow ? <ScrollView style={styles.rail} contentContainerStyle={styles.railContent} testID="reader-page-rail">
                 {sourceWindow.blocks.map(block => <SourcePreview key={JSON.stringify([block.resource, block.id])}
-                    text={block.image ? block.image.alt || 'Source image' : block.text || 'Text unavailable'}
+                    text={block.image ? block.image.alt || 'Page image' : block.text || 'Text unavailable'}
                     thumbnail={block.image ? thumbnails[block.image.resourceId] : undefined}
                     page={block.page}
-                    selected={reader.position?.resource === block.resource && reader.position.blockId === block.id}
+                    selected={imageMode && block.page !== null ? imageReader.indices.includes(block.page)
+                        : reader.position?.resource === block.resource && reader.position.blockId === block.id}
+                    marked={imageMode && !!block.image && recognized.has(block.image.resourceId)}
                     disabled={reader.pending} onPress={() => {
-                        const position = blockPosition(sourceWindow.source, block);
-                        void (imageMode ? imageReader.navigate(position) : reader.navigate(position));
+                        const target = blockPosition(sourceWindow.source, block);
+                        void (imageMode ? imageReader.navigate(target) : reader.navigate(target));
                     }} />)}
             </ScrollView> : null}
-            {sourceWindow && focused && imageMode && imageReader.settings ? <ImageViewport source={sourceWindow.source}
-                pages={imageReader.pages} settings={imageReader.settings} returned={highlighted ?? reader.returned} cropMode={cropMode} magnifier={magnifier}
-                onRetry={imageReader.retry}
-                onDismissInspection={() => setInspection(null)}
-                onMagnify={(resourceId, crop) => host.available ? host.ocr.uri(sourceWindow.source.id, resourceId, crop)
-                    : Promise.reject(new Error('Native source pixels are unavailable.'))}
-                onThumbnail={(resourceId, thumbnail) => setThumbnails(previous => previous[resourceId]?.uri === thumbnail.uri
-                    ? previous : { ...previous, [resourceId]: thumbnail })}
-                onCrop={(resourceId, crop) => { setCropMode(false); setCropDraft({ resourceId, crop }); }}
-                onNavigate={direction => { if (!reader.pending) { setInspection(null); void imageReader.go(direction); } }}
-                onInspect={(resourceId, regionId, start, anchor) => {
-                    const item = imageReader.pages.find(page => page.descriptor.resourceId === resourceId);
-                    const region = item?.page?.regions.find(value => value.id === regionId);
-                    const analyzed = item?.batch?.regions.find(value => value.regionId === regionId);
-                    const token = analyzed?.tokens.find(value => value.start === start);
-                    if (!item?.page || !item.batch || !region || !token?.targets.length || reader.pending
-                        || item.batch.packageId !== sourceWindow.source.packageId
-                        || item.batch.packageVersion !== sourceWindow.source.packageVersion) return;
-                    const nearby = imageContext(item.page, region);
-                    reader.onPosition(item.descriptor.position, true);
-                    setInspection({ sourceForm: token.text, context: nearby, targets: token.targets, anchor,
-                        sourceAnchor: imageAnchor(sourceWindow.source, item.page, item.descriptor.pageIndex, region, token),
-                        packageRevision: item.batch.packageRevision });
-                }} /> : sourceWindow && focused && !imageMode ? <DocumentViewport window={sourceWindow} batch={reader.batch} target={reader.position}
-                returned={reader.returned} inspecting={inspection !== null} onPosition={reader.onPosition}
-                onThumbnail={(resourceId, thumbnail) => setThumbnails(previous => previous[resourceId]?.uri === thumbnail.uri
-                    ? previous : { ...previous, [resourceId]: thumbnail })}
-                onNavigate={direction => {
-                    if (reader.pending) return;
-                    const point = direction === 'next' ? next : previous;
-                    if (point) void reader.navigate(point);
-                }}
-                onInspect={(resource, blockId, start, anchor) => {
-                    const batch = reader.batch;
-                    const block = batch?.blocks.find(item => item.resource === resource && item.blockId === blockId
-                        && item.tokens.some(token => token.start === start));
-                    const token = block?.tokens.find(item => item.start === start);
-                    if (!batch || !block || !token?.targets.length || reader.pending) return;
-                    setInspection({ sourceForm: token.text, context: block.text, targets: token.targets, anchor,
-                        sourceAnchor: documentAnchor(sourceWindow.source, block, token), packageRevision: batch.packageRevision });
-                }} /> : !sourceWindow ? <View style={styles.empty}><Text accessibilityLiveRegion="polite">
-                    {reader.pending ? 'Opening document…' : 'Document unavailable. Retry opening it or reselect it from Home.'}
-                </Text></View> : null}
+            <View style={styles.canvas}>
+                {sourceWindow && focused && imageMode && imageReader.settings ? <ImageViewport source={sourceWindow.source}
+                    pages={imageReader.pages} settings={imageReader.settings} returned={highlighted ?? reader.returned} cropMode={cropMode}
+                    magnifier={magnifier} inspectionMode={inspectionMode}
+                    recognizing={imageReader.recognition === 'working'} notice={recognitionNotice} onCancelRecognition={imageReader.stop}
+                    onRetry={imageReader.retry}
+                    onDismissInspection={() => setInspection(null)}
+                    onMagnify={(resourceId, crop) => host.available ? host.ocr.uri(sourceWindow.source.id, resourceId, crop)
+                        : Promise.reject(new Error('Native source pixels are unavailable.'))}
+                    onThumbnail={(resourceId, thumbnail) => setThumbnails(previous => previous[resourceId]?.uri === thumbnail.uri
+                        ? previous : { ...previous, [resourceId]: thumbnail })}
+                    onCrop={(resourceId, crop) => { setCropMode(false); void imageReader.recognize(resourceId, crop); }}
+                    onNavigate={direction => { if (!reader.pending) { setInspection(null); void imageReader.go(direction); } }}
+                    onInspect={(resourceId, regionId, start, anchor) => {
+                        const item = imageReader.pages.find(page => page.descriptor.resourceId === resourceId);
+                        const region = item?.page?.regions.find(value => value.id === regionId);
+                        const analyzed = item?.batch?.regions.find(value => value.regionId === regionId);
+                        const token = analyzed?.tokens.find(value => value.start === start);
+                        if (!item?.page || !item.batch || !region || !token?.targets.length || reader.pending
+                            || item.batch.packageId !== sourceWindow.source.packageId
+                            || item.batch.packageVersion !== sourceWindow.source.packageVersion) return;
+                        reader.onPosition(item.descriptor.position, true);
+                        inspect({ sourceForm: token.text, context: imageContext(item.page, region), targets: token.targets, anchor,
+                            sourceAnchor: imageAnchor(sourceWindow.source, item.page, item.descriptor.pageIndex, region, token),
+                            packageRevision: item.batch.packageRevision });
+                    }} /> : sourceWindow && focused && !imageMode ? <DocumentViewport window={sourceWindow} batch={reader.batch}
+                    annotations={annotations} inspectionMode={inspectionMode} target={reader.position}
+                    returned={reader.returned} inspecting={inspection !== null} onPosition={reader.onPosition}
+                    onThumbnail={(resourceId, thumbnail) => setThumbnails(previous => previous[resourceId]?.uri === thumbnail.uri
+                        ? previous : { ...previous, [resourceId]: thumbnail })}
+                    onNavigate={direction => {
+                        if (reader.pending) return;
+                        const point = direction === 'next' ? next : previous;
+                        if (point) void reader.navigate(point);
+                    }}
+                    onInspect={(resource, blockId, start, anchor) => {
+                        const batch = reader.batch;
+                        const block = batch?.blocks.find(item => item.resource === resource && item.blockId === blockId
+                            && item.tokens.some(token => token.start === start));
+                        const token = block?.tokens.find(item => item.start === start);
+                        if (!batch || !block || !token?.targets.length || reader.pending) return;
+                        inspect({ sourceForm: token.text, context: block.text, targets: token.targets, anchor,
+                            sourceAnchor: documentAnchor(sourceWindow.source, block, token), packageRevision: batch.packageRevision });
+                    }} /> : <View style={styles.empty}>
+                    {reader.error ? <>
+                        <Text accessibilityRole="alert">{notices.openFailed.message}</Text>
+                        <Row><Button label="Retry" variant="secondary" size="compact" onPress={reader.retry} /></Row>
+                    </> : reader.pending ? <>
+                        <Text accessibilityLiveRegion="polite">Opening…</Text>
+                        <Row><Button label="Cancel" variant="secondary" size="compact" onPress={() => void reader.cancel()} /></Row>
+                    </> : null}
+                </View>}
+            </View>
+            {source ? <ScrollView style={[wide ? styles.panel : styles.overlayPanel, !panel && styles.hidden]}
+                contentContainerStyle={styles.panelContent}>
+                {vocabularyPanel}{sidePanel}{recognitionPanel}
+            </ScrollView> : null}
         </View>
-        <View testID="reader-status" style={styles.status}>
-            <ScrollView horizontal style={styles.statusViewport} keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.statusControls}>
-                <View style={styles.position}><Text variant="detail" muted numberOfLines={1} testID="reader-position">
-                    {imageMode && imageReader.pages.length ? `Page ${imageReader.pages.map(item => item.descriptor.pageIndex + 1).join('–')} of ${source?.totalPages ?? 0}`
-                        : reader.position ? currentBlock?.image ? currentBlock.image.alt || 'Image' : currentBlock?.text : 'No visible position'}
-                </Text></View>
-                {source && !compact ? <Text variant="detail" muted>{source.format.toUpperCase()}</Text> : null}
-                {(imageMode ? imageReader.pages.some(item => item.analyzing) : reader.analysisPending)
-                    ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
-                {imageMode ? <ImageReaderControls reader={imageReader} cropMode={cropMode} cropDraft={cropDraft} magnifier={magnifier}
-                    layoutInline={layoutInline}
-                    onCropMode={enabled => { setCropMode(enabled); if (enabled) setMagnifier(false); }}
-                    onMagnifier={enabled => { setMagnifier(enabled); if (enabled) setCropMode(false); }}
-                    onBeforeAction={() => setInspection(null)} onReturnToSource={() => setOptionsOpen(false)}
-                    onCropConsumed={() => setCropDraft(null)}>
-                    <Button ref={recognitionTrigger} label="Recognition details" variant="quiet" size="compact"
-                        disabled={!imageReader.pages.some(page => page.page?.regions.length)}
-                        onPress={() => { setInspection(null); setMagnifier(false); setCropMode(false); setRecognitionOpen(true); }} />
-                </ImageReaderControls> : null}
-                <Button label="Save position" variant="quiet" size="compact" disabled={!source}
-                    onPress={() => void reader.persist().catch(() => { /* Reader save feedback owns recovery. */ })} />
-            </ScrollView>
-            {imageMode ? <ImageReaderFeedback reader={imageReader} /> : null}
-            {reader.analysisError ? <Row><Text variant="caption" accessibilityRole="alert">{reader.analysisError}</Text>
-                <Button label="Retry analysis" variant="secondary" size="compact" onPress={reader.retryAnalysis} /></Row> : null}
-            {reader.saveError ? <Row><Text variant="caption" accessibilityRole="alert">Progress not saved: {reader.saveError}</Text>
-                <Button label="Retry saving position" variant="secondary" size="compact"
-                    onPress={() => void reader.persist().catch(() => { /* Visible feedback retains the failed save. */ })} /></Row> : null}
-        </View>
-        {imageMode && source ? <>
-            <ImageRecognition client={client} reader={imageReader} open={recognitionOpen} onOpenChange={setRecognitionOpen}
-                focusTarget={() => focused ? recognitionTrigger.current ?? optionsTrigger.current : null} />
-            <ImageSourceWords client={client} source={source} pages={imageReader.pages} open={wordsOpen}
-                onOpenChange={setWordsOpen} triggerRef={wordsTrigger}
-                focusTarget={() => focused ? wordsTrigger.current ?? optionsTrigger.current : null}
-                onInspect={setInspection} onAnalyze={imageReader.analyze}
-                onLocate={anchor => {
-                    const locator = anchor.locator;
-                    if (locator.kind !== 'image') return;
-                    const item = imageReader.pages.find(item => item.descriptor.resourceId === locator.resourceId);
-                    if (item) { setOptionsOpen(false); setInspection(null); reader.onPosition(item.descriptor.position, true); setHighlighted(anchor); }
-                }} />
-        </> : null}
+        <ReaderStatusStrip position={statusPosition} imageMode={imageMode} status={status} debugRef={debugToggle}
+            inspectionMode={inspectionMode} onInspectionMode={setInspectionMode}
+            annotations={imageMode ? imageReader.settings?.showOverlay ?? true : annotations}
+            onAnnotations={() => {
+                setInspection(null);
+                if (!imageMode) setAnnotations(value => !value);
+                else if (imageReader.settings) void imageReader.changeSettings({ showOverlay: !imageReader.settings.showOverlay });
+            }}
+            readingFilter={imageReader.settings ? !imageReader.settings.showAnnotations : false}
+            onReadingFilter={() => {
+                if (!imageReader.settings) return;
+                setInspection(null); void imageReader.changeSettings({ showAnnotations: !imageReader.settings.showAnnotations });
+            }}
+            crop={cropMode} onCrop={() => { setInspection(null); setMagnifier(false); setCropMode(value => !value); }}
+            debug={panel === 'recognition'} onDebug={() => togglePanel('recognition')}
+            magnifier={magnifier} onMagnifier={() => { setInspection(null); setCropMode(false); setMagnifier(value => !value); }}
+            controlsDisabled={!source || reader.pending || (imageMode && (!imageReader.settings || imageReader.saving))}
+            notice={strip} />
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
             onBeforeNavigate={reader.persist}
             onChanged={async () => {
-                const identity = current.current;
                 if (imageMode) await imageReader.refreshKnowledge();
                 else await reader.refreshKnowledge();
-                if (current.current !== identity) return;
             }} onClose={() => setInspection(null)} /> : null}
     </View>;
 }
 const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({ flex: 1, paddingTop: top, paddingBottom: bottom,
         backgroundColor: theme.colors.background }),
-    header: { flexShrink: 0, paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
-        borderBottomWidth: 1, borderColor: theme.colors.border },
-    toolbar: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small, minWidth: 0 },
-    compactToolbar: { flexWrap: 'wrap', gap: theme.spacing.tiny },
-    leading: (compact: boolean) => ({ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
-        flex: compact ? undefined : 1, flexBasis: compact ? '100%' : undefined, minWidth: 0 }),
-    actions: (compact: boolean) => ({ flexDirection: 'row', alignItems: 'center', gap: compact ? theme.spacing.tiny : theme.spacing.small,
-        width: compact ? '100%' : undefined, minWidth: 0 }),
-    title: { flex: 1, minWidth: 0 },
     workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
     rail: { width: 160, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderColor: theme.colors.border },
     railContent: { padding: theme.spacing.small, gap: theme.spacing.small },
-    empty: { flex: 1, padding: theme.spacing.large },
-    feedback: { gap: theme.spacing.small },
-    status: { paddingHorizontal: theme.spacing.small,
-        borderTopWidth: 1, borderColor: theme.colors.border, maxHeight: '30%', gap: theme.spacing.tiny },
-    statusControls: { flexGrow: 1, alignItems: 'center', gap: theme.spacing.small },
-    statusViewport: { flexGrow: 0, flexShrink: 0 },
-    position: { flexGrow: 1, minWidth: 0, maxWidth: 320 },
+    canvas: { flex: 1, minWidth: 0, minHeight: 0 },
+    empty: { flex: 1, padding: theme.spacing.large, gap: theme.spacing.small },
+    panel: { width: 360, flexGrow: 0, flexShrink: 0, borderLeftWidth: 1, borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surface },
+    overlayPanel: { position: 'absolute', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 360,
+        borderLeftWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+    hidden: { display: 'none' },
+    panelContent: { padding: theme.spacing.medium, gap: theme.spacing.compact },
 }));

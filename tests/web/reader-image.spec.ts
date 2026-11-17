@@ -4,6 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 import type { DocumentWindow, ImageReaderSettings, OcrCorrection, OcrEvidence, OcrPage, OcrProvider, OcrRecovery, OcrRegion, OcrRequest, SourceAnchor } from '@mlearn/contracts';
 import { builtInThemes, initialTheme, resolveTheme } from '../../packages/theme/src/theme';
 
+const canvas = (page: Page) => page.getByTestId(/^reader-(image|document)-/);
+
 declare global { interface Window {
   __imageReaderRequests: Record<string, unknown>[];
   __imageOcrControl: { hold: boolean; fail: 'cancelled' | 'committed' | null;
@@ -11,19 +13,24 @@ declare global { interface Window {
   __imageImportControl: { hold: boolean; entered: Promise<void>; release?: () => void };
   __imageEligibilityControl: { hold: boolean; entered: Promise<void>; release?: () => void };
   __imageUriControl: { available: boolean };
+  __imageUnsaved?: string[];
+  __imageOcrInitial?: { hold?: boolean; fail?: 'cancelled' | 'committed' };
   __documentAnalysisControl: { first: Promise<void>; second: Promise<void> };
 } }
 
 // These are real exported controls/pixels/geometry with substituted native IPC.
 // Recognition quality and persistence are verified separately through real hosts.
 async function readerOptions(page: Page) {
-  const dialog = page.getByRole('dialog', { name: 'Reader appearance', exact: true });
-  if (!await dialog.isVisible())
-    await page.getByRole('button', { name: 'View options', exact: true }).click();
-  return dialog;
+  const panel = page.getByTestId('reader-options-panel');
+  if (await panel.isVisible()) return panel;
+  const view = page.getByRole('button', { name: 'View options', exact: true });
+  if (await view.isVisible()) await view.click();
+  else await page.getByTestId('reader-status').getByRole('button', { name: /^Debug: / }).click();
+  await expect(panel).toBeVisible();
+  return panel;
 }
 
-async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false, withSenses = false, theme = initialTheme, status = 'untracked') {
+async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false, withSenses = false, theme = initialTheme, status = 'untracked', recognized = true) {
   await page.addInitScript(({ theme, orientation, pdf, withSenses, status }) => {
     const source: DocumentWindow = {
       source: { id: 'scan-book', title: 'Original image collection', documentPath: '/owned/collection.images',
@@ -99,7 +106,8 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     const reservations = new Set<string>(), cancellations = new Set<string>();
     const actionReceipts = new Map<string, { request: OcrRequest; recovery: OcrRecovery }>();
     let markEntered: () => void = () => {}, markFinished: () => void = () => {};
-    const ocrControl: Window['__imageOcrControl'] = { hold: false, fail: null,
+    const ocrControl: Window['__imageOcrControl'] = { hold: window.__imageOcrInitial?.hold ?? false,
+      fail: window.__imageOcrInitial?.fail ?? null,
       entered: new Promise<void>(resolve => { markEntered = resolve; }),
       finished: new Promise<void>(resolve => { markFinished = resolve; }) };
     let markPicker: () => void = () => {};
@@ -109,6 +117,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     const eligibilityControl: Window['__imageEligibilityControl'] = { hold: false,
       entered: new Promise<void>(resolve => { markEligibility = resolve; }) };
     const imageUriControl = { available: true };
+    const unsaved = new Set(window.__imageUnsaved ?? []);
     let nextRead = 0;
     const boundedReads = new Map<string, { completion: Promise<void> | null; cancelled: boolean }>();
     const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -193,7 +202,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
                   language: 'ja-JP', orientation: 'horizontal', readingOf: null });
               }
               const result = { ...original, ocrRevision: original.ocrRevision + 1, crop: request.crop, regions };
-              recognized.set(request.resourceId, result);
+              recognized.set(request.resourceId, result); unsaved.delete(request.resourceId);
               actionReceipts.set(request.requestId, { request, recovery: { state: 'completed', page: result } });
               if (ocrControl.fail === 'committed') {
                 ocrControl.fail = null;
@@ -299,7 +308,8 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
                 pageIndex: index, resourceId: block.resource, position: {
                   parserRevision: 'images-1', resource: block.resource, blockId: block.id, offset: 0 } } });
             }
-            case 'read_ocr': return JSON.stringify({ type: 'ocr_cached', page: recognized.get(String(request.resourceId)) ?? null });
+            case 'read_ocr': return JSON.stringify({ type: 'ocr_cached', page: unsaved.has(String(request.resourceId)) ? null
+              : recognized.get(String(request.resourceId)) ?? null });
             case 'ocr_recovery': {
               const original: OcrRequest = JSON.parse(String(args.request)).request;
               const receipt = actionReceipts.get(original.requestId);
@@ -423,62 +433,58 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
   }
   if (pdf) {
     await readerOptions(page);
-    await expect(page.getByRole('button', { name: 'View original PDF pages', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'View PDF pages', exact: true })).toBeVisible();
     return;
   }
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: `${orientation ? '日本語' : '東京'}: ${status.replaceAll('_', ' ')}`, exact: true })).toBeVisible();
+  if (recognized) await expect(canvas(page).getByRole('button', { name: `${orientation ? '日本語' : '東京'}: ${status.replaceAll('_', ' ')}`, exact: true })).toBeVisible();
 }
 
 for (const width of [1500, 1080, 393]) {
-test(`Reader toolbar stays compact and retains accessible controls at ${width}px`, async ({ page }, testInfo) => {
+test(`Reader toolbar and status strip keep the golden image controls accessible at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
-  const home = await page.getByRole('button', { name: 'Home', exact: true }).boundingBox();
   const toolbar = await page.getByTestId('reader-toolbar').boundingBox();
-  if (!home || !toolbar) throw new Error('Reader navigation geometry is unavailable');
-  const rows = new Set([home.y]);
-  for (const name of [...(width >= 700 ? ['Open document'] : []), 'Previous page', 'Next page', 'Search source', 'Contents', 'View options', 'Page words']) {
-    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
-    if (!box) throw new Error('Reader navigation geometry is unavailable');
-    if (width >= 700) expect(box.y).toBe(home.y);
-    else expect(box.height).toBeGreaterThanOrEqual(44);
-    rows.add(box.y);
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(width);
+  if (!toolbar) throw new Error('Reader toolbar geometry is unavailable');
+  const controls = [page.getByRole('button', { name: 'Home', exact: true }),
+    page.getByRole('combobox', { name: /^Image fit:/ }), page.getByRole('combobox', { name: /^Page layout:/ }),
+    page.getByRole('combobox', { name: /^Page order:/ }), page.getByRole('button', { name: 'First page alone', exact: true }),
+    page.getByRole('button', { name: 'Previous page', exact: true }), page.getByRole('button', { name: 'Next page', exact: true }),
+    page.getByRole('button', { name: /^(Show|Hide) vocabulary$/ })];
+  const centers = new Set<number>();
+  for (const control of controls) {
+    const box = await control.boundingBox();
+    if (!box) throw new Error('Reader control geometry is unavailable');
     expect(box.y).toBeGreaterThanOrEqual(toolbar.y);
     expect(box.y + box.height).toBeLessThanOrEqual(toolbar.y + toolbar.height);
+    if (width >= 900) {
+      centers.add(Math.round((box.y + box.height / 2) / 8));
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    } else expect(box.height).toBeGreaterThanOrEqual(44);
   }
-  expect(rows.size).toBeLessThanOrEqual(width >= 700 ? 1 : 2);
-  await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
-  const footer = await page.getByTestId('reader-status').boundingBox();
-  if (!toolbar || !footer) throw new Error('Reader chrome geometry is unavailable');
-  expect(footer.height).toBeLessThan(toolbar.height);
-  if (width === 1500) {
-    await expect(page.getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: /^Page layout:/ })).toBeVisible();
+  if (width >= 900) expect(centers.size).toBe(1);
+  for (const name of ['Previous page', 'Next page', 'Home']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(width);
   }
+  await expect(page.getByTestId('reader-title')).toBeVisible();
+  const footer = page.getByTestId('reader-status');
+  for (const name of ['Crop: Off', 'Reading annotations: On', 'OCR reading filter: Off', 'Debug: Off', 'Press Z to open magnifier'])
+    await expect(footer.getByRole('button', { name, exact: true })).toHaveCount(1);
+  await expect(footer.getByRole('combobox', { name: /^Show tooltip on:/ })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('reader-toolbar.png') });
-  if (width !== 1500) {
-    await expect(page.getByTestId('reader-status').getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
-    await expect(page.getByTestId('reader-status').getByRole('combobox', { name: /^Page layout:/ })).toBeVisible();
-  }
-  await expect(page.getByRole('combobox', { name: /^Page reading direction:/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Recognize', exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('reader-image-controls.png') });
   const options = await readerOptions(page);
-  await expect(options.getByRole('combobox', { name: /^Document source language:/ })).toBeVisible();
-  if (width < 700) await expect(options.getByRole('button', { name: 'Open document', exact: true })).toBeVisible();
-  await options.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.getByRole('button', { name: 'Search source', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(options.getByRole('combobox', { name: /^Source language:/ })).toBeVisible();
+  await options.getByRole('button', { name: 'Search source', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Search source', exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('reader-image-search.png') });
 });
 }
 
-test('Reader opens the shared document entry from its source toolbar', async ({ page }) => {
+test('Reader opens the shared document entry from its source options', async ({ page }) => {
   await start(page);
-  await page.getByRole('button', { name: 'Open document', exact: true }).click();
+  await (await readerOptions(page)).getByRole('button', { name: 'Open another document', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Open a document', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open images', exact: true })).toBeEnabled();
 });
@@ -492,7 +498,7 @@ test(`Reader chrome preserves the dark reference materials at ${width}px`, async
   await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
   const toolbar = page.getByTestId('reader-toolbar');
   const footer = page.getByTestId('reader-status');
-  await expect(footer.getByRole('button', { name: 'Recognize', exact: true })).toBeVisible();
+  await expect(footer.getByRole('button', { name: 'Debug: Off', exact: true })).toBeVisible();
   const title = await toolbar.getByTestId('reader-title').boundingBox();
   const frame = await toolbar.boundingBox();
   if (!title || !frame) throw new Error('Reader chrome geometry is unavailable');
@@ -524,16 +530,17 @@ test(`source image retry recovers original pixels without repeating recognition 
   await start(page, true);
   await page.evaluate(() => { window.__imageUriControl.available = false; });
   await page.getByRole('button', { name: 'Open images', exact: true }).click();
-  const retry = page.getByRole('button', { name: 'Retry image action', exact: true });
+  await expect(page.getByTestId('reader-status').getByRole('alert')).toHaveText('This page couldn’t be shown.');
+  const retry = page.getByTestId('reader-status').getByRole('button', { name: 'Retry', exact: true });
   await expect(retry).toBeVisible();
   await expect(page.getByTestId('reader-image-loading')).not.toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('source-unavailable.png') });
   await page.evaluate(() => { window.__imageUriControl.available = true; });
   await retry.click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
   const requests = await page.evaluate(() => window.__imageReaderRequests);
-  expect(requests.filter(request => request.type === 'image_page_uri')).toHaveLength(2);
+  expect(requests.filter(request => request.type === 'image_page_uri' && request.resourceId === 'image-0')).toHaveLength(2);
   expect(requests.filter(request => request.type === 'analyze_ocr')).toHaveLength(1);
   expect(requests.filter(request => request.type === 'recognize_image')).toHaveLength(0);
   await page.screenshot({ path: testInfo.outputPath('source-recovered.png') });
@@ -543,13 +550,13 @@ test(`source image retry recovers original pixels without repeating recognition 
 test('original PDF presentation does not analyze hidden document text during source navigation', async ({ page }) => {
   await start(page, false, null, true);
   await page.evaluate(() => window.__documentAnalysisControl.first);
-  await page.getByRole('button', { name: 'View original PDF pages', exact: true }).click();
+  await page.getByRole('button', { name: 'View PDF pages', exact: true }).click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
-  await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
+  await expect(page.getByTestId('reader-position')).toHaveText('2/3');
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'analyze_document').length)).toBe(1);
   await readerOptions(page);
-  await page.getByRole('button', { name: 'Read available PDF text', exact: true }).click();
+  await page.getByRole('button', { name: 'Read PDF text', exact: true }).click();
   await page.evaluate(() => window.__documentAnalysisControl.second);
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'analyze_document').length)).toBe(2);
 });
@@ -559,8 +566,8 @@ for (const orientation of ['topToBottom', 'vertical-rl'] as const) {
 test(`vertical source tokens follow their original column for ${orientation} observations at ${width}`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
   await start(page, false, orientation);
-  const first = await page.getByRole('button', { name: '日本語: untracked', exact: true }).boundingBox();
-  const last = await page.getByRole('button', { name: '読む: untracked', exact: true }).boundingBox();
+  const first = await canvas(page).getByRole('button', { name: '日本語: untracked', exact: true }).boundingBox();
+  const last = await canvas(page).getByRole('button', { name: '読む: untracked', exact: true }).boundingBox();
   const column = await page.locator('[data-ocr-region="line-0"]').boundingBox();
   expect(first).not.toBeNull(); expect(last).not.toBeNull(); expect(column).not.toBeNull();
   expect(first!.height).toBeGreaterThan(column!.height * 0.35);
@@ -586,7 +593,7 @@ test(`Home admits an actual selected image ${folder ? 'folder' : 'collection'} t
   await page.screenshot({ path: testInfo.outputPath('home-image-entry.png') });
   await entry.click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
   const requests = await page.evaluate(() => window.__imageReaderRequests);
   expect(requests.find(request => request.type === 'pick_images')).toEqual({ type: 'pick_images', folder });
   expect(requests.find(request => request.type === 'import_image_collection')).toMatchObject({
@@ -626,21 +633,20 @@ test('cancelled native image selection cannot admit or navigate a late picker re
 
 test('source practice retries one frozen request and opens its actually admitted shared encounter', async ({ page }, testInfo) => {
   await start(page);
-  await page.getByRole('button', { name: 'Page words', exact: true }).click();
-  const words = page.getByRole('dialog', { name: 'Page words', exact: true });
+  const words = page.getByTestId('reader-side-panel');
   for (const width of [1080, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    const action = words.getByRole('button', { name: 'Practice words in this view', exact: true });
+    const action = words.getByRole('button', { name: 'Practise', exact: true });
     await expect(action).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: testInfo.outputPath(`source-word-practice-${width}.png`) });
   }
-  await words.getByRole('button', { name: 'Practice words in this view', exact: true }).click();
-  await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
-  await words.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Page words', exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Page words', exact: true }).click();
-  await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
-  await words.getByRole('button', { name: 'Retry original Word Practice request', exact: true }).click();
+  await page.setViewportSize({ width: 1080, height: 900 });
+  await words.getByRole('button', { name: 'Practise', exact: true }).click();
+  await expect(words.getByRole('alert')).toHaveText('Practice couldn’t start.');
+  await words.getByRole('button', { name: 'Close vocabulary', exact: true }).click();
+  await page.getByRole('button', { name: 'Show vocabulary', exact: true }).click();
+  await expect(words.getByRole('alert')).toHaveText('Practice couldn’t start.');
+  await words.getByRole('button', { name: 'Retry Practise', exact: true }).click();
   await expect(page).toHaveURL(/\/review\?sessionId=/);
   await expect(page.getByText('Word Practice', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reveal', exact: true })).toBeVisible();
@@ -658,26 +664,28 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`recognition correction retains uncertain identity, refreshes alignment and exposes original evidence on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
-  await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Recognition and alignment', exact: true });
+  const debug = page.getByTestId('reader-status').getByRole('button', { name: 'Debug: Off', exact: true });
+  await debug.click();
+  const dialog = page.getByTestId('reader-recognition-panel');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('recognition-region-draft.png') });
   await dialog.getByRole('textbox', { name: 'Recognized text', exact: true }).fill('東京都');
   await dialog.getByRole('textbox', { name: 'Top left X', exact: true }).fill('15');
   await dialog.getByRole('button', { name: 'Save correction', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toContainText('Correction receipt lost');
-  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Recognition details', exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
-  await expect(dialog.getByRole('alert')).toContainText('Correction receipt lost');
+  await expect(dialog.getByRole('alert')).toHaveText('The correction wasn’t saved.');
+  await dialog.getByRole('button', { name: 'Close recognized text', exact: true }).click();
+  await expect(debug).toBeFocused();
+  await debug.click();
+  await expect(dialog.getByRole('alert')).toHaveText('The correction wasn’t saved.');
   await expect(dialog.getByRole('textbox', { name: 'Recognized text', exact: true })).toHaveValue('東京都');
   await dialog.getByRole('button', { name: 'Retry same correction', exact: true }).click();
-  await expect(dialog.getByText(/recognition revision 2/)).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
   await dialog.getByRole('textbox', { name: 'Recognized text', exact: true }).fill('Unsaved draft');
-  await dialog.getByRole('button', { name: 'Load current saved recognition', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Reload saved text', exact: true }).click();
   await expect(dialog.getByRole('textbox', { name: 'Recognized text', exact: true })).toHaveValue('東京都');
-  await dialog.getByRole('button', { name: 'Inspect saved evidence', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByTestId('ocr-evidence')).toContainText('"ocrRevision": 2');
-  await dialog.getByRole('button', { name: 'Inspect parent revision 1', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Earlier version', exact: true }).click();
   await expect(page.getByTestId('ocr-evidence')).toContainText('"ocrRevision": 1');
   const raw = JSON.parse(await page.getByTestId('ocr-evidence').innerText());
   expect(raw.result.regions[0].text).toBe('東京');
@@ -687,80 +695,55 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
   expect(corrections[0]).toMatchObject({ correction: { expectedRevision: 1,
     region: { text: '東京都', quad: { topLeft: { x: 0.15 } } } } });
   await page.screenshot({ path: testInfo.outputPath('recognition-correction-evidence.png') });
-  await page.keyboard.press('Escape');
+  await dialog.getByRole('button', { name: 'Close recognized text', exact: true }).click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
-  await expect(page.getByRole('button', { name: '東京都: untracked', exact: true })).toBeVisible();
-  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null).length)).toBe(1);
+  await expect(canvas(page).getByRole('button', { name: '東京都: untracked', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null && request.resourceId === 'image-0').length)).toBe(1);
 });
 }
 
 for (const width of [1080, 393]) {
-test(`cancelled dragged crop does not reopen recognition with Reader options at ${width}px`, async ({ page }, testInfo) => {
+test(`dragged crop recognizes that original area in place without a dialog at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
-  await page.getByRole('button', { name: 'Select crop', exact: true }).click();
+  await page.getByTestId('reader-status').getByRole('button', { name: 'Crop: Off', exact: true }).click();
   const image = await page.getByRole('img', { name: 'Page 1', exact: true }).boundingBox();
   if (!image) throw new Error('Original image geometry is unavailable');
-  await page.mouse.move(image.x + image.width * 0.25, image.y + image.height * 0.4);
+  await page.mouse.move(image.x + image.width * 0.6, image.y + image.height * 0.6);
   await page.mouse.down();
-  await page.mouse.move(image.x + image.width * 0.6, image.y + image.height * 0.7);
+  await page.mouse.move(image.x + image.width * 0.8, image.y + image.height * 0.8);
   await page.mouse.up();
-  const recognition = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
-  await expect(recognition).toBeVisible();
-  expect(Number(await recognition.getByRole('textbox', { name: 'Left (%)', exact: true }).inputValue())).toBeCloseTo(25, 0);
-  expect(Number(await recognition.getByRole('textbox', { name: 'Width (%)', exact: true }).inputValue())).toBeCloseTo(35, 0);
-  await recognition.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Recognize', exact: true })).toBeFocused();
-  await expect(page.getByTestId('reader-status').getByRole('combobox', { name: /^Page reading direction:/ })).toBeVisible();
-  const options = await readerOptions(page);
-  await expect(options).toBeVisible();
-  await expect(recognition).toHaveCount(0);
-  await expect(options.getByRole('combobox', { name: /^Document source language:/ })).toBeVisible();
-  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'recognize_image'))).toHaveLength(0);
-  await page.screenshot({ path: testInfo.outputPath('crop-cancelled-options-reopened.png') });
-});
-}
-
-test('explicit crop recognition uses original coordinates and keeps unrelated saved regions and source pixels', async ({ page }) => {
-  await start(page);
-  await page.getByRole('button', { name: 'Recognize', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
-  await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
-  await page.getByRole('option', { name: 'Fixture on-device provider', exact: true }).click({ timeout: 5000 });
-  await dialog.getByRole('button', { name: 'Selected region', exact: true }).click();
-  for (const [label, value] of [['Left (%)', '60'], ['Top (%)', '60'], ['Width (%)', '20'], ['Height (%)', '20']])
-    await dialog.getByRole('textbox', { name: label, exact: true }).fill(value);
-  await dialog.getByRole('button', { name: 'Recognize selected region', exact: true }).click();
-  await expect(page.getByRole('button', { name: '区域: untracked', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
-  await expect(page.getByTestId('reader-image-ready')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(canvas(page).getByRole('button', { name: '区域: untracked', exact: true })).toBeVisible();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  await expect(page.getByTestId('reader-status').getByRole('button', { name: 'Crop: Off', exact: true })).toBeVisible();
   const calls = await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'recognize_image'));
   expect(calls).toHaveLength(1);
   expect(calls[0]).toMatchObject({ request: { sourceId: 'scan-book', resourceId: 'image-0',
-    contentRevision: 'original-pixels', providerId: 'fixture-sdk', crop: { x: 0.6, y: 0.6, width: 0.2, height: 0.2 } } });
-  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null).length)).toBe(1);
+    contentRevision: 'original-pixels', providerId: 'fixture-sdk', recognitionLanguages: [] } });
+  const crop = (calls[0] as { request: { crop: { x: number; y: number; width: number; height: number } } }).request.crop;
+  expect(crop.x).toBeCloseTo(0.6, 1); expect(crop.y).toBeCloseTo(0.6, 1);
+  expect(crop.width).toBeCloseTo(0.2, 1); expect(crop.height).toBeCloseTo(0.2, 1);
+  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri'
+    && request.crop === null && request.resourceId === 'image-0').length)).toBe(1);
+  await page.screenshot({ path: testInfo.outputPath('crop-recognized-in-place.png') });
 });
+}
 
-for (const entry of ['keyboard', 'rail', 'contents', 'search'] as const) {
+for (const entry of ['keyboard', 'rail', 'search'] as const) {
 test(`${entry} source navigation cancels running recognition without waiting for SDK completion or publishing its stale result`, async ({ page }, info) => {
-  await start(page);
-  await page.evaluate(() => { window.__imageOcrControl.hold = true; });
-  await page.getByRole('button', { name: 'Recognize', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
-  await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
-  await page.getByRole('option', { name: 'Fixture on-device provider', exact: true }).click({ timeout: 5000 });
-  await dialog.getByRole('button', { name: 'Recognize page', exact: true }).click();
+  await page.addInitScript(() => { window.__imageUnsaved = ['image-0']; });
+  await page.addInitScript(() => { window.__imageOcrInitial = { hold: true }; });
+  await start(page, false, null, false, false, initialTheme, 'untracked', false);
+  await expect(page.getByTestId('reader-recognizing')).toBeVisible();
   await page.evaluate(() => window.__imageOcrControl.entered);
   if (entry === 'keyboard') {
     await page.getByRole('document', { name: 'Image pages', exact: true }).focus();
     await page.keyboard.press('PageDown');
   } else if (entry === 'rail') {
-    await page.getByRole('button', { name: 'Page 2', exact: true }).click();
-  } else if (entry === 'contents') {
-    await page.getByRole('button', { name: 'Contents', exact: true }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Page 2', exact: true }).click();
+    await page.getByRole('button', { name: /^Page 2/ }).click();
   } else {
-    await page.getByRole('button', { name: 'Search source', exact: true }).click();
+    await (await readerOptions(page)).getByRole('button', { name: 'Search source', exact: true }).click();
     const search = page.getByRole('dialog', { name: 'Search source', exact: true });
     await search.getByRole('textbox', { name: 'Search this source', exact: true }).fill('大阪');
     await search.getByRole('button', { name: 'Search', exact: true }).click();
@@ -770,8 +753,8 @@ test(`${entry} source navigation cancels running recognition without waiting for
     await page.screenshot({ path: info.outputPath('recognized-search-phone.png') });
     await search.getByRole('button', { name: '大阪', exact: true }).click();
   }
-  await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
-  await expect(page.getByRole('button', { name: '大阪: untracked', exact: true })).toBeVisible();
+  await expect(page.getByTestId('reader-position')).toHaveText('2/3');
+  await expect(canvas(page).getByRole('button', { name: '大阪: untracked', exact: true })).toBeVisible();
   const cancelled = await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'cancel_ocr'));
   expect(cancelled).toHaveLength(1);
   await page.evaluate(() => {
@@ -779,34 +762,53 @@ test(`${entry} source navigation cancels running recognition without waiting for
     window.__imageOcrControl.release();
   });
   await page.evaluate(() => window.__imageOcrControl.finished);
-  await expect(page.getByRole('button', { name: 'Cancel recognition', exact: true })).toHaveCount(0);
-  await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toHaveCount(0);
+  await expect(page.getByTestId('reader-recognizing')).toHaveCount(0);
+  await expect(page.getByTestId('reader-position')).toHaveText('2/3');
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toHaveCount(0);
   if (entry === 'search') {
     const requests = await page.evaluate(() => window.__imageReaderRequests);
     expect(requests.filter(request => request.type === 'recognize_image')).toHaveLength(1);
     expect(requests.filter(request => request.type === 'return_source_anchor')).toHaveLength(1);
-    await page.getByRole('button', { name: 'Search source', exact: true }).click();
+    await page.evaluate(() => { window.__imageOcrControl.hold = false; });
+    await (await readerOptions(page)).getByRole('button', { name: 'Search source', exact: true }).click();
     await page.getByRole('button', { name: 'Return to reading position', exact: true }).click();
-    await expect(page.getByTestId('reader-position')).toHaveText('Page 1 of 3');
-    await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId('reader-position')).toHaveText('1/3');
+    // Returning to the page whose recognition was cancelled starts it again.
+    await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'recognize_image').length)).toBe(2);
   }
 });
 }
 
+test('opening an unrecognized page recognizes it in place and a learner stop waits for Retry', async ({ page }) => {
+  await page.addInitScript(() => { window.__imageUnsaved = ['image-0']; window.__imageOcrInitial = { hold: true }; });
+  await start(page, false, null, false, false, initialTheme, 'untracked', false);
+  const working = page.getByTestId('reader-recognizing');
+  await expect(working.getByRole('button', { name: 'Recognizing…', exact: true })).toBeVisible();
+  await expect(page.getByTestId('reader-side-panel').getByText('Recognizing…', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await working.getByRole('button', { name: 'Recognizing…', exact: true }).click();
+  await page.evaluate(() => { window.__imageOcrControl.hold = false; window.__imageOcrControl.release?.(); });
+  await page.evaluate(() => window.__imageOcrControl.finished);
+  const notice = page.getByTestId('reader-recognition-notice');
+  await expect(notice.getByRole('alert')).toHaveText('Text recognition stopped.');
+  const recognitions = () => page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'recognize_image').length);
+  expect(await recognitions()).toBe(1);
+  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'cancel_ocr').length)).toBe(1);
+  await notice.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  expect(await recognitions()).toBe(2);
+});
+
 for (const failure of ['cancelled', 'committed'] as const) {
 test(`recognition retry resolves native ${failure} state without resurrecting or duplicating inference`, async ({ page }) => {
-  await start(page);
-  await page.evaluate(failure => { window.__imageOcrControl.fail = failure; }, failure);
-  await page.getByRole('button', { name: 'Recognize', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
-  await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
-  await page.getByRole('option', { name: 'Fixture on-device provider', exact: true }).click({ timeout: 5000 });
-  await dialog.getByRole('button', { name: 'Recognize page', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText(failure === 'cancelled' ? 'cancelled before publication' : 'completion receipt lost');
-  await page.getByRole('button', { name: 'Retry image action', exact: true }).click();
-  await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
-  await expect(page.getByText(/recognition revision 2/)).toBeVisible();
+  await page.addInitScript(() => { window.__imageUnsaved = ['image-0']; });
+  await page.addInitScript(failure => { window.__imageOcrInitial = { fail: failure }; }, failure);
+  await start(page, false, null, false, false, initialTheme, 'untracked', false);
+  const notice = page.getByTestId('reader-recognition-notice');
+  await expect(notice.getByRole('alert')).toHaveText('Text recognition didn’t finish.');
+  await notice.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
   const requests = await page.evaluate(() => window.__imageReaderRequests);
   const inference = requests.filter(request => request.type === 'recognize_image');
   expect(inference).toHaveLength(failure === 'cancelled' ? 2 : 1);
@@ -817,21 +819,21 @@ test(`recognition retry resolves native ${failure} state without resurrecting or
 
 test('original image targets open shared Inspector and RTL pairing preserves original page membership', async ({ page }, testInfo) => {
   await start(page);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
   await expect(page.getByTestId('inspector-panel').getByText('Tokyo', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('image-reader-desktop-inspector.png') });
   await page.keyboard.press('Escape');
   await page.getByRole('combobox', { name: /^Page layout:/ }).click();
-  await page.getByRole('option', { name: 'Double page', exact: true }).click();
+  await page.getByRole('option', { name: 'Double Page', exact: true }).click();
   await expect(page.getByRole('img', { name: /^Page [12]$/ })).toHaveCount(2);
-  await page.getByRole('combobox', { name: /^Page reading direction:/ }).click();
+  await page.getByRole('combobox', { name: /^Page order:/ }).click();
   await page.getByRole('option', { name: 'Pages R→L', exact: true }).click();
   const first = await page.getByRole('img', { name: 'Page 1', exact: true }).boundingBox();
   const second = await page.getByRole('img', { name: 'Page 2', exact: true }).boundingBox();
   expect(first).not.toBeNull(); expect(second).not.toBeNull();
   expect(first!.x).toBeGreaterThan(second!.x);
-  await expect(page.getByTestId('reader-position')).toHaveText('Page 1–2 of 3');
+  await expect(page.getByTestId('reader-position')).toHaveText('1/3');
   await page.screenshot({ path: testInfo.outputPath('image-reader-spread-rtl.png') });
 });
 
@@ -839,7 +841,7 @@ test('narrow image fit keeps a real source and its interactive region inside the
   await page.setViewportSize({ width: 393, height: 852 });
   await start(page);
   const image = await page.getByRole('img', { name: 'Page 1', exact: true }).boundingBox();
-  const word = await page.getByRole('button', { name: '東京: untracked', exact: true }).boundingBox();
+  const word = await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).boundingBox();
   expect(image).not.toBeNull(); expect(word).not.toBeNull();
   expect(word!.x).toBeGreaterThanOrEqual(image!.x);
   expect(word!.y).toBeGreaterThanOrEqual(image!.y);
@@ -852,7 +854,7 @@ for (const width of [1080, 393]) {
 test(`Inspector sense selection stays beside its heading and captures the chosen meaning at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page, false, null, false, true);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   const inspector = page.getByTestId('inspector-panel');
   const first = inspector.getByRole('button', { name: 'Select sense 1 for capture', exact: true });
   const second = inspector.getByRole('button', { name: 'Select sense 2 for capture', exact: true });
@@ -888,7 +890,7 @@ test(`Inspector sense selection stays beside its heading and captures the chosen
 test(`Inspector footer keeps primary actions visible and secondary actions reachable at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   const inspector = page.getByTestId('inspector-panel');
   const details = inspector.getByRole('button', { name: 'Inspect', exact: true });
   await expect(details).toHaveAttribute('aria-expanded', 'false');
@@ -1002,7 +1004,7 @@ test(`Inspector footer keeps primary actions visible and secondary actions reach
 test(`Escape dismisses Knowledge before its Inspector at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);
-  const word = page.getByRole('button', { name: '東京: untracked', exact: true });
+  const word = canvas(page).getByRole('button', { name: '東京: untracked', exact: true });
   await word.click();
   const inspector = page.getByTestId('inspector-panel');
   const knowledge = inspector.getByRole('button', { name: /^Knowledge/ });
@@ -1022,7 +1024,7 @@ test(`Escape dismisses Knowledge before its Inspector at ${width}px`, async ({ p
 test('nested capture focus wrap reveals its action without moving the source', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 420, height: 560 });
   await start(page);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   const inspector = page.getByTestId('inspector-panel');
   const author = inspector.getByRole('button', { name: 'Inspector actions', exact: true });
   await author.click();
@@ -1054,7 +1056,7 @@ test('nested capture focus wrap reveals its action without moving the source', a
 
 test('source Inspector capture options remain readable on their shared menu material', async ({ page }, testInfo) => {
   await start(page);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
   const action = page.getByRole('menuitem', { name: 'Open saved 東京', exact: true });
   await expect(action).toBeVisible();
@@ -1078,11 +1080,14 @@ test('source Inspector capture options remain readable on their shared menu mate
 
 test('publisher concealment changes only its actual pixel region and keyboard reveal preserves original source data', async ({ page }, testInfo) => {
   await start(page);
+  // Byte-exact region comparison: the open Vocabulary panel's live updates
+  // shift page compositing by a few antialiasing levels, unrelated to the source.
+  await page.getByRole('button', { name: 'Hide vocabulary', exact: true }).click();
   const region = page.locator('[data-ocr-reading="reading-0"]');
   const original = await region.screenshot();
   const source = await page.getByRole('img', { name: 'Page 1', exact: true }).getAttribute('src');
   const admitted = await page.evaluate(() => window.__imageReaderRequests.length);
-  await page.getByRole('button', { name: 'Hide publisher readings', exact: true }).click();
+  await page.getByTestId('reader-status').getByRole('button', { name: 'OCR reading filter: Off', exact: true }).click();
   const reveal = page.getByRole('button', { name: 'Reveal reading annotation', exact: true });
   await expect(reveal).toBeVisible();
   const concealed = await region.screenshot({ path: testInfo.outputPath('publisher-reading-concealed.png') });
@@ -1099,7 +1104,7 @@ test('publisher concealment changes only its actual pixel region and keyboard re
 
 test('held image lens samples original pixels, wheel zoom is transient and release restores source interactions', async ({ page }, testInfo) => {
   await start(page);
-  const word = await page.getByRole('button', { name: '東京: untracked', exact: true }).boundingBox();
+  const word = await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).boundingBox();
   expect(word).not.toBeNull();
   await page.mouse.move(word!.x + word!.width / 2, word!.y + word!.height / 2);
   await page.keyboard.down('z');
@@ -1113,7 +1118,7 @@ test('held image lens samples original pixels, wheel zoom is transient and relea
   await expect(lens).toContainText('2.3×');
   await page.keyboard.up('z');
   await expect(lens).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  await expect(canvas(page).getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
   await page.keyboard.down('z');
   await expect(lens).toContainText('2.0×');
   await page.keyboard.up('z');
@@ -1126,9 +1131,9 @@ test('pending availability leaves a short source word on one readable line', asy
   await start(page);
   await page.evaluate(() => { window.__imageEligibilityControl.hold = true; });
   const entered = page.evaluate(() => window.__imageEligibilityControl.entered);
-  await page.getByRole('button', { name: 'Page words', exact: true }).click();
+  await page.getByRole('button', { name: 'Show vocabulary', exact: true }).click();
   await entered;
-  const words = page.getByRole('dialog', { name: 'Page words', exact: true });
+  const words = page.getByTestId('reader-side-panel');
   try {
     await expect(words.getByText('Checking capture availability…', { exact: true })).toBeVisible();
     const lines = await words.getByRole('button', { name: '東京: untracked', exact: true }).evaluate(node => {
@@ -1156,8 +1161,8 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`page word operations reuse shared capture and Inspector and locate the exact original token on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
-  await page.getByRole('button', { name: 'Page words', exact: true }).click();
-  const words = page.getByRole('dialog', { name: 'Page words', exact: true });
+  if (viewport.name === 'narrow') await page.getByRole('button', { name: 'Show vocabulary', exact: true }).click();
+  const words = page.getByTestId('reader-side-panel');
   await expect(words.getByRole('button', { name: 'Open saved 東京', exact: true })).toBeVisible();
   if (viewport.name === 'desktop') {
     const source = page.getByRole('document', { name: 'Image pages' });
@@ -1177,17 +1182,19 @@ test(`page word operations reuse shared capture and Inspector and locate the exa
   await expect(words).toBeVisible();
   await expect(token).toBeFocused();
   await words.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
-  const receipt = words.getByText(`Saved · material-${'c'.repeat(64)} · revision 1`, { exact: true });
+  const receipt = words.getByTestId('capture-receipt');
+  await expect(receipt).toHaveText('Saved for review');
   await expect(receipt).toBeVisible();
   await page.setViewportSize({ width: viewport.width === 1280 ? 390 : 1280, height: viewport.height });
   await expect(receipt).toBeVisible();
   await page.setViewportSize(viewport);
   await expect(receipt).toBeVisible();
   await words.getByRole('button', { name: 'Locate 東京', exact: true }).click();
-  await expect(words).toHaveCount(0);
+  if (viewport.name === 'narrow') await expect(words).toBeHidden();
+  else await expect(words).toBeVisible();
   const original = page.locator('[data-ocr-region="line-0"] [data-source-start="0"][data-source-end="6"]');
   await expect(original).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-  await expect(page.getByTestId('reader-position')).toHaveText('Page 1 of 3');
+  await expect(page.getByTestId('reader-position')).toHaveText('1/3');
   await page.screenshot({ path: testInfo.outputPath('source-word-original-location.png') });
 });
 }

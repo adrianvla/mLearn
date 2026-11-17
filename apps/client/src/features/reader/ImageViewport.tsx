@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentRecord, ImageReaderSettings, OcrRect, SourceAnchor } from '@mlearn/contracts';
-import type { TextAnchor } from '@mlearn/ui/inline-word';
+import type { InspectionMode, TextAnchor } from '@mlearn/ui/inline-word';
 import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
@@ -13,14 +13,20 @@ import { useSourceAnchor } from './useSourceAnchor';
 /** The same native/DOM anchor owner serves ordinary documents and original
  * image regions. Only bounded IDs/rectangles return from the content surface.
  */
-export function ImageViewport({ source, pages, settings, returned, cropMode, magnifier, onInspect, onCrop,
-    onMagnify, onDismissInspection, onThumbnail, onNavigate, onRetry }: {
+export type PageNotice = { readonly message: string; readonly action: string | null; readonly onAction: () => void };
+
+export function ImageViewport({ source, pages, settings, returned, cropMode, magnifier, inspectionMode, recognizing, notice,
+    onCancelRecognition, onInspect, onCrop, onMagnify, onDismissInspection, onThumbnail, onNavigate, onRetry }: {
     readonly source: DocumentRecord;
     readonly pages: readonly ImageReaderPage[];
     readonly settings: ImageReaderSettings;
     readonly returned: SourceAnchor | null;
     readonly cropMode: boolean;
     readonly magnifier: boolean;
+    readonly inspectionMode: InspectionMode;
+    readonly recognizing: boolean;
+    readonly notice: PageNotice | null;
+    readonly onCancelRecognition: () => void;
     readonly onInspect: (resourceId: string, regionId: string, tokenStart: number, anchor: TextAnchor) => void;
     readonly onCrop: (resourceId: string, crop: OcrRect) => void;
     readonly onMagnify: (resourceId: string, crop: OcrRect) => Promise<string>;
@@ -51,7 +57,7 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         pages={pages.map(item => ({ resourceId: item.descriptor.resourceId, index: item.descriptor.pageIndex,
             page: item.page, batch: item.batch ? { regions: item.batch.regions, annotations: item.batch.annotations } : null }))}
         settings={settings} cropMode={cropMode} magnifier={magnifier} selection={selected}
-        display={{ background: theme.media.background, color: theme.colors.text, knownColor: theme.feedback.success,
+        display={{ background: theme.media.background, color: theme.colors.text, knownColor: theme.feedback.success, inspectionMode,
             selectionColor: theme.source.selection, fontFamily: theme.typography.body._web.fontFamily,
             lens: { color: theme.media.text, background: theme.media.chrome, border: theme.media.border,
                 caption: theme.typography.detail } }}
@@ -87,7 +93,7 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         onImageError={async key => { if (key === anchors.active.current) setFailure(key); }}
         onNavigate={async (key, direction) => {
             if (key === anchors.active.current) handlers.current.onNavigate(direction);
-        }} />, [identity, pixelIdentity, pages, settings, cropMode, magnifier, returned, theme.media.background, theme.colors.text,
+        }} />, [identity, pixelIdentity, pages, settings, cropMode, magnifier, returned, inspectionMode, theme.media.background, theme.colors.text,
         theme.media.text, theme.media.chrome, theme.media.border, theme.typography.detail,
         theme.feedback.success, theme.source.selection, theme.typography.body._web.fontFamily]);
     return <View ref={container} collapsable={false} style={styles.viewport} onLayout={anchors.notify}
@@ -98,8 +104,18 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
             <Text variant="caption" accessibilityLiveRegion="polite">Opening image…</Text>
         </View> : null}
         {failure === identity ? <View style={styles.feedback}>
-            <Text variant="caption" accessibilityRole="alert">The original image could not be displayed.</Text>
-            <Button label="Retry source images" variant="secondary" size="compact" onPress={onRetry} />
+            <Text variant="caption" accessibilityRole="alert">This page couldn’t be shown.</Text>
+            <Button label="Retry" accessibilityLabel="Retry showing this page" variant="secondary" size="compact" onPress={onRetry} />
+        </View> : null}
+        {recognizing ? <View style={styles.status} testID="reader-recognizing">
+            <View style={styles.spinner}><ActivityIndicator size="small" color={theme.colors.text} /></View>
+            <View style={styles.chip}><Button label="Recognizing…" accessibilityHint="Stops text recognition" variant="secondary" size="compact"
+                onPress={onCancelRecognition} /></View>
+        </View> : notice ? <View style={styles.status} testID="reader-recognition-notice">
+            <View style={styles.notice}>
+                <Text variant="caption" accessibilityRole="alert">{notice.message}</Text>
+                {notice.action ? <Button label={notice.action} variant="secondary" size="compact" onPress={notice.onAction} /> : null}
+            </View>
         </View> : null}
     </View>;
 }
@@ -107,4 +123,10 @@ const styles = StyleSheet.create(theme => ({
     viewport: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', backgroundColor: theme.media.background },
     feedback: { position: 'absolute', top: theme.spacing.small, left: theme.spacing.small, right: theme.spacing.small,
         padding: theme.spacing.small, gap: theme.spacing.small, backgroundColor: theme.colors.surface, borderRadius: theme.radius },
+    status: { position: 'absolute', right: theme.spacing.medium, bottom: theme.spacing.medium,
+        alignItems: 'flex-end', gap: theme.spacing.small },
+    chip: { borderRadius: theme.radius, backgroundColor: theme.colors.surface },
+    spinner: { padding: theme.spacing.small, borderRadius: theme.radius, backgroundColor: theme.colors.surface },
+    notice: { maxWidth: 320, padding: theme.spacing.small, gap: theme.spacing.small, alignItems: 'flex-start',
+        borderRadius: theme.radius, backgroundColor: theme.colors.surface },
 }));

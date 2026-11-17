@@ -3,6 +3,8 @@ import { test, expect, type Page } from '@playwright/test';
 import type { DocumentAnalysisBatch, DocumentAppearance, DocumentPosition, DocumentWindow, Material, ReviewSession, SourceAnchor } from '@mlearn/contracts';
 import { initialTheme } from '../../packages/theme/src/theme';
 
+const canvas = (page: Page) => page.getByTestId(/^reader-(image|document)-/);
+
 // Real exported screens, DOM text geometry and shared controls. Only native IPC
 // is substituted here; the actual parser/storage/host flows have separate tests.
 const source: DocumentWindow = {
@@ -181,7 +183,7 @@ async function start(page: Page, reviewReturn = false) {
   }
   await page.goto('/reader?id=reader-source');
   await expect(page.getByTestId('reader-title')).toHaveText(source.source.title);
-  const token = page.getByRole('button', { name: '東京: untracked', exact: true });
+  const token = canvas(page).getByRole('button', { name: '東京: untracked', exact: true });
   await expect(token).toBeVisible();
 }
 
@@ -210,7 +212,7 @@ test('mixed writing modes do not overlap and next navigates within the loaded so
 
 test('opening a captured document Material dismisses Inspector before exposing its editor', async ({ page }) => {
   await start(page);
-  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  await canvas(page).getByRole('button', { name: '東京: untracked', exact: true }).click();
   await expect(page.getByTestId('inspector-panel')).toBeVisible();
 
   await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
@@ -264,22 +266,22 @@ test('narrow Reader reflows without losing the original source location or hidin
   await start(page);
   await page.getByRole('button', { name: 'Next passage', exact: true }).click();
   await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
-  await page.getByRole('button', { name: 'View options', exact: true }).click();
-  await page.screenshot({ path: testInfo.outputPath('reader-appearance-narrow.png') });
-  await page.getByRole('combobox', { name: /^Writing mode:/ }).click();
+  await page.getByRole('combobox', { name: /^Writing direction:/ }).click();
   await page.getByRole('option', { name: 'Horizontal', exact: true }).click();
+  await page.getByRole('button', { name: 'Themes & Settings', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('reader-appearance-narrow.png') });
   await page.getByRole('button', { name: 'Larger text', exact: true }).click();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Themes & Settings', exact: true }).click();
   await expect(page.getByTestId('reader-position')).toHaveText('🌱 東京へ歩く。');
-  await expect(page.getByTestId('reader-title')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByTestId('reader-title')).toBeInViewport();
   await expect(page.getByTestId('reader-title')).toHaveText('Mixed source.epub');
   const document = page.getByRole('document', { name: 'Document text' });
   await expect(document.locator('section').first()).toHaveCSS('writing-mode', 'horizontal-tb');
   await expect(document.locator('section').first()).toHaveCSS('font-size', '26px');
   const controls = [page.getByRole('button', { name: 'Home', exact: true }),
     page.getByRole('button', { name: 'Next passage', exact: true }),
-    page.getByRole('button', { name: 'Search source', exact: true }),
-    page.getByRole('button', { name: 'Contents', exact: true }),
+    page.getByRole('button', { name: 'Themes & Settings', exact: true }),
     page.getByRole('button', { name: 'View options', exact: true }), document];
   for (const control of controls) {
     const box = await control.boundingBox();

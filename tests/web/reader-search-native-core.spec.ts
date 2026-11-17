@@ -6,6 +6,15 @@ import { resolve } from 'node:path';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../tools/runtime-browser-qa.mjs';
 
+async function openOptions(page: Page) {
+  const panel = page.getByTestId('reader-options-panel');
+  if (!await panel.isVisible()) await page.getByRole('button', { name: 'View options', exact: true }).click();
+  return panel;
+}
+async function savePosition(page: Page) {
+  await (await openOptions(page)).getByRole('button', { name: 'Save position', exact: true }).click();
+}
+
 async function installEnglish(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
@@ -36,7 +45,7 @@ for (const width of [390, 1080]) test(`Reader Back retains failed checkpoint rec
     await page.getByRole('textbox', { name: 'Search Material', exact: true }).fill(draft);
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByRole('button', { name: `Continue ${document.source.title}`, exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
     const isCheckpoint = (request: Request) => request.url() === `${backend.url}/invoke`
       && request.method() === 'POST'
       && requestOf(request.postDataJSON())?.type === 'checkpoint_document'
@@ -46,11 +55,11 @@ for (const width of [390, 1080]) test(`Reader Back retains failed checkpoint rec
       else await route.continue();
     });
     const appearanceFailed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
-    await page.getByRole('button', { name: 'View options', exact: true }).click();
+    await page.getByRole('button', { name: 'Themes & Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Larger text', exact: true }).click();
     await appearanceFailed;
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    const retry = page.getByRole('button', { name: 'Retry saving position', exact: true });
+    await page.getByRole('button', { name: 'Close Themes & Settings', exact: true }).click();
+    const retry = page.getByTestId('reader-status').getByRole('button', { name: 'Retry', exact: true });
     await expect(retry).toBeVisible();
 
     await page.goBack();
@@ -100,7 +109,7 @@ test('Reader keeps failed checkpoint recovery before saved-Material departure', 
       && requestOf(request.postDataJSON())?.checkpoint.sourceId === document.source.id;
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto(`/reader?id=${encodeURIComponent(document.source.id)}`);
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
     await page.route(`${backend.url}/invoke`, async route => {
       if (rejectCheckpoints && isCheckpoint(route.request())) {
         failedCheckpoints += 1;
@@ -110,12 +119,12 @@ test('Reader keeps failed checkpoint recovery before saved-Material departure', 
 
     // A real appearance change is dirty while native checkpoints are unavailable.
     const appearanceFailed = page.waitForEvent('requestfailed', { predicate: isCheckpoint });
-    await page.getByRole('button', { name: 'View options', exact: true }).click();
+    await page.getByRole('button', { name: 'Themes & Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Larger text', exact: true }).click();
     await appearanceFailed;
-    await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Retry saving position', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    await page.getByRole('button', { name: 'Close Themes & Settings', exact: true }).click();
+    await expect(page.getByTestId('reader-status').getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true }).click();
     const inspector = page.getByTestId('inspector-panel');
     await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
     const saved = inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true });
@@ -137,11 +146,11 @@ test('Reader keeps failed checkpoint recovery before saved-Material departure', 
     rejectCheckpoints = false;
     await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
     const persisted = page.waitForResponse(response => isCheckpoint(response.request()));
-    await page.getByRole('button', { name: 'Retry saving position', exact: true }).click();
+    await page.getByTestId('reader-status').getByRole('button', { name: 'Retry', exact: true }).click();
     await (await persisted).finished();
-    await expect(page.getByRole('button', { name: 'Retry saving position', exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('reader-status').getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0);
     expect((await client.resumeDocument(document.source.id)).source.appearance.fontSize).toBe(original + 2);
-    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    await page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true }).click();
     await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Open saved Children', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Edit Material', exact: true })).toBeVisible();
@@ -167,10 +176,11 @@ test('Reader search opens the actual source span and returns to the saved readin
     await installEnglish(page);
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Save position', exact: true }).click();
+    await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await savePosition(page);
     const original = (await client.resumeDocument(document.source.id)).source.position;
     expect(original).not.toBeNull();
+    await openOptions(page);
     const opener = page.getByRole('button', { name: 'Search source', exact: true });
     await opener.click();
     const dialog = page.getByRole('dialog', { name: 'Search source', exact: true });
@@ -196,7 +206,7 @@ test('Reader search opens the actual source span and returns to the saved readin
     });
     await expect(dialog).toBeHidden();
     await expect(opener).toBeFocused();
-    await page.getByRole('button', { name: 'Save position', exact: true }).click();
+    await savePosition(page);
     // Reading checkpoints describe the first visible source byte, not the
     // selected word. This short unwrapped line starts at byte0.
     expect((await client.resumeDocument(document.source.id)).source.position).toEqual({ ...hit.position, offset: 0 });
@@ -204,10 +214,10 @@ test('Reader search opens the actual source span and returns to the saved readin
     await opener.click();
     await dialog.getByRole('button', { name: 'Return to reading position', exact: true }).click();
     await expect(dialog).toBeHidden();
-    await page.getByRole('button', { name: 'Save position', exact: true }).click();
+    await savePosition(page);
     expect((await client.resumeDocument(document.source.id)).source.position).toEqual(original);
     await page.reload();
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
     expect((await client.materials({ after: null, sourceId: null, includeExcluded: true, query: '' })).items).toEqual([]);
     expect(backend.metadata().providerRequests).toBe(0);
   } finally { await backend.close(); }
@@ -228,6 +238,7 @@ test('Reader search pages native Unicode matches without loading or dropping the
     const document = await client.openDocument(path, 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
     await expect(page.getByTestId('reader-document-ready')).toBeVisible();
+    await openOptions(page);
     await page.getByRole('button', { name: 'Search source', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Search source', exact: true });
     await dialog.getByRole('textbox', { name: 'Search this source', exact: true }).fill('東京');
@@ -281,6 +292,7 @@ test('stopping a held Reader search rejects its late page and a failed search re
       if (request.query.text === 'absent' && failOnce) { failOnce = false; await route.abort('failed'); return; }
       await route.continue();
     });
+    await openOptions(page);
     await page.getByRole('button', { name: 'Search source', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Search source', exact: true });
     const query = dialog.getByRole('textbox', { name: 'Search this source', exact: true });
@@ -302,7 +314,7 @@ test('stopping a held Reader search rejects its late page and a failed search re
     await expect(dialog.getByRole('button', { name: 'More search results', exact: true })).toHaveCount(0);
     await expect(dialog.getByRole('alert')).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId(/^reader-document-/).getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
   } finally {
     release?.();
     await page.unrouteAll({ behavior: 'wait' });

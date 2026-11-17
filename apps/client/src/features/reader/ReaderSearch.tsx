@@ -61,9 +61,8 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
                 if (result.hits.length || !cursor) break;
             } while (operation.current === owner);
             retry.current = null;
-        } catch (cause) {
-            if (live.current && operation.current === owner)
-                setError(cause instanceof Error ? cause.message : String(cause));
+        } catch {
+            if (live.current && operation.current === owner) setError('Search didn’t finish.');
         } finally {
             if (live.current && operation.current === owner) {
                 operation.current = null; setPending(false);
@@ -78,13 +77,12 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
         try {
             const accepted = hit ? await onLocate(hit) : origin ? await onReturn(origin) : false;
             if (!live.current || operation.current !== owner) return;
-            if (!accepted) { setError('Could not navigate. Close search to inspect Reader recovery, then retry.'); return; }
+            if (!accepted) { setError('Couldn’t go to that result.'); return; }
             if (hit) setOrigin(value => value ?? previous);
             else setOrigin(null);
             setOpen(false);
-        } catch (cause) {
-            if (live.current && operation.current === owner)
-                setError(cause instanceof Error ? cause.message : String(cause));
+        } catch {
+            if (live.current && operation.current === owner) setError('Couldn’t go to that result.');
         } finally {
             if (live.current && operation.current === owner) {
                 operation.current = null; setPending(false); setNavigating(false);
@@ -93,7 +91,7 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
     }
     return <Dialog title="Search source" description={scope === 'text'
         ? 'Case-sensitive.'
-        : 'Case-sensitive. Saved recognition only; does not run OCR.'}
+        : 'Case-sensitive. Searches pages whose text is already recognized.'}
         open={open} onOpenChange={value => {
             setOpen(value);
             if (value) onOpen();
