@@ -1,5 +1,47 @@
 # mLearn engineering contract
 
+## Active authorization — structural UI conformance, 2026-11-10
+
+The backend is accepted as working. Do not change Rust contracts, commands or
+storage for this job; bind to them. Home is accepted and out of scope.
+
+Goal: make each pictured surface structurally match its golden screenshot
+(docs/product/screenshots/). "Structurally" means: the same regions, the same
+controls in the same regions, with the same labels and states. Colors, blur,
+opacity and pixel spacing are secondary and are judged only after structure
+passes. A functional test passing is not evidence of conformity.
+
+Rules for every UI change:
+1. Controls live where their effect is visible and one action away. A modal
+   that covers the content it configures is not acceptable for settings that
+   change that content. Recognition of an opened source starts automatically
+   and reports state in place; it is not a configuration dialog.
+2. No implementation vocabulary in rendered text: no OS or library error
+   strings, package ids, ISO script codes, provider/engine names, byte counts,
+   fixture names. Backend failures map to a small set of user states
+   (not installed / failed, retry / unavailable here / working) with one
+   sentence of plain language and one action. Raw detail goes behind a
+   "Details" disclosure at most.
+3. A disabled control must show why, in place. Disabled and selected states
+   must be visually distinct.
+4. Interface chrome is not text-selectable. Content (subtitles, dictionary
+   text, document text) is.
+5. If a golden image omits a control the feature catalogue requires, or shows
+   one that looks dev-only, report the conflict in the checkpoint. Do not
+   silently delete it and do not silently reinsert it.
+6. Capture the real running app in the golden's state, with realistic fixture
+   content, before and after every change. No fixture may surface a name like
+   "loadable" or a "byte 0" subtitle.
+
+Checkpoints: the independent visual critic (see conductor pack) must pass the
+surface before it is called done. Implementers do not grade themselves.
+
+Commits: no Co-Authored-By or other AI attribution trailers.
+
+Resource constraints from the 16 GB Mac incidents above remain in force:
+serial builds, no emulators, bounded output. The critic model may be the
+strongest vision-capable model available; use it only at checkpoints.
+
 ## Active authorization — implement M10 then M11, 2026-10-27
 
 The maintainer cannot perform comprehensive M03–M07 review yet and explicitly
