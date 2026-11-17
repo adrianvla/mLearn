@@ -1,6 +1,7 @@
 import type { ImageReaderSettings } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
 import { Select } from '@mlearn/ui/select';
+import { Text } from '@mlearn/ui/text';
 import type { useImageReader } from './useImageReader';
 
 const fits = [{ value: 'contain', label: 'Fit Page' }, { value: 'height', label: 'Fit Height' }, { value: 'width', label: 'Fit Width' }];
@@ -34,5 +35,6 @@ export function ImageLayoutControls({ reader, onBeforeAction }: {
             disabled={disabled || !settings.paired} accessibilityHint={hint ?? (settings?.paired ? undefined : 'Available with Double Page.')}
             accessibilityState={{ selected: !!settings?.firstPageSingle, disabled: disabled || !settings.paired }}
             onPress={() => { if (settings) change({ firstPageSingle: !settings.firstPageSingle }); }} />
+        {!reader ? <Text variant="detail" muted accessibilityLabel={textReason}>Images only</Text> : null}
     </>;
 }

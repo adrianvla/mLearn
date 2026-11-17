@@ -7,6 +7,7 @@ import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
 import ImageCanvas, { type ImageCanvasRef } from './ImageCanvas';
+import { imageFrame } from './imageFlow';
 import type { ImageReaderPage } from './useImageReader';
 import { useSourceAnchor } from './useSourceAnchor';
 
@@ -42,6 +43,8 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     handlers.current = { pages, onInspect, onCrop, onMagnify, onDismissInspection, onThumbnail, onNavigate };
     const [rendered, setRendered] = useState('');
     const [failure, setFailure] = useState('');
+    const [size, setSize] = useState({ width: 0, height: 0 });
+    const [aspects, setAspects] = useState<Record<string, number>>({});
     const pixelIdentity = JSON.stringify([source.id, source.contentRevision]);
     const pixels = useRef(pixelIdentity); pixels.current = pixelIdentity;
     const identity = JSON.stringify([pixelIdentity, source.packageId, source.packageVersion,
@@ -88,7 +91,10 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
             if (key === anchors.active.current && active) handlers.current.onDismissInspection();
         }}
         onThumbnail={async (key, resourceId, thumbnail) => {
-            if (key === anchors.active.current) handlers.current.onThumbnail(resourceId, thumbnail);
+            if (key !== anchors.active.current) return;
+            handlers.current.onThumbnail(resourceId, thumbnail);
+            const aspect = thumbnail.width / thumbnail.height;
+            setAspects(previous => previous[resourceId] === aspect ? previous : { ...previous, [resourceId]: aspect });
         }}
         onImageError={async key => { if (key === anchors.active.current) setFailure(key); }}
         onNavigate={async (key, direction) => {
@@ -96,7 +102,17 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         }} />, [identity, pixelIdentity, pages, settings, cropMode, magnifier, returned, inspectionMode, theme.media.background, theme.colors.text,
         theme.media.text, theme.media.chrome, theme.media.border, theme.typography.detail,
         theme.feedback.success, theme.source.selection, theme.typography.body._web.fontFamily]);
-    return <View ref={container} collapsable={false} style={styles.viewport} onLayout={anchors.notify}
+    // Recognition status sits at the bottom-right of the rendered spread, not
+    // in the letterbox margin; unknown page sizes fall back to the viewport edge.
+    const spreadAspect = pages.reduce((total, item) => total + (aspects[item.descriptor.resourceId] ?? NaN), 0);
+    const frame = size.width && Number.isFinite(spreadAspect)
+        ? imageFrame(spreadAspect, 1, { x: 0, y: 0, ...size }, settings.fit) : null;
+    const statusPlacement = frame ? {
+        right: Math.max(0, size.width - Math.min(size.width, frame.x + frame.width)) + theme.spacing.medium,
+        bottom: Math.max(0, size.height - Math.min(size.height, frame.y + frame.height)) + theme.spacing.medium,
+    } : null;
+    return <View ref={container} collapsable={false} style={styles.viewport}
+        onLayout={event => { anchors.notify(); setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height }); }}
         testID={pages.length === 0 ? 'reader-image-empty' : rendered === identity ? 'reader-image-ready' : 'reader-image-loading'}
         accessibilityState={{ busy: loading }}>
         {content}
@@ -107,11 +123,11 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
             <Text variant="caption" accessibilityRole="alert">This page couldn’t be shown.</Text>
             <Button label="Retry" accessibilityLabel="Retry showing this page" variant="secondary" size="compact" onPress={onRetry} />
         </View> : null}
-        {recognizing ? <View style={styles.status} testID="reader-recognizing">
+        {recognizing ? <View style={[styles.status, statusPlacement]} testID="reader-recognizing">
             <View style={styles.spinner}><ActivityIndicator size="small" color={theme.colors.text} /></View>
             <View style={styles.chip}><Button label="Recognizing…" accessibilityHint="Stops text recognition" variant="secondary" size="compact"
                 onPress={onCancelRecognition} /></View>
-        </View> : notice ? <View style={styles.status} testID="reader-recognition-notice">
+        </View> : notice ? <View style={[styles.status, statusPlacement]} testID="reader-recognition-notice">
             <View style={styles.notice}>
                 <Text variant="caption" accessibilityRole="alert">{notice.message}</Text>
                 {notice.action ? <Button label={notice.action} variant="secondary" size="compact" onPress={notice.onAction} /> : null}
