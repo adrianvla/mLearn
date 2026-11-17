@@ -15,6 +15,7 @@ export type InlineDocumentFlow = {
     readonly selectionColor?: string;
     readonly inlineLevelScale?: string | null;
     readonly starCollapse?: StarCollapse;
+    readonly inspectionMode?: InspectionMode;
 };
 export type InlineWordProps = {
     readonly text: string;

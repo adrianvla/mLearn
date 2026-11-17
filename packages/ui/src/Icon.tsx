@@ -6,6 +6,7 @@ const paths = {
   arrowLeft: 'M19 12H5m6-6-6 6 6 6',
   chevronDown: 'm6 9 6 6 6-6',
   chevronRight: 'm9 6 6 6-6 6',
+  chevronLeft: 'm15 6-6 6 6 6',
   previousCue: cueArrow,
   nextCue: cueArrow,
   sync: 'M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0 1 11.6-2L20 9M4 15l2.3 3A7 7 0 0 0 17.9 16',

@@ -6,17 +6,19 @@ import type { SourceThumbnail } from './InlineWordDocument';
 export type { SourceThumbnail } from './InlineWordDocument';
 
 /** A source preview is itself the navigation target, not a second action card. */
-export function SourcePreview({ text, thumbnail, page, selected, disabled, onPress }: {
+export function SourcePreview({ text, thumbnail, page, selected, marked = false, disabled, onPress }: {
   readonly text: string;
   readonly thumbnail?: SourceThumbnail;
   readonly page: number | null;
   readonly selected: boolean;
+  readonly marked?: boolean;
   readonly disabled: boolean;
   readonly onPress: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const label = page === null ? `Read ${Array.from(text.slice(0, 160)).slice(0, 80).join('')}` : `Page ${page + 1}`;
+  const label = page === null ? `Read ${Array.from(text.slice(0, 160)).slice(0, 80).join('')}`
+    : `Page ${page + 1}${marked ? ', text recognized' : ''}`;
   return <Pressable accessibilityRole="button" accessibilityLabel={label}
     {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
     accessibilityState={{ selected, disabled }} disabled={disabled} onPress={onPress}
@@ -29,6 +31,7 @@ export function SourcePreview({ text, thumbnail, page, selected, disabled, onPre
       style={styles.image(thumbnail.width / thumbnail.height)} accessibilityLabel={text} accessibilityIgnoresInvertColors />
       : <View style={styles.copy(page !== null)}><Text variant="detail" numberOfLines={9}>{text}</Text></View>}
     {page !== null ? <View style={styles.page}><Text variant="detail">{page + 1}</Text></View> : null}
+    {marked ? <View style={styles.mark} testID="source-preview-recognized" /> : null}
   </Pressable>;
 }
 
@@ -42,7 +45,9 @@ const styles = StyleSheet.create(theme => ({
   page: { position: 'absolute', right: theme.spacing.tiny, bottom: theme.spacing.tiny,
     paddingHorizontal: theme.spacing.tiny, borderRadius: theme.radius / 2,
     backgroundColor: theme.controls.selected },
-  selected: { borderColor: theme.colors.accent },
+  mark: { position: 'absolute', top: theme.spacing.tiny, right: theme.spacing.tiny,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: theme.pills.info.text },
+  selected: { borderColor: theme.colors.accent, borderWidth: 2 },
   hover: { backgroundColor: theme.surfaces.secondary },
   focus: { _web: { outlineWidth: 2, outlineStyle: 'solid',
     outlineColor: theme.colors.accent, outlineOffset: -2 } },
