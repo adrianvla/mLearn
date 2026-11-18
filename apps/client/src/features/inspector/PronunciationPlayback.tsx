@@ -16,8 +16,11 @@ type State =
     | { readonly kind: 'no_playback' }
     | { readonly kind: 'failed'; readonly failure: Failure };
 
-export function PronunciationPlayback({ client, speech, text, disabled = false, onOpenVoiceSettings }: {
+const pronunciation = { play: 'Play pronunciation', stop: 'Stop pronunciation', preparing: 'Preparing pronunciation…' };
+
+export function PronunciationPlayback({ client, speech, text, disabled = false, labels = pronunciation, onOpenVoiceSettings }: {
     readonly client: RuntimeClient;
+    readonly labels?: { readonly play: string; readonly stop: string; readonly preparing: string };
     readonly speech: SpeechHost | undefined;
     readonly text: string;
     readonly disabled?: boolean;
@@ -63,11 +66,11 @@ export function PronunciationPlayback({ client, speech, text, disabled = false, 
     }
     const playing = state.kind === 'playing';
     return <>
-        <Button label={playing ? 'Stop pronunciation' : 'Play pronunciation'} icon={playing ? 'volumeOff' : 'volume'}
+        <Button label={playing ? labels.stop : labels.play} icon={playing ? 'volumeOff' : 'volume'}
             iconOnly size="compact" variant="media" busy={state.kind === 'preparing'}
             disabled={disabled || state.kind === 'preparing'}
             onPress={() => playing ? stop() : void play()} />
-        {state.kind === 'preparing' ? <Text tone="media" variant="caption" accessibilityLiveRegion="polite">Preparing pronunciation…</Text> : null}
+        {state.kind === 'preparing' ? <Text tone="media" variant="caption" accessibilityLiveRegion="polite">{labels.preparing}</Text> : null}
         {state.kind === 'no_voice' ? <View style={styles.notice} testID="pronunciation-no-voice">
             <Text tone="media" variant="caption">Set up a voice in Settings</Text>
             <Button label="Voice settings" size="compact" variant="media" onPress={onOpenVoiceSettings} />

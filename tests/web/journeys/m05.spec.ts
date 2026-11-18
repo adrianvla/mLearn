@@ -81,7 +81,15 @@ test('M05 Reader capture, typography and orientation, exact revisit, Review retu
     const language = await client.describeLanguage('org.mlearn.english');
     const annotated = language.capabilities.find(item => item.id === language.annotationCapability);
     if (!annotated) throw new Error('The package names no annotation capability');
+    // Both surfaces are analyzed before the claim; the claim updates Knowledge without analyzing text again.
+    await page.goto('/');
+    await page.getByRole('button', { name: `Continue ${opened.window.source.title}`, exact: true }).click();
+    await expect(page.getByTestId('subtitle-window').getByRole('button', { name: /^Children: / })).toBeVisible();
     await page.goto(`/reader?id=${book.source.id}`);
+    await expect(page.getByRole('button', { name: /^Children: / }).first()).toBeVisible();
+    const analyses = () => nativeCore.pluginCalls()['text.analyze.v1'] ?? 0;
+    const warm = analyses();
+    expect(warm).toBeGreaterThan(0);
     await page.getByRole('button', { name: /^Children: / }).first().click();
     await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
     await inspector.getByRole('button', { name: annotated.label, exact: true }).click();
@@ -93,6 +101,7 @@ test('M05 Reader capture, typography and orientation, exact revisit, Review retu
     await page.getByRole('button', { name: `Continue ${opened.window.source.title}`, exact: true }).click();
     await expect(page.getByTestId('subtitle-window').getByRole('button', { name: /^Children: / }))
       .toHaveAttribute('aria-label', readerLabel ?? '');
+    expect({ analyses: analyses(), calls: nativeCore.pluginCalls() }).toMatchObject({ analyses: warm });
     await page.screenshot({ path: info.outputPath('m05-watch-agrees.png') });
   } finally {
     await rm(directory, { recursive: true, force: true });

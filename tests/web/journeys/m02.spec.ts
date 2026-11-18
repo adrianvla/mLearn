@@ -48,6 +48,13 @@ test('M02 subtitle interaction, package management, ambiguity, stale analysis an
     // (Updating to a newer release is exercised natively: English 0.1.1 -> 0.1.11.)
     await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     await expect(page.getByRole('button', { name: /^Update .*English/ })).toHaveCount(0);
+    // A newer release in the catalog is offered as an update and replaces the installed one.
+    nativeCore.catalogRelease('org.mlearn.english', '0.1.12-update');
+    await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
+    await page.getByRole('button', { name: /^Update .*English/ }).click();
+    await expect(page.getByText('Version 0.1.12', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('button', { name: /^Update .*English/ })).toHaveCount(0);
+    expect((await client.snapshot()).installedPlugins.find(plugin => plugin.id === 'org.mlearn.english')?.version).toBe('0.1.12-update');
     await installPackage(page, /Japanese/);
 
     // Remove a package after confirming what stays, then install it again.

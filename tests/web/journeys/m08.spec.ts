@@ -67,8 +67,14 @@ test.use({ launchOptions: { args: ['--autoplay-policy=no-user-gesture-required']
       const history = page.getByTestId('conversation-history');
       await expect(history.getByText('Hello Ana, how was your day?', { exact: true })).toBeVisible();
       await call.getByRole('button', { name: 'Interrupt', exact: true }).click();
-      await expect(history.getByText(/^Heard until interrupted: “/)).toBeVisible({ timeout: 20_000 });
+      // Playback time, not recognized words, is known: the interrupted share is stated as approximate.
+      await expect(history.getByText(/^Interrupted after about \d+% of the reply$/)).toBeVisible({ timeout: 20_000 });
       await expect(history.getByText('Children walked home.', { exact: true })).toBeVisible();
+      // A reply can be heard again through the same shared speech.
+      const replay = history.getByRole('button', { name: 'Replay message', exact: true }).last();
+      await replay.click();
+      await expect(history.getByRole('button', { name: 'Stop replay', exact: true })).toBeVisible({ timeout: 20_000 });
+      await history.getByRole('button', { name: 'Stop replay', exact: true }).click();
       await page.screenshot({ path: info.outputPath('m08-interrupted.png') });
 
       // Provider failure pauses the call with one plain sentence and a retry that resumes it.

@@ -99,6 +99,47 @@ test('M03 capture to Material and back to the exact source', async ({ page, nati
       return { unique: new Set(phrases).size === phrases.length, bulkCaptured: phrases.length > 2 };
     }, { timeout: 30_000 }).toEqual({ unique: true, bulkCaptured: true });
     await page.unroute(`${nativeCore.url}/invoke`);
+
+    // One item of a bulk capture fails while its siblings are saved; Retry repeats only that item.
+    const harbour = path.join(directory, 'Harbour.webm');
+    await copyFile(path.join(homedir(), 'mlearn-test-corpus', 'HERO_-_Blender_Open_Movie-full_movie.webm'), harbour);
+    await writeFile(path.join(directory, 'Harbour.srt'), '1\n00:00:00,000 --> 00:00:30,000\nShips rest beside the quiet harbour wall.\n');
+    const second = await execute(nativeCore, { type: 'open_source', path: harbour, packageId: 'org.mlearn.english' });
+    await execute(nativeCore, { type: 'attach_subtitles', sourceId: second.window.source.id, path: path.join(directory, 'Harbour.srt') });
+    await page.goto(`/watch?id=${second.window.source.id}`);
+    await page.getByRole('button', { name: 'Transcript', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Vocabulary', exact: true }).click();
+    const phrases = async () => (await client.materials({ after: null, query: '', sourceId: null, includeExcluded: true }))
+      .items.map(item => item.content.phrase.toLowerCase());
+    const before = (await phrases()).length;
+    let failedOne = '';
+    await page.route(`${nativeCore.url}/invoke`, async route => {
+      const body = route.request().postDataJSON();
+      if (failedOne || typeof body.args?.request !== 'string' || JSON.parse(body.args.request).type !== 'capture_materials') {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const envelope = await response.json();
+      const value = JSON.parse(envelope.value);
+      const results = value.results as { state: string; commandId: string }[];
+      const last = results[results.length - 1];
+      failedOne = last.commandId;
+      results[results.length - 1] = { state: 'failed', commandId: last.commandId, message: 'Capture was interrupted' } as never;
+      await route.fulfill({ response, json: { ...envelope, value: JSON.stringify(value) } });
+    });
+    await page.getByRole('button', { name: 'Capture all eligible in this view', exact: true }).click();
+    const harbourVocabulary = page.getByRole('dialog', { name: 'Vocabulary' });
+    await expect(harbourVocabulary.getByRole('button', { name: 'Retry failed captures (1)', exact: true })).toBeVisible();
+    expect(await harbourVocabulary.innerText()).not.toMatch(/interrupted|HTTP|fetch/i);
+    const saved = (await phrases()).length;
+    expect(saved).toBeGreaterThan(before + 1);
+    await harbourVocabulary.getByRole('button', { name: 'Retry failed captures (1)', exact: true }).click();
+    await expect(harbourVocabulary.getByRole('button', { name: /^Retry failed captures/ })).toHaveCount(0);
+    const after = await phrases();
+    expect(after.length).toBe(saved);
+    expect(new Set(after).size).toBe(after.length);
+    await page.unroute(`${nativeCore.url}/invoke`);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

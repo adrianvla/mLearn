@@ -15,6 +15,7 @@ import { KeyboardAvoidingView } from '@mlearn/ui/keyboard-avoiding-view';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { PronunciationPlayback } from '../inspector';
 import { useDeveloperMode } from '../../bootstrap/developerMode';
 import { AnnotatedText } from '../annotated-text';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
@@ -64,6 +65,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
   const [developerMode] = useDeveloperMode();
   const messenger = useMessenger(client, initialId, focusSequence);
   const actions = { ...messenger, client };
+  const runtime = useRuntime();
   const router = useRouter();
   const navigation = useNavigation();
   const focused = useIsFocused();
@@ -342,7 +344,8 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
                   }} />}
               </View>
               {message.delivery ? <Text muted variant="detail" selectable>{message.delivery.interrupted
-                ? `Heard until interrupted: “${[...message.text].slice(0, message.delivery.deliveredChars).join('')}”`
+                // Playback time is known, not which words were heard, so the share is approximate.
+                ? `Interrupted after about ${Math.round(100 * message.delivery.deliveredChars / Math.max(1, [...message.text].length))}% of the reply`
                 : 'Spoken in full'}</Text> : null}
               {message.integratedFrom ? <Text muted variant="detail">Added from practice</Text> : null}
               <Row><Text muted variant="detail">{new Date(message.createdAtMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -356,6 +359,10 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
                     if (next.has(message.id)) next.delete(message.id); else next.add(message.id);
                     return next;
                   })} /> : null}
+                {message.status === 'complete' && message.participantId ? <PronunciationPlayback client={client}
+                  speech={runtime.available ? runtime.speech : undefined} text={message.text}
+                  labels={{ play: 'Replay message', stop: 'Stop replay', preparing: 'Preparing replay…' }}
+                  onOpenVoiceSettings={() => router.push({ pathname: '/settings', params: { section: 'ai' } })} /> : null}
                 <MessageActions key={`${message.id}:${message.revision}`} actions={actions} message={message} conversation={chat}
                   packageVersion={messenger.analysis?.packageVersion ?? null}
                   onReply={() => messenger.changeDraft(messenger.draft?.text ?? '', { id: message.id, revision: message.revision })}
