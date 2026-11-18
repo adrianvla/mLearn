@@ -568,6 +568,9 @@ impl Runtime {
             Request::PackageInstallStatus { command_id } => Ok(Prepared::Immediate(Box::new(
                 self.installs.status(&command_id, false)?,
             ))),
+            Request::RemovePackage { plugin_id } => {
+                Ok(Prepared::Immediate(Box::new(self.remove_package(&plugin_id)?)))
+            }
             Request::CurrentPackageInstall => Ok(Prepared::Immediate(Box::new(
                 self.installs.current_status()?,
             ))),
@@ -630,6 +633,48 @@ impl Runtime {
                 Ok(Prepared::Immediate(Box::new(self.metadata(request)?)))
             }
         }
+    }
+    /// Uninstalls a downloaded package and deletes the stored files no remaining package uses.
+    /// In-flight work keeps its own reference to the package; new work reports it not installed.
+    fn remove_package(&mut self, plugin_id: &str) -> Result<Response, Failure> {
+        self.policy
+            .authorize(mlearn_language_host::CodeOrigin::Download)?;
+        if self.installs.active()? {
+            return Err(Failure::Busy);
+        }
+        if !self
+            .store
+            .remove_plugin(plugin_id)
+            .map_err(|e| Failure::Operation(e.to_string()))?
+            && !self.installed.contains_key(plugin_id)
+        {
+            return Err(Failure::Protocol("not_found", "This language package is not installed".into()));
+        }
+        let retired = self.installed.remove(plugin_id);
+        self.package_issues.remove(plugin_id);
+        self.analysis_cache.clear();
+        if let Some(retired) = retired {
+            let kept: std::collections::BTreeSet<&str> = self
+                .installed
+                .values()
+                .flat_map(|package| {
+                    std::iter::once(package.manifest.code.sha256.as_str())
+                        .chain(package.manifest.assets.values().map(|a| a.sha256.as_str()))
+                })
+                .collect();
+            let owned = std::iter::once(&retired.manifest.code).chain(retired.manifest.assets.values());
+            for artifact in owned.filter(|a| !kept.contains(a.sha256.as_str())) {
+                let path = self.root.join("plugin-blobs").join(&artifact.sha256);
+                // The removal is already committed; a file another process holds open stays as an
+                // unreferenced blob that a later install of the same artifact reuses.
+                if let Err(error) = std::fs::remove_file(&path)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    eprintln!("Package file cleanup: {error}");
+                }
+            }
+        }
+        Ok(Response::PackageRemoved { plugin_id: plugin_id.into() })
     }
     fn prepare_install(
         &self,

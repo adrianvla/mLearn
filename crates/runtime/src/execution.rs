@@ -602,6 +602,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::SaveStarCollapse { .. }
         | Request::PackageInstallStatus { .. }
         | Request::CurrentPackageInstall
+        | Request::RemovePackage { .. }
         | Request::CancelPackageInstall { .. } => false,
         Request::UpdateMaterial { command } => command.content.target_id.is_some(),
     }

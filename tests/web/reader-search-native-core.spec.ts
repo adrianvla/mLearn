@@ -20,7 +20,7 @@ async function installEnglish(page: Page) {
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
   await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
   await page.getByRole('button', { name: /^Install .*English/ }).click();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
 }
 
 function requestOf(payload: { args?: { request?: string } }) {

@@ -22,7 +22,7 @@ test('Knowledge keeps search and language visible in compact source controls', a
     await page.goto('/settings?section=languages');
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     await page.goto('/knowledge');
     for (const width of [1080, 390]) {
       await page.setViewportSize({ width, height: 844 });
@@ -74,7 +74,7 @@ test('bounded Knowledge browsing captures source-free Material and preserves cla
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByRole('button', { name: 'Knowledge', exact: true }).click();
     const prepare = page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true });
@@ -487,7 +487,7 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
 
     // When: the user opens an explicit unavailable scope.
     await page.goto('/knowledge?packageId=org.mlearn.uninstalled');
@@ -519,7 +519,7 @@ test('an unavailable explicit package requires a replacement choice instead of c
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
+    await expect(page.getByLabel(/^Japanese.* installed$/)).toBeVisible();
     const installed = (await client.snapshot()).installedPlugins;
     const scopes = [{ width: 1080, packageId: 'org.mlearn.japanese' }, { width: 390, packageId: 'org.mlearn.english' }].map(scope => {
       const language = installed.find(item => item.id === scope.packageId);

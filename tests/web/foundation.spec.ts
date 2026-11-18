@@ -38,7 +38,7 @@ test('Home continuation gives real source metadata priority over placeholder geo
     await page.goto('/settings?section=languages');
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/graph-navigation.txt'), 'org.mlearn.english');
     for (const theme of builtInThemes) {
       await client.saveTheme(theme, (await client.snapshot()).revision);

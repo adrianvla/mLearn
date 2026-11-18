@@ -69,7 +69,7 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const opened = JSON.parse(await nativeCore.invoke('runtime_execute', {
       request: JSON.stringify({ type: 'open_source', path: video, packageId: 'org.mlearn.english' }),
     }));

@@ -17,7 +17,7 @@ test('active native Review survives management roundtrips without replacing its 
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
     await page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true }).click();
@@ -97,7 +97,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
     const word = page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true });

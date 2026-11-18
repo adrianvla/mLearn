@@ -85,14 +85,14 @@ function mediaType(file: string) {
 export async function installPackage(page: Page, name: RegExp | string = /English/) {
   await page.goto('/settings?section=languages');
   await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
-  const updateLabel = typeof name === 'string' ? new RegExp(`^Update .*${name}`) : new RegExp(`^Update .*${name.source}`);
-  const label = typeof name === 'string' ? new RegExp(`^Install .*${name}`) : new RegExp(`^Install .*${name.source}`);
-  const installed = page.getByRole('button', { name: updateLabel }).first();
+  const source = typeof name === 'string' ? name : name.source;
+  const label = new RegExp(`^Install .*${source}`);
+  // A package shows its installed mark once installed; Install is offered only before that.
+  const installed = page.getByLabel(new RegExp(`^${source}.* installed$`)).first();
   await expect(installed.or(page.getByRole('button', { name: label })).first()).toBeVisible({ timeout: 30_000 });
   if (await installed.isVisible()) return;
   await page.getByRole('button', { name: label }).first().click();
-  const update = typeof name === 'string' ? new RegExp(`^Update .*${name}`) : new RegExp(`^Update .*${name.source}`);
-  await expect(page.getByRole('button', { name: update }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(installed).toBeVisible({ timeout: 60_000 });
 }
 
 /** A tone WAV: loud speech-like segment then silence, for synthesis and fake microphone input. */

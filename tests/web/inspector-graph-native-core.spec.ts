@@ -20,7 +20,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/graph-navigation.txt'), packageId);
     await page.goto(`/reader?id=${document.source.id}`);
     const trigger = page.getByTestId('reader-document-ready').getByRole('button', { name: 'run: untracked', exact: true });
@@ -200,7 +200,7 @@ test('packaged characters retain their identity from Knowledge through Material 
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*Japanese/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*Japanese/ })).toBeVisible();
+    await expect(page.getByLabel(/^Japanese.* installed$/)).toBeVisible();
     const description = await client.describeLanguage(packageId);
     const kind = description.catalog?.kinds.find(value => value.id === `${packageId}:character`);
     if (!kind) throw new Error('The pinned Japanese package does not declare its character catalog');

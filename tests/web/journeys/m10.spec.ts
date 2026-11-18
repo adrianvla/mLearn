@@ -33,6 +33,19 @@ test('M10 dense Knowledge and Material management', async ({ page, nativeCore },
     expect(saved.status).toBe('saved');
   }
 
+  // Home, Knowledge and Material keep their state while switching, but only the focused one is
+  // shown: on the transparent native window an unfocused view must not paint beneath it. Text and
+  // placeholder locators see a painted view even when it is hidden from accessibility.
+  await page.goto('/');
+  const openReview = page.getByText('Open Review', { exact: true });
+  const knowledgeSearch = page.getByPlaceholder('Search Knowledge');
+  await page.getByRole('button', { name: 'Knowledge', exact: true }).first().click();
+  await expect(knowledgeSearch).toBeVisible();
+  await expect(openReview).toBeHidden();
+  await page.getByRole('button', { name: 'Home', exact: true }).first().click();
+  await expect(openReview).toBeVisible();
+  await expect(knowledgeSearch).toBeHidden();
+
   // Filter the large set and bulk-edit every match.
   await page.goto('/materials');
   await page.getByTestId('material-search').fill('dense entry');

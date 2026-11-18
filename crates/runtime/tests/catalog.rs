@@ -538,6 +538,43 @@ mod readiness {
     }
 
     #[test]
+    fn removed_package_stops_executing_frees_its_files_and_can_be_reinstalled() {
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (manifest, code, assets) = bundle("example.hello");
+        catalog.publish(&manifest, &code, &assets);
+        let open = || {
+            Runtime::open(
+                directory.path(),
+                CodePolicy::DesktopDownloaded,
+                Some(catalog.trust()),
+                vec![],
+            )
+            .unwrap()
+        };
+        let mut runtime = open();
+        assert_eq!(install(&mut runtime, "example.hello")["type"], "installed");
+        assert_eq!(hello(&mut runtime)["type"], "plugin_result");
+        let blob = directory.path().join("plugin-blobs").join(&manifest.code.sha256);
+        assert!(blob.exists());
+
+        let removed = call(&mut runtime, json!({"type":"remove_package","pluginId":"example.hello"}));
+        assert_eq!(removed, json!({"type":"package_removed","pluginId":"example.hello"}));
+        assert_eq!(hello(&mut runtime)["type"], "error");
+        assert!(!blob.exists(), "the removed package's code is deleted");
+        let again = call(&mut runtime, json!({"type":"remove_package","pluginId":"example.hello"}));
+        assert_eq!(again["type"], "error", "{again}");
+
+        // Removal is durable, and the package installs again from the catalog.
+        drop(runtime);
+        let mut runtime = open();
+        let snapshot = call(&mut runtime, json!({"type":"snapshot"}));
+        assert_eq!(snapshot["snapshot"]["installedPlugins"], json!([]));
+        assert_eq!(install(&mut runtime, "example.hello")["type"], "installed");
+        assert_eq!(hello(&mut runtime)["type"], "plugin_result");
+    }
+
+    #[test]
     fn successful_install_identity_replays_original_receipt_after_another_install_and_restart() {
         let directory = tempfile::tempdir().unwrap();
         let catalog = Catalog::new();

@@ -110,6 +110,7 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'sources':return list(v.sources,20,source);
  case 'packages':return list(v.plugins,64,plugin);
  case 'installed':return plugin(v.plugin);
+ case 'package_removed':return typeof v.pluginId==='string';
  case 'package_install_status':return v.status===null||isPackageInstallStatus(v.status);
  case 'source':return object(v.window) && source(v.window.source) && integer(v.window.totalCues) && list(v.window.cues,16,cue);
  case 'transcript':return object(v.page) && string(v.page.sourceId) && string(v.page.subtitleRevision) && list(v.page.cues,16,cue) && (v.page.nextIndex===null||integer(v.page.nextIndex));

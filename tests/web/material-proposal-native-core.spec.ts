@@ -13,7 +13,7 @@ async function installEnglish(page: Page) {
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
   await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
   await page.getByRole('button', { name: /^Install .*English/ }).click();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
 }
 
 test('Material item switching retains its draft through cancelled departure and a lost save receipt', async ({ page }, info) => {

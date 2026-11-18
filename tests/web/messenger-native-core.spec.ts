@@ -93,7 +93,7 @@ test('normal Messenger UI consumes actual native content and prepared language o
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const document = JSON.parse(await backend.invoke('runtime_execute', {
       request: JSON.stringify({ type: 'open_document',
         path: resolve('tests/fixtures/reader/continuity.txt'), packageId: 'org.mlearn.english' }),

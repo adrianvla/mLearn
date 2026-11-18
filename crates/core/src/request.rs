@@ -441,6 +441,12 @@ pub enum Request {
         command_id: String,
     },
     CurrentPackageInstall,
+    /// Uninstalls a downloaded language package. Learner data stays; its sources report the
+    /// package as not installed until it is installed again.
+    RemovePackage {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+    },
     CancelPackageInstall {
         #[serde(rename = "commandId")]
         command_id: String,

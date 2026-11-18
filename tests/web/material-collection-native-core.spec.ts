@@ -21,7 +21,7 @@ test('Material collections preserve exact counts and native order through paging
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const saved: Material[] = [];
     for (let index = 0; index < 52; index++) {
       const content = { ...emptyMaterial('org.mlearn.english'),

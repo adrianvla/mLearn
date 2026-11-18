@@ -23,7 +23,7 @@ test('management selection survives paging, edits, a lost receipt and native res
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const saved: Material[] = [];
     for (let index = 0; index < 25; index++) {
       const outcome = await client.createMaterial(client.prepareMaterial({
@@ -126,7 +126,7 @@ test('a full saved-selection list remains manageable after a new selection is re
     await page.goto('/settings?section=languages');
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const saved: Material[] = [];
     for (let index = 0; index < 9; index++) {
       const result = await client.createMaterial(client.prepareMaterial({

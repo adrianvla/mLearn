@@ -4,6 +4,7 @@ import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Progress } from '@mlearn/ui/progress';
+import { Dialog } from '@mlearn/ui/dialog';
 import { Row, Stack, SettingRow } from '@mlearn/ui/layout';
 import type { usePackageInstall } from './usePackageInstall';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
@@ -22,11 +23,25 @@ const phases = {
   cancelled: 'Cancelled',
 } satisfies Record<PackageInstallPhase, string>;
 
-export function LanguagePackageInstall({ client, snapshot, install }: {
+export function LanguagePackageInstall({ client, snapshot, install, onRemoved }: {
   readonly client: RuntimeClient;
   readonly snapshot: Snapshot;
   readonly install: ReturnType<typeof usePackageInstall>;
+  readonly onRemoved: () => Promise<void>;
 }) {
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removal, setRemoval] = useState<{ readonly id: string; readonly busy: boolean; readonly error: Failure | null } | null>(null);
+  async function remove(id: string) {
+    setRemoving(null);
+    setRemoval({ id, busy: true, error: null });
+    try {
+      await client.removePackage(id);
+      await onRemoved();
+      setRemoval(null);
+    } catch (cause: unknown) {
+      setRemoval({ id, busy: false, error: failure(cause, 'This language package wasn’t removed.') });
+    }
+  }
   const [catalog, setCatalog] = useState<PluginSummary[]>([]);
   const [catalogError, setCatalogError] = useState<Failure | null>(null);
   const [checking, setChecking] = useState(false);
@@ -88,15 +103,32 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
       <Button label="Reload installed packages" variant="secondary" onPress={install.retryRefresh} />
     </FailureNotice>}
     {[...installedLanguages, ...catalog.filter(plugin => !installedLanguages.some(value => value.id === plugin.id))].map(plugin => {
-      const installed = installedLanguages.some(value => value.id === plugin.id);
-      const offered = catalog.some(value => value.id === plugin.id);
+      const current = installedLanguages.find(value => value.id === plugin.id);
+      const installed = current !== undefined;
+      const available = catalog.find(value => value.id === plugin.id);
+      // An installed package is offered again only when the catalog has a different release.
+      const offered = available !== undefined && (!current || available.version !== current.version);
       return <SettingRow key={plugin.id} label={plugin.displayName ?? 'Unnamed language package'} description={
+          <>
           <Text variant="detail" muted>Version {releaseVersion(plugin.version)}</Text>
+          {removal?.id === plugin.id && removal.error ? <FailureNotice message={removal.error.message} detail={removal.error.detail}>
+            <Button label="Retry" accessibilityLabel={`Retry removing ${plugin.displayName ?? 'language package'}`} variant="secondary"
+              onPress={() => void remove(plugin.id)} />
+          </FailureNotice> : null}
+        </>
         }>
         <Row>
-          {installed ? <Text variant="detail" tone="success">Installed</Text> : null}
+          {installed ? <Text variant="detail" tone="success"
+            accessibilityLabel={`${plugin.displayName ?? 'Language package'} installed`}>Installed</Text> : null}
           {offered ? <Button label={`${installed ? 'Update' : 'Install'} ${plugin.displayName ?? 'language package'}`}
             variant="secondary" disabled={!snapshot.catalogConfigured || !install.canStart} onPress={() => install.start(plugin.id)} /> : null}
+          {installed && snapshot.catalogConfigured ? <Dialog title="Remove language package"
+            description={`Remove ${plugin.displayName ?? 'this language package'} from this device? Saved words, Material and progress are kept; sources in this language can be read again after you reinstall it.`}
+            open={removing === plugin.id} onOpenChange={open => setRemoving(open ? plugin.id : null)}
+            trigger={<Button label="Remove" accessibilityLabel={`Remove ${plugin.displayName ?? 'language package'}`} variant="quiet"
+              busy={removal?.id === plugin.id && removal.busy} disabled={active || install.submitting || removal?.busy === true} />}>
+            <Button label="Remove package" onPress={() => void remove(plugin.id)} />
+          </Dialog> : null}
         </Row>
       </SettingRow>;
     })}

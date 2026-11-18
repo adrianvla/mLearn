@@ -92,7 +92,7 @@ for (const departure of ['Home', 'Back', 'Cancel source update'] as const) test(
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
   await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
   await page.getByRole('button', { name: /^Install .*English/ }).click();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
   const call = async (request: unknown) => JSON.parse(await nativeCore.invoke('runtime_execute', { request: JSON.stringify(request) }));
   const opened = await call({ type: 'open_source', path: videoPath, packageId: 'org.mlearn.english' });
   const sourceId = opened.window.source.id;

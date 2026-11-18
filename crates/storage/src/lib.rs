@@ -229,6 +229,10 @@ impl ProfileStore {
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<Result<Vec<_>, _>>()?)
     }
+    /// Deactivates an installed package. Learner records keyed by the package are kept.
+    pub fn remove_plugin(&mut self, id: &str) -> Result<bool, StorageError> {
+        Ok(self.connection.execute("DELETE FROM plugins WHERE id=?1", [id])? > 0)
+    }
     pub fn activate_plugin(&mut self, id: &str, manifest: &str) -> Result<(), StorageError> {
         self.connection.execute("INSERT INTO plugins(id,manifest) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET manifest=excluded.manifest", params![id, manifest])?;
         Ok(())

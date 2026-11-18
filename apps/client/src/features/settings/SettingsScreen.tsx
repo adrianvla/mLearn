@@ -198,7 +198,7 @@ export function SettingsScreen() {
               <Text variant="detail" tone="success">Installed</Text>
             </SettingRow>) : null}
           {snapshot?.codePolicy === 'desktop-downloaded'
-            ? <LanguagePackageInstall client={host.client} snapshot={snapshot} install={packageInstall} />
+            ? <LanguagePackageInstall client={host.client} snapshot={snapshot} install={packageInstall} onRemoved={refresh} />
             : snapshot ? <Text muted>{snapshot.codePolicy === 'mobile-bundled'
               ? 'Languages are included with this app.' : 'Language downloads aren’t available here.'}</Text> : null}
         </>}

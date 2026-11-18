@@ -107,7 +107,7 @@ test('package errors recover, cancelled downloads retry and installed data survi
   nativeCore.catalogMode('complete');
   await page.getByRole('button', { name: 'Retry installation', exact: true }).click();
   await expect(page.getByText('Installed', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check for packages', exact: true })).toBeEnabled();
   await page.screenshot({ path: info.outputPath('package-retry-installed.png') });
   await nativeCore.crashRestart();

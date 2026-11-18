@@ -21,7 +21,7 @@ test(`Watch ${action} returns to retained Home without resetting its Material so
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     await page.setViewportSize({ width, height: 900 });
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await page.getByRole('button', { name: 'Material', exact: true }).click();
@@ -77,7 +77,7 @@ test('Watch proposal Return restores its exact captured subtitle selection', asy
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const opened = JSON.parse(await nativeCore.invoke('runtime_execute', {
       request: JSON.stringify({ type: 'open_source', path: video, packageId: 'org.mlearn.english' }),
     }));

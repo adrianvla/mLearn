@@ -235,6 +235,11 @@ export function createRuntimeClient(transport: Transport) {
     installPackage,
     packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),
     cancelPackageInstall:(commandId:string)=>packageInstallControl('cancel_package_install',commandId),
+    async removePackage(pluginId:string){
+      const response=await execute({type:'remove_package',pluginId});
+      if(!isWatchResponse(response)||response.type!=='package_removed'||response.pluginId!==pluginId)
+        throw new RuntimeError('protocol','Missing package removal receipt.');
+    },
     async currentPackageInstall(){
       const response=await execute({type:'current_package_install'});
       if(!isWatchResponse(response)||response.type!=='package_install_status')throw new RuntimeError('protocol','Malformed current package install status.');

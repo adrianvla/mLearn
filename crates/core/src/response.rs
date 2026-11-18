@@ -248,6 +248,10 @@ pub enum Response {
     Installed {
         plugin: PluginSummary,
     },
+    PackageRemoved {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+    },
     PackageInstallStatus {
         status: Option<PackageInstallStatus>,
     },

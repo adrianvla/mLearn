@@ -24,7 +24,7 @@ test('bulk controls recover a held receipt and preserve revision checks through 
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const saved: Material[] = [];
     for (let index = 0; index < 3; index++) {
       const outcome = await client.createMaterial(client.prepareMaterial({
@@ -154,7 +154,7 @@ test('a released retained bulk operation resets the replacement job to its first
     await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
     await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
     await page.getByRole('button', { name: /^Install .*English/ }).click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
     const materials: Material[] = [];
     for (let index = 0; index < 25; index++) {
       const outcome = await client.createMaterial(client.prepareMaterial({

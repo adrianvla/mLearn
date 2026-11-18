@@ -42,8 +42,20 @@ test('M02 subtitle interaction, package management, ambiguity, stale analysis an
     expect(await page.getByRole('alert').first().innerText()).not.toMatch(/HTTP|\d{3}|catalog\.json|fixture/i);
     nativeCore.catalogMode('complete');
     await installPackage(page);
-    await page.getByRole('button', { name: /^Update .*English/ }).first().click();
-    await expect(page.getByRole('button', { name: /^Update .*English/ }).first()).toBeEnabled({ timeout: 60_000 });
+    // Installed at the catalog's release: nothing to update, so no Update is offered.
+    // (Updating to a newer release is exercised natively: English 0.1.1 -> 0.1.11.)
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Update .*English/ })).toHaveCount(0);
+    await installPackage(page, /Japanese/);
+
+    // Remove a package after confirming what stays, then install it again.
+    await page.getByRole('button', { name: /^Remove Japanese/ }).click();
+    const confirm = page.getByRole('dialog', { name: 'Remove language package', exact: true });
+    await expect(confirm).toContainText('Saved words, Material and progress are kept');
+    await confirm.getByRole('button', { name: 'Remove package', exact: true }).click();
+    await expect(page.getByLabel(/^Japanese.* installed$/)).toHaveCount(0);
+    await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
+    expect((await client.snapshot()).installedPlugins.map(plugin => plugin.id)).not.toContain('org.mlearn.japanese');
     await installPackage(page, /Japanese/);
 
     // Two videos with documented subtitle formats.
