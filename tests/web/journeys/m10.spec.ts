@@ -7,7 +7,7 @@ import { test, expect, installPackage } from './fixture';
 
 // PLAN M10 Review: use mixed captured/manual/import-fixture material; filter and bulk-edit a large
 // set; inspect status basis and a graph relation; make a change and see source annotations and
-// Knowledge agree. Test one missing optional provider without losing saved content.
+// Review agree. Test one missing optional provider without losing saved content.
 test('M10 dense Knowledge and Material management', async ({ page, nativeCore }, info) => {
   test.setTimeout(420_000);
   page.setDefaultTimeout(20_000);
@@ -133,4 +133,38 @@ test('M10 dense Knowledge and Material management', async ({ page, nativeCore },
   await page.screenshot({ path: info.outputPath('m10-provider-missing.png') });
   expect(await client.material(before.id)).toEqual(before);
   nativeCore.providerMode('complete');
+
+  // A change made in Material reaches both the source annotation and Review. The dense set is
+  // excluded so Review's queue holds only the captured word.
+  for (let dense = await client.materials({ after: null, query: 'dense entry', sourceId: null, includeExcluded: false }); ;) {
+    for (const item of dense.items)
+      expect((await client.updateMaterial(client.prepareMaterialEdit(item, item.content, true))).status).toBe('saved');
+    if (!dense.next) break;
+    dense = await client.materials({ after: dense.next, query: 'dense entry', sourceId: null, includeExcluded: false });
+  }
+  const [word] = (await client.materials({ after: null, query: 'Children', sourceId: book.source.id, includeExcluded: true })).items;
+  if (!word) throw new Error('The captured word disappeared');
+  const meaning = 'young people on their way home';
+  await page.goto(`/materials?id=${word.id}`);
+  await page.getByRole('textbox', { name: 'Meaning', exact: true }).fill(meaning);
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await expect.poll(async () => (await client.material(word.id))?.revision).toBe(word.revision + 1);
+  await page.goto(`/reader?id=${book.source.id}`);
+  await document.getByRole('button', { name: /^Children: / }).click();
+  // From the source, the word opens its saved Material with the change.
+  await inspector.getByRole('button', { name: 'Inspector actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Open saved Children', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Meaning', exact: true })).toHaveValue(meaning);
+  await page.goto('/');
+  await page.getByTestId('home-open-review').click();
+  await page.getByRole('button', { name: 'Session size', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
+  await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
+  await expect(page.getByTestId('review-cue')).toBeVisible();
+  const [reviewing] = await client.reviewSessions();
+  const encounter = reviewing?.encounter;
+  expect(encounter && 'materialId' in encounter ? encounter.materialId : null).toBe(word.id);
+  await page.getByRole('button', { name: 'Reveal', exact: true }).click();
+  await expect(page.getByTestId('review-cue')).toContainText(meaning);
+  await page.screenshot({ path: info.outputPath('m10-review-agrees.png') });
 });
