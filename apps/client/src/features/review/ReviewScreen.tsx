@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { StyleSheet } from 'react-native-unistyles';
-import type { AuthoredMediaId, AuthoredPracticePreview, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewMode, ReviewSession, TaskResponse } from '@mlearn/contracts';
+import type { AuthoredMediaId, AuthoredPracticePreview, ReviewAssistance, ReviewCommand, ReviewDelivery, ReviewEncounterId, ReviewGrade, ReviewMode, ReviewSession, TaskResponse } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { AppShell, Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
@@ -34,6 +34,12 @@ function practiceScope(mode: ReviewMode): string | null {
     case 'finite': return null;
   }
 }
+
+/** Why an answer counts as assisted, in the learner's words. */
+const assistanceLabel: Record<ReviewAssistance, string> = {
+  inspector: 'looked up in the Inspector', source: 'checked in the source',
+  prior_disclosure: 'answer shown before', repeated_exposure: 'seen several times just now',
+};
 
 export function ReviewScreen() {
   const host = useRuntime();
@@ -479,7 +485,7 @@ function ReviewWorkspace({ client, media }: {
               </Text>)}
             </Stack> : null}
             {encounter.correction ? <Text accessibilityLiveRegion="polite">Correcting previous response</Text> : null}
-            {encounter.conditions.assistance.length ? <Text variant="caption" muted>Assistance: {encounter.conditions.assistance.join(', ')}</Text> : null}
+            {encounter.conditions.assistance.length ? <Text variant="caption" muted>Counted as assisted: {encounter.conditions.assistance.map(kind => assistanceLabel[kind]).join(' · ')}</Text> : null}
             {encounter.conditions.revealed && encounter.answer !== null ?
               <RatingMatrix key={`${encounter.id}:${encounter.correction}`} targets={encounter.targets}
                 focused={encounter.direction === 'focused'} disabled={!canRate} onSubmit={grades => void submit(grades)} />
