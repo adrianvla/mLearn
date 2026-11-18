@@ -25,6 +25,9 @@ impl Runtime {
                 "Task control requires the shared native executor".into(),
             )),
             Request::Conversation { command } => self.prepare_conversation(command, cancellation),
+            Request::Speech { .. } => Err(Failure::Operation(
+                "Speech requires the shared native executor".into(),
+            )),
             Request::ImportImageCollection {
                 paths,
                 title,

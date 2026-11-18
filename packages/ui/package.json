@@ -26,7 +26,8 @@
     "./reading-segments": "./src/readingSegments.ts",
     "./context-panel": "./src/ContextPanel.tsx",
     "./dictionary-card": "./src/DictionaryCard.tsx",
-    "./media-overlay": "./src/MediaOverlay.tsx"
+    "./media-overlay": "./src/MediaOverlay.tsx",
+    "./failure-notice": "./src/FailureNotice.tsx"
   },
   "dependencies": {
     "@mlearn/theme": "3.0.0-dev.0",

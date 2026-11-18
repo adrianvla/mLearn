@@ -6,6 +6,8 @@ import { Button } from '@mlearn/ui/button';
 import { SettingRow } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Command = Extract<Request, { type: 'save_inline_level_scale' | 'save_star_collapse' }>;
 
@@ -16,8 +18,8 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
 }) {
   const [scales, setScales] = useState<LevelScale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState<Failure | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [errorTarget, setErrorTarget] = useState<'scale' | 'collapse'>('scale');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Command | null>(null);
@@ -28,7 +30,7 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    setLoadError('');
+    setLoadError(null);
     async function load() {
       const available: LevelScale[] = [];
       // Language execution has a bounded shared admission owner, not one worker per option.
@@ -40,7 +42,7 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
       if (active) setScales(available);
     }
     void load().catch((cause: unknown) => {
-      if (active) setLoadError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setLoadError(failure(cause, 'Level scales couldn’t be loaded.'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [client, packages, reload]);
@@ -49,7 +51,7 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
     if (admitted.current) return;
     admitted.current = true;
     setBusy(true);
-    setError('');
+    setError(null);
     setErrorTarget(command.type === 'save_star_collapse' ? 'collapse' : 'scale');
     setPending(command);
     try {
@@ -62,41 +64,43 @@ export function InlineLevelScaleSetting({ client, snapshot, onSaved }: {
         setPending(null);
         try { await onSaved(); }
         catch (refreshError) {
-          setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
+          setError(failure(refreshError, 'Your settings couldn’t be refreshed after this change was rejected.'));
           return;
         }
       }
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(failure(cause, 'This change wasn’t saved.'));
     } finally {
       admitted.current = false;
       setBusy(false);
     }
   }
   const selected = snapshot.viewPreferences?.inlineLevelScale ?? null;
-  const options = [{ value: 'none', label: 'No inline stars' }, ...scales.map(scale => ({ value: scale.id, label: scale.label }))];
+  const options = [{ value: 'none', label: 'No level marks' }, ...scales.map(scale => ({ value: scale.id, label: scale.label }))];
   if (selected && !scales.some(scale => scale.id === selected))
-    options.push({ value: selected, label: `Unavailable scale: ${selected}` });
+    options.push({ value: selected, label: 'Unavailable scale' });
   function feedback(target: 'scale' | 'collapse') {
     if (errorTarget !== target) return null;
-    return <>{error ? <Text accessibilityRole="alert">{error}</Text> : null}
-      {pending && !busy ? <Button label={target === 'scale' ? 'Retry saving inline level scale' : 'Retry saving star collapse'}
-        variant="quiet" onPress={() => void save(pending)} /> : null}</>;
+    const retry = pending && !busy ? <Button label={target === 'scale' ? 'Retry saving level marks' : 'Retry saving level mark display'}
+      variant="quiet" onPress={() => void save(pending)} /> : null;
+    return error ? <FailureNotice message={error.message} detail={error.detail}>{retry}</FailureNotice> : retry;
   }
-  return <><SettingRow label="Stars">
-    <Select label="Stars scale" value={selected ?? 'none'} options={options}
+  return <><SettingRow label="Level marks" description={<Text variant="detail" muted>
+      {!loading && !loadError && !scales.length ? 'Installed languages don’t provide a level scale.' : 'Marks words by level while reading.'}</Text>}>
+    <Select label="Level marks" value={selected ?? 'none'} options={options}
       disabled={loading || !!loadError || busy || pending !== null}
       onValueChange={value => {
         const scale = value === 'none' ? null : value;
         if (scale !== selected) void save(client.prepareInlineLevelScale(scale, snapshot.viewPreferences?.revision ?? 0));
       }} />
     {loading ? <Text variant="detail" muted>Loading level scales…</Text> : null}
-    {loadError ? <><Text accessibilityRole="alert">{loadError}</Text>
-      <Button label="Reload level scales" variant="quiet" onPress={() => setReload(value => value + 1)} /></> : null}
+    {busy ? <Text variant="detail" muted accessibilityLiveRegion="polite">Saving…</Text> : null}
+    {loadError ? <FailureNotice message={loadError.message} detail={loadError.detail}>
+      <Button label="Reload level scales" variant="quiet" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
     {feedback('scale')}
   </SettingRow>
-  <SettingRow label="Star display">
-    <Select label="Star display" value={snapshot.viewPreferences?.starCollapse ?? 'auto'}
-      options={[{value:'auto',label:'Fit to word'},{value:'always',label:'Compact'},{value:'never',label:'Full stars'}]}
+  <SettingRow label="Level mark display" description={<Text variant="detail" muted>How marks fit above a word.</Text>}>
+    <Select label="Level mark display" value={snapshot.viewPreferences?.starCollapse ?? 'auto'}
+      options={[{value:'auto',label:'Fit to word'},{value:'always',label:'Compact'},{value:'never',label:'Show every mark'}]}
       disabled={busy || pending !== null} onValueChange={value => {
         if ((value === 'auto' || value === 'always' || value === 'never') && value !== (snapshot.viewPreferences?.starCollapse ?? 'auto'))
           void save(client.prepareStarCollapse(value, snapshot.viewPreferences?.revision ?? 0));

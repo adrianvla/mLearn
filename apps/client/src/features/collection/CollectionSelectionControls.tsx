@@ -8,6 +8,7 @@ import { Stack } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import type { useCollectionSelection } from './useCollectionSelection';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { CollectionBulkActions } from './CollectionBulkActions';
 
 export function CollectionSelectionControls({ state, count, ready, surface, packages, client, onChanged }: {
@@ -42,8 +43,10 @@ export function CollectionSelectionControls({ state, count, ready, surface, pack
           { id: 'refresh-selection', label: 'Refresh selections', disabled: state.pending, onPress: () => void state.refresh() },
         ]} />
       {state.pending ? <Text accessibilityLiveRegion="polite">Updating selection…</Text> : null}
-      {state.error ? <Text accessibilityRole="alert">{state.error}</Text> : null}
-      {state.attempt && !state.pending ? <Button label="Retry selection" variant="secondary"
+      {state.error ? <FailureNotice message={state.error.message} detail={state.error.detail}>
+        {state.attempt && !state.pending ? <Button label="Retry selection" variant="secondary"
+        size="compact" onPress={state.retry} /> : null}
+      </FailureNotice> : state.attempt && !state.pending ? <Button label="Retry selection" variant="secondary"
         size="compact" onPress={state.retry} /> : null}
     </> : toggle}
     <Dialog open={savedOpen && state.enabled} onOpenChange={setSavedOpen} title="Saved selections"

@@ -8,7 +8,8 @@ import { Badge } from '@mlearn/ui/badge';
 import { Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 
-const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 /** Material owns authored input; the package owns every displayed probe. */
 export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit }: {
@@ -20,7 +21,7 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
 }) {
   const [material, setMaterial] = useState<Material | null>(null);
   const [preview, setPreview] = useState<AuthoredPracticePreview | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -30,14 +31,14 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
   const flight = useRef(false);
   useFocusEffect(useCallback(() => {
     const scope = {}; owner.current = scope;
-    setLoading(true); setError(''); setPreview(null);
+    setLoading(true); setError(null); setPreview(null);
     setPending(operation.current !== null);
     void client.material(materialId).then(value => {
       if (owner.current !== scope) return;
       setMaterial(value);
-      if (!value) setError('Saved Material is unavailable.');
+      if (!value) setError({ message: 'This saved Material is no longer available.', detail: null });
     }).catch((cause: unknown) => {
-      if (owner.current === scope) setError(messageOf(cause));
+      if (owner.current === scope) setError(failure(cause, 'This Material couldn’t be loaded.'));
     }).finally(() => { if (owner.current === scope) setLoading(false); });
     return () => { if (owner.current === scope) owner.current = null; operation.current?.abort(); };
   }, [client, materialId]));
@@ -46,7 +47,7 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
     if (!scope || flight.current || disabled) return;
     const controller = new AbortController();
     operation.current = controller; flight.current = true;
-    setPending(true); setError(''); setCancelled(false); setPreview(null);
+    setPending(true); setError(null); setCancelled(false); setPreview(null);
     try {
       const current = await client.material(materialId);
       if (owner.current !== scope) return;
@@ -58,7 +59,7 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
       if (owner.current !== scope) return;
       if (controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled')
         setCancelled(true);
-      else setError(messageOf(cause));
+      else setError(failure(cause, 'Probes for this Material couldn’t be previewed.'));
     } finally {
       if (operation.current === controller) operation.current = null;
       flight.current = false;
@@ -88,7 +89,10 @@ export function ExpertProbeSetup({ client, materialId, disabled, onStart, onEdit
     </Row>
     {pending ? <Button label="Cancel probe preview" variant="quiet" onPress={() => operation.current?.abort()} /> : null}
     {cancelled ? <Text testID="authored-preview-cancelled" accessibilityLiveRegion="polite">Probe preview cancelled.</Text> : null}
-    {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      <Button label="Retry" accessibilityLabel="Retry probe preview" variant="secondary" disabled={disabled || loading || !material || pending}
+        onPress={() => void inspect()} />
+    </FailureNotice> : null}
     {preview ? <View testID="authored-probe-preview"><Stack>
       <Button label="Practice authored probes" disabled={disabled || pending} onPress={() => void start()} />
       {preview.probes.map(probe => <Panel key={probe.id} inset="compact">

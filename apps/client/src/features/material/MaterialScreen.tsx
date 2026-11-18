@@ -19,6 +19,8 @@ import { MaterialProposalReview } from './MaterialProposalReview';
 import { emptyMaterial } from './content';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
 import { ActivityNavigation } from '../navigation';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 const orders = [
   { value: 'default', label: 'Default order' },
@@ -75,11 +77,11 @@ export function MaterialScreen() {
   const editorActions = useRef<MaterialEditorHandle>(null);
   const currentItems = useRef<readonly { value: string; label: string }[]>([]);
   const currentWindow = useRef<MaterialWindow | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
-  const [opening, setOpening] = useState<{ id: string; pending: boolean; error: string; trigger: string | null;
+  const [opening, setOpening] = useState<{ id: string; pending: boolean; error: Failure | null; trigger: string | null;
     returnToOrigin: boolean; step?: MaterialStep } | null>(null);
-  const [returning, setReturning] = useState<{ material: Material; location: string; pending: boolean; error: string } | null>(null);
+  const [returning, setReturning] = useState<{ material: Material; location: string; pending: boolean; error: Failure | null } | null>(null);
   const [reload, setReload] = useState(0);
   const [proposalsOpen, setProposalsOpen] = useState(false);
   const [proposalSeed, setProposalSeed] = useState<Material | null>(null);
@@ -124,7 +126,7 @@ export function MaterialScreen() {
   useFocusEffect(useCallback(() => {
     if (!host.available) return;
     let active = true;
-    setPending(true); setError('');
+    setPending(true); setError(null);
     if (loadedQuery.current !== queryKey) setResult(null);
     void Promise.all([
       refreshQuery.current === queryKey
@@ -137,7 +139,7 @@ export function MaterialScreen() {
       setResult(value); setPackages(languages); loadedQuery.current = queryKey;
       setPackageId(previous => languages.some(item => item.id === previous) ? previous : languages[0]?.id || '');
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Your Material list couldn’t be loaded.'));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, after, collectionQuery, reload, queryKey]));
@@ -145,7 +147,7 @@ export function MaterialScreen() {
     if (!host.available || openRequest.current) return;
     const scope = owner.current;
     const request = {}; openRequest.current = request;
-    setOpening({ id, trigger, returnToOrigin, step, pending: true, error: '' });
+    setOpening({ id, trigger, returnToOrigin, step, pending: true, error: null });
     try {
       let window: MaterialWindow | null = null;
       let items: readonly { value: string; label: string }[] | null = null;
@@ -184,7 +186,7 @@ export function MaterialScreen() {
       }
     } catch (cause) {
       if (owner.current === scope && openRequest.current === request)
-        setOpening({ id, trigger, returnToOrigin, step, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
+        setOpening({ id, trigger, returnToOrigin, step, pending: false, error: failure(cause, 'This Material couldn’t be opened.') });
     } finally { if (openRequest.current === request) openRequest.current = null; }
   }, [host, router]);
   const requestOpen = useCallback((id: string, trigger: string | null, returnToOrigin = false, step?: MaterialStep) => {
@@ -217,7 +219,7 @@ export function MaterialScreen() {
     if (!host.available || returnRequest.current) return;
     const scope = owner.current;
     const request = { location }; returnRequest.current = request;
-    setReturning({ material, location, pending: true, error: '' });
+    setReturning({ material, location, pending: true, error: null });
     try {
       const result = await host.client.returnMaterialSource(material.id);
       if (scope && owner.current === scope && returnRequest.current === request) {
@@ -234,22 +236,22 @@ export function MaterialScreen() {
       }
     } catch (cause) {
       if (owner.current === scope && returnRequest.current === request)
-        setReturning({ material, location, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
+        setReturning({ material, location, pending: false, error: failure(cause, 'The source for this Material couldn’t be reopened.') });
     } finally { if (returnRequest.current === request) returnRequest.current = null; }
   }
   function openStatus(id: string) {
     return opening?.id === id ? <>
       {opening.pending ? <Text accessibilityLiveRegion="polite">Opening Material…</Text> : null}
-      {opening.error ? <><Text accessibilityRole="alert">{opening.error}</Text>
-        <Button label="Retry opening Material"
-          onPress={() => requestOpen(opening.id, opening.trigger, opening.returnToOrigin, opening.step)} /></> : null}
+      {opening.error ? <FailureNotice message={opening.error.message} detail={opening.error.detail}>
+        <Button label="Retry" accessibilityLabel="Retry opening Material"
+          onPress={() => requestOpen(opening.id, opening.trigger, opening.returnToOrigin, opening.step)} /></FailureNotice> : null}
     </> : null;
   }
   function returnStatus(location: string) {
     return returning?.location === location ? <>
       {returning.pending ? <Text accessibilityLiveRegion="polite">Returning to source…</Text> : null}
-      {returning.error ? <><Text accessibilityRole="alert">{returning.error}</Text>
-        <Button label="Retry returning to source" onPress={() => void returnSource(returning.material, location)} /></> : null}
+      {returning.error ? <FailureNotice message={returning.error.message} detail={returning.error.detail}>
+        <Button label="Retry" accessibilityLabel="Retry returning to source" onPress={() => void returnSource(returning.material, location)} /></FailureNotice> : null}
     </> : null;
   }
   const editorItems = editor?.material && !editor.items.some(item => item.value === editor.material?.id)
@@ -269,11 +271,11 @@ export function MaterialScreen() {
   }
   const listStatus = pending || error || result?.state === 'preparing' || result?.state === 'unavailable' ? <View style={styles.notice}>
     {pending ? <Text accessibilityLiveRegion="polite">Loading Material…</Text> : null}
-    {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry Material list"
+    {error ? <FailureNotice message={error.message} detail={error.detail}><Button label="Retry" accessibilityLabel="Retry Material list"
       onPress={() => {
         if (refreshQuery.current !== queryKey) setAfter(null);
         setReload(value => value + 1);
-      }} /></> : null}
+      }} /></FailureNotice> : null}
     {result?.state === 'preparing' ? <Text accessibilityLiveRegion="polite">Preparing collection: {result.processed} of {result.total}</Text> : null}
     {result?.state === 'unavailable' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
   </View> : null;

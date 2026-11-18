@@ -6,6 +6,8 @@ import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { MaterialMedia } from './MaterialMedia';
 import { MaterialFields } from './MaterialFields';
 import { mediaImportOf, releaseStaged, type MaterialMediaHost, type StagedMedia } from './media';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
 import { Panel, Row } from '@mlearn/ui/layout';
@@ -34,7 +36,7 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
   const [mediaPending, setMediaPending] = useState(false);
   const locked = useRef(false);
   const proposeTrigger = useRef<View>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [conflict, setConflict] = useState(false);
   const [receipt, setReceipt] = useState('');
   const [retry, setRetry] = useState<MaterialCreate | MaterialEdit | null>(null);
@@ -95,7 +97,7 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
     stagedRef.current = [];
     setStaged([]); setBoundStaged([]);
     setBase(item); setDraft(item.content); setExcluded(item.excluded);
-    setRetry(null); setError(''); setConflict(false); setDuplicates([]);
+    setRetry(null); setError(null); setConflict(false); setDuplicates([]);
     setReceipt(message);
   }
   function stage(item: StagedMedia) {
@@ -122,7 +124,7 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
     locked.current = true;
     const scope = owner.current;
     inFlight.current = imports;
-    setPending(true); setError(''); setReceipt(''); setConflict(false); setDuplicates([]);
+    setPending(true); setError(null); setReceipt(''); setConflict(false); setDuplicates([]);
     try {
       const outcome = 'id' in command ? await client.updateMaterial(command) : await client.createMaterial(command);
       const accepted = outcome.status === 'saved' && !outcome.reused;
@@ -156,9 +158,10 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
       }
     } catch (cause) {
       if (scope && owner.current === scope) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        const conflicted = cause instanceof RuntimeError && cause.code === 'conflict';
+        setError(failure(cause, conflicted ? 'This Material changed elsewhere, so your changes weren’t saved.' : 'Your changes to this Material weren’t saved.'));
         setRetry(command);
-        setConflict(cause instanceof RuntimeError && cause.code === 'conflict');
+        setConflict(conflicted);
       } else for (const item of imports) releaseStaged(item);
     } finally {
       inFlight.current = null;
@@ -178,7 +181,7 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
         } } : {}),
       })) } : prepared;
       void save(command, imports);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { setError(failure(cause, 'This Material couldn’t be prepared for saving.')); }
   }
   async function reload() {
     if (!base || locked.current) return;
@@ -188,13 +191,18 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
       const latest = await client.material(base.id);
       if (scope && owner.current === scope) {
         // Reload the CAS base while preserving every unsaved authored field.
-        setBase(latest); setRetry(null); setConflict(false); setError('');
+        setBase(latest); setRetry(null); setConflict(false); setError(null);
         setReceipt('Latest revision loaded. Your unsaved fields are retained; review them before saving.');
       }
     } catch (cause) {
-      if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope) setError(failure(cause, 'The latest revision couldn’t be loaded.'));
     } finally { locked.current = false; if (scope && owner.current === scope) setPending(false); }
   }
+  const retryActions = retry ? <>
+    {conflict ? <Button label="Reload latest revision" disabled={pending} onPress={() => void reload()} />
+      : <Button label="Retry save" disabled={pending} onPress={() => void save(retry, stagedRef.current)} />}
+    <Button label="Continue editing" variant="secondary" disabled={pending} onPress={() => { setRetry(null); setError(null); }} />
+  </> : null;
   const body = <View style={styles.editor}>
     {departing ? <Panel>
       <Text accessibilityRole="alert">Save changes before leaving this Material?</Text>
@@ -223,12 +231,8 @@ export const MaterialEditor = forwardRef<MaterialEditorHandle, {
         {dirty ? <Text variant="caption" muted>Unsaved changes</Text> : null}
       </Row>
       {receipt ? <Text accessibilityLiveRegion="polite" testID="material-result">{receipt}</Text> : null}
-      {error ? <Text accessibilityRole="alert" testID="material-error">{error}</Text> : null}
-      {retry ? <Row>
-        {conflict ? <Button label="Reload latest revision" disabled={pending} onPress={() => void reload()} />
-          : <Button label="Retry save" disabled={pending} onPress={() => void save(retry, stagedRef.current)} />}
-        <Button label="Continue editing" variant="secondary" disabled={pending} onPress={() => { setRetry(null); setError(''); }} />
-      </Row> : null}
+      {error ? <FailureNotice testID="material-error" message={error.message} detail={error.detail}>{retryActions}</FailureNotice>
+        : retryActions ? <Row>{retryActions}</Row> : null}
       {duplicates.length ? <View style={styles.reference} testID="material-duplicates">
         <Text variant="section">Existing Material</Text>
         {duplicates.map(item => <Button key={item.id} label={`Use existing: ${item.content.phrase}`}

@@ -78,6 +78,9 @@ fn create_generation(
         status: ConversationContentStatus::Pending,
         generation_id: Some(key.clone()),
         sources: Vec::new(),
+        witnesses: crate::conversation_world::present(owner),
+        integrated_from: None,
+        delivery: None,
     };
     write_message(db, &provisional)?;
     db.execute(
@@ -113,8 +116,13 @@ pub(super) fn admit(
             "Turn needs text and an actual conversation participant",
         ));
     }
+    if owner.absent.contains(&turn.participant_id) {
+        return Err(invalid("An absent participant cannot answer"));
+    }
     check_reply(db, &owner.id, &turn.reply_to)?;
     let (mut inputs, _) = context(db, &owner, None)?;
+    // A participant's context holds only what they witnessed.
+    inputs.retain(|input| crate::conversation_world::witnessed(input, &turn.participant_id));
     // A reply outside the recent window is an actual input, not just a label.
     if let Some(reply) = &turn.reply_to {
         if !inputs.iter().any(|v| v.id == reply.id) {
@@ -135,6 +143,9 @@ pub(super) fn admit(
         status: ConversationContentStatus::Complete,
         generation_id: None,
         sources: turn.sources.clone(),
+        witnesses: crate::conversation_world::present(&owner),
+        integrated_from: None,
+        delivery: None,
     };
     inputs.push(user.clone());
     while serde_json::to_vec(&inputs)?.len() > CONVERSATION_CONTEXT_BYTES {
@@ -251,6 +262,14 @@ pub(super) fn invalidate_message(db: &Connection, key: &MessageId) -> Result<(),
         "SELECT generation_id AS id FROM conversation_generation_inputs WHERE message_id=?1
          UNION SELECT id FROM conversation_generations WHERE active=1 AND conversation_id=
              (SELECT conversation_id FROM conversation_messages WHERE id=?1)",
+        &key.0,
+    )
+}
+
+pub(super) fn invalidate_active(db: &Connection, key: &ConversationId) -> Result<(), StorageError> {
+    invalidate(
+        db,
+        "SELECT id FROM conversation_generations WHERE active=1 AND conversation_id=?1",
         &key.0,
     )
 }

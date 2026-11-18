@@ -9,6 +9,7 @@ export type ReaderNotice = {
 export const notices = {
     openFailed: { message: 'This source couldn’t be opened.', action: 'retry' },
     pagesFailed: { message: 'This page couldn’t be shown.', action: 'retry' },
+    pageTurnFailed: { message: 'The page didn’t change.', action: 'retry' },
     settingsFailed: { message: 'The page layout couldn’t be saved.', action: 'retry' },
     recognitionFailed: { message: 'Text recognition didn’t finish.', action: 'retry' },
     recognitionStopped: { message: 'Text recognition stopped.', action: 'retry' },

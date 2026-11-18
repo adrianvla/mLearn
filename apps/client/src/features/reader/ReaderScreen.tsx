@@ -21,7 +21,7 @@ import { ImageViewport, type PageNotice } from './ImageViewport';
 import { imageAnchor, imageContext } from './imageFlow';
 import { ImageRecognition } from './ImageRecognition';
 import { SourceEntryScreen } from '../source-entry';
-import { ReaderAppearancePanel, ReaderOptionsPanel, ReaderStatusStrip, ReaderToolbar, type ReaderPanel } from './ReaderChrome';
+import { ImagePageTools, ReaderAppearancePanel, ReaderOptionsPanel, ReaderStatusStrip, ReaderToolbar, type ReaderPanel } from './ReaderChrome';
 import { VocabularyPanel, documentWords, imageWords } from './VocabularyPanel';
 import { notices } from './readerNotice';
 
@@ -186,9 +186,11 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         : imageReader.recognition === 'failed' ? { message: notices.recognitionFailed.message, action: 'Retry', onAction: imageReader.retry }
         : imageReader.recognition === 'stopped' ? { message: notices.recognitionStopped.message, action: 'Retry', onAction: imageReader.retry }
         : null;
+    // While the shown spread is being recognized the strip reports only that
+    // progress; a page notice returns once recognition settles.
     const strip = reader.error ? null
         : navigationFailed || reader.saveError ? { ...notices.saveFailed, onAction: () => void reader.persist().catch(() => setNavigationFailed(true)) }
-        : imageMode && imageReader.notice ? { ...imageReader.notice, onAction: imageReader.retry }
+        : imageMode && imageReader.notice && imageReader.recognition !== 'working' ? { ...imageReader.notice, onAction: imageReader.retry }
         : !imageMode && reader.analysisError ? { ...notices.lookupFailed, onAction: reader.retryAnalysis }
         : null;
     const languageControls = source ? <ReaderOptionsPanel client={client} source={source} reader={reader} imageMode={imageMode}
@@ -223,15 +225,31 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
         : null;
     // Vocabulary and recognition stay mounted while hidden so an uncertain
     // Practice admission or correction keeps its command identity for retry.
+    const toolsDisabled = !source || reader.pending || !imageReader.settings || imageReader.saving;
+    // A narrow panel covers the page; a tool that acts on the page reveals it.
+    const revealPage = () => { if (!wide) setPanel(null); };
+    const pageTools = imageMode ? <ImagePageTools disabled={toolsDisabled}
+        crop={cropMode} onCrop={() => { setInspection(null); setMagnifier(false); if (!cropMode) revealPage(); setCropMode(!cropMode); }}
+        magnifier={magnifier} onMagnifier={() => { setInspection(null); setCropMode(false); if (!magnifier) revealPage(); setMagnifier(!magnifier); }}
+        annotations={imageReader.settings?.showOverlay ?? true}
+        covers={imageReader.settings ? !imageReader.settings.showAnnotations : false}
+        onCovers={() => {
+            if (!imageReader.settings) return;
+            setInspection(null); void imageReader.changeSettings({ showAnnotations: !imageReader.settings.showAnnotations });
+        }} /> : null;
     const recognitionPanel = imageMode && source ? <View style={panel === 'options' ? undefined : styles.hidden}>
         <ImageRecognition client={client} reader={imageReader} onClose={() => {
             setPanel(null); requestAnimationFrame(() => optionsToggle.current?.focus());
-        }}>{languageControls}</ImageRecognition>
+        }}>{pageTools}{languageControls}</ImageRecognition>
     </View> : null;
+    // An image collection has no title of its own (only the picked folder's
+    // name), so it is named by what it is.
+    const title = !source ? '' : source.format === 'images'
+        ? `Images · ${source.totalPages} ${source.totalPages === 1 ? 'page' : 'pages'}` : source.title;
     const statusPosition = imageMode ? position
         : currentBlock ? currentBlock.image ? currentBlock.image.alt || 'Image' : currentBlock.text || null : null;
     return <View style={styles.screen(insets.top, insets.bottom)}>
-        <ReaderToolbar title={source?.title ?? ''} position={position} imageMode={imageMode} wide={wide} optionsRef={optionsToggle}
+        <ReaderToolbar title={title} position={position} imageMode={imageMode} wide={wide} optionsRef={optionsToggle}
             leadingInset={host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0}
             railOpen={railOpen} panelOpen={panel === 'vocabulary'} appearanceOpen={panel === 'appearance'} optionsOpen={panel === 'options'}
             disabled={!source || reader.pending} homeDisabled={departing}
@@ -267,8 +285,6 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                     recognizing={imageReader.recognition === 'working'} notice={recognitionNotice} onCancelRecognition={imageReader.stop}
                     onRetry={imageReader.retry}
                     onDismissInspection={() => setInspection(null)}
-                    onMagnify={(resourceId, crop) => host.available ? host.ocr.uri(sourceWindow.source.id, resourceId, crop)
-                        : Promise.reject(new Error('Native source pixels are unavailable.'))}
                     onThumbnail={(resourceId, thumbnail) => setThumbnails(previous => previous[resourceId]?.uri === thumbnail.uri
                         ? previous : { ...previous, [resourceId]: thumbnail })}
                     onCrop={(resourceId, crop) => { setCropMode(false); void imageReader.recognize(resourceId, crop); }}
@@ -318,7 +334,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 {vocabularyPanel}{sidePanel}{recognitionPanel}
             </ScrollView> : null}
         </View>
-        <ReaderStatusStrip position={statusPosition} imageMode={imageMode} status={status}
+        <ReaderStatusStrip position={statusPosition} status={status}
             inspectionMode={inspectionMode} onInspectionMode={setInspectionMode}
             annotations={imageMode ? imageReader.settings?.showOverlay ?? true : annotations}
             onAnnotations={() => {
@@ -326,13 +342,6 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
                 if (!imageMode) setAnnotations(value => !value);
                 else if (imageReader.settings) void imageReader.changeSettings({ showOverlay: !imageReader.settings.showOverlay });
             }}
-            readingFilter={imageReader.settings ? !imageReader.settings.showAnnotations : false}
-            onReadingFilter={() => {
-                if (!imageReader.settings) return;
-                setInspection(null); void imageReader.changeSettings({ showAnnotations: !imageReader.settings.showAnnotations });
-            }}
-            crop={cropMode} onCrop={() => { setInspection(null); setMagnifier(false); setCropMode(value => !value); }}
-            magnifier={magnifier} onMagnifier={() => { setInspection(null); setCropMode(false); setMagnifier(value => !value); }}
             controlsDisabled={!source || reader.pending || (imageMode && (!imageReader.settings || imageReader.saving))}
             notice={strip} />
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}

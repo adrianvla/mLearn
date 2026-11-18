@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import type { ReviewDelivery } from '@mlearn/contracts';
 import { createReviewAudioDelivery, type AudioState } from '../../apps/client/src/features/review-media/delivery';
+import { failureNoticeStub } from './failure-notice-stub';
 
 function fixture(overrides: {
   readonly initialDelivery?: ReviewDelivery;
@@ -262,6 +263,7 @@ test('ReviewAudio delivers real authored web audio, interrupts pause and support
             import React from 'react';
             export const Platform = { OS: 'web' };
             export const View = ({ children }) => <div>{children}</div>;
+            ${failureNoticeStub}
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
             export const Button = ({ label, disabled, onPress }) => <button disabled={disabled} onClick={onPress}>{label}</button>;
             export const StyleSheet = {

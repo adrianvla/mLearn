@@ -18,6 +18,9 @@ import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
 import { SourceActions } from '../explanation';
 import { KnowledgeEvidence } from './KnowledgeEvidence';
 import { GraphDetails } from './GraphDetails';
+import { PronunciationPlayback } from './PronunciationPlayback';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 export type Inspection = {
     sourceForm: string;
     context: string;
@@ -69,9 +72,9 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
     const [practiceRetry, setPracticeRetry] = useState<{
         readonly capability: string; readonly command: ReviewCommand;
     } | null>(null);
-    const [practiceError, setPracticeError] = useState('');
-    const [materialError, setMaterialError] = useState('');
-    const [error, setError] = useState('');
+    const [practiceError, setPracticeError] = useState<Failure | null>(null);
+    const [materialError, setMaterialError] = useState<Failure | null>(null);
+    const [error, setError] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState<ClaimChange | null>(null);
     const [lookupVersion, setLookupVersion] = useState(0);
@@ -99,10 +102,10 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         let active = true;
         const owner = {};
         scope.current = owner;
-        setMaterialError('');
-        setPracticeError('');
+        setMaterialError(null);
+        setPracticeError(null);
         setPracticeRetry(null);
-        setError('');
+        setError(null);
         setResult(null);
         setBusy(false);
         setRetry(null);
@@ -117,18 +120,18 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 setResult(value);
         }).catch(e => {
             if (active && scope.current === owner)
-                setError(String(e.message ?? e));
+                setError(failure(e, 'This entry couldn’t be looked up.'));
         });
         return () => { active = false; if (scope.current === owner) scope.current = null; };
     }, [client, packageId, inspection.packageRevision, targetId, lookupVersion]);
     function navigate(targets: string[]) {
         // Invalidate the previous lookup/claim before React runs effect cleanup.
         scope.current = null;
-        setMaterialError('');
-        setPracticeError('');
+        setMaterialError(null);
+        setPracticeError(null);
         setPracticeRetry(null);
         setResult(null);
-        setError('');
+        setError(null);
         setRetry(null);
         setExpandedCapability(null);
         setEvidenceCapability(null);
@@ -146,7 +149,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         if (!owner || busy || openingMaterial.current === owner) return;
         openingMaterial.current = owner;
         setBusy(true);
-        setMaterialError('');
+        setMaterialError(null);
         try {
             await onBeforeNavigate?.();
             if (scope.current !== owner) return;
@@ -157,10 +160,22 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 router.navigate({ pathname: '/materials', params: { id } });
             }
         } catch (cause) {
-            if (scope.current === owner) setMaterialError(cause instanceof Error ? cause.message : String(cause));
+            if (scope.current === owner) setMaterialError(failure(cause, 'This Material couldn’t be opened.'));
         } finally {
             if (openingMaterial.current === owner) openingMaterial.current = null;
             if (scope.current === owner) setBusy(false);
+        }
+    }
+    async function openVoiceSettings() {
+        const owner = scope.current;
+        if (!owner || busy) return;
+        try {
+            await onBeforeNavigate?.();
+            if (scope.current !== owner) return;
+            close();
+            router.navigate({ pathname: '/settings', params: { section: 'voice' } });
+        } catch (cause) {
+            if (scope.current === owner) setMaterialError(failure(cause, 'Settings couldn’t be opened.'));
         }
     }
     async function practice(capability: string, prepared?: ReviewCommand) {
@@ -175,7 +190,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         });
         startingPractice.current = owner;
         setBusy(true);
-        setPracticeError('');
+        setPracticeError(null);
         try {
             const committed = await client.review(command);
             if (scope.current !== owner) return;
@@ -187,7 +202,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         } catch (cause) {
             if (scope.current === owner) {
                 setPracticeRetry({ capability, command });
-                setPracticeError(cause instanceof Error ? cause.message : String(cause));
+                setPracticeError(failure(cause, 'Practice couldn’t start.'));
                 setEvidenceCapability(null);
                 setExpandedCapability(capability);
             }
@@ -205,7 +220,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
     async function commit(change: ClaimChange) {
         const owner = scope.current;
         setBusy(true);
-        setError('');
+        setError(null);
         try {
             await client.changeClaim(change);
             if (!owner || scope.current !== owner) return;
@@ -217,7 +232,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
         }
         catch (e) {
             if (owner && scope.current === owner) {
-                setError(e instanceof Error ? e.message : String(e));
+                setError(failure(e, 'Your knowledge change wasn’t saved.'));
                 setRetry(change);
             }
         }
@@ -271,12 +286,12 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                         <Text tone="media" variant="caption" accessibilityLiveRegion="polite">Starting Word Practice…</Text>
                     </> : practiceRetry?.capability === activeCapability.id ? <>
                         <Text tone="media">{`Practice ${activeCapability.label}`}</Text>
-                        <Text tone="media" accessibilityRole="alert">{practiceError}</Text>
+                        {practiceError ? <FailureNotice tone="media" message={practiceError.message} detail={practiceError.detail} /> : null}
                         <Row>
                             <Button label="Retry practice" variant="media" size="compact" disabled={busy}
                                 onPress={() => void practice(practiceRetry.capability, practiceRetry.command)} />
                             <Button label="Dismiss practice retry" variant="media" size="compact" disabled={busy}
-                                onPress={() => { setPracticeRetry(null); setPracticeError(''); }} />
+                                onPress={() => { setPracticeRetry(null); setPracticeError(null); }} />
                         </Row>
                     </> : <>
                     <View style={styles.pills}>
@@ -309,8 +324,9 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                             onPress={() => void practice(activeCapability.id)} /> : null}
                     </Row>
                     {error && retry?.key.capability === activeCapability.id ? <>
-                        <Text tone="media" accessibilityRole="alert">{error}</Text>
-                        <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
+                        <FailureNotice tone="media" message={error.message} detail={error.detail}>
+                            <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
+                        </FailureNotice>
                     </> : null}
                     </>}
                 </View> : null}
@@ -332,7 +348,7 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                     onOpenMaterial={id => void openMaterial(id)} /> : null}
                 {busy && openingMaterial.current === scope.current ? <Text tone="media" variant="caption"
                     accessibilityLiveRegion="polite">Saving source progress…</Text> : null}
-                {materialError ? <Text tone="media" accessibilityRole="alert">{materialError}</Text> : null}
+                {materialError ? <FailureNotice tone="media" message={materialError.message} detail={materialError.detail} /> : null}
                 {(!materialContent || !entry || readOnlySourceReason) ? moreActions() : null}
             </>}>
             {history.length ? <Row>
@@ -358,6 +374,8 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 {entry.presentation ? <Button label="Pronunciation details" icon="info" iconOnly size="compact" variant="media"
                     accessibilityState={{ expanded: showPronunciation }}
                     onPress={() => setShowPronunciation(value => !value)} /> : null}
+                <PronunciationPlayback key={entry.targetId} client={client} speech={host.available ? host.speech : undefined}
+                    text={entry.reading ?? entry.headword} disabled={busy} onOpenVoiceSettings={() => void openVoiceSettings()} />
                 </Row>
                 {!history.length && inspection.targets.length > 1 ? <>
                 <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure" surface="media" iconPosition="leading"
@@ -375,7 +393,11 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                 {entry.senses ? <View style={styles.dictionary}>
                     {entry.senses.map((sense, senseIndex) => <View key={senseIndex} style={styles.sense}>
                         <View style={styles.metadata}>
-                            {sense.heading ? <Badge label={sense.heading} /> : null}
+                            <View style={styles.tags}>
+                                {sense.labels.length ? sense.labels.map((label, labelIndex) => <View key={labelIndex} accessible accessibilityLabel={label}>
+                                    <Badge label={label.split(' (')[0]} />
+                                </View>) : sense.heading ? <Badge label={sense.heading} /> : null}
+                            </View>
                             <Button label={`Select sense ${senseIndex + 1} for capture`} variant="media" size="compact"
                                 icon={selectedSense === sense ? 'checkCircle' : 'circle'} iconOnly
                                 accessibilityState={{ selected: selectedSense === sense }}
@@ -416,11 +438,10 @@ function InspectorSession({ inspection, packageId, client, onChanged, onClose, o
                         onSaved={() => setCaptureRefresh(value => value + 1)} />
                 </Dialog> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
-            {error && !retry ? <>
-                <Text tone="media" accessibilityRole="alert">{error}</Text>
+            {error && !retry ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
                 <Button size="compact" variant="media" label="Retry lookup" disabled={busy}
                     onPress={() => setLookupVersion(v => v + 1)} />
-            </> : null}
+            </FailureNotice> : null}
         </ContextPanel>
     );
 }
@@ -436,6 +457,8 @@ const styles = StyleSheet.create(theme => ({
     },
     metadata: {
         flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.small
+    }, tags: {
+        flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.tiny, flexShrink: 1
     }, alternatives: {
         flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small
     }, pills: {

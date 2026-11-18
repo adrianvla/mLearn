@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 test('Inspector graph navigation keeps source identity separate from active targets', { timeout: 30000 }, async t => {
   // Inspector and React execute unchanged. The graph callback and presentation
@@ -141,6 +142,7 @@ test('Inspector graph navigation keeps source identity separate from active targ
             export const View = React.forwardRef(({ children, testID }, ref) => <div ref={ref} data-testid={testID}>{children}</div>);
             export const useWindowDimensions = () => ({ width: window.innerWidth, height: window.innerHeight, scale: 1, fontScale: 1 });
             export const Row = View;
+            ${failureNoticeStub}
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
             export const Badge = ({ label }) => <span>{label}</span>;
             export const Button = React.forwardRef(({ label, accessibilityLabel, accessibilityState, disabled, onPress }, ref) =>
@@ -239,7 +241,7 @@ test('Inspector graph navigation keeps source identity separate from active targ
             await expect(page.getByRole('heading')).toHaveText('headword alternative');
             assert.equal(JSON.parse(await page.getByTestId('capture-content').innerText()).targetId, 'alternative');
             await page.getByRole('button', { name: 'Graph: failed', exact: true }).click();
-            await expect(page.getByRole('alert')).toHaveText('lookup failed');
+            await expectFailure(page, 'This entry couldn’t be looked up.', 'lookup failed');
             await page.getByRole('button', { name: 'Retry lookup', exact: true }).click();
             await expect(page.getByRole('heading')).toHaveText('headword failed');
           } else if (scenario === 'bounded') {

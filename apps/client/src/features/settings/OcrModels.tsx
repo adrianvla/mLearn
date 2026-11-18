@@ -6,11 +6,23 @@ import type { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Text } from '@mlearn/ui/text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { Progress } from '@mlearn/ui/progress';
 import { Row, Stack, SettingRow } from '@mlearn/ui/layout';
+import { useDeveloperMode } from './developerMode';
+
+const phases = {
+    downloading: 'Downloading',
+    validating: 'Checking download',
+    succeeded: 'Installed',
+    failed: 'Installation failed',
+    cancelled: 'Cancelled',
+} satisfies Record<PackageInstallStatus['phase'], string>;
 
 type Models = NonNullable<Extract<ReturnType<typeof useRuntime>, { available: true }>['ocrModels']>;
 export function OcrModels({ models }: { readonly models: Models }) {
+    const [developerMode] = useDeveloperMode();
     const [focused, setFocused] = useState(false);
     useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
     const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -18,7 +30,7 @@ export function OcrModels({ models }: { readonly models: Models }) {
     const [status, setStatus] = useState<PackageInstallStatus | null>(null);
     const [pending, setPending] = useState<{ id: string; kind: string } | null>(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<Failure | null>(null);
     const [reload, setReload] = useState(0);
     const [removing, setRemoving] = useState<string | null>(null);
     const [cancelling, setCancelling] = useState(false);
@@ -41,7 +53,7 @@ export function OcrModels({ models }: { readonly models: Models }) {
         void models.list().then(value => {
             if (current) { setInventory(value); setStatus(value.installation); }
         }).catch((cause: unknown) => {
-            if (current) setError(cause instanceof Error ? cause.message : String(cause));
+            if (current) setError(failure(cause, 'OCR models couldn’t be listed.'));
         }).finally(() => { if (current) setLoading(false); });
         return () => { current = false; };
     }, [models, enabled, reload]);
@@ -57,7 +69,7 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 if (pending?.kind === 'install' || value?.phase === 'downloading' || value?.phase === 'validating')
                     timer = setTimeout(() => void read(), 500);
             } catch (cause) {
-                if (current) setError(cause instanceof Error ? cause.message : String(cause));
+                if (current) setError(failure(cause, 'Model installation progress couldn’t be read.'));
             }
         }
         void read();
@@ -65,9 +77,9 @@ export function OcrModels({ models }: { readonly models: Models }) {
     }, [models, enabled, pending?.kind, reload]);
     async function run(id: string, kind: string, action: () => Promise<void>) {
         if (running.current) return;
-        running.current = true; setPending({ id, kind }); setError(''); setResult(null);
+        running.current = true; setPending({ id, kind }); setError(null); setResult(null);
         try { await action(); }
-        catch (cause) { if (alive.current) setError(cause instanceof Error ? cause.message : String(cause)); }
+        catch (cause) { if (alive.current) setError(failure(cause, kind === 'install' ? 'This OCR model wasn’t installed.' : kind === 'remove' ? 'This OCR model wasn’t removed.' : 'This OCR model couldn’t be tested.')); }
         finally {
             running.current = false;
             if (alive.current) { setPending(null); setReload(value => value + 1); }
@@ -79,27 +91,31 @@ export function OcrModels({ models }: { readonly models: Models }) {
         try { const value = await models.cancel(); if (alive.current) setStatus(value); }
         catch (cause) {
             cancelLock.current = false;
-            if (alive.current) { setCancelling(false); setError(cause instanceof Error ? cause.message : String(cause)); }
+            if (alive.current) { setCancelling(false); setError(failure(cause, 'Model installation couldn’t be cancelled.')); }
         }
     }
     return <Stack>
         <Row><Button label="Refresh OCR models" variant="secondary" disabled={loading}
-            onPress={() => { setError(''); setReload(value => value + 1); }} /></Row>
-        {loading ? <Text variant="caption" accessibilityLiveRegion="polite">Reading native model inventory…</Text> : null}
-        {inventory?.catalogReason ? <Text variant="caption" accessibilityRole="alert" selectable>{inventory.catalogReason}</Text> : null}
-        {error ? <Text accessibilityRole="alert" selectable>{error}</Text> : null}
-        {inventory && !inventory.items.length ? <Text>No native OCR model profiles are available.</Text> : null}
+            onPress={() => { setError(null); setReload(value => value + 1); }} /></Row>
+        {loading ? <Text variant="caption" accessibilityLiveRegion="polite">Checking models…</Text> : null}
+        {inventory?.catalogReason ? <FailureNotice message="New models can’t be downloaded right now. Installed models still work."
+            detail={inventory.catalogReason} /> : null}
+        {error ? <FailureNotice message={error.message} detail={error.detail}>
+            <Button label="Retry" accessibilityLabel="Retry OCR models" variant="secondary" disabled={loading}
+                onPress={() => { setError(null); setReload(value => value + 1); }} />
+        </FailureNotice> : null}
+        {inventory && !inventory.items.length ? <Text>No text recognition models are available on this device.</Text> : null}
         {inventory?.items.map(model => <SettingRow key={model.id} label={model.label} description={<>
-            <Text variant="detail" muted selectable>{model.target} · {model.bytes} declared download bytes</Text>
+            {developerMode ? <Text variant="detail" muted selectable>{model.target} · {model.bytes} bytes</Text> : null}
             <Text variant="caption" tone={model.installed ? 'success' : 'content'}>
                 {model.installed ? 'Installed' : 'Not installed'}
                 {model.installed && model.installedRevision !== model.revision ? ' · update available' : ''}
             </Text>
-            {model.reason ? <Text variant="caption" selectable>{model.reason}</Text> : null}
+            {model.reason ? <FailureNotice message="This model can’t be used on this device." detail={model.reason} /> : null}
             {result?.id === model.id ? <>
-                <Text variant="caption" accessibilityLiveRegion="polite">
+                {developerMode ? <Text variant="caption" accessibilityLiveRegion="polite">
                     {result.value.detectedRegions} detected regions · {result.value.elapsedMs} ms engine work
-                </Text>
+                </Text> : null}
                 <Text selectable>{result.value.rawRecognition}</Text>
             </> : null}
         </>}>
@@ -116,7 +132,7 @@ export function OcrModels({ models }: { readonly models: Models }) {
                             const value = await models.test(model.id);
                             if (alive.current) setResult({ id: model.id, value });
                         })} />
-                    <Dialog title="Remove OCR model" description={`Remove ${model.label}'s installed inference resources. Saved sources and recognition are retained.`}
+                    <Dialog title="Remove OCR model" description={`Remove ${model.label} from this device? Saved sources and recognized text are kept.`}
                         open={removing === model.id} onOpenChange={open => setRemoving(open ? model.id : null)}
                         trigger={<Button label="Remove model" accessibilityLabel={`Remove ${model.label}`} variant="quiet" disabled={pending !== null || active} />}>
                         <Button label="Remove model resources" onPress={() => {
@@ -126,13 +142,12 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 </> : null}
             </Row>
         </SettingRow>)}
-        {status ? <SettingRow label={inventory?.items.find(model => model.id === status.command.pluginId)?.label ?? status.command.pluginId}
+        {status ? <SettingRow label={inventory?.items.find(model => model.id === status.command.pluginId)?.label ?? 'Text recognition model'}
             description={<>
-                <Text variant="caption" accessibilityLiveRegion="polite">{status.phase}</Text>
-                <Text variant="caption" muted>{status.downloadedBytes} bytes received{status.totalBytes === null ? '' : ` / ${status.totalBytes} declared`}</Text>
-                {active ? <Progress label="Native OCR model installation" value={status.totalBytes && status.totalBytes > 0
+                <Text variant="caption" accessibilityLiveRegion="polite">{phases[status.phase]}</Text>
+                {active ? <Progress label="Model installation" value={status.totalBytes && status.totalBytes > 0
                     ? status.downloadedBytes / status.totalBytes * 100 : undefined} /> : null}
-                {status.message ? <Text accessibilityRole={status.phase === 'failed' ? 'alert' : undefined} selectable>{status.message}</Text> : null}
+                {status.phase === 'failed' ? <FailureNotice message="This model wasn’t installed." detail={status.message} /> : null}
             </>}>
             {active ? <Button label={cancelling ? 'Cancellation requested' : 'Cancel OCR model installation'}
                 accessibilityLabel="Cancel OCR model installation" variant="secondary" disabled={cancelling}

@@ -17,6 +17,10 @@ export function ImageLayoutControls({ reader, onBeforeAction }: {
     const settings = reader?.settings;
     const disabled = !reader || !settings || reader.saving;
     const hint = reader ? undefined : textReason;
+    // On reads as selected (accent), never as the dimmed disabled state; without
+    // Double Page the toggle is off and says why beside it.
+    const paired = !!settings?.paired;
+    const solo = paired && !!settings?.firstPageSingle;
     function change(value: Partial<ImageReaderSettings>) {
         if (!reader) return;
         onBeforeAction(); void reader.changeSettings(value);
@@ -31,10 +35,11 @@ export function ImageLayoutControls({ reader, onBeforeAction }: {
         <Select label="Page order" size="compact" value={settings?.direction ?? 'rtl'} disabled={disabled}
             options={directions}
             onValueChange={value => change({ direction: value === 'rtl' ? 'rtl' : 'ltr' })} />
-        <Button label="First solo" accessibilityLabel="First page alone" variant="secondary" size="compact"
-            disabled={disabled || !settings.paired} accessibilityHint={hint ?? (settings?.paired ? undefined : 'Available with Double Page.')}
-            accessibilityState={{ selected: !!settings?.firstPageSingle, disabled: disabled || !settings.paired }}
+        <Button label="First solo" accessibilityLabel="First page alone" variant={solo ? 'primary' : 'secondary'} size="compact"
+            disabled={disabled || !paired} accessibilityHint={hint ?? (paired ? undefined : 'Available with Double Page.')}
+            accessibilityState={{ selected: solo }}
             onPress={() => { if (settings) change({ firstPageSingle: !settings.firstPageSingle }); }} />
-        {!reader ? <Text variant="detail" muted accessibilityLabel={textReason}>Images only</Text> : null}
+        {!reader ? <Text variant="detail" muted accessibilityLabel={textReason}>Images only</Text>
+            : settings && !paired ? <Text variant="detail" muted>Double Page only</Text> : null}
     </>;
 }

@@ -7,23 +7,26 @@ import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
+import { SegmentedControl } from '@mlearn/ui/segmented-control';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Action = { readonly origin: string; readonly run: () => Promise<void> };
 type Actions = {
   readonly client: RuntimeClient;
   readonly busy: boolean;
-  readonly error: string;
+  readonly error: Failure | null;
   readonly origin: string;
   readonly act: (action: Action) => Promise<void>;
   readonly retry: Action | null;
 };
 export function ActionFeedback({ actions, origin }: { readonly actions: Actions; readonly origin: string }) {
   if (!actions.error || actions.origin !== origin) return null;
-  return <View style={styles.feedback}><Text accessibilityRole="alert" variant="caption">{actions.error}</Text>
+  return <FailureNotice message={actions.error.message} detail={actions.error.detail}>
     {actions.retry?.origin === origin ? <Button label="Retry action" size="compact" variant="secondary"
-      disabled={actions.busy} onPress={() => { if (actions.retry) void actions.act(actions.retry); }} /> : null}</View>;
+      disabled={actions.busy} onPress={() => { if (actions.retry) void actions.act(actions.retry); }} /> : null}</FailureNotice>;
 }
 
 export function ContactEditor({ actions, contact, trigger, onSaved }: {
@@ -33,11 +36,12 @@ export function ContactEditor({ actions, contact, trigger, onSaved }: {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(contact?.name ?? '');
   const [description, setDescription] = useState(contact?.description ?? '');
+  const [voice, setVoice] = useState(contact?.voice ?? '');
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   function save() {
     const command = actions.client.prepareConversationContact({
-      ...(contact ?? {}), name, description, archived: contact?.archived ?? false,
+      ...(contact ?? {}), name, description, voice: voice.trim(), archived: contact?.archived ?? false,
     });
     void actions.act({ origin: 'contact-editor', run: async () => {
       const saved = await actions.client.saveConversationContact(command);
@@ -46,13 +50,15 @@ export function ContactEditor({ actions, contact, trigger, onSaved }: {
   }
   return <Dialog open={open} onOpenChange={value => {
     if (actions.busy) return;
-    if (value) { setName(contact?.name ?? ''); setDescription(contact?.description ?? ''); }
+    if (value) { setName(contact?.name ?? ''); setDescription(contact?.description ?? ''); setVoice(contact?.voice ?? ''); }
     setOpen(value);
   }}
     title={contact ? 'Edit person' : 'New person'}
     trigger={trigger}>
     <TextField testID="conversation-person-name" label="Name" value={name} onChangeText={setName} maxLength={256} editable={!actions.busy} />
     <TextField testID="conversation-person-description" label="Description" value={description} onChangeText={setDescription} multiline maxLength={8192} editable={!actions.busy} />
+    <TextField testID="conversation-person-voice" label="Voice" placeholder="Default voice" value={voice} onChangeText={setVoice}
+      autoCapitalize="none" autoCorrect={false} maxLength={256} editable={!actions.busy} />
     <ActionFeedback actions={actions} origin="contact-editor" />
     <Button label="Save person" disabled={!name.trim() || actions.busy} onPress={save} />
   </Dialog>;
@@ -68,10 +74,12 @@ export function ConversationEditor({ actions, conversation, people, languages, o
   const [purpose, setPurpose] = useState(conversation?.purpose ?? '');
   const [packageId, setPackageId] = useState(conversation?.packageId ?? languages[0]?.id ?? '');
   const [participants, setParticipants] = useState<string[]>(conversation?.participants ?? []);
+  const [kind, setKind] = useState<'thread' | 'room'>(conversation?.kind === 'room' ? 'room' : 'thread');
+  const [absent, setAbsent] = useState<string[]>(conversation?.absent ?? []);
   const [available, setAvailable] = useState<Contact[]>([...people]);
   const [query, setQuery] = useState('');
   const [next, setNext] = useState<string | null>(null);
-  const [peopleError, setPeopleError] = useState('');
+  const [peopleError, setPeopleError] = useState<Failure | null>(null);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const peopleEpoch = useRef(0);
@@ -79,14 +87,15 @@ export function ConversationEditor({ actions, conversation, people, languages, o
     const owned = ++peopleEpoch.current;
     if (!open) return;
     actions.client.conversationContacts(query).then(page => {
-      if (peopleEpoch.current === owned) { setAvailable(page.items); setNext(page.next); setPeopleError(''); }
-    }).catch(cause => { if (peopleEpoch.current === owned) setPeopleError(cause instanceof Error ? cause.message : 'People could not be loaded.'); });
+      if (peopleEpoch.current === owned) { setAvailable(page.items); setNext(page.next); setPeopleError(null); }
+    }).catch(cause => { if (peopleEpoch.current === owned) setPeopleError(failure(cause, 'People couldn’t be loaded.')); });
     return () => { if (peopleEpoch.current === owned) peopleEpoch.current++; };
   }, [actions.client, query, open]);
   function save() {
-    const value = { title, purpose, packageId, participants, kind: 'thread' as const };
+    const value = { title, purpose, packageId, participants, kind };
     if (conversation) {
-      const command = actions.client.prepareConversationUpdate({ ...conversation, title, purpose, participants });
+      const command = actions.client.prepareConversationUpdate({ ...conversation, title, purpose, participants,
+        absent: conversation.kind === 'room' ? absent.filter(id => participants.includes(id)) : [] });
       void actions.act({ origin: 'conversation-editor', run: async () => {
         const result = await actions.client.updateConversation(command);
         if (alive.current) { await onSaved(result); setOpen(false); }
@@ -105,12 +114,17 @@ export function ConversationEditor({ actions, conversation, people, languages, o
       setTitle(conversation?.title ?? ''); setPurpose(conversation?.purpose ?? '');
       setPackageId(conversation?.packageId ?? languages[0]?.id ?? '');
       setParticipants(conversation?.participants ?? []); setAvailable([...people]); setQuery('');
+      setKind(conversation?.kind === 'room' ? 'room' : 'thread'); setAbsent(conversation?.absent ?? []);
     }
     setOpen(value);
   }}
-    title={conversation ? 'Conversation details' : 'New temporary Thread'}
-    description={conversation?.kind === 'direct' ? 'This conversation keeps the same person and language.' : 'Temporary practice with selected People. Discarding does not remove captured Material.'}
+    title={conversation ? 'Conversation details' : 'New conversation'}
     trigger={trigger}>
+    {!conversation ? <SegmentedControl value={kind} onValueChange={value => setKind(value === 'room' ? 'room' : 'thread')}
+      options={[{ value: 'thread', label: 'Separate history' }, { value: 'room', label: 'Shared history' }]} /> : null}
+    <Text variant="caption" muted>{conversation?.kind === 'direct' ? 'Keeps the same person and language.'
+      : (conversation?.kind ?? kind) === 'room' ? 'Shared history: People remember what they were present for.'
+        : 'Separate history: practice you can discard. Captured Material stays.'}</Text>
     <TextField label="Title" value={title} onChangeText={setTitle} maxLength={256} editable={!actions.busy} />
     <TextField label="Purpose" value={purpose} onChangeText={setPurpose} maxLength={4096} editable={!actions.busy} multiline />
     <Select label="Conversation language" value={packageId} onValueChange={setPackageId}
@@ -122,6 +136,10 @@ export function ConversationEditor({ actions, conversation, people, languages, o
       <Text variant="caption">Participants ({participants.length}/8)</Text>
       {participants.map(id => <Row key={id}>
         <Text>{available.find(person => person.id === id)?.name ?? people.find(person => person.id === id)?.name ?? id}</Text>
+        {conversation?.kind === 'room' ? <Button label="Away" size="compact" variant="secondary"
+          accessibilityLabel={`${available.find(person => person.id === id)?.name ?? people.find(person => person.id === id)?.name ?? id} is away`}
+          accessibilityState={{ selected: absent.includes(id) }} disabled={actions.busy}
+          onPress={() => setAbsent(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id])} /> : null}
         <Button label="Remove" accessibilityLabel={`Remove ${available.find(person => person.id === id)?.name ?? id}`}
           variant="quiet" size="compact" disabled={actions.busy} onPress={() => setParticipants(previous => previous.filter(value => value !== id))} />
       </Row>)}
@@ -130,16 +148,16 @@ export function ConversationEditor({ actions, conversation, people, languages, o
         label={person.name} detail={person.description} variant="navigation" size="compact"
         disabled={participants.length >= 8 || actions.busy}
         onPress={() => setParticipants(previous => [...previous, person.id])} />)}
-      {peopleError ? <Text accessibilityRole="alert">{peopleError}</Text> : null}
+      {peopleError ? <FailureNotice message={peopleError.message} detail={peopleError.detail} /> : null}
       {next ? <Button label="More People" variant="quiet" onPress={() => {
         const owned = peopleEpoch.current;
         void actions.client.conversationContacts(query, false, next).then(page => {
           if (peopleEpoch.current === owned) { setAvailable(page.items); setNext(page.next); }
-        }).catch(cause => { if (peopleEpoch.current === owned) setPeopleError(cause instanceof Error ? cause.message : 'People could not be loaded.'); });
+        }).catch(cause => { if (peopleEpoch.current === owned) setPeopleError(failure(cause, 'People couldn’t be loaded.')); });
       }} /> : null}
     </> : null}
     <ActionFeedback actions={actions} origin="conversation-editor" />
-    <Button label={conversation ? 'Save conversation' : 'Create Thread'} disabled={!title.trim() || !packageId || !participants.length || actions.busy} onPress={save} />
+    <Button label={conversation ? 'Save conversation' : kind === 'room' ? 'Create conversation' : 'Create Thread'} disabled={!title.trim() || !packageId || !participants.length || actions.busy} onPress={save} />
   </Dialog>;
 }
 
@@ -149,18 +167,18 @@ export function ProviderDialog({ client }: { readonly client: RuntimeClient }) {
   const [endpoint, setEndpoint] = useState('');
   const [model, setModel] = useState('');
   const [credential, setCredential] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef<ReturnType<RuntimeClient['prepareConversationProvider']> | null>(null);
   const epoch = useRef(0);
   async function load() {
     const owned = ++epoch.current;
-    setBusy(true); setError('');
+    setBusy(true); setError(null);
     try {
       const value = await client.conversationProvider();
       if (owned !== epoch.current) return;
       setSettings(value); setEndpoint(value.endpoint); setModel(value.model);
-    } catch { if (owned === epoch.current) setError('Provider settings could not be loaded.'); }
+    } catch { if (owned === epoch.current) setError({ message: 'Provider settings couldn’t be loaded.', detail: null }); }
     finally { if (owned === epoch.current) setBusy(false); }
   }
   async function save() {
@@ -168,7 +186,7 @@ export function ProviderDialog({ client }: { readonly client: RuntimeClient }) {
     const owned = epoch.current;
     const command = pending.current ?? client.prepareConversationProvider(settings.revision, endpoint, model);
     pending.current = command;
-    setBusy(true); setError('');
+    setBusy(true); setError(null);
     try {
       const value = await client.saveConversationProvider(command);
       if (owned === epoch.current) { pending.current = null; setSettings(value); }
@@ -177,19 +195,19 @@ export function ProviderDialog({ client }: { readonly client: RuntimeClient }) {
         // These native validation failures precede admission. Unknown transport
         // or receipt outcomes must retain their original command instead.
         if (cause instanceof RuntimeError && ['provider_unavailable', 'invalid_conversation'].includes(cause.code)) {
-          pending.current = null; setError(cause.message);
-        } else setError('Provider settings could not be saved. Retry retains the same command.');
+          pending.current = null; setError(failure(cause, 'These provider settings weren’t accepted. Check the endpoint and model.'));
+        } else setError(failure(cause, 'Provider settings weren’t saved. Retry to send the same change.'));
       }
     }
     finally { if (owned === epoch.current) setBusy(false); }
   }
   async function setKey(clear = false) {
     const key = clear ? null : credential;
-    setCredential(''); setBusy(true); setError('');
+    setCredential(''); setBusy(true); setError(null);
     try {
       const ready = await client.setConversationSessionCredential(key);
       setSettings(previous => previous && ({ ...previous, sessionCredentialReady: ready }));
-    } catch { setError('Session credential could not be updated. Enter it again to retry.'); }
+    } catch { setError({ message: 'The session key wasn’t updated. Enter it again to retry.', detail: null }); }
     finally { setBusy(false); }
   }
   return <Dialog open={open} onOpenChange={value => {
@@ -209,8 +227,8 @@ export function ProviderDialog({ client }: { readonly client: RuntimeClient }) {
     <Row><Button label="Set session key" disabled={busy || !credential} onPress={() => void setKey()} />
       <Button label="Clear session key" disabled={busy} variant="secondary" onPress={() => void setKey(true)} /></Row>
     <Text variant="caption">{settings?.sessionCredentialReady ? 'Session credential set' : 'No session credential set'}</Text>
-    {error ? <><Text accessibilityRole="alert">{error}</Text>
-      {!settings ? <Button label="Retry loading settings" variant="secondary" disabled={busy} onPress={() => void load()} /> : null}</> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      {!settings ? <Button label="Retry loading settings" variant="secondary" disabled={busy} onPress={() => void load()} /> : null}</FailureNotice> : null}
   </Dialog>;
 }
 
@@ -220,17 +238,22 @@ export function RuntimeTrace({ client, generationId, openRevision = 0 }: {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<ConversationTracePage | null>(null);
   const [after, setAfter] = useState<number | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => { if (openRevision > 0) { setAfter(null); setOpen(true); } }, [openRevision]);
+  // Only a new request opens the trace; a remount with an earlier request must not.
+  const handled = useRef(openRevision);
+  useEffect(() => {
+    if (openRevision > handled.current) { setAfter(null); setOpen(true); }
+    handled.current = openRevision;
+  }, [openRevision]);
   useEffect(() => {
     let active = true;
-    setPage(null); setError('');
+    setPage(null); setError(null);
     if (!open || !generationId) return;
     setBusy(true);
     client.conversationTrace(generationId, after).then(value => { if (active) setPage(value); })
-      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Trace could not be read.'); })
+      .catch(cause => { if (active) setError(failure(cause, 'This execution trace couldn’t be read.')); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
   }, [client, open, generationId, after, attempt]);
@@ -252,11 +275,10 @@ export function RuntimeTrace({ client, generationId, openRevision = 0 }: {
       <Row><Button label="First trace page" variant="secondary" disabled={busy || after === null} onPress={() => setAfter(null)} />
         <Button label="Next trace page" variant="secondary" disabled={busy || page.next === null} onPress={() => setAfter(page.next)} /></Row>
     </> : null}
-    {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail} /> : null}
     {generationId ? <Button label="Refresh trace" disabled={busy} variant="quiet" onPress={() => setAttempt(value => value + 1)} /> : null}
   </Dialog>;
 }
 const styles = StyleSheet.create(theme => ({
-  feedback: { gap: theme.spacing.small },
   trace: { gap: theme.spacing.tiny, paddingVertical: theme.spacing.small, borderBottomWidth: 1, borderColor: theme.colors.border },
 }));

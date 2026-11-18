@@ -11,6 +11,8 @@ import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MaterialProposalReview } from '../material';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Flight = {
   readonly admit: () => Promise<ConversationGeneration>;
@@ -51,7 +53,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
   const [generation, setGeneration] = useState<ConversationGeneration | null>(null);
   const [answer, setAnswer] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [feedback, setFeedback] = useState('');
   const mounted = useRef(true);
   const active = useRef<Flight | null>(null);
@@ -67,11 +69,11 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
   ));
   const variant = tone === 'media' ? 'pill' : 'quiet';
 
-  function report(cause: unknown) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    if (mounted.current) setError(message);
-    else console.error(`Explanation cleanup failed; its saved Thread remains available in Chats: ${message}`);
+  function report(cause: unknown, message = 'This explanation didn’t finish.') {
+    if (mounted.current) setError(failure(cause, message));
+    else console.error(`Explanation cleanup failed; its saved Thread remains available in Chats: ${cause instanceof Error ? cause.message : String(cause)}`);
   }
+  const stopFailed = (cause: unknown) => report(cause, 'The explanation couldn’t be stopped.');
   function resolveAdmission(flight: Flight): Promise<ConversationGeneration> {
     if (flight.generation) return Promise.resolve(flight.generation);
     flight.admission ??= flight.admit().then(value => {
@@ -115,7 +117,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       mounted.current = false;
       intentEpoch.current++;
       const flight = active.current ?? displayed.current ?? uncertain.current;
-      if (flight) void cancel(flight).catch(report);
+      if (flight) void cancel(flight).catch(stopFailed);
     };
   }, [client]);
   useEffect(() => {
@@ -123,12 +125,12 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     const flight = active.current ?? displayed.current ?? uncertain.current;
     active.current = null;
     displayed.current = null;
-    if (flight) void cancel(flight).catch(report);
+    if (flight) void cancel(flight).catch(stopFailed);
     setPending(false);
     setOpen(false);
     setGeneration(null);
     setAnswer('');
-    setError('');
+    setError(null);
     setFeedback('');
   }, [sourceIdentity]);
 
@@ -151,7 +153,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       setAnswer(message.text);
       if (!running(current)) {
         if (current.status !== 'complete')
-          setError(current.error ?? `Explanation ${current.status.replaceAll('_', ' ')}. Partial text is retained.`);
+          setError({ message: current.status === 'cancelled' ? 'This explanation was stopped. Its partial text is kept.' : 'This explanation didn’t finish. Its partial text is kept.', detail: current.error ?? null });
         return;
       }
       // This is bounded progress sampling across the common native command
@@ -169,7 +171,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     active.current = flight;
     displayed.current = flight;
     setPending(true);
-    setError('');
+    setError(null);
     uncertain.current = flight;
     try {
       const admitted = await resolveAdmission(flight);
@@ -193,7 +195,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       catch (cause) {
         if (mounted.current && currentSource.current === sourceIdentity && intentEpoch.current === owned) {
           setPending(false);
-          report(cause);
+          stopFailed(cause);
         }
         return;
       }
@@ -214,7 +216,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     }
     if (uncertain.current) {
       const flight = uncertain.current;
-      if (flight.cancelled) void cancel(flight).catch(report);
+      if (flight.cancelled) void cancel(flight).catch(stopFailed);
       else void begin(flight.admit);
     } else if (generation && running(generation)) {
       void begin(() => Promise.resolve(generation));
@@ -240,7 +242,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         if (flight?.sourceIdentity === sourceIdentity) {
           if (flight.cancelled) {
             displayed.current = flight;
-            void cancel(flight).catch(report);
+            void cancel(flight).catch(stopFailed);
           } else void begin(flight.admit);
         } else void requestExplanation();
       }
@@ -248,10 +250,10 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       intentEpoch.current++;
       setPending(false);
       const flight = active.current ?? displayed.current ?? uncertain.current;
-      if (flight) void cancel(flight).catch(report);
+      if (flight) void cancel(flight).catch(stopFailed);
       else if (running(generation) && generation) {
         const stop = client.prepareConversationStop(generation.id);
-        void client.stopConversationGeneration(stop).then(setGeneration).catch(report);
+        void client.stopConversationGeneration(stop).then(setGeneration).catch(stopFailed);
       }
     }
   }
@@ -259,8 +261,8 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     try {
       if (!host.available) throw new Error(host.reason);
       await host.copyText(text);
-      if (mounted.current) { setFeedback('Copied.'); setError(''); }
-    } catch (cause) { report(cause); }
+      if (mounted.current) { setFeedback('Copied.'); setError(null); }
+    } catch (cause) { report(cause, 'The text wasn’t copied.'); }
   }
   return <View>
     <Row wrap={tone !== 'media'}>
@@ -281,17 +283,17 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
         {generation ? <Text muted variant="caption" accessibilityLiveRegion="polite">
           {generation.status.replaceAll('_', ' ')}
         </Text> : null}
-        {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+        {error ? <FailureNotice message={error.message} detail={error.detail} /> : null}
         <Row>
           {running(generation) || pending || uncertain.current ? <Button label="Stop explanation" variant="secondary"
             onPress={() => {
               intentEpoch.current++;
               setPending(false);
               const flight = active.current ?? displayed.current ?? uncertain.current;
-              if (flight) void cancel(flight).catch(report);
+              if (flight) void cancel(flight).catch(stopFailed);
               else if (generation) void client.stopConversationGeneration(
                 client.prepareConversationStop(generation.id),
-              ).then(setGeneration).catch(report);
+              ).then(setGeneration).catch(stopFailed);
             }} /> : null}
           {!pending ? <Button label={error && !instructionChanged ? 'Retry explanation' : 'Ask another question'} onPress={retry} /> : null}
           <Button label="Provider settings in Chats" variant="quiet" onPress={() => {
@@ -324,6 +326,6 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
       onReturnToSource={onReturnToSource} />
     {feedback ? <Text tone={tone} variant="caption" accessibilityLiveRegion="polite">{feedback}</Text> : null}
     {explanationDisabledReason ? <Text tone={tone} variant="caption" muted>{explanationDisabledReason}</Text> : null}
-    {!open && error ? <Text tone={tone} variant="caption" accessibilityRole="alert">{error}</Text> : null}
+    {!open && error ? <FailureNotice tone={tone} message={error.message} detail={error.detail} /> : null}
   </View>;
 }

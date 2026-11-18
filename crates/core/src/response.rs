@@ -46,6 +46,9 @@ pub enum Response {
     Conversation {
         result: crate::ConversationResult,
     },
+    Speech {
+        result: crate::SpeechResult,
+    },
     ConversationMaterialSource {
         conversation: crate::Conversation,
         message: crate::ConversationMessage,

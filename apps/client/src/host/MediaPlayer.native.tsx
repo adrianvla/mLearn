@@ -60,7 +60,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         });
         const status = player.addListener('statusChange', ({ status, error }) => {
             if (status === 'error')
-                callbacks.current.onError(error?.message ?? 'Video unavailable. Reselect a compatible local file.');
+                callbacks.current.onError('This video can’t be played here. Your place is kept; choose another copy of the video.', error?.message);
         });
         return () => {
             // Expo releases the shared player in its earlier hook cleanup. Never read it here.

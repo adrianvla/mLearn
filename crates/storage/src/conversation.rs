@@ -1,6 +1,6 @@
-use crate::{conversation_read::*, ProfileStore, StorageError};
+use crate::{ProfileStore, StorageError, conversation_read::*};
 use mlearn_core::*;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, params};
 use sha2::{Digest, Sha256};
 
 pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
@@ -35,7 +35,7 @@ pub(super) fn persist_conversation(
             &value.package_id,
             &value.participants[0],
         ))?),
-        ConversationKind::Direct | ConversationKind::Thread => None,
+        ConversationKind::Direct | ConversationKind::Thread | ConversationKind::Room => None,
     };
     db.execute("INSERT INTO conversations(id,data,direct_key) VALUES(?1,?2,?3) ON CONFLICT(id) DO UPDATE SET data=excluded.data,direct_key=excluded.direct_key",
         params![value.id.0, serde_json::to_string(value)?, direct_key])?;
@@ -64,7 +64,9 @@ fn command_identity(command: &ConversationCommand) -> Option<&str> {
         | ConversationCommand::DeleteMessage { command_id, .. }
         | ConversationCommand::CancelGeneration { command_id, .. }
         | ConversationCommand::SaveProviderSettings { command_id, .. }
-        | ConversationCommand::Explain { command_id, .. } => Some(command_id),
+        | ConversationCommand::Explain { command_id, .. }
+        | ConversationCommand::SaveWorld { command_id, .. }
+        | ConversationCommand::IntegrateThread { command_id, .. } => Some(command_id),
         ConversationCommand::SendTurn { turn } => Some(&turn.command_id),
         ConversationCommand::RetryGeneration { retry } => Some(&retry.command_id),
         ConversationCommand::GenerateMaterial { command } => Some(&command.command_id),
@@ -77,6 +79,8 @@ fn command_identity(command: &ConversationCommand) -> Option<&str> {
         | ConversationCommand::PrepareTurn { .. }
         | ConversationCommand::ReadGeneration { .. }
         | ConversationCommand::ReadTrace { .. }
+        | ConversationCommand::ReadWorld { .. }
+        | ConversationCommand::ReadMemory { .. }
         | ConversationCommand::ReadProviderSettings
         | ConversationCommand::SetSessionCredential { .. }
         | ConversationCommand::AnalyzeVisibleMessages { .. }
@@ -180,6 +184,9 @@ fn refresh(
         },
         ConversationResult::ProviderSettings { .. } => ConversationResult::ProviderSettings {
             settings: settings(db, ready)?,
+        },
+        ConversationResult::World { world } => ConversationResult::World {
+            world: crate::conversation_world::world(db, &world.conversation_id)?,
         },
         ConversationResult::Contacts { .. }
         | ConversationResult::Conversations { .. }
@@ -355,7 +362,13 @@ fn execute(
             }
             let mut saved = value.clone();
             saved.revision = next(previous.revision)?;
-            crate::conversation_generation::invalidate_conversation(db, &saved.id)?;
+            if saved.kind == ConversationKind::Room {
+                // A Room's history is an authoritative record; presence or membership changes
+                // stop only work still being generated under the old composition.
+                crate::conversation_generation::invalidate_active(db, &saved.id)?;
+            } else {
+                crate::conversation_generation::invalidate_conversation(db, &saved.id)?;
+            }
             persist_conversation(db, &saved)?;
             R::Conversation {
                 conversation: saved,
@@ -436,11 +449,13 @@ fn execute(
             let owner = live_conversation(db, conversation_id, *expected_revision)?;
             let (messages, truncated) = context(db, &owner, None)?;
             let people = participants(db, &owner)?;
+            let speaker = crate::conversation_world::speaker(&owner, &people, &messages);
             R::Prepared {
                 conversation: owner,
                 participants: people,
                 messages,
                 truncated,
+                speaker,
             }
         }
         C::SendTurn { turn } => R::Generation {
@@ -496,6 +511,39 @@ fn execute(
         C::GenerateMaterial { command } => R::Generation {
             generation: crate::material_generation::admit(db, command)?,
         },
+        C::ReadWorld { conversation_id } => R::World {
+            world: crate::conversation_world::world(db, conversation_id)?,
+        },
+        C::SaveWorld {
+            world,
+            expected_revision,
+            ..
+        } => R::World {
+            world: crate::conversation_world::save_world(db, world, *expected_revision)?,
+        },
+        C::IntegrateThread {
+            command_id,
+            thread_id,
+            room_id,
+            expected_room_revision,
+            messages: references,
+        } => R::Conversation {
+            conversation: crate::conversation_world::integrate(
+                db,
+                command_id,
+                thread_id,
+                room_id,
+                *expected_room_revision,
+                references,
+            )?,
+        },
+        C::ReadMemory {
+            conversation_id,
+            contact_id,
+            before,
+        } => R::Messages {
+            page: crate::conversation_world::memory(db, conversation_id, contact_id, *before)?,
+        },
         C::SetSessionCredential { .. }
         | C::AnalyzeVisibleMessages { .. }
         | C::AnalyzeMessageSource { .. } => {
@@ -525,6 +573,7 @@ fn admit_explanation(
         package_id: source.package_id.clone(),
         participants: vec![participant.clone()],
         discarded: false,
+        absent: Vec::new(),
     };
     let exists: bool = db.query_row(
         "SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?1)",
@@ -572,6 +621,7 @@ pub(super) fn assistant(db: &Connection) -> Result<ContactId, StorageError> {
             name: "Assistant".into(),
             description: "Software assistant for contextual language explanations.".into(),
             archived: false,
+            voice: String::new(),
         };
         db.execute(
             "INSERT INTO conversation_contacts VALUES(?1,?2)",

@@ -20,6 +20,8 @@ import { Inspector, type Inspection } from '../inspector';
 import { Transcript } from './Transcript';
 import { LiveWordCards } from './LiveWordCards';
 import { MediaOverlay } from '@mlearn/ui/media-overlay';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { cueAnchor, emptyMaterial, MaterialEditor } from '../material';
 import { SourceEntryScreen } from '../source-entry';
 type VideoSelection = SourceAnchor & {
@@ -66,8 +68,8 @@ function WatchWorkspace() {
     const restoredInspection = useRef<SourceAnchor | null>(null);
     const selectedSource = useRef(returnedSelection);
     selectedSource.current = returnedSelection;
-    const [error, setError] = useState('');
-    const [analysisError, setAnalysisError] = useState('');
+    const [error, setError] = useState<Failure | null>(null);
+    const [analysisError, setAnalysisError] = useState<Failure | null>(null);
     const [analysisPending, setAnalysisPending] = useState(false);
     const analysisStarted = useRef(0);
     useLayoutEffect(() => {
@@ -79,7 +81,7 @@ function WatchWorkspace() {
         });
         return () => cancelAnimationFrame(frame);
     }, [batch]);
-    const [saveError, setSaveError] = useState('');
+    const [saveError, setSaveError] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
     const [replacement, setReplacement] = useState<{ from: string; to: string; owner: object | null } | null>(null);
     const [opening, setOpening] = useState(false);
@@ -99,7 +101,7 @@ function WatchWorkspace() {
     const playbackTrigger = useRef<View>(null);
     const playbackOpener = useRef<'toolbar' | 'offset'>('toolbar');
     const [offsetDraft, setOffsetDraft] = useState('0');
-    const [playbackError, setPlaybackError] = useState('');
+    const [playbackError, setPlaybackError] = useState<Failure | null>(null);
     const [languages, setLanguages] = useState<PluginSummary[]>([]);
     const [sourceReload, setSourceReload] = useState(0);
     const [analysisReload, setAnalysisReload] = useState(0);
@@ -148,7 +150,7 @@ function WatchWorkspace() {
         void host.client.snapshot().then(snapshot => {
             if (active) setLanguages(snapshot.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1')));
         }).catch((cause: unknown) => {
-            if (active) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
+            if (active) setPlaybackError(failure(cause, 'Playback settings couldn’t be loaded.'));
         });
         return () => { active = false; };
     }, [host, playbackOpen]);
@@ -228,7 +230,7 @@ function WatchWorkspace() {
             }
         }).catch(e => {
             if (active && current.isCurrent())
-                setError(e.message);
+                setError(failure(e, 'This video couldn’t be opened.'));
         });
         return () => {
             active = false;
@@ -238,7 +240,7 @@ function WatchWorkspace() {
             const owned = session.current;
             void owned?.cancel().catch(e => {
                 if (mounted.current && session.current === owned)
-                    setError(e instanceof Error ? e.message : String(e));
+                    setError(failure(e, 'This video didn’t close cleanly. Open it again.'));
             });
         };
     }, [host, id, params.materialId, params.proposalId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
@@ -264,7 +266,7 @@ function WatchWorkspace() {
                 setWindow(w);
         }).catch(e => {
             if (active && current?.isCurrent() && e.code !== 'cancelled')
-                setError(e.message);
+                setError(failure(e, 'Subtitles for this moment couldn’t be loaded.'));
         });
         return () => { active = false; };
     }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, sourceReload, sourceCovered]);
@@ -281,12 +283,12 @@ function WatchWorkspace() {
                 b.subtitleRevision === source.subtitleRevision &&
                 b.packageId === source.packageId && b.packageVersion === source.packageVersion) {
                 setBatch(b);
-                setAnalysisError('');
+                setAnalysisError(null);
             }
         }).catch(e => {
             if (active && current?.isCurrent() && e.code !== 'cancelled') {
                 setBatch(null);
-                setAnalysisError(e.message);
+                setAnalysisError(failure(e, 'Words in these subtitles couldn’t be analyzed.'));
             }
         }).finally(() => { if (active) setAnalysisPending(false); });
         return () => { active = false; setAnalysisPending(false); };
@@ -298,12 +300,12 @@ function WatchWorkspace() {
             await host.client.savePosition(id, Math.min(positionMs, durationMs), durationMs);
             saveFailed.current = false;
             if (mounted.current)
-                setSaveError('');
+                setSaveError(null);
         }
         catch (e) {
             saveFailed.current = true;
             if (mounted.current)
-                setSaveError(e instanceof Error ? e.message : String(e));
+                setSaveError(failure(e, 'Your place in this video wasn’t saved.'));
             throw e;
         }
     }
@@ -339,7 +341,7 @@ function WatchWorkspace() {
         let current = session.current;
         const ownsOperation = () => mounted.current && owner !== null && focused.current === owner && activeSource.current === id;
         setBusy(true);
-        setPlaybackError('');
+        setPlaybackError(null);
         try {
             await pauseAndSave();
             if (!ownsOperation()) return;
@@ -363,7 +365,7 @@ function WatchWorkspace() {
                 if (ownsOperation() && current?.isCurrent()) setWindow(changed);
             }
         } catch (cause) {
-            if (ownsOperation()) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
+            if (ownsOperation()) setPlaybackError(failure(cause, 'This playback setting wasn’t saved.'));
         } finally {
             if (ownsOperation()) {
                 setUpdating(false);
@@ -379,7 +381,7 @@ function WatchWorkspace() {
         const owner = focused.current;
         try { await host.client.cancelSourceOpen(); }
         catch (cause) {
-            if (focused.current === owner) setError(cause instanceof Error ? cause.message : String(cause));
+            if (focused.current === owner) setError(failure(cause, 'Opening couldn’t be stopped.'));
         } finally {
             if (owner !== null && focused.current === owner) {
                 setBusy(false);
@@ -389,7 +391,7 @@ function WatchWorkspace() {
     }
     function applyOffset(value: number) {
         if (!Number.isInteger(value)) {
-            setPlaybackError('Enter a whole number of milliseconds.');
+            setPlaybackError({ message: 'Enter a whole number of milliseconds.', detail: null });
             return;
         }
         void changeSource(client => client.setSubtitleOffset(id, value), true);
@@ -430,7 +432,7 @@ function WatchWorkspace() {
         }
         catch (e) {
             if (checkpointSaved && ownsDeparture()) {
-                setError(e instanceof Error ? e.message : String(e));
+                setError(failure(e, 'This video couldn’t be closed. Try again.'));
                 if (current && !current.isCurrent()) setSourceReload(v => v + 1);
             }
         }
@@ -455,7 +457,7 @@ function WatchWorkspace() {
         if (!host.available)
             return;
         setBusy(true);
-        setError('');
+        setError(null);
         let replacing = false;
         try {
             await pauseAndSave();
@@ -476,7 +478,7 @@ function WatchWorkspace() {
             }
         }
         catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            setError(failure(e, 'These subtitles couldn’t be used.'));
         }
         finally {
             if (replacing)
@@ -493,7 +495,7 @@ function WatchWorkspace() {
             if (!active || busy)
                 return;
             if (paths.length !== 1) {
-                setError('Drop one video or subtitle file at a time.');
+                setError({ message: 'Drop one video or subtitle file at a time.', detail: null });
                 return;
             }
             const path = paths[0];
@@ -502,7 +504,7 @@ function WatchWorkspace() {
                 return;
             }
             setBusy(true);
-            setError('');
+            setError(null);
             const owner = focused.current;
             void (async () => {
                 try {
@@ -520,7 +522,7 @@ function WatchWorkspace() {
                     setReplacement({ from: id, to: opened.source.id, owner });
                 }
                 catch (e) {
-                    setError(e instanceof Error ? e.message : String(e));
+                    setError(failure(e, 'This video couldn’t be opened.'));
                     setSourceReload(v => v + 1);
                 }
                 finally {
@@ -532,9 +534,8 @@ function WatchWorkspace() {
                 stop = unsubscribe;
             else
                 unsubscribe();
-        }).catch(e => {
-            if (active)
-                setError(e.message);
+        }).catch(() => {
+            // Without host drag-and-drop the toolbar pickers remain the way to replace files.
         });
         return () => { active = false; stop?.(); };
     }, [host, id, !!window, window?.source.packageId, busy]));
@@ -583,7 +584,7 @@ function WatchWorkspace() {
                 <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="mediaSync"
                     disabled={busy} onPress={() => alignSubtitle('next')} />
             </>}>
-            {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
+            {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError.message}</Text>
                 <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
                     onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
         </MediaOverlay>
@@ -595,7 +596,7 @@ function WatchWorkspace() {
                       options={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => ({ value: String(rate), label: `${rate}×` }))}
                       onValueChange={rate => void changeSource(client => client.setPlaybackRate(id, Number(rate)))} /> : null}
                     {Platform.OS === 'web' && playbackError && !playbackOpen ? <View style={styles.preferenceFeedback}>
-                      <Text testID="playback-preference-error" accessibilityRole="alert" variant="caption" tone="media">{playbackError}</Text>
+                      <Text testID="playback-preference-error" accessibilityRole="alert" variant="caption" tone="media">{playbackError.message}</Text>
                     </View> : null}
                     {window ? (
                         <Button label={window.source.subtitlePath ? 'Replace subtitles' : 'Open subtitles'}
@@ -647,7 +648,7 @@ function WatchWorkspace() {
                         setPlaybackOpen(value);
                         if (value) {
                           setOffsetDraft(String(window.source.subtitleOffsetMs));
-                          setPlaybackError('');
+                          setPlaybackError(null);
                           void pauseAndSave().catch(() => {});
                         }
                         }} title="Playback and subtitles"
@@ -708,7 +709,7 @@ function WatchWorkspace() {
                           </Row>
                           <Text>Current offset: {window.source.subtitleOffsetMs} ms</Text>
                         </> : null}
-                        {playbackError ? <><Text accessibilityRole="alert">{playbackError}</Text>
+                        {playbackError ? <><Text accessibilityRole="alert">{playbackError.message}</Text>
                           <Button label="Refresh playback settings" variant="secondary" disabled={busy}
                             onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
                       </Dialog>
@@ -743,18 +744,12 @@ function WatchWorkspace() {
                         onPress={() => { setReturnedSelection(null); setInspection(null); }} /> : null}
                     {Platform.OS !== 'web' ? sourceActions : null}
                 </Row>
-                {error ? <>
-                    <Text tone="media" accessibilityRole="alert">{error}</Text>
-                    <Row>
-                        <Button label="Retry source" variant="secondary" onPress={() => { setError(''); setSourceReload(v => v + 1); }} />
-                        <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
-                        <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => router.dismissTo('/')} />
-                    </Row>
-                </> : null}
-                {saveError ? <>
-                    <Text tone="media" accessibilityRole="alert">Progress not saved: {saveError}</Text>
-                    <Button label="Retry saving position" variant="secondary" onPress={() => void persist().catch(() => {})} />
-                </> : null}
+                {error ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
+                    <Button label="Retry" accessibilityLabel="Retry source" variant="secondary" onPress={() => { setError(null); setSourceReload(v => v + 1); }} />
+                </FailureNotice> : null}
+                {saveError ? <FailureNotice tone="media" message={saveError.message} detail={saveError.detail}>
+                    <Button label="Retry" accessibilityLabel="Retry saving position" variant="secondary" onPress={() => void persist().catch(() => {})} />
+                </FailureNotice> : null}
             </View>
             {showLiveWords || sourceSynchronization ? <View testID="watch-source-overlays"
                 onLayout={event => setOverlayHeight(event.nativeEvent.layout.height)}
@@ -782,7 +777,7 @@ function WatchWorkspace() {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
-                        onProgress={progress} onError={setError} />
+                        onProgress={progress} onError={(message, detail) => setError({ message, detail: detail ?? null })} />
                     {cues.length ? <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight + overlayInset, subtitleInset), {
                         opacity: sourceCovered || (Platform.OS !== 'web' && inspection) ? 0 : 1,
                     }]}>
@@ -817,10 +812,9 @@ function WatchWorkspace() {
                     style={[styles.status, { top: insets.top + toolbarHeight + 8 + overlayInset }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
                     {!window.source.subtitlePath ? <Text tone="media">No subtitles</Text> : null}
                     {analysisPending && !batch && !sourceCovered ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
-                    {analysisError ? <>
-                        <Text tone="media" accessibilityRole="alert">{analysisError}</Text>
-                        <Button label="Retry analysis" variant="secondary" onPress={() => setAnalysisReload(v => v + 1)} />
-                    </> : null}
+                    {analysisError ? <FailureNotice tone="media" message={analysisError.message} detail={analysisError.detail}>
+                        <Button label="Retry" accessibilityLabel="Retry analysis" variant="secondary" onPress={() => setAnalysisReload(v => v + 1)} />
+                    </FailureNotice> : null}
                 </View>
                 {!transcriptOpen ? inspector : null}
             </> : !error ? <View style={[styles.status, styles.feedback, { top: insets.top + toolbarHeight + 8 }]}>

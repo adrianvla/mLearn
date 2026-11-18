@@ -19,6 +19,9 @@ pub enum Request {
     Conversation {
         command: crate::ConversationCommand,
     },
+    Speech {
+        command: crate::SpeechCommand,
+    },
     ImagePage {
         #[serde(rename = "sourceId")]
         source_id: String,

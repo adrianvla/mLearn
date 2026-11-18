@@ -135,6 +135,14 @@ pub(super) fn validate_conversation(value: &Conversation) -> Result<(), StorageE
             return Err(invalid("Duplicate conversation participant"));
         }
     }
+    for (index, person) in value.absent.iter().enumerate() {
+        if !value.participants.contains(person) || value.absent[..index].contains(person) {
+            return Err(invalid("Absent people must be distinct members"));
+        }
+    }
+    if value.kind != ConversationKind::Room && !value.absent.is_empty() {
+        return Err(invalid("Only Room members can be away"));
+    }
     Ok(())
 }
 
@@ -227,6 +235,15 @@ pub(super) fn validate_message(value: &ConversationMessage) -> Result<(), Storag
     }
     if let Some(reply) = &value.reply_to {
         id(&reply.id.0)?;
+    }
+    if value.witnesses.len() > CONVERSATION_PARTICIPANT_LIMIT {
+        return Err(invalid("Message witnesses exceed the participant bound"));
+    }
+    for witness in &value.witnesses {
+        id(&witness.0)?;
+    }
+    if let Some(origin) = &value.integrated_from {
+        id(&origin.id.0)?;
     }
     Ok(())
 }

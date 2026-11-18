@@ -6,6 +6,7 @@ import type { InspectionMode, TextAnchor } from '@mlearn/ui/inline-word';
 import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import ImageCanvas, { type ImageCanvasRef } from './ImageCanvas';
 import { imageFrame } from './imageFlow';
 import type { ImageReaderPage } from './useImageReader';
@@ -17,7 +18,7 @@ import { useSourceAnchor } from './useSourceAnchor';
 export type PageNotice = { readonly message: string; readonly action: string | null; readonly onAction: () => void };
 
 export function ImageViewport({ source, pages, settings, returned, cropMode, magnifier, inspectionMode, recognizing, notice,
-    onCancelRecognition, onInspect, onCrop, onMagnify, onDismissInspection, onThumbnail, onNavigate, onRetry }: {
+    onCancelRecognition, onInspect, onCrop, onDismissInspection, onThumbnail, onNavigate, onRetry }: {
     readonly source: DocumentRecord;
     readonly pages: readonly ImageReaderPage[];
     readonly settings: ImageReaderSettings;
@@ -30,7 +31,6 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     readonly onCancelRecognition: () => void;
     readonly onInspect: (resourceId: string, regionId: string, tokenStart: number, anchor: TextAnchor) => void;
     readonly onCrop: (resourceId: string, crop: OcrRect) => void;
-    readonly onMagnify: (resourceId: string, crop: OcrRect) => Promise<string>;
     readonly onDismissInspection: () => void;
     readonly onThumbnail: (resourceId: string, thumbnail: SourceThumbnail) => void;
     readonly onNavigate: (direction: 'previous' | 'next') => void;
@@ -39,9 +39,10 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     const { theme } = useUnistyles();
     const container = useRef<View>(null);
     const canvas = useRef<ImageCanvasRef>(null);
-    const handlers = useRef({ pages, onInspect, onCrop, onMagnify, onDismissInspection, onThumbnail, onNavigate });
-    handlers.current = { pages, onInspect, onCrop, onMagnify, onDismissInspection, onThumbnail, onNavigate };
+    const handlers = useRef({ pages, onInspect, onCrop, onDismissInspection, onThumbnail, onNavigate });
+    handlers.current = { pages, onInspect, onCrop, onDismissInspection, onThumbnail, onNavigate };
     const [rendered, setRendered] = useState('');
+    const [renderedSpread, setRenderedSpread] = useState('');
     const [failure, setFailure] = useState('');
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [aspects, setAspects] = useState<Record<string, number>>({});
@@ -49,7 +50,11 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     const pixels = useRef(pixelIdentity); pixels.current = pixelIdentity;
     const identity = JSON.stringify([pixelIdentity, source.packageId, source.packageVersion,
         pages.map(item => [item.descriptor.resourceId, item.page?.ocrRevision, item.batch?.packageRevision])]);
-    const loading = pages.length > 0 && rendered !== identity && failure !== identity;
+    // Only new page pixels count as opening; a recognition or lookup revision
+    // of the page already on screen is not a page load.
+    const spread = JSON.stringify([pixelIdentity, pages.map(item => item.descriptor.resourceId)]);
+    const spreads = useRef(new Map<string, string>()); spreads.current.set(identity, spread);
+    const loading = pages.length > 0 && renderedSpread !== spread && failure !== identity;
     const anchors = useSourceAnchor(identity, container, canvas);
     const selected = returned?.locator.kind === 'image' ? {
         resourceId: returned.locator.resourceId, ocrRevision: returned.locator.ocrRevision, regionId: returned.locator.regionId,
@@ -71,7 +76,11 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
             if (key !== pixels.current || !page) throw new Error('This source image is no longer visible.');
             return page.uri;
         }}
-        onReady={async key => { if (key === anchors.active.current) { setRendered(key); setFailure(''); } }}
+        onReady={async key => {
+            if (key !== anchors.active.current) return;
+            setRendered(key); setRenderedSpread(spreads.current.get(key) ?? ''); setFailure('');
+            spreads.current = new Map([[key, spreads.current.get(key) ?? '']]);
+        }}
         onInspect={async (key, occurrence, resourceId, regionId, start, bounds) => {
             if (key === anchors.active.current)
                 anchors.activate(occurrence, bounds, anchor => handlers.current.onInspect(resourceId, regionId, start, anchor));
@@ -81,11 +90,6 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         }}
         onCrop={async (key, resourceId, crop) => {
             if (key === anchors.active.current) handlers.current.onCrop(resourceId, crop);
-        }}
-        onMagnify={async (key, resourceId, crop) => {
-            if (key !== pixels.current || !handlers.current.pages.some(page => page.descriptor.resourceId === resourceId))
-                throw new Error('This source image is no longer visible.');
-            return handlers.current.onMagnify(resourceId, crop);
         }}
         onMagnifierActive={async (key, active) => {
             if (key === anchors.active.current && active) handlers.current.onDismissInspection();
@@ -116,12 +120,14 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         testID={pages.length === 0 ? 'reader-image-empty' : rendered === identity ? 'reader-image-ready' : 'reader-image-loading'}
         accessibilityState={{ busy: loading }}>
         {content}
-        {loading ? <View pointerEvents="none" style={styles.feedback}>
-            <Text variant="caption" accessibilityLiveRegion="polite">Opening image…</Text>
+        {loading ? <View pointerEvents="none" style={styles.opening} testID="reader-page-opening">
+            <ActivityIndicator size="small" color={theme.media.muted} />
+            <Text tone="media" variant="caption" muted accessibilityLiveRegion="polite">Opening page…</Text>
         </View> : null}
-        {failure === identity ? <View style={styles.feedback}>
-            <Text variant="caption" accessibilityRole="alert">This page couldn’t be shown.</Text>
-            <Button label="Retry" accessibilityLabel="Retry showing this page" variant="secondary" size="compact" onPress={onRetry} />
+        {failure === identity ? <View style={styles.failure}>
+            <FailureNotice tone="media" message="This page couldn’t be shown." testID="reader-page-failure">
+                <Button label="Retry" accessibilityLabel="Retry showing this page" variant="secondary" size="compact" onPress={onRetry} />
+            </FailureNotice>
         </View> : null}
         {recognizing ? <View style={[styles.status, statusPlacement]} testID="reader-recognizing">
             <View style={styles.spinner}><ActivityIndicator size="small" color={theme.colors.text} /></View>
@@ -137,8 +143,12 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
 }
 const styles = StyleSheet.create(theme => ({
     viewport: { flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', backgroundColor: theme.media.background },
-    feedback: { position: 'absolute', top: theme.spacing.small, left: theme.spacing.small, right: theme.spacing.small,
-        padding: theme.spacing.small, gap: theme.spacing.small, backgroundColor: theme.colors.surface, borderRadius: theme.radius },
+    // Translucent over the page that stays visible underneath.
+    opening: { position: 'absolute', top: theme.spacing.medium, alignSelf: 'center', flexDirection: 'row', alignItems: 'center',
+        gap: theme.spacing.small, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small,
+        borderRadius: 999, backgroundColor: theme.media.chrome, _web: { userSelect: 'none' } },
+    failure: { position: 'absolute', top: theme.spacing.medium, alignSelf: 'center', maxWidth: 360,
+        padding: theme.spacing.medium, borderRadius: theme.radius, backgroundColor: theme.media.chrome },
     status: { position: 'absolute', right: theme.spacing.medium, bottom: theme.spacing.medium,
         alignItems: 'flex-end', gap: theme.spacing.small },
     chip: { borderRadius: theme.radius, backgroundColor: theme.colors.surface },

@@ -5,6 +5,8 @@ import { StyleSheet } from 'react-native-unistyles';
 import { AppShell, Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { ActivityCard } from '@mlearn/ui/activity-card';
 import { logoSource } from '@mlearn/ui/brand';
 import { SourceRow } from '@mlearn/ui/source-row';
@@ -23,13 +25,13 @@ export function HomeScreen() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [conversation, setConversation] = useState<{
     readonly chat: Conversation;
     readonly preview: ConversationPreview | undefined;
   } | null>(null);
   const [conversationPending, setConversationPending] = useState(true);
-  const [conversationError, setConversationError] = useState('');
+  const [conversationError, setConversationError] = useState<Failure | null>(null);
   const [conversationReload, setConversationReload] = useState(0);
   const sourceImport = useSourceImport(selected);
   const busy = sourceImport.busy;
@@ -57,9 +59,9 @@ export function HomeScreen() {
       setSources(recentSources);
       setDocuments(recentDocuments);
       setSelected(current => current || value.installedPlugins.find(plugin => plugin.capabilities.includes('text.analyze.v1'))?.id || '');
-      setError('');
+      setError(null);
     })().catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Your recent sources couldn’t be loaded.'));
     });
     return () => { active = false; };
   }, [host]));
@@ -68,13 +70,13 @@ export function HomeScreen() {
     let active = true;
     if (host.available) {
       setConversationPending(true);
-      setConversationError('');
+      setConversationError(null);
       void host.client.conversations('').then(page => {
         if (!active) return;
         const chat = page.items[0];
         setConversation(chat ? { chat, preview: page.previews.find(item => item.conversationId === chat.id) } : null);
       }).catch((cause: unknown) => {
-        if (active) setConversationError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setConversationError(failure(cause, 'Your latest conversation couldn’t be loaded.'));
       }).finally(() => {
         if (active) setConversationPending(false);
       });
@@ -137,11 +139,11 @@ export function HomeScreen() {
       <Text accessibilityLiveRegion="polite">Opening dropped source…</Text>
       <Button label="Cancel opening" variant="secondary" onPress={sourceImport.cancel} />
     </Row> : null}
-    {sourceImport.error ? <Text accessibilityRole="alert">{sourceImport.error}</Text> : null}
-    {error ? <View style={styles.feedback}><Text accessibilityRole="alert">{error}</Text>
+    {sourceImport.error ? <FailureNotice message={sourceImport.error.message} detail={sourceImport.error.detail} /> : null}
+    {error ? <View style={styles.feedback}><FailureNotice message={error.message} detail={error.detail}>
       <Button label="Retry sources" variant="secondary" disabled={busy}
-        onPress={() => void refresh().then(() => setError('')).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))} />
-    </View> : null}
+        onPress={() => void refresh().then(() => setError(null)).catch((cause: unknown) => setError(failure(cause, 'Your recent sources couldn’t be loaded.')))} />
+    </FailureNotice></View> : null}
     <View style={styles.content}>
       <View style={styles.activities}>
         <View style={styles.activity(columns)}>
@@ -167,11 +169,10 @@ export function HomeScreen() {
               onPress={() => router.push({ pathname: '/messenger', params: { id: conversation.chat.id } })} />
               : host.available && !conversationPending && !conversationError ? <Text muted>No conversations.</Text> : null}
             {host.available && conversationPending ? <Text muted accessibilityLiveRegion="polite">Loading conversations…</Text> : null}
-            {conversationError ? <>
-              <Text accessibilityRole="alert">{conversationError}</Text>
+            {conversationError ? <FailureNotice message={conversationError.message} detail={conversationError.detail}>
               <Button label="Retry conversation preview" variant="quiet" disabled={conversationPending}
                 onPress={() => setConversationReload(value => value + 1)} />
-            </> : null}
+            </FailureNotice> : null}
             <Button testID="home-open-conversation" label="Conversation" variant="quiet" onPress={() => router.push('/messenger')} />
           </ActivityCard>
         </View>

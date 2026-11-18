@@ -25,6 +25,10 @@ export function ImageRecognition({ client, reader, onClose, children }: {
     readonly children?: ReactNode;
 }) {
     const [selectedKey, setSelectedKey] = useState('');
+    // Correction is a deliberate act: closed until asked for; the area's corner
+    // positions are a further step inside it.
+    const [editing, setEditing] = useState(false);
+    const [adjusting, setAdjusting] = useState(false);
     const regions = reader.pages.flatMap(item => item.page ? item.page.regions.map(region => ({
         key: JSON.stringify([item.descriptor.resourceId, region.id]), page: item.page!, region,
         pageIndex: item.descriptor.pageIndex,
@@ -113,13 +117,14 @@ export function ImageRecognition({ client, reader, onClose, children }: {
             <Button label="Close View options" icon="close" iconOnly variant="quiet" size="compact" onPress={onClose} />
         </View>
         {children}
-        <Text variant="groupTitle">Recognized text</Text>
-        {!regions.length ? <Text muted>{reader.recognition === 'working' ? 'Recognizing…' : 'No recognized text on these pages yet.'}</Text> : null}
-        {regions.length ? <Select label="Recognized text block" value={selected?.key ?? ''} disabled={pending}
+        <Button label="Correct recognized text" variant="disclosure" disabled={!regions.length}
+            accessibilityState={{ expanded: editing && regions.length > 0 }} onPress={() => setEditing(value => !value)} />
+        {!regions.length ? <Text variant="detail" muted>{reader.recognition === 'working' ? 'Recognizing…' : 'No recognized text on these pages yet.'}</Text> : null}
+        {editing && regions.length ? <Select label="Recognized text block" value={selected?.key ?? ''} disabled={pending}
             options={regions.map(value => ({ value: value.key,
                 label: `Page ${value.pageIndex + 1}: ${Array.from(value.region.text).slice(0, 48).join('')}` }))}
             onValueChange={setSelectedKey} /> : null}
-        {selected ? <>
+        {editing && selected ? <>
             <TextField label="Recognized text" multiline value={text} maxLength={32768} editable={!pending && !reader.recognizing}
                 onChangeText={value => { edited(); setText(value); }} />
             {selected.region.candidates.length ? <Select label="Other readings" value="" disabled={pending}
@@ -130,13 +135,14 @@ export function ImageRecognition({ client, reader, onClose, children }: {
                     const candidate = selected.region.candidates[Number(value)];
                     if (candidate) { edited(); setText(candidate.text); }
                 }} /> : null}
-            <Text variant="caption">Corner coordinates are percentages of the original image.</Text>
-            {corners.map((corner, index) => <Row key={corner}>
+            <Button label="Adjust area" variant="disclosure" size="compact" accessibilityState={{ expanded: adjusting }}
+                onPress={() => setAdjusting(value => !value)} />
+            {adjusting ? corners.map((corner, index) => <Row key={corner}>
                 {[index * 2, index * 2 + 1].map(position => <TextField key={position} label={coordinateLabels[position]}
                     value={coordinates[position]} keyboardType="numeric" editable={!pending && !reader.recognizing} onChangeText={value => {
                         edited(); setCoordinates(previous => previous.map((coordinate, index) => index === position ? value : coordinate));
                     }} />)}
-            </Row>)}
+            </Row>) : null}
             <Row>
                 <Button label={command.current ? 'Retry same correction' : 'Save correction'} busy={pending}
                     disabled={!finite || !!reader.recognizing} onPress={() => void save()} />
@@ -151,7 +157,7 @@ export function ImageRecognition({ client, reader, onClose, children }: {
                         const bottom = Math.min(1, Math.max(...values.map(point => point.y)));
                         if (right > x && bottom > y) void reader.recognize(selected.page.resourceId,
                             { x, y, width: right - x, height: bottom - y });
-                        else setError('This area is outside the page. Adjust its corners first.');
+                        else { setAdjusting(true); setError('This area is outside the page. Adjust it first.'); }
                     }} />
             </Row>
             {reader.recognizing ? <Text accessibilityLiveRegion="polite">Recognizing…</Text> : null}

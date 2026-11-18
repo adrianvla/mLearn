@@ -9,6 +9,8 @@ import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import type { Inspection } from '../inspector';
 import { cueAnchor } from '../material';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Card = {
     readonly id: string;
@@ -44,7 +46,7 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
     }, [scrollWidth, cardWidth]);
     const history = useRef<readonly Card[]>([]);
     const [pending, setPending] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<Failure | null>(null);
     const [reload, setReload] = useState(0);
     const consumedReload = useRef(0);
     const candidates = new Map<string, Pick<Card, 'sourceForm' | 'context' | 'alternatives' | 'sourceAnchor'>>();
@@ -72,7 +74,7 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
     useEffect(() => {
         let active = true;
         setPending(false);
-        setError('');
+        setError(null);
         if (!targets.length) return;
         const now = Date.now();
         const retained = history.current.filter(card => card.expiresAt > now);
@@ -95,7 +97,7 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
             void client.inspectTargets(batch.sourceId, batch.subtitleRevision, batch.packageRevision, missing)
                 .then(value => { if (active) present(value.items); })
                 .catch((cause: unknown) => {
-                    if (active) setError(cause instanceof Error ? cause.message : String(cause));
+                    if (active) setError(failure(cause, 'Meanings for these words couldn’t be looked up.'));
                 }).finally(() => { if (active) setPending(false); });
         }
         return () => { active = false; };
@@ -121,7 +123,7 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
             onInspect({ sourceForm: card.sourceForm, context: card.context, targets: card.alternatives,
                 initialTargetId: card.id, packageRevision: batch.packageRevision, anchor,
                 sourceAnchor: { ...captured, locator: { ...locator, positionMs: position } } });
-        } catch (cause) { if (current.current === sourceIdentity) setError(cause instanceof Error ? cause.message : String(cause)); }
+        } catch (cause) { if (current.current === sourceIdentity) setError(failure(cause, 'This word couldn’t be opened.')); }
     }
     if (!cards.length && !pending && !error) return null;
     const rows = viewport.width < 720 && viewport.height < 650 ? 1 : 2;
@@ -142,16 +144,18 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
                     <DictionaryCard key={card.id} meaning={card.result.summary.summary}
                         focusFallback={focusFallback}
                         reading={card.result.summary.reading ?? card.result.summary.headword}
+                        contours={card.result.summary.presentation?.contours}
                         onActivate={anchor => void inspect(card, anchor)} /> :
                     <View key={card.id} style={styles.unavailable}>
-                        <Text variant="caption" tone="media">{card.sourceForm}: {card.result.message}</Text>
-                        <Button label="Retry dictionary entry" size="compact" variant="media" onPress={() => setReload(value => value + 1)} />
+                        <FailureNotice tone="media" message={`No dictionary entry for ${card.sourceForm} right now.`} detail={card.result.message}>
+                          <Button label="Retry" accessibilityLabel="Retry dictionary entry" size="compact" variant="media" onPress={() => setReload(value => value + 1)} />
+                        </FailureNotice>
                     </View>)}
                     </View>)}
             </ScrollView>
             {pending ? <Text variant="caption" tone="media" accessibilityLiveRegion="polite">Looking up dictionary meanings…</Text> : null}
-            {error ? <><Text variant="caption" tone="media" accessibilityRole="alert">{error}</Text>
-                <Button label="Retry live word lookup" size="compact" variant="media" onPress={() => setReload(value => value + 1)} /></> : null}
+            {error ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
+                <Button label="Retry" accessibilityLabel="Retry live word lookup" size="compact" variant="media" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
         </View>
     </MediaOverlay>;
 }

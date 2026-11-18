@@ -5,6 +5,8 @@ import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Text } from '@mlearn/ui/text';
 import { AnnotatedText } from '../annotated-text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { Inspector, type Inspection } from '../inspector';
 import { SourceActions } from '../explanation';
 import { messageAnchor } from './messageFlow';
@@ -29,7 +31,7 @@ export function ConversationSource({ client, materialId, proposalId, reviewSessi
   const [batch, setBatch] = useState<ConversationAnalysisBatch | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
@@ -37,7 +39,7 @@ export function ConversationSource({ client, materialId, proposalId, reviewSessi
     scope.current = owner;
     setOpen(true);
     setPending(true);
-    setError('');
+    setError(null);
     setBatch(null);
     setInspection(null);
     const read = async () => {
@@ -52,7 +54,7 @@ export function ConversationSource({ client, materialId, proposalId, reviewSessi
       if (active) setBatch(prepared);
     };
     void read().catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'The original message couldn’t be restored.'));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; if (scope.current === owner) scope.current = null; };
   }, [client, materialId, proposalId, reviewSessionId, reviewEncounterId, reload]);
@@ -86,8 +88,8 @@ export function ConversationSource({ client, materialId, proposalId, reviewSessi
         </Text> : null}
       </> : null}
       {pending ? <Text accessibilityLiveRegion="polite">Preparing original message…</Text> : null}
-      {error ? <><Text accessibilityRole="alert">{error}</Text>
-        <Button label="Retry original source" variant="secondary" onPress={() => setReload(value => value + 1)} /></> : null}
+      {error ? <FailureNotice message={error.message} detail={error.detail}>
+        <Button label="Retry original source" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
       <Button label="Close captured source" variant="secondary" onPress={() => { setOpen(false); setInspection(null); }} />
     </Dialog>
     {inspection && original ? <Inspector inspection={inspection} packageId={original.anchor.packageId}

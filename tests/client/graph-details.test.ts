@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import type { GraphPage, LinguisticEntity, RelationCategory } from '@mlearn/contracts';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 const packageId = 'example.language';
 const revision = 'a'.repeat(64);
@@ -103,13 +104,14 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
         plugins: [{
             name: 'native-presentation',
             setup(builder) {
-                builder.onResolve({ filter: /^(react-native|react-native-unistyles|@mlearn\/ui\/(button|layout|text))$/ },
+                builder.onResolve({ filter: /^(react-native|react-native-unistyles|@mlearn\/ui\/(button|failure-notice|layout|text))$/ },
                     args => ({ path: args.path, namespace: 'presentation' }));
                 builder.onLoad({ filter: /.*/, namespace: 'presentation' }, () => ({
                     loader: 'tsx', resolveDir: resolve('.'), contents: `
                         import React from 'react';
                         export const View = ({ children, testID }) => <div data-testid={testID}>{children}</div>;
                         export const Row = View;
+                        ${failureNoticeStub}
                         export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
                         export const Button = ({ label, accessibilityLabel, disabled, onPress }) =>
                             <button aria-label={accessibilityLabel ?? label} disabled={disabled} onClick={onPress}>{label}</button>;
@@ -159,7 +161,7 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                         await expect(page.getByRole('button', { name: 'Retry relations', exact: true })).toHaveCount(0);
                     } else {
                         if (mode === 'retry') {
-                            await expect(page.getByRole('alert')).toHaveText('Temporary failure');
+                            await expectFailure(page, 'Related words couldn’t be loaded.', 'Temporary failure');
                             await page.getByRole('button', { name: 'Retry relations', exact: true }).click();
                         }
                         await expect(page.getByTestId('graph-relation')).toHaveCount(5);
@@ -193,7 +195,7 @@ test('graph presentation preserves semantics, bounded receipts and recovery', { 
                         // When continuing, the next native page replaces this page.
                         await page.getByRole('button', { name: 'Next relations', exact: true }).click();
                         if (mode === 'continuation') {
-                            await expect(page.getByRole('alert')).toHaveText('Temporary failure');
+                            await expectFailure(page, 'Related words couldn’t be loaded.', 'Temporary failure');
                             await expect(page.getByTestId('graph-relation')).toHaveCount(5);
                             await page.getByRole('button', { name: 'Retry relations', exact: true }).click();
                         }

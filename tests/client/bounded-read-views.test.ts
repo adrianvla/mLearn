@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { failureNoticeStub } from './failure-notice-stub';
 
 test('evidence and source search cancel their read on Stop and dismissal', { timeout: 30000 }, async t => {
     // Given real view and runtime-client owners with a held native wire receipt.
@@ -61,7 +62,7 @@ test('evidence and source search cancel their read on Stop and dismissal', { tim
         plugins: [{
             name: 'native-presentation',
             setup(builder) {
-                builder.onResolve({ filter: /^(react-native|react-native-unistyles|@mlearn\/ui\/(button|dialog|layout|text|text-field))$/ },
+                builder.onResolve({ filter: /^(react-native|react-native-unistyles|@mlearn\/ui\/(button|dialog|layout|failure-notice|text|text-field))$/ },
                     args => ({ path: args.path, namespace: 'presentation' }));
                 builder.onLoad({ filter: /.*/, namespace: 'presentation' }, () => ({
                     loader: 'tsx', resolveDir: resolve('.'), contents: `
@@ -69,6 +70,7 @@ test('evidence and source search cancel their read on Stop and dismissal', { tim
                         export const View = React.forwardRef(({ children, testID }, ref) =>
                             <div ref={ref} tabIndex={-1} data-testid={testID}>{children}</div>);
                         export const Row = View;
+                        ${failureNoticeStub}
                         export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
                         export const Button = React.forwardRef(({ label, disabled, onPress }, ref) =>
                             <button ref={ref} disabled={disabled} onClick={onPress}>{label}</button>);

@@ -141,6 +141,7 @@ pub(super) fn admit(
         kind: ConversationKind::Thread, title: "Material proposals".into(),
         purpose: "Propose source-grounded authored Material as newline-delimited JSON for explicit learner review. No tools or learner assessment.".into(),
         package_id: seed.package_id, participants: vec![participant.clone()], discarded: false,
+        absent: Vec::new(),
     };
     let exists: bool = db.query_row(
         "SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?1)",

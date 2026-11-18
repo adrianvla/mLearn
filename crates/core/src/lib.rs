@@ -13,6 +13,7 @@ mod response;
 mod review;
 mod review_policy;
 mod source;
+mod speech;
 mod watch;
 pub use collection::*;
 pub use conversation::*;
@@ -31,6 +32,7 @@ pub use review_policy::REVIEW_POLICY_VERSION;
 pub use review_policy::{review_compatible, review_schedule};
 use serde::{Deserialize, Serialize};
 pub use source::{SourceAnchor, SourceLocator};
+pub use speech::*;
 use std::collections::BTreeMap;
 pub use watch::*;
 

@@ -6,6 +6,8 @@ import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import { captureSourcePage } from './captureSource';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 /** A source-scoped operation; only its current native page stays in memory. */
 export function SourceCapture({ client, source, onChanged }: {
@@ -18,7 +20,7 @@ export function SourceCapture({ client, source, onChanged }: {
   const failures = useRef<readonly MaterialCreate[]>([]);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [retry, setRetry] = useState(false);
   const [saved, setSaved] = useState(0);
   const identity = JSON.stringify([source.id, source.mediaRevision, source.subtitleRevision,
@@ -26,14 +28,14 @@ export function SourceCapture({ client, source, onChanged }: {
   const current = useRef(identity); current.current = identity;
   useEffect(() => {
     cursor.current = null; failures.current = [];
-    setPending(false); setMessage(''); setError(''); setRetry(false); setSaved(0);
+    setPending(false); setMessage(''); setError(null); setRetry(false); setSaved(0);
     return () => { operation.current?.abort(); operation.current = null; };
   }, [identity]);
   async function run() {
     if (operation.current) return;
     const controller = new AbortController();
     operation.current = controller;
-    setPending(true); setError(''); setRetry(false);
+    setPending(true); setError(null); setRetry(false);
     setMessage('Capturing eligible words from the entire source…');
     const active = () => current.current === identity && operation.current === controller;
     try {
@@ -44,7 +46,7 @@ export function SourceCapture({ client, source, onChanged }: {
         setSaved(value => value + results.filter(result => result.state === 'saved').length);
         failures.current = commands.filter(command => results.some(result => result.commandId === command.commandId && result.state === 'failed'));
         if (failures.current.length) {
-          setError(results.filter(result => result.state === 'failed').map(result => result.message).join('\n'));
+          setError({ message: 'Some words couldn’t be captured.', detail: results.filter(result => result.state === 'failed').map(result => result.message).join('\n') });
           setRetry(true); return;
         }
       }
@@ -55,7 +57,7 @@ export function SourceCapture({ client, source, onChanged }: {
         cursor.current = page.next;
         failures.current = page.failed;
         if (page.failed.length) {
-          setError(page.results.filter(result => result.state === 'failed').map(result => result.message).join('\n'));
+          setError({ message: 'Some words couldn’t be captured.', detail: page.results.filter(result => result.state === 'failed').map(result => result.message).join('\n') });
           setRetry(true); return;
         }
         if (page.done) {
@@ -67,7 +69,7 @@ export function SourceCapture({ client, source, onChanged }: {
       if (active()) { setMessage('Source capture stopped. Saved Material is retained.'); setRetry(true); }
     } catch (cause) {
       if (active()) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(failure(cause, 'Source capture stopped before it finished.'));
         setRetry(true);
       }
     } finally {
@@ -83,6 +85,6 @@ export function SourceCapture({ client, source, onChanged }: {
         onPress={() => operation.current?.abort()} /> : null}
     </Row>
     {message ? <Text variant="caption" accessibilityLiveRegion="polite">{message} Saved: {saved}.</Text> : null}
-    {error ? <Text accessibilityRole="alert" selectable>{error}</Text> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail} /> : null}
   </View>;
 }

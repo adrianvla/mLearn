@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import type { ConversationAnalysisBatch, Contact, Conversation, ConversationDraft, ConversationGeneration, ConversationMessage, ConversationPreview, MessageReference, PluginSummary } from '@mlearn/contracts';
+import type { ConversationAnalysisBatch, Contact, Conversation, ConversationDraft, ConversationGeneration, ConversationMessage, ConversationPreview, ConversationTurn, MessageReference, PluginSummary } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { mergeMessagePage, visibleMessageBatch } from './messageFlow';
+import { failure, type Failure } from '../failure';
 
-const errorText = (cause: unknown) => cause instanceof Error ? cause.message : 'Native conversation action failed.';
 type Action = { readonly origin: string; readonly run: () => Promise<void> };
 
 export function useMessenger(client: RuntimeClient, initialId: string, focusSequence?: number) {
@@ -21,12 +21,12 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
   const [draft, setDraftState] = useState<ConversationDraft | null>(null);
   const [generation, setGeneration] = useState<ConversationGeneration | null>(null);
   const [analysis, setAnalysis] = useState<ConversationAnalysisBatch | null>(null);
-  const [analysisError, setAnalysisError] = useState('');
+  const [analysisError, setAnalysisError] = useState<Failure | null>(null);
   const [visible, setVisible] = useState<string[]>([]);
   const [analysisAttempt, setAnalysisAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [origin, setOrigin] = useState('rail');
   const [retry, setRetry] = useState<Action | null>(null);
   const [listQuery, setListQuery] = useState('');
@@ -54,7 +54,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     let active = true;
     client.snapshot().then(value => {
       if (active) setLanguages(value.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1')));
-    }).catch(cause => { if (active) { setOrigin('rail'); setError(errorText(cause)); } });
+    }).catch(cause => { if (active) { setOrigin('rail'); setError(failure(cause, 'Your languages couldn’t be loaded.')); } });
     return () => { active = false; };
   }, [client]);
   useEffect(() => {
@@ -66,7 +66,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
         setContacts(people.items); setContactNext(people.next);
         setChats(conversations.items); setChatNext(conversations.next);
         setPreviews(conversations.previews);
-      }).catch(cause => { if (active) { setOrigin('rail'); setError(errorText(cause)); } });
+      }).catch(cause => { if (active) { setOrigin('rail'); setError(failure(cause, 'Your conversations couldn’t be loaded.')); } });
     return () => { active = false; ++listEpoch.current; };
   }, [client, listQuery, archived, listAttempt]);
   useEffect(() => {
@@ -74,7 +74,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     setPending(Boolean(id)); setConversation(null); setMessages([]); setOlder(null);
     setDraftState(null); workingDraft.current = null; savedDraft.current = null; draftCommand.current = null;
     rejectedDraft.current = false;
-    setGeneration(null); setAnalysis(null); setVisible([]); setError(''); setRetry(null);
+    setGeneration(null); setAnalysis(null); setVisible([]); setError(null); setRetry(null);
     if (!id) { setBusy(false); return; }
     setBusy(false);
     searched.current = { id, query: '', attempt: historyAttempt };
@@ -83,7 +83,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
         if (scope.current !== owned) return;
         setConversation(chat); setMessages([...page.items].reverse()); setOlder(page.next);
         workingDraft.current = restored; savedDraft.current = restored; setDraftState(restored);
-      }).catch(cause => { if (scope.current === owned) { setOrigin('history'); setError(errorText(cause)); } })
+      }).catch(cause => { if (scope.current === owned) { setOrigin('history'); setError(failure(cause, 'This conversation couldn’t be opened.')); } })
       .finally(() => { if (scope.current === owned) setPending(false); });
     return () => { if (scope.current === owned) scope.current++; };
   }, [client, id, focusSequence, openAttempt]);
@@ -93,7 +93,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     setParticipants([]);
     if (conversation) Promise.all(conversation.participants.map(personId => client.conversationContact(personId)))
       .then(value => { if (participantEpoch.current === owned) setParticipants(value); })
-      .catch(cause => { if (participantEpoch.current === owned) { setOrigin('header'); setError(errorText(cause)); } });
+      .catch(cause => { if (participantEpoch.current === owned) { setOrigin('header'); setError(failure(cause, 'People in this conversation couldn’t be loaded.')); } });
     return () => { if (participantEpoch.current === owned) participantEpoch.current++; };
   }, [client, id, participantIdentity]);
   useEffect(() => {
@@ -104,7 +104,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     let active = true;
     client.conversationMessages(id, null, historyQuery).then(page => {
       if (active && scope.current === owned) { setMessages([...page.items].reverse()); setOlder(page.next); }
-    }).catch(cause => { if (active && scope.current === owned) { setOrigin('history'); setError(errorText(cause)); } });
+    }).catch(cause => { if (active && scope.current === owned) { setOrigin('history'); setError(failure(cause, 'Messages matching this search couldn’t be loaded.')); } });
     return () => { active = false; };
     // Conversation loading has its own first page; searching explicitly replaces it.
   }, [client, id, historyQuery, historyAttempt, Boolean(conversation)]);
@@ -132,7 +132,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
         if (['pending', 'streaming'].includes(value.status)) timer = setTimeout(() => void refresh(), 600);
       } catch (cause) {
         if (active && scope.current === owned) {
-          setOrigin('composer'); setError(errorText(cause));
+          setOrigin('composer'); setError(failure(cause, 'The reply’s progress couldn’t be read.'));
           setRetry({ origin: 'composer', run: async () => { setGenerationAttempt(value => value + 1); } });
         }
       }
@@ -146,7 +146,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
   useEffect(() => {
     let active = true;
     const owned = scope.current;
-    setAnalysisError('');
+    setAnalysisError(null);
     if (visibleMessages.length) client.analyzeVisibleMessages(id, visibleMessages.map(message => ({ id: message.id, revision: message.revision })))
       .then(batch => {
         if (!active || scope.current !== owned) return;
@@ -155,7 +155,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
             && message.contentRevision === analyzed.contentRevision && message.text === analyzed.text)))
           throw new Error('Native analysis does not match the visible messages.');
         setAnalysis(batch);
-      }).catch(cause => { if (active && scope.current === owned) setAnalysisError(errorText(cause)); });
+      }).catch(cause => { if (active && scope.current === owned) setAnalysisError(failure(cause, 'Words in these messages couldn’t be analyzed.')); });
     return () => { active = false; };
   }, [client, id, visibleIdentity, analysisAttempt, conversation?.packageId]);
 
@@ -163,7 +163,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     if (!workingDraft.current) return;
     if (rejectedDraft.current) {
       rejectedDraft.current = false;
-      setRetry(null); setError('');
+      setRetry(null); setError(null);
     }
     const next = { ...workingDraft.current, text, replyTo };
     workingDraft.current = next; setDraftState(next);
@@ -205,7 +205,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
   useEffect(() => {
     const stop = AppState.addEventListener('change', state => {
       if (state !== 'active') void saveOnBackground.current().catch(cause => {
-        setOrigin('composer'); setError(errorText(cause));
+        setOrigin('composer'); setError(failure(cause, 'Your draft wasn’t saved.'));
       });
     });
     return () => { stop.remove(); };
@@ -213,10 +213,10 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
   async function act(action: Action) {
     const owned = scope.current;
     if (runningAction.current === owned) return;
-    runningAction.current = owned; setBusy(true); setError(''); setOrigin(action.origin); setRetry(null);
+    runningAction.current = owned; setBusy(true); setError(null); setOrigin(action.origin); setRetry(null);
     try { await action.run(); }
     catch (cause) {
-      if (scope.current === owned) { setError(errorText(cause)); setRetry(action); }
+      if (scope.current === owned) { setError(failure(cause, 'This action didn’t finish.')); setRetry(action); }
     } finally {
       if (runningAction.current === owned) runningAction.current = null;
       if (scope.current === owned) setBusy(false);
@@ -242,16 +242,25 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
     if (runningAction.current === scope.current) return action.run();
     return act(action);
   }
-  function send(participantId: string) {
+  function send(participant: string | (() => Promise<string | null>)) {
     if (!conversation || !draft?.text.trim()) return;
     const owned = scope.current;
-    const turn = client.prepareConversationTurn(conversation, participantId, draft.text, draft.replyTo);
+    const owner = conversation;
+    const submittedText = draft.text, submittedReply = draft.replyTo;
+    let prepared: ConversationTurn | null = null;
     let draftPersisted = false;
     let clear: ReturnType<RuntimeClient['prepareConversationDraft']> | null = null;
-    const submitted = (value: ConversationDraft) => value.text === turn.text
-      && JSON.stringify(value.replyTo) === JSON.stringify(turn.replyTo);
+    const submitted = (value: ConversationDraft) => value.text === submittedText
+      && JSON.stringify(value.replyTo) === JSON.stringify(submittedReply);
     void act({ origin: 'composer', run: async () => {
       if (!draftPersisted) { await persistDraft(); draftPersisted = true; }
+      if (!prepared) {
+        // The scene director picks who answers; the chosen turn identity is then fixed for retries.
+        const speaker = typeof participant === 'string' ? participant : await participant();
+        if (!speaker) throw new Error('Nobody in this conversation is present to answer.');
+        prepared = client.prepareConversationTurn(owner, speaker, submittedText, submittedReply);
+      }
+      const turn = prepared;
       const value = await client.sendConversationTurn(turn);
       if (scope.current !== owned) return;
       setGeneration(value);
@@ -283,13 +292,23 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
       await refreshCurrent();
     } });
   }
+  /** A spoken call turn: the transcript is the message; the typed draft is untouched. */
+  async function say(participantId: string, text: string) {
+    if (!conversation) throw new Error('No conversation is open.');
+    const owned = scope.current;
+    // A call outlives renders: admit against the current revision, not the one this closure saw.
+    const current = await client.conversation(conversation.id);
+    const value = await client.sendConversationTurn(client.prepareConversationTurn(current, participantId, text));
+    if (scope.current === owned) { setGeneration(value); await refreshCurrent(); }
+    return value;
+  }
   const setVisibleMessages = useCallback((ids: string[]) => {
     setVisible(previous => JSON.stringify(previous) === JSON.stringify(ids) ? previous : ids);
   }, []);
   return {
     contacts, participants, chats, previews, contactNext, chatNext, languages, conversation, messages, older, draft, generation,
     analysis, analysisError, pending, busy, error, origin, retry, id, listQuery, setListQuery, archived, setArchived,
-    historyQuery, setHistoryQuery, select, send, changeDraft, persistDraft, act, refreshCurrent, setVisibleMessages,
+    historyQuery, setHistoryQuery, select, send, say, changeDraft, persistDraft, act, refreshCurrent, setVisibleMessages,
     retryAnalysis: () => setAnalysisAttempt(value => value + 1),
     refreshLists: () => setListAttempt(value => value + 1),
     async contactChanged(contact: Contact) {
@@ -339,7 +358,7 @@ export function useMessenger(client: RuntimeClient, initialId: string, focusSequ
       const owned = scope.current;
       void persistDraft().catch(cause => {
         if (scope.current !== owned) return;
-        setOrigin('composer'); setError(errorText(cause));
+        setOrigin('composer'); setError(failure(cause, 'Your draft wasn’t saved.'));
         setRetry({ origin: 'composer', run: persistDraft });
       });
     },

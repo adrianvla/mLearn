@@ -10,6 +10,8 @@ import { Menu } from '@mlearn/ui/menu';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { AnnotatedText } from '../annotated-text';
 import type { Inspection } from '../inspector';
 import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, useSourcePractice, type CaptureCandidate } from '../material';
@@ -44,14 +46,14 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const [unknownOnly, setUnknownOnly] = useState(false);
   const [dictionary, setDictionary] = useState<{ identity: string; items: DictionaryResult[] } | null>(null);
   const [dictionaryPending, setDictionaryPending] = useState(false);
-  const [dictionaryError, setDictionaryError] = useState('');
+  const [dictionaryError, setDictionaryError] = useState<Failure | null>(null);
   const [dictionaryReload, setDictionaryReload] = useState(0);
   const trigger = useRef<View>(null);
   const visibleWords = useRef(new Set<string>());
   const [page, setPage] = useState<TranscriptPage | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
-  const [analysisError, setAnalysisError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
+  const [analysisError, setAnalysisError] = useState<Failure | null>(null);
   const [analysisPending, setAnalysisPending] = useState(false);
   const analysisStarted = useRef(0);
   useLayoutEffect(() => {
@@ -65,7 +67,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   }, [open, analysis]);
   const [navigating, setNavigating] = useState(false);
   const [returnPosition, setReturnPosition] = useState<number | null>(null);
-  const [navigationError, setNavigationError] = useState<{ cueIndex: number; message: string } | null>(null);
+  const [navigationError, setNavigationError] = useState<{ cueIndex: number; failure: Failure } | null>(null);
   const current = useRef('');
   const generation = useRef(0);
   const identity = JSON.stringify([source.id, source.subtitleRevision, source.packageId, source.packageVersion, source.subtitleOffsetMs, after, query, open]);
@@ -79,7 +81,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       result.subtitleRevision !== source.subtitleRevision || result.packageId !== source.packageId ||
       result.packageVersion !== source.packageVersion) throw new Error('Transcript changed; reopen the inspection.');
     onAnalysis(result);
-    setAnalysisError('');
+    setAnalysisError(null);
   }
   async function seek(cueIndex: number) {
     if (navigating || !source.subtitleRevision) return;
@@ -94,7 +96,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       setReturnPosition(value => value ?? previous);
     } catch (cause) {
       if (current.current === identity && generation.current === owner)
-        setNavigationError({ cueIndex, message: cause instanceof Error ? cause.message : String(cause) });
+        setNavigationError({ cueIndex, failure: failure(cause, 'This line couldn’t be opened.') });
     } finally {
       if (generation.current === owner) setNavigating(false);
     }
@@ -106,7 +108,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         throw new Error('Playback is not ready. Close Transcript and retry after the video loads.');
       setReturnPosition(null); setNavigationError(null);
     } catch (cause) {
-      setNavigationError({ cueIndex: -1, message: cause instanceof Error ? cause.message : String(cause) });
+      setNavigationError({ cueIndex: -1, failure: failure(cause, 'Playback couldn’t return to where you were.') });
     }
   }
   useEffect(() => {
@@ -117,18 +119,18 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     setNavigationError(null);
     let active = true;
     setPending(true);
-    setError('');
-    setAnalysisError('');
+    setError(null);
+    setAnalysisError(null);
     setAnalysisPending(true);
     onAnalysis(null);
     void refreshAnalysis().catch((cause: unknown) => {
-      if (active) setAnalysisError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setAnalysisError(failure(cause, 'Words in this transcript couldn’t be analyzed.'));
     }).finally(() => { if (active) setAnalysisPending(false); });
     void client.transcript(source.id, after, query).then(value => {
       if (active && value.sourceId === source.id && value.subtitleRevision === source.subtitleRevision)
         setPage(value);
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'The transcript couldn’t be loaded.'));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; generation.current++; if (current.current === identity) current.current = ''; };
   }, [client, source.id, source.subtitleRevision, source.packageId, source.packageVersion, source.subtitleOffsetMs, open, after, query, reload, onAnalysis]);
@@ -146,7 +148,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         showContext: true, onChanged: refreshAnalysis });
     } catch (cause) {
       if (current.current === identity && owner === generation.current)
-        setNavigationError({ cueIndex: cue.index, message: cause instanceof Error ? cause.message : String(cause) });
+        setNavigationError({ cueIndex: cue.index, failure: failure(cause, 'This line couldn’t be opened.') });
     }
   }
   const captureCandidates: CaptureCandidate[] = [];
@@ -169,7 +171,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     if (!open || !prepared) return;
     let active = true;
     setDictionary({ identity: dictionaryIdentity, items: [] });
-    setDictionaryPending(true); setDictionaryError('');
+    setDictionaryPending(true); setDictionaryError(null);
     void (async () => {
       const items: DictionaryResult[] = [];
       for (let offset = 0; offset < captureCandidates.length; offset += 6) {
@@ -180,7 +182,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       }
       if (active) setDictionary({ identity: dictionaryIdentity, items });
     })().catch((cause: unknown) => {
-      if (active) setDictionaryError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setDictionaryError(failure(cause, 'Dictionary entries for these words couldn’t be loaded.'));
     }).finally(() => { if (active) setDictionaryPending(false); });
     return () => { active = false; };
   }, [client, open, dictionaryIdentity, dictionaryReload]);
@@ -198,17 +200,17 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const sourceFeedback = <>
     {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
     {analysisPending ? <Text accessibilityLiveRegion="polite">Analyzing transcript…</Text> : null}
-    {error ? <><Text accessibilityRole="alert">{error}</Text>
-      <Button label="Retry transcript" onPress={() => setReload(value => value + 1)} /></> : null}
-    {analysisError ? <><Text accessibilityRole="alert">{analysisError}</Text>
-      <Button label="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
-        setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      <Button label="Retry" accessibilityLabel="Retry transcript" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
+    {analysisError ? <FailureNotice message={analysisError.message} detail={analysisError.detail}>
+      <Button label="Retry" accessibilityLabel="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
+        setAnalysisError(failure(cause, 'Words in this transcript couldn’t be analyzed.')))} /></FailureNotice> : null}
     {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues</Text> : null}
   </>;
   const dictionaryFeedback = <>
     {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}
-    {dictionaryError ? <><Text accessibilityRole="alert">{dictionaryError}</Text>
-      <Button label="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></> : null}
+    {dictionaryError ? <FailureNotice message={dictionaryError.message} detail={dictionaryError.detail}>
+      <Button label="Retry" accessibilityLabel="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></FailureNotice> : null}
     {dictionaryItems.map(item => item.state === 'unavailable'
       ? <Text key={item.targetId} variant="caption">{item.message}</Text> : null)}
   </>;
@@ -222,7 +224,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <Button label="Unknown" accessibilityLabel="Unknown words" size="compact" variant="pill" accessibilityState={{ selected: unknownOnly }}
         onPress={() => setUnknownOnly(true)} />
     </Row>
-    {practice.error ? <Text accessibilityRole="alert">{practice.error}</Text> : null}
+    {practice.error ? <FailureNotice message={practice.error.message} detail={practice.error.detail} /> : null}
     {sourceFeedback}
     {dictionaryFeedback}
   </>;
@@ -253,14 +255,14 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     {returnPosition !== null ? <Row>
       <Button label="Return to playback position" variant="secondary" size="compact"
         disabled={navigating} onPress={returnToPlayback} />
-      {navigationError?.cueIndex === -1 ? <Text accessibilityRole="alert">{navigationError.message}</Text> : null}
+      {navigationError?.cueIndex === -1 ? <FailureNotice message={navigationError.failure.message} detail={navigationError.failure.detail} /> : null}
     </Row> : null}
     {!vocabulary ? sourceFeedback : null}
     {!vocabulary ? page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
       <View style={styles.cueTime}><Button label={cueTime(cue.startMs - source.subtitleOffsetMs)}
         accessibilityLabel={`Go to cue ${cue.index + 1} at ${cueTime(cue.startMs - source.subtitleOffsetMs)}`}
         size="compact" variant="quiet" disabled={navigating} onPress={() => void seek(cue.index)} /></View>
-      {navigationError?.cueIndex === cue.index ? <Text accessibilityRole="alert">{navigationError.message}</Text> : null}
+      {navigationError?.cueIndex === cue.index ? <FailureNotice message={navigationError.failure.message} detail={navigationError.failure.detail} /> : null}
       <AnnotatedText rawText={cue.text} variant="body" inspectionMode={source.inspectionTrigger}
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
         annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => void inspect(cue, token, anchor)} />

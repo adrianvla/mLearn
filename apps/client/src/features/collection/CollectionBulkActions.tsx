@@ -12,6 +12,8 @@ import { Menu } from '@mlearn/ui/menu';
 import { Row, Stack } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { TextField } from '@mlearn/ui/text-field';
 
 const fields = [
@@ -22,7 +24,7 @@ const fields = [
 type Field = typeof fields[number]['value'];
 type Trigger = MaterialBulkAction['kind'] | 'include';
 type Proposal = { readonly selection: CollectionSelection; readonly action: MaterialBulkAction };
-type Submission = { readonly command: MaterialBulkStart; readonly retry: boolean; readonly pending: boolean; readonly error: string };
+type Submission = { readonly command: MaterialBulkStart; readonly retry: boolean; readonly pending: boolean; readonly error: Failure | null };
 
 function label(action: MaterialBulkAction): string {
   switch (action.kind) {
@@ -50,7 +52,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
   const [after, setAfter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [controlling, setControlling] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [field, setField] = useState<Field>('notes');
@@ -71,7 +73,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
     const scope = owner.current;
     if (!scope) return;
     const ticket = ++request.current;
-    setLoading(true); setError('');
+    setLoading(true); setError(null);
     try {
       const values = await client.materialBulkJobs();
       const selected = values.find(value => value.command.commandId === id)
@@ -86,7 +88,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
         && values.some(value => value.command.commandId === previous.command.commandId) ? null : previous);
     } catch (cause) {
       if (owner.current === scope && request.current === ticket)
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(failure(cause, 'Bulk change results couldn’t be loaded.'));
     } finally {
       if (owner.current === scope && request.current === ticket) setLoading(false);
     }
@@ -104,7 +106,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
     const scope = owner.current;
     if (!scope || submitting.current) return;
     const operation = { commandId: command.commandId }; submitting.current = operation;
-    setSubmission({ command, retry, pending: true, error: '' }); setError('');
+    setSubmission({ command, retry, pending: true, error: null }); setError(null);
     try {
       const status = retry ? await client.retryMaterialBulk(command.commandId) : await client.startMaterialBulk(command);
       if (owner.current !== scope || submitting.current !== operation) return;
@@ -113,11 +115,11 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
       if (status.resultsAvailable) await load(command.commandId);
       else {
         await load();
-        if (owner.current === scope) setError('These results were already cleared. The command was not repeated.');
+        if (owner.current === scope) setError({ message: 'These results were already cleared, so the change wasn’t repeated.', detail: null });
       }
     } catch (cause) {
       if (owner.current === scope && submitting.current === operation) {
-        setSubmission({ command, retry, pending: false, error: cause instanceof Error ? cause.message : String(cause) });
+        setSubmission({ command, retry, pending: false, error: failure(cause, 'This bulk change wasn’t confirmed.') });
         await load(command.commandId);
       }
     } finally { if (submitting.current === operation) submitting.current = null; }
@@ -126,7 +128,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
   async function control(commandId: string, release: boolean) {
     const scope = owner.current;
     if (!scope || controlling) return;
-    setControlling(true); setError('');
+    setControlling(true); setError(null);
     // Invalidate an older status read before admitting cancellation/release.
     request.current++;
     setLoading(false);
@@ -142,7 +144,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
         await load(release ? '' : commandId);
       }
     } catch (cause) {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'This bulk change couldn’t be stopped or cleared.'));
     } finally { if (owner.current === scope) setControlling(false); }
   }
 
@@ -154,7 +156,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
   function propose(action: MaterialBulkAction) {
     if (selection && !disabled) {
       confirmation.current = triggers.current[action.kind === 'exclude' && !action.excluded ? 'include' : action.kind];
-      setError(''); setProposal({ selection, action });
+      setError(null); setProposal({ selection, action });
     }
   }
   function editPatch(): MaterialBulkPatch {
@@ -198,7 +200,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
     </Row>
     {submission ? <Stack>
       <Text accessibilityLiveRegion="polite">{submission.pending ? `Submitting ${label(submission.command.action)}…` : 'Submission not confirmed.'}</Text>
-      {submission.error ? <Text accessibilityRole="alert">{submission.error}</Text> : null}
+      {submission.error ? <FailureNotice message={submission.error.message} detail={submission.error.detail} /> : null}
       <Row>{submission.pending ? <Button label="Cancel bulk operation" variant="secondary" size="compact"
         disabled={controlling} onPress={() => void control(submission.command.commandId, false)} />
         : <Button label="Retry bulk submission" variant="secondary" size="compact"
@@ -210,7 +212,10 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
         label: `${index + 1}: ${label(job.command.action)} · ${job.phase} · ${job.processed}/${job.total}`,
       }))} onValueChange={id => void load(id)} /> : null}
     {loading ? <Text accessibilityLiveRegion="polite">Loading bulk results…</Text> : null}
-    {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      <Button label="Retry" accessibilityLabel="Retry loading bulk results" variant="secondary" size="compact" disabled={loading}
+        onPress={() => void load(currentId)} />
+    </FailureNotice> : null}
     {current ? <Stack>
       <Text testID={`bulk-status-${current.command.commandId}`} accessibilityLiveRegion="polite">{current.phase} · {current.processed} of {current.total} processed
         {' · '}{current.succeeded} succeeded · {current.duplicates} duplicates · {current.failed} failed</Text>
@@ -226,7 +231,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
       {page?.items.map(item => <Stack key={item.entry.item.kind === 'material' ? item.entry.item.id : item.entry.item.targetId}>
         <Text>{item.label}</Text>
         {item.outcome === null ? <Text variant="caption" muted>Not processed</Text>
-          : item.outcome.state === 'failed' ? <Text accessibilityRole="alert">{item.outcome.message}</Text>
+          : item.outcome.state === 'failed' ? <FailureNotice message="This item wasn’t changed." detail={item.outcome.message} />
           : item.outcome.state === 'duplicate' ? <Text variant="caption">Existing Material: {item.outcome.materialIds.join(', ')}</Text>
           : item.outcome.state === 'removed' ? <Text variant="caption">Removed · revision {item.outcome.committedRevision}</Text>
           : <Row><Text variant="caption">{item.outcome.reused ? 'Reused' : 'Saved'} · revision {item.outcome.committedRevision}</Text>
@@ -267,7 +272,7 @@ export function CollectionBulkActions({ client, selection, blocked, surface, onC
               const action = proposal.action.kind === 'edit' ? { kind: 'edit' as const, patch: editPatch() } : proposal.action;
               const command = client.prepareMaterialBulk(proposal.selection.id, action);
               setProposal(null); void run(command, false);
-            } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); setProposal(null); }
+            } catch (cause) { setError(failure(cause, 'This bulk change couldn’t be prepared.')); setProposal(null); }
           }} /></Row>
     </Dialog>
   </Stack>;

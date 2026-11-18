@@ -108,6 +108,7 @@ pub struct RuntimeExecutor {
     conversations: crate::conversation_execution::ConversationOwner,
     collections: crate::collection::CollectionOwner,
     bulk: crate::material_bulk::MaterialBulkOwner,
+    speech: crate::speech::SpeechOwner,
     pub(super) guest: GuestGate,
     operations: OperationLeases,
     admitted: AtomicUsize,
@@ -151,6 +152,7 @@ impl RuntimeExecutor {
             conversations: crate::conversation_execution::ConversationOwner::default(),
             collections: crate::collection::CollectionOwner::default(),
             bulk: crate::material_bulk::MaterialBulkOwner::default(),
+            speech: crate::speech::SpeechOwner::default(),
             guest: GuestGate::default(),
             operations: OperationLeases::default(),
             admitted: AtomicUsize::new(0),
@@ -335,6 +337,9 @@ impl RuntimeExecutor {
             Request::CancelCollectionPreparation { command_id } => {
                 return self.collections.status(Some(&command_id), true);
             }
+            Request::Speech { command } => {
+                return self.speech.execute(&self.runtime, command);
+            }
             Request::Conversation { command } => match command {
                 command @ (mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }
                 | mlearn_core::ConversationCommand::AnalyzeMessageSource { .. }) => {
@@ -490,6 +495,7 @@ impl RuntimeExecutor {
 }
 fn guest_bearing(request: &Request) -> bool {
     match request {
+        Request::Speech { .. } => false,
         Request::Conversation { command } => matches!(
             command,
             mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }

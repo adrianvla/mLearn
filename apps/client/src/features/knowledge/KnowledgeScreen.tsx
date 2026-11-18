@@ -14,6 +14,8 @@ import { Inspector, type Inspection } from '../inspector';
 import { LinguisticWord } from '../linguistic';
 import { CollectionFilters, CollectionSelectionControls, useCollectionSelection } from '../collection';
 import { ActivityNavigation } from '../navigation';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 export function KnowledgeScreen() {
   const host = useRuntime();
@@ -35,12 +37,12 @@ export function KnowledgeScreen() {
   const [described, setDescribed] = useState<{ packageId: string; value: LanguageDescription } | null>(null);
   const description = described?.packageId === packageId ? described.value : null;
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [reload, setReload] = useState(0);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [practiceCapability, setPracticeCapability] = useState('');
   const [practicePending, setPracticePending] = useState(false);
-  const [practiceError, setPracticeError] = useState('');
+  const [practiceError, setPracticeError] = useState<Failure | null>(null);
   const practiceCommand = useRef<ReviewCommand | null>(null);
   const practiceFlight = useRef(false);
   const [preparation, setPreparation] = useState<CollectionPreparationStatus | null>(null);
@@ -80,7 +82,7 @@ export function KnowledgeScreen() {
       setPackageId(previous => previous || languages[0]?.id || '');
       setPreparation(status);
     }).catch((cause: unknown) => {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'Your languages couldn’t be loaded.'));
     });
     return () => { if (owner.current === scope) owner.current = null; };
   }, [host]));
@@ -90,14 +92,14 @@ export function KnowledgeScreen() {
     void host.client.describeLanguage(packageId).then(value => {
       if (active) setDescribed({ packageId, value });
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'This language’s details couldn’t be loaded.'));
     });
     return () => { active = false; };
   }, [host, packageId, reload]));
   useFocusEffect(useCallback(() => {
     if (!host.available || !packageId) return;
     let active = true;
-    setPending(true); setError('');
+    setPending(true); setError(null);
     // Refreshing an unchanged page must preserve the Inspector's real trigger
     // and focus anchor. A different query must never display the old rows.
     if (loadedQuery.current !== queryKey) {
@@ -106,7 +108,7 @@ export function KnowledgeScreen() {
     void host.client.collection({ ...collectionQuery, after }).then(value => {
       if (active) setResult(value);
     })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); })
+      .catch((cause: unknown) => { if (active) setError(failure(cause, 'Your Knowledge list couldn’t be loaded.')); })
       .finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, packageId, collectionQuery, after, queryKey, reload]));
@@ -126,13 +128,13 @@ export function KnowledgeScreen() {
         });
         practiceCommand.current = command;
       }
-      setPracticePending(true); setPracticeError('');
+      setPracticePending(true); setPracticeError(null);
       const committed = await host.client.review(command);
       if (owner.current !== scope) return;
       practiceCommand.current = null;
       router.navigate({ pathname: '/review', params: { sessionId: committed.session.id } });
     } catch (cause) {
-      if (owner.current === scope) setPracticeError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setPracticeError(failure(cause, 'Practice couldn’t start.'));
     } finally {
       practiceFlight.current = false;
       setPracticePending(false);
@@ -144,7 +146,7 @@ export function KnowledgeScreen() {
     const command = host.client.prepareCollection(packageId);
     preparing.current = command;
     setPreparation({ command, phase: 'preparing', processed: 0, total: null, message: null });
-    setError('');
+    setError(null);
     try {
       const status = await host.client.prepareCollectionCatalog(command);
       if (scope && owner.current === scope) {
@@ -152,7 +154,7 @@ export function KnowledgeScreen() {
         setAfter(null); setReload(value => value + 1);
       }
     } catch (cause) {
-      if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope) setError(failure(cause, 'This collection couldn’t be prepared.'));
     } finally { if (preparing.current === command) preparing.current = null; }
   }
   async function preparationControl(cancel: boolean) {
@@ -167,7 +169,7 @@ export function KnowledgeScreen() {
         if (status?.phase === 'succeeded') { setAfter(null); setReload(value => value + 1); }
       }
     } catch (cause) {
-      if (scope && owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope) setError(failure(cause, cancel ? 'Preparation couldn’t be cancelled.' : 'Preparation progress couldn’t be read.'));
     }
   }
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
@@ -239,16 +241,16 @@ export function KnowledgeScreen() {
               onPress={() => void practice()} />
           </Row>
           {practicePending ? <Text accessibilityLiveRegion="polite">Starting selected Practice…</Text> : null}
-          {practiceError ? <Text accessibilityRole="alert">{practiceError}</Text> : null}
+          {practiceError ? <FailureNotice message={practiceError.message} detail={practiceError.detail} /> : null}
           {practiceCommand.current && !practicePending ? <Row>
             <Button label="Retry selected Practice" size="compact" onPress={() => void practice()} />
             <Button label="Dismiss Practice retry" size="compact" variant="quiet"
-              onPress={() => { practiceCommand.current = null; setPracticeError(''); }} />
+              onPress={() => { practiceCommand.current = null; setPracticeError(null); }} />
           </Row> : null}
         </View> : null}
         {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
-        {error ? <View style={styles.notice}><Text accessibilityRole="alert">{error}</Text>
-          <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></View> : null}
+        {error ? <View style={styles.notice}><FailureNotice message={error.message} detail={error.detail}>
+          <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice></View> : null}
         {currentResult?.state === 'unavailable' ? <View style={styles.notice}>
           <Text>{currentResult.message}</Text>
           {description?.catalog ? <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId}

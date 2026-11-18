@@ -4,6 +4,7 @@ import type {
   CollectionItemId, CollectionQuery, CollectionSelection, CollectionSelectionCreate,
 } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
+import { failure, type Failure } from '../failure';
 
 function key(item: CollectionItemId): string {
   switch (item.kind) {
@@ -23,7 +24,7 @@ export function useCollectionSelection(
   const [retained, setRetained] = useState<CollectionSelection[]>([]);
   const [membership, setMembership] = useState<ReadonlySet<string> | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [attempt, setAttempt] = useState<CollectionSelectionCreate | null>(null);
   const [revision, setRevision] = useState(0);
   const owner = useRef<object | null>(null);
@@ -40,7 +41,7 @@ export function useCollectionSelection(
       setSelection(previous => values.find(value => value.id === previous?.id) ?? null);
       setRevision(value => value + 1);
     }).catch((cause: unknown) => {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'Your saved selections couldn’t be loaded.'));
     });
     return () => { if (owner.current === scope) owner.current = null; };
   }, [client, enabled]));
@@ -52,7 +53,7 @@ export function useCollectionSelection(
     void client.collectionSelectionMembership(selection.id, query, [...items]).then(rows => {
       if (active) setMembership(new Set(rows.filter(row => row.selected).map(row => key(row.item))));
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Which items are selected couldn’t be checked.'));
     });
     return () => { active = false; };
   }, [client, enabled, selection?.id, query.packageId, query.surface, visibleKey, revision]);
@@ -61,7 +62,7 @@ export function useCollectionSelection(
     if (!client || !owner.current || busy.current) return;
     const scope = owner.current;
     const previous = selection;
-    busy.current = true; setPending(true); setError(''); setAttempt(command);
+    busy.current = true; setPending(true); setError(null); setAttempt(command);
     try {
       const selected = await client.createCollectionSelection(command);
       if (owner.current === scope) { setSelection(selected); setAttempt(null); }
@@ -75,7 +76,7 @@ export function useCollectionSelection(
       const values = await client.collectionSelections();
       if (owner.current === scope) setRetained(values);
     } catch (cause) {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'Your selection wasn’t changed.'));
     } finally {
       if (owner.current === scope) { busy.current = false; setPending(false); }
     }
@@ -84,7 +85,7 @@ export function useCollectionSelection(
   async function refresh() {
     if (!client || !owner.current || busy.current) return;
     const scope = owner.current;
-    busy.current = true; setPending(true); setError('');
+    busy.current = true; setPending(true); setError(null);
     try {
       const values = await client.collectionSelections();
       if (owner.current === scope) {
@@ -93,7 +94,7 @@ export function useCollectionSelection(
         setRevision(value => value + 1);
       }
     } catch (cause) {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'Your saved selections couldn’t be reloaded.'));
     } finally {
       if (owner.current === scope) { busy.current = false; setPending(false); }
     }
@@ -102,13 +103,13 @@ export function useCollectionSelection(
   async function clear() {
     if (!client || !selection || !owner.current || busy.current) return;
     const scope = owner.current;
-    busy.current = true; setPending(true); setError('');
+    busy.current = true; setPending(true); setError(null);
     try {
       await client.releaseCollectionSelection(selection.id);
       const values = await client.collectionSelections();
       if (owner.current === scope) { setSelection(null); setRetained(values); setMembership(null); }
     } catch (cause) {
-      if (owner.current === scope) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current === scope) setError(failure(cause, 'This selection wasn’t cleared.'));
     } finally {
       if (owner.current === scope) { busy.current = false; setPending(false); }
     }
@@ -140,7 +141,7 @@ export function useCollectionSelection(
       // The native receipt/handle survives; ordinary Retry keeps its command.
       if (!pending) {
         setSelection(retained.find(value => value.id === id) ?? null);
-        setAttempt(null); setError('');
+        setAttempt(null); setError(null);
       }
     },
     retry() { if (attempt) void submit(attempt); },

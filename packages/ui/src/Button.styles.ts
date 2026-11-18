@@ -39,10 +39,13 @@ export default StyleSheet.create(theme => ({
       flexDirection: 'row', gap: theme.spacing.small, maxWidth: '100%',
       borderRadius: variant === 'preview' ? 999 : variant === 'pill' ? theme.radius + 4 : theme.radius,
       borderWidth: borderless ? 0 : 1,
-      borderColor: tone === 'warning' ? pills.warning.top : variant === 'navigation' && !selected ? 'transparent'
+      borderColor: tone === 'warning' ? pills.warning.top : selected && variant === 'secondary' ? theme.colors.accent
+        : variant === 'navigation' && !selected ? 'transparent'
         : variant === 'preview' ? theme.controls.outline
         : variant === 'primary' ? theme.colors.accent : variant === 'media' || variant === 'mediaFloating' ? theme.media.border : theme.colors.border,
-      backgroundColor: tone === 'warning' ? pills.warning.surface : selected && variant === 'navigation' && size === 'row' ? theme.surfaces.secondary : selectedSurface ? theme.controls.selected
+      // A selected toggle must not read as an unselected field (dark themes give both the same tint).
+      backgroundColor: tone === 'warning' ? pills.warning.surface : selected && variant === 'navigation' && size === 'row' ? theme.surfaces.secondary
+        : selected && variant === 'secondary' ? `${theme.colors.accent.slice(0, 7)}2E` : selectedSurface ? theme.controls.selected
         : variant === 'preview' ? theme.surfaces.glass
         : variant === 'select' || variant === 'secondary' ? theme.controls.field
         : transparent ? 'transparent' : variant === 'pill' ? pills[tone].surface

@@ -10,7 +10,8 @@ import { TextField } from '@mlearn/ui/text-field';
 import { CollectionFilters } from '../collection';
 
 type CalibrationMode = Extract<ReviewMode, { kind: 'calibration' }>;
-const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 /** Unsubmitted scope only; native Knowledge and Review own selection and evidence. */
 export function CalibrationSetup({ client, initialPackageId, disabled, saving = false, onStart, onOpenKnowledge }: {
@@ -29,8 +30,8 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
   const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
   const [limit, setLimit] = useState('8');
   const [loading, setLoading] = useState(true);
-  const [metadataError, setMetadataError] = useState('');
-  const [error, setError] = useState('');
+  const [metadataError, setMetadataError] = useState<Failure | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
   const [reload, setReload] = useState(0);
   const [selecting, setSelecting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -42,7 +43,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
   const flight = useRef(false);
   useFocusEffect(useCallback(() => {
     const scope = {}; owner.current = scope;
-    setLoading(true); setMetadataError(''); setDescription(null);
+    setLoading(true); setMetadataError(null); setDescription(null);
     setSelecting(operation.current !== null);
     void (async () => {
       const snapshot = await client.snapshot();
@@ -56,14 +57,14 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
       const allowed = language.catalog?.calibrationCapabilities ?? [];
       setCapability(previous => allowed.includes(previous) ? previous : allowed[0] ?? '');
     })().catch((cause: unknown) => {
-      if (owner.current === scope) setMetadataError(messageOf(cause));
+      if (owner.current === scope) setMetadataError(failure(cause, 'Word Sync options couldn’t be loaded.'));
     }).finally(() => { if (owner.current === scope) setLoading(false); });
     return () => {
       if (owner.current === scope) owner.current = null;
       operation.current?.abort();
     };
   }, [client, packageId, reload]));
-  function changed() { setNotice(null); setError(''); }
+  function changed() { setNotice(null); setError(null); }
   const capabilities = description?.catalog?.capabilities.filter(item =>
     description.catalog?.calibrationCapabilities?.includes(item.id)) ?? [];
   const valid = /^[1-9]\d?$/.test(limit) && Number(limit) <= 32
@@ -86,7 +87,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
       if (owner.current !== scope) return;
       if (controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled')
         setNotice('cancelled');
-      else setError(messageOf(cause));
+      else setError(failure(cause, 'Words for Word Sync couldn’t be selected.'));
     } finally {
       if (operation.current === controller) operation.current = null;
       flight.current = false;
@@ -122,8 +123,8 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
         setFilter({ kind: 'all', filters: [] });
       }} /></SettingRow>
     {loading ? <Text accessibilityLiveRegion="polite">Loading Word Sync options...</Text> : null}
-    {metadataError ? <><Text accessibilityRole="alert">{metadataError}</Text>
-      <Button label="Retry Word Sync options" variant="secondary" onPress={() => setReload(value => value + 1)} /></> : null}
+    {metadataError ? <FailureNotice message={metadataError.message} detail={metadataError.detail}>
+      <Button label="Retry Word Sync options" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
     {!loading && !metadataError && !capabilities.length
       ? <Text>This package does not declare supported Word Sync probes.</Text> : null}
     <SettingRow label="Skill to check">
@@ -145,8 +146,8 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
     <Button label="Start Word Sync" disabled={loading || !valid || !!metadataError} onPress={() => void select()} />
     {notice === 'empty' ? <Text testID="calibration-empty" accessibilityLiveRegion="polite">No unmeasured targets match this scope.</Text> : null}
     {notice === 'cancelled' ? <Text testID="calibration-cancelled" accessibilityLiveRegion="polite">Selection cancelled.</Text> : null}
-    {error ? <><Text accessibilityRole="alert">{error}</Text>
-      <Button label="Retry selection" variant="secondary" disabled={loading || !valid} onPress={() => void select()} /></> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      <Button label="Retry selection" variant="secondary" disabled={loading || !valid} onPress={() => void select()} /></FailureNotice> : null}
     <Button label="How Word Sync is assessed" variant="disclosure" size="compact"
       icon={assessmentDetails ? 'chevronDown' : 'chevronRight'} iconPosition="trailing"
       accessibilityState={{ expanded: assessmentDetails }} onPress={() => setAssessmentDetails(value => !value)} />

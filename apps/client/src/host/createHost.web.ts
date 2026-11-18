@@ -11,6 +11,7 @@ import { createImageOcrHost } from './imageOcr';
 import { RuntimeError } from '@mlearn/runtime-client';
 import { createOcrModelsHost } from './ocrModels';
 import { nativeControlFailure } from './nativeControlFailure';
+import { createBrowserSpeech } from './speechCapture';
 
 declare global {
   interface Window {
@@ -53,6 +54,7 @@ export function createHost(): Host {
       uri:(sourceId,resourceId,crop)=>invoke<string>('image_page_uri',{sourceId,resourceId,crop:crop ?? null}),
     }),
     ocrModels: createOcrModelsHost((command, args) => invoke<unknown>(command, args)),
+    speech: createBrowserSpeech(),
     authoredMedia:{
       capture:captureAuthoredMedia({
         reserve:jobId=>invoke<void>('reserve_media_capture',{jobId}),

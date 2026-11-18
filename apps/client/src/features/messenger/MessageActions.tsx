@@ -11,9 +11,10 @@ import { messageAnchor } from './messageFlow';
 import { ActionFeedback } from './MessengerDialogs';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { SourceActions } from '../explanation';
+import type { Failure } from '../failure';
 
 type Actions = {
-  readonly client: RuntimeClient; readonly busy: boolean; readonly error: string; readonly origin: string;
+  readonly client: RuntimeClient; readonly busy: boolean; readonly error: Failure | null; readonly origin: string;
   readonly retry: { readonly origin: string; readonly run: () => Promise<void> } | null;
   readonly act: (action: { readonly origin: string; readonly run: () => Promise<void> }) => Promise<void>;
   readonly refreshCurrent: () => Promise<void>;

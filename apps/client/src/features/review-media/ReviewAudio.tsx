@@ -5,6 +5,7 @@ import { RuntimeError } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { AttachmentPlayer } from '../material';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { createReviewAudioDelivery, type AudioState, type ReviewAudioDelivery } from './delivery';
 
 export type ReviewAudioProps = {
@@ -67,7 +68,8 @@ function EncounterAudio({ ref, encounter, media, mediaId, disabled = false, onDe
       <Text accessibilityLiveRegion="polite">{state.delivery === 'completed' ? 'Audio playback completed.' : 'Audio playback interrupted.'}</Text>
       <Button label="Play audio again" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} />
     </> : null}
-    {state.kind === 'failed' ? <Text accessibilityRole="alert">{state.message}</Text> : null}
-    {state.kind === 'failed' ? <Button label="Retry audio" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} /> : null}
+    {state.kind === 'failed' ? <FailureNotice message={state.failure.message} detail={state.failure.detail}>
+      <Button label="Retry audio" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} />
+    </FailureNotice> : null}
   </View>;
 }

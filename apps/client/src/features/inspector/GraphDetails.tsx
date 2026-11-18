@@ -6,6 +6,8 @@ import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Props = {
     readonly client: RuntimeClient;
@@ -29,7 +31,7 @@ export function GraphDetails(props: Props) {
 function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInspectTarget }: Props) {
     const [page, setPage] = useState<GraphPage | null>(null);
     const [pending, setPending] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<Failure | null>(null);
     const [unsupported, setUnsupported] = useState(false);
     const [stopped, setStopped] = useState(false);
     const [showSources, setShowSources] = useState(false);
@@ -40,7 +42,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
         const owner = new AbortController();
         operation.current = owner;
         retry.current = after;
-        setPending(true); setError(''); setUnsupported(false); setStopped(false);
+        setPending(true); setError(null); setUnsupported(false); setStopped(false);
         try {
             const value = await client.graphNeighborhood({
                 packageId, targetId, expectedRevision: packageRevision, after,
@@ -49,7 +51,7 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
         } catch (cause) {
             if (operation.current !== owner) return;
             const message = cause instanceof Error ? cause.message : String(cause);
-            setError(message);
+            setError(failure(cause, 'Related words couldn’t be loaded.'));
             // The current native contract reports capability absence as an operation
             // error, not a separate response variant. Do not infer it from empty data.
             setUnsupported(cause instanceof RuntimeError
@@ -101,15 +103,16 @@ function GraphDetailsBody({ client, packageId, targetId, packageRevision, onInsp
         {pending ? <Text tone="media" accessibilityLiveRegion="polite">Loading related entities…</Text> : null}
         {stopped ? <Text tone="media" accessibilityLiveRegion="polite">Related-entity loading stopped.</Text> : null}
         {unsupported ? <Text tone="media" accessibilityRole="alert">Related-entity inspection is unsupported by this package.</Text>
-            : error ? <Text tone="media" accessibilityRole="alert">{error}</Text> : null}
+            : error ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
+                <Button label="Retry" accessibilityLabel="Retry relations" variant="media" size="compact" disabled={pending}
+                    onPress={() => void load(retry.current)} />
+            </FailureNotice> : null}
         <Row>
             {pending ? <Button label="Stop loading relations" variant="media" size="compact" onPress={() => {
                 // Cancel only this read, not unrelated Inspector/source work.
                 operation.current?.abort();
                 operation.current = null; setPending(false); setStopped(true);
             }} /> : null}
-            {error && !unsupported ? <Button label="Retry relations" variant="media" size="compact" disabled={pending}
-                onPress={() => void load(retry.current)} /> : null}
             <Button label="Refresh relations" variant="media" size="compact" disabled={pending}
                 onPress={() => void load(null)} />
             {page?.next ? <Button label="Next relations" variant="media" size="compact" disabled={pending || !!error}

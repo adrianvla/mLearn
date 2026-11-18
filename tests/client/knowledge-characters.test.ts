@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import type { CollectionItemId, CollectionQuery } from '@mlearn/contracts';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 test('package kind scopes both bounded pages and selection while grid/list retain target inspection identity',
   { timeout: 30_000 }, async () => {
@@ -180,6 +181,7 @@ test('package kind scopes both bounded pages and selection while grid/list retai
                   export const TextField = ({ label, value, onChangeText }) =>
                     <input aria-label={label} value={value} onChange={e => onChangeText(e.target.value)} />;
                   export const Badge = ({ label }) => <span>{label}</span>;
+                  ${failureNoticeStub}
                 `;
             }
             return { contents, loader: 'tsx', resolveDir: resolve('.') };
@@ -273,7 +275,7 @@ test('package kind scopes both bounded pages and selection while grid/list retai
       } finally {
         await page.evaluate('window.rejectHeldCollection()');
       }
-      await expect(page.getByText('Collection fixture unavailable', { exact: true })).toBeVisible();
+      await expectFailure(page, 'Your Knowledge list couldn’t be loaded.', 'Collection fixture unavailable');
       await page.getByLabel('Knowledge entity kind').selectOption('');
       await expect(page.getByTestId('knowledge-target-opaque-a')).toBeVisible();
       await expect(page.getByLabel('Knowledge entity kind')).toHaveValue('');

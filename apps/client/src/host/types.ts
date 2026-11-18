@@ -2,6 +2,7 @@ import type { RuntimeClient } from '@mlearn/runtime-client';
 import type { AuthoredMediaHost } from './authoredMedia';
 import type { ImageOcrHost } from './imageOcr';
 import type { OcrModelsHost } from './ocrModels';
+import type { SpeechHost } from './speechCapture';
 export type PickedImageCollection = {
   readonly paths: string[];
   readonly title: string;
@@ -18,6 +19,7 @@ export type DocumentHost = {
 export type Host = { available: true; client: RuntimeClient; media:MediaHost; documents:DocumentHost; ocr:ImageOcrHost; authoredMedia:AuthoredMediaHost; label: string; windowControlsWidth?: number;
   copyText:(text:string)=>Promise<void>;
   ocrModels?: OcrModelsHost;
+  speech?: SpeechHost;
   initialTheme?: import('@mlearn/contracts').ThemeDocument;
   subscribeWindowMaterial?:(handler:(active:boolean)=>void)=>Promise<()=>void>;
 } | { available: false; label: string; reason: string };

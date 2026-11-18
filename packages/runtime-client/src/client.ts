@@ -6,6 +6,7 @@ import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
 import { createConversationClient } from './conversationClient';
+import { createSpeechClient } from './speechClient';
 import { createCollectionClient } from './collectionClient';
 import { isMaterialResponse } from './materialProtocol';
 import { isSourceAnchor } from './sourceProtocol';
@@ -207,6 +208,7 @@ export function createRuntimeClient(transport: Transport) {
   return {
     ...createCollectionClient(request, () => transport.commandId(), execute),
     ...createConversationClient(request, () => transport.commandId(), execute),
+    ...createSpeechClient(request, () => transport.commandId()),
     ...createMaterialClient(request, () => transport.commandId()),
     ...createMaterialBulkClient(execute, () => transport.commandId()),
     ...createMaterialProposalClient(request, () => transport.commandId(), execute),

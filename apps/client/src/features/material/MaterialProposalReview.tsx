@@ -14,6 +14,8 @@ import { Text } from '@mlearn/ui/text';
 import { MaterialFields } from './MaterialFields';
 import { MaterialGenerationControls } from './MaterialGenerationControls';
 import { emptyMaterial } from './content';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 /** Unsubmitted fields live here; proposal identity, review and receipts stay native-owned. */
 export function MaterialProposalReview({ client, open, onOpenChange, focusTarget, seed, source, onChanged, onOpenMaterial, onReturnToSource }: {
@@ -33,11 +35,11 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
   const [pendingOnly, setPendingOnly] = useState(true);
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [listError, setListError] = useState('');
+  const [listError, setListError] = useState<Failure | null>(null);
   const [proposal, setProposal] = useState<MaterialProposal | null>(null);
   const [draft, setDraft] = useState<MaterialContent | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [feedback, setFeedback] = useState('');
   const [retry, setRetry] = useState<MaterialSuggestion | MaterialProposalReview | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -59,23 +61,23 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
         source.locator.selectionStart, source.locator.selectionEnd)),
     } : null;
     setProposal(null); setDraft(content);
-    setRetry(null); setError(''); setFeedback(''); setDuplicates([]); setConflict(false);
+    setRetry(null); setError(null); setFeedback(''); setDuplicates([]); setConflict(false);
   }, [seedIdentity]);
   useEffect(() => {
     if (!open) return;
     let active = true;
-    setLoading(true); setListError('');
+    setLoading(true); setListError(null);
     void client.materialProposals({ after, packageId: null, pendingOnly }).then(value => {
       if (active) setPage(value);
     }).catch((cause: unknown) => {
-      if (active) setListError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setListError(failure(cause, 'Proposals couldn’t be loaded.'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [client, open, after, pendingOnly, reload]);
   const dirty = !!proposal && !!draft && JSON.stringify(draft) !== JSON.stringify(proposal.content);
   async function show(id: string, retainDraft = false) {
     if (locked.current) return;
-    locked.current = true; setBusy(true); setError('');
+    locked.current = true; setBusy(true); setError(null);
     const request = {}; selected.current = request;
     try {
       const item = await client.materialProposal(id);
@@ -86,7 +88,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
       }
     } catch (cause) {
       if (mounted.current && selected.current === request)
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(failure(cause, 'This proposal couldn’t be opened.'));
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
   function received(receipt: MaterialProposalReceipt) {
@@ -105,15 +107,16 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
   }
   async function save(command: MaterialSuggestion | MaterialProposalReview) {
     if (locked.current) return;
-    locked.current = true; setBusy(true); setError(''); setFeedback('');
+    locked.current = true; setBusy(true); setError(null); setFeedback('');
     try {
       const receipt = 'content' in command ? await client.suggestMaterial(command) : await client.reviewMaterialProposal(command);
       if (mounted.current) received(receipt);
     } catch (cause) {
       if (mounted.current) {
         setRetry(command);
-        setConflict(cause instanceof RuntimeError && cause.code === 'conflict');
-        setError(cause instanceof Error ? cause.message : String(cause));
+        const conflicted = cause instanceof RuntimeError && cause.code === 'conflict';
+        setConflict(conflicted);
+        setError(failure(cause, conflicted ? 'This proposal changed elsewhere, so your decision wasn’t saved.' : 'Your proposal decision wasn’t saved.'));
       }
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
@@ -131,11 +134,11 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
         context: draft.context, notes: draft.notes, examples: draft.examples,
       } });
       else review({ kind: 'accept', distinct: false });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { setError(failure(cause, 'This proposal couldn’t be prepared.')); }
   }
   async function returnSource() {
     if (!proposal || locked.current) return;
-    locked.current = true; setBusy(true); setError('');
+    locked.current = true; setBusy(true); setError(null);
     try {
       const result = await client.returnMaterialProposalSource(proposal.id);
       if (!mounted.current) return;
@@ -151,10 +154,13 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
           params: { id: result.window.source.id, proposalId: proposal.id } });
       }
     } catch (cause) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause));
+      if (mounted.current) setError(failure(cause, 'The source for this proposal couldn’t be reopened.'));
     } finally { locked.current = false; if (mounted.current) setBusy(false); }
   }
   const editable = !proposal || proposal.state.state === 'pending';
+  const retryAction = retry ? conflict && proposal ? <Button label="Reload proposal revision" disabled={busy}
+      onPress={() => { if (proposal) void show(proposal.id, true); }} />
+    : <Button label="Retry proposal action" disabled={busy} onPress={() => void save(retry)} /> : null;
   return <Dialog open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}
     title="Material proposals" description="Review source-grounded text before saving it as Material.">
     <MaterialGenerationControls client={client} open={open}
@@ -165,7 +171,7 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
     {draft ? <View style={styles.stack}>
       <Row><Text variant="section">{proposal ? proposal.state.state === 'pending' ? 'Review proposal' : `Proposal ${proposal.state.state}` : 'Propose changes'}</Text>
         <Button label="Back to proposals" variant="quiet" disabled={busy || !!retry} onPress={() => {
-          selected.current = null; setProposal(null); setDraft(null); setError(''); setFeedback(''); setDuplicates([]);
+          selected.current = null; setProposal(null); setDraft(null); setError(null); setFeedback(''); setDuplicates([]);
         }} /></Row>
       {proposal?.replaces || !proposal && seed ? <Text variant="caption" muted>
         Replacement for Material · revision {proposal?.replaces?.revision ?? seed?.revision}. Saved changes are checked again on acceptance.
@@ -189,12 +195,8 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
           }
         }} /> : null}
       {feedback ? <Text accessibilityLiveRegion="polite" testID="material-proposal-result">{feedback}</Text> : null}
-      {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-      {retry ? <Row>
-        {conflict && proposal ? <Button label="Reload proposal revision" disabled={busy}
-          onPress={() => { if (proposal) void show(proposal.id, true); }} />
-          : <Button label="Retry proposal action" disabled={busy} onPress={() => void save(retry)} />}
-      </Row> : null}
+      {error ? <FailureNotice message={error.message} detail={error.detail}>{retryAction}</FailureNotice>
+        : retryAction ? <Row>{retryAction}</Row> : null}
       {duplicates.length ? <View style={styles.stack}>
         {duplicates.map(id => <Button key={id} label="Open existing Material" detail={id} variant="secondary" disabled={busy}
           onPress={() => { onOpenChange(false); onOpenMaterial(id); }} />)}
@@ -206,8 +208,11 @@ export function MaterialProposalReview({ client, open, onOpenChange, focusTarget
         onPress={() => { setAfter(null); setPendingOnly(value => !value); }} />
         <Button label="Refresh proposals" variant="quiet" disabled={loading} onPress={() => setReload(value => value + 1)} /></Row>
       {loading ? <Text accessibilityLiveRegion="polite">Loading proposals…</Text> : null}
-      {listError ? <Text accessibilityRole="alert">{listError}</Text> : null}
-      {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+      {listError ? <FailureNotice message={listError.message} detail={listError.detail}>
+        <Button label="Retry" accessibilityLabel="Retry proposals" variant="secondary" disabled={loading}
+          onPress={() => setReload(value => value + 1)} />
+      </FailureNotice> : null}
+      {error ? <FailureNotice message={error.message} detail={error.detail} /> : null}
       {!loading && page?.items.length === 0 ? <Text>No proposals in this view.</Text> : null}
       {page?.items.map(item => <Button key={item.id} label={item.content.phrase} detail={`${item.state.state} · ${item.content.meaning}`}
         variant="secondary" disabled={busy || loading} onPress={() => void show(item.id)} />)}

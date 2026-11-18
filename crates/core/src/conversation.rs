@@ -9,6 +9,9 @@ pub const CONVERSATION_TEXT_BYTES: usize = 8192;
 pub const CONVERSATION_CONTEXT_BYTES: usize = 65536;
 pub const CONVERSATION_PARTICIPANT_LIMIT: usize = 8;
 pub const CONVERSATION_EXPLANATION_CONTACT_ID: &str = "mlearn.software-assistant";
+pub const ROOM_CANON_LIMIT: usize = 16;
+pub const ROOM_CANON_TEXT_BYTES: usize = 600;
+pub const ROOM_SCENARIO_BYTES: usize = 2048;
 
 macro_rules! identity {
     ($name:ident) => {
@@ -39,6 +42,8 @@ pub enum ConversationKind {
     Direct,
     #[default]
     Thread,
+    /// Persistent shared history (Sea continuity). Threads remain disposable.
+    Room,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -89,24 +94,36 @@ pub enum ConversationTraceKind {
     Error,
 }
 
-record!(Contact {
-    id: ContactId,
-    revision: u32,
-    name: String,
-    description: String,
-    archived: bool,
-});
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct Contact {
+    pub id: ContactId,
+    pub revision: u32,
+    pub name: String,
+    pub description: String,
+    pub archived: bool,
+    /// Persistent speaking voice for this person; empty uses the provider default.
+    #[serde(default)]
+    pub voice: String,
+}
 record!(ContactPage { items: Vec<Contact>, next: Option<ContactId> });
-record!(Conversation {
-    id: ConversationId,
-    revision: u32,
-    kind: ConversationKind,
-    title: String,
-    purpose: String,
-    package_id: String,
-    participants: Vec<ContactId>,
-    discarded: bool,
-});
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct Conversation {
+    pub id: ConversationId,
+    pub revision: u32,
+    pub kind: ConversationKind,
+    pub title: String,
+    pub purpose: String,
+    pub package_id: String,
+    pub participants: Vec<ContactId>,
+    pub discarded: bool,
+    /// Members who are away: they neither speak nor witness what happens meanwhile.
+    #[serde(default)]
+    pub absent: Vec<ContactId>,
+}
 record!(ConversationPreview {
     conversation_id: ConversationId,
     message_id: MessageId,
@@ -129,20 +146,46 @@ record!(MessageReference {
     id: MessageId,
     revision: u32
 });
-record!(ConversationMessage {
-    id: MessageId,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct ConversationMessage {
+    pub id: MessageId,
+    pub conversation_id: ConversationId,
+    pub sequence: u32,
+    pub revision: u32,
+    pub role: ConversationRole,
+    pub participant_id: Option<ContactId>,
+    pub reply_to: Option<MessageReference>,
+    pub text: String,
+    pub content_revision: String,
+    pub created_at_ms: f64,
+    pub status: ConversationContentStatus,
+    pub generation_id: Option<GenerationId>,
+    pub sources: Vec<SourceAnchor>,
+    /// Participants present when this happened. Empty only for records written before
+    /// witnesses were recorded, which every participant of that conversation saw.
+    #[serde(default)]
+    pub witnesses: Vec<ContactId>,
+    /// The Thread message this Room event was deliberately integrated from.
+    #[serde(default)]
+    pub integrated_from: Option<MessageReference>,
+    /// How much of a spoken reply was actually heard.
+    #[serde(default)]
+    pub delivery: Option<crate::SpeechDelivery>,
+}
+record!(CanonEntry {
+    position: u32,
+    text: String
+});
+// Scenario direction and source canon for one conversation. Canon past the
+// learner's progress is withheld from generation (spoiler boundary).
+record!(ConversationWorld {
     conversation_id: ConversationId,
-    sequence: u32,
     revision: u32,
-    role: ConversationRole,
-    participant_id: Option<ContactId>,
-    reply_to: Option<MessageReference>,
-    text: String,
-    content_revision: String,
-    created_at_ms: f64,
-    status: ConversationContentStatus,
-    generation_id: Option<GenerationId>,
-    sources: Vec<SourceAnchor>,
+    scenario: String,
+    canon: Vec<CanonEntry>,
+    progress: u32,
 });
 // Sequence is a stable per-conversation key. Pages run newest to oldest;
 // `before` is exclusive, including when a literal substring search is active.
@@ -372,6 +415,28 @@ pub enum ConversationCommand {
     GenerateMaterial {
         command: crate::MaterialGenerationStart,
     },
+    ReadWorld {
+        conversation_id: ConversationId,
+    },
+    SaveWorld {
+        command_id: String,
+        world: ConversationWorld,
+        expected_revision: u32,
+    },
+    /// Deliberately copy selected Thread messages into a Room's shared history.
+    IntegrateThread {
+        command_id: String,
+        thread_id: ConversationId,
+        room_id: ConversationId,
+        expected_room_revision: u32,
+        messages: Vec<MessageReference>,
+    },
+    /// What one participant witnessed, newest first.
+    ReadMemory {
+        conversation_id: ConversationId,
+        contact_id: ContactId,
+        before: Option<u32>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -408,6 +473,11 @@ pub enum ConversationResult {
         participants: Vec<Contact>,
         messages: Vec<ConversationMessage>,
         truncated: bool,
+        /// Scenario Director's choice of who answers next; None when nobody is present.
+        speaker: Option<ContactId>,
+    },
+    World {
+        world: ConversationWorld,
     },
     Generation {
         generation: ConversationGeneration,

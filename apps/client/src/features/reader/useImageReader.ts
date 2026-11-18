@@ -6,6 +6,13 @@ import { RuntimeError } from '@mlearn/runtime-client';
 import type { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { imageAnalysisWindow, pageSpread } from './imageFlow';
 import { notices, type ReaderNotice } from './readerNotice';
+import { failure } from '../failure';
+
+export type ImageReaderNotice = ReaderNotice & { readonly detail: string | null };
+const noticeOf = (notice: ReaderNotice, cause?: unknown): ImageReaderNotice => {
+    const mapped = cause === undefined ? null : failure(cause, notice.message);
+    return { ...notice, message: mapped?.message ?? notice.message, detail: mapped?.detail ?? null };
+};
 
 export type ImageReaderPage = {
     readonly descriptor: ImagePageDescriptor;
@@ -36,12 +43,14 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
     const [recognitionFailed, setRecognitionFailed] = useState(false);
     const [stopped, setStopped] = useState(false);
     const stopping = useRef(false);
-    const [notice, setNotice] = useState<ReaderNotice | null>(null);
+    const [notice, setNotice] = useState<ImageReaderNotice | null>(null);
     const [reload, setReload] = useState(0);
     const [pageReload, setPageReload] = useState(0);
     const scope = useRef<object | null>(null);
     const currentPages = useRef(pages); currentPages.current = pages;
-    const operation = useRef<{ readonly owner: object; readonly controller: AbortController } | null>(null);
+    const operation = useRef<{ readonly owner: object; readonly controller: AbortController;
+        readonly settled: Promise<void> } | null>(null);
+    const failedTurn = useRef<'previous' | 'next' | null>(null);
     const retry = useRef<{ readonly owner: object; readonly request: OcrRequest } | null>(null);
     const attempted = useRef(new Set<string>());
     const analyses = useRef(new Map<string, object>());
@@ -65,7 +74,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             .then(([view, available]) => {
                 if (scope.current !== owner) return;
                 setSettings(view); setProviders(available);
-            }).catch(() => { if (scope.current === owner) setNotice(notices.openFailed); })
+            }).catch(cause => { if (scope.current === owner) setNotice(noticeOf(notices.openFailed, cause)); })
             .finally(() => { if (scope.current === owner) setPending(false); });
         return () => {
             background.remove();
@@ -122,10 +131,16 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         const owner = scope.current;
         if (!host || !source || !enabled || !settings || !indices.length || !owner) return;
         let live = true;
-        setPending(true); setNotice(null);
+        setPending(true); setNotice(null); failedTurn.current = null;
         const previous = preparedPages.current ?? currentPages.current;
         preparedPages.current = null;
         void (async () => {
+            // The native runtime admits one page job at a time: let a recognition
+            // of the departing spread release before reading the new one, rather
+            // than reporting the transient rejection as an unshowable page.
+            const running = operation.current;
+            if (running) { running.controller.abort(); await running.settled; }
+            if (!live) return;
             const loaded: ImageReaderPage[] = [];
             for (const index of indices) {
                 const retained = previous.find(item => item.descriptor.pageIndex === index);
@@ -145,7 +160,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             for (const item of loaded) {
                 if (item.page && !item.batch) void receive(item.page, item.page === frozen);
             }
-        })().catch(() => { if (live && scope.current === owner) setNotice(notices.pagesFailed); })
+        })().catch(cause => { if (live && scope.current === owner) setNotice(noticeOf(notices.pagesFailed, cause)); })
             .finally(() => { if (live && scope.current === owner) setPending(false); });
         return () => { live = false; };
     }, [host, sourceKey, enabled, spreadKey, settings === null, frozen, canInterpret, pageReload]);
@@ -153,11 +168,11 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
     async function changeSettings(change: Partial<ImageReaderSettings>) {
         if (!host || !source || !settings || settingsFlight.current) return;
         const owner = scope.current;
-        settingsFlight.current = true; setSaving(true); setNotice(null);
+        settingsFlight.current = true; setSaving(true); setNotice(null); failedTurn.current = null;
         try {
             const accepted = await host.client.saveImageReaderSettings(source.id, { ...settings, ...change });
             if (scope.current === owner) setSettings(accepted);
-        } catch { if (scope.current === owner) setNotice(notices.settingsFailed); }
+        } catch (cause) { if (scope.current === owner) setNotice(noticeOf(notices.settingsFailed, cause)); }
         finally { settingsFlight.current = false; if (scope.current === owner) setSaving(false); }
     }
     async function recognize(resourceId: string, crop: OcrRect | null = null, retryAction = false) {
@@ -172,7 +187,9 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         }
         attempted.current.add(resourceId);
         const controller = new AbortController();
-        const work = { owner, controller }; operation.current = work;
+        let settle = () => {};
+        const work = { owner, controller, settled: new Promise<void>(resolve => { settle = resolve; }) };
+        operation.current = work;
         retry.current = { owner, request }; setRecognizing(resourceId); setRecognitionFailed(false); setStopped(false);
         try {
             if (retryAction) {
@@ -207,6 +224,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         } finally {
             stopping.current = false;
             if (operation.current === work) { operation.current = null; setRecognizing(null); }
+            settle();
         }
     }
     // One page at a time: each completion re-renders and admits the next
@@ -223,9 +241,11 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         const index = direction === 'next' ? indices[indices.length - 1] + 1 : indices[0] - 1;
         if (index < 0 || index >= (source.totalPages ?? 0)) return;
         const owner = scope.current;
-        navigating.current = true; setPending(true); setNotice(null);
-        operation.current?.controller.abort();
+        navigating.current = true; setPending(true); setNotice(null); failedTurn.current = null;
+        const running = operation.current;
+        running?.controller.abort();
         try {
+            if (running) await running.settled;
             // Do not checkpoint a page whose original cannot be displayed.
             const prepared: ImageReaderPage[] = [];
             for (const target of pageSpread(index, source.totalPages ?? 0, settings.paired, settings.firstPageSingle)) {
@@ -238,7 +258,10 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
             preparedPages.current = prepared;
             const target = prepared.find(item => item.descriptor.pageIndex === index);
             if (target && !await callbacks.current.navigate(target.descriptor.position)) preparedPages.current = null;
-        } catch { if (scope.current === owner) setNotice(notices.pagesFailed); }
+        } catch (cause) {
+            // The current spread is still on screen; only the turn failed.
+            if (scope.current === owner) { failedTurn.current = direction; setNotice(noticeOf(notices.pageTurnFailed, cause)); }
+        }
         finally { navigating.current = false; if (scope.current === owner) setPending(false); }
     }
     async function navigate(position: DocumentPosition) {
@@ -263,8 +286,10 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         stop: () => { if (operation.current) { stopping.current = true; operation.current.controller.abort(); } },
         retry: () => {
             const previous = retry.current;
+            const turn = failedTurn.current;
             setRecognitionFailed(false); setStopped(false);
-            if (previous) void recognize(previous.request.resourceId, previous.request.crop, true);
+            if (turn) void go(turn);
+            else if (previous) void recognize(previous.request.resourceId, previous.request.crop, true);
             // A failed pixel load already has accepted settings. Retry that
             // spread directly, rather than depending on a transient null
             // settings render during full initialization.

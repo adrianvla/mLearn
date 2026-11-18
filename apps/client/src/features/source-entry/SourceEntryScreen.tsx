@@ -10,6 +10,8 @@ import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { useSourceImport } from './useSourceImport';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 /** Empty Reader/Watch entry; imports retain the same shared native source owner. */
 export function SourceEntryScreen({ kind, preferredPackage }: {
@@ -22,7 +24,7 @@ export function SourceEntryScreen({ kind, preferredPackage }: {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selected, setSelected] = useState(preferredPackage ?? '');
   const [pending, setPending] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [reload, setReload] = useState(0);
   const sourceImport = useSourceImport(selected);
   useEffect(() => { setSelected(preferredPackage ?? ''); }, [preferredPackage]);
@@ -30,7 +32,7 @@ export function SourceEntryScreen({ kind, preferredPackage }: {
     if (!host.available) return;
     let active = true;
     setPending(true);
-    setError('');
+    setError(null);
     host.client.snapshot().then(value => {
       if (!active) return;
       const available = value.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1'));
@@ -38,7 +40,7 @@ export function SourceEntryScreen({ kind, preferredPackage }: {
       setSelected(current => available.find(plugin => plugin.id === current)?.id
         ?? (preferredPackage ? '' : available[0]?.id ?? ''));
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Source languages couldn’t be loaded.'));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; };
   }, [host, preferredPackage, reload]));
@@ -83,9 +85,9 @@ export function SourceEntryScreen({ kind, preferredPackage }: {
             busy={sourceImport.opening === 'video'} onPress={() => void sourceImport.openVideo()} />}
         </Row></View>
         {sourceImport.opening ? <Button label={cancelLabel} variant="secondary" onPress={sourceImport.cancel} /> : null}
-        {sourceImport.error ? <Text accessibilityRole="alert">{sourceImport.error}</Text> : null}
-        {error ? <><Text accessibilityRole="alert">{error}</Text>
-          <Button label="Retry source languages" variant="secondary" onPress={() => setReload(value => value + 1)} /></> : null}
+        {sourceImport.error ? <FailureNotice message={sourceImport.error.message} detail={sourceImport.error.detail} /> : null}
+        {error ? <FailureNotice message={error.message} detail={error.detail}>
+          <Button label="Retry source languages" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
         {host.available && !pending && snapshot && !languages.length ? <>
           <Text muted>Install a language package before opening a source.</Text>
           <Button label="Get language packages" variant="secondary"

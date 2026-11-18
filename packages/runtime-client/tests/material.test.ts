@@ -89,11 +89,11 @@ test('frozen message Return admits only the original conversation revision and t
   const response = {
     type: 'conversation_material_source',
     conversation: { id: 'conversation', revision: 3, kind: 'thread', title: 'Saved source',
-      purpose: '', packageId: 'package', participants: ['person'], discarded: true },
+      purpose: '', packageId: 'package', participants: ['person'], discarded: true, absent: [] },
     message: { id: 'message', conversationId: 'conversation', sequence: 1, revision: 2,
       role: 'assistant', participantId: 'person', replyTo: null, text: '日本語',
       contentRevision: 'a'.repeat(64), createdAtMs: 1000, status: 'complete',
-      generationId: 'generation', sources: [] },
+      generationId: 'generation', sources: [], witnesses: [], integratedFrom: null, delivery: null },
     anchor: { sourceId: 'conversation', contentRevision: 'a'.repeat(64), packageId: 'package',
       packageVersion: '1', text: '日本語', locator: { kind: 'message',
         conversationId: 'conversation', messageId: 'message', messageRevision: 2,

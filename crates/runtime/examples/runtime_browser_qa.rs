@@ -1,9 +1,9 @@
 //! Test-only JSON-lines host for the real native owner, not an application backend.
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{BoundedReadError, Runtime, RuntimeExecutor, catalog::CatalogTrust};
+use mlearn_runtime::{catalog::CatalogTrust, BoundedReadError, Runtime, RuntimeExecutor};
 use serde::Deserialize;
 use std::io::{BufRead, Read, Write};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -18,8 +18,11 @@ fn read_error(error: BoundedReadError) -> serde_json::Value {
     serde_json::json!({"code": error.code(), "message": error.to_string()})
 }
 
+type MediaReader = Box<dyn Fn(&str) -> Result<std::path::PathBuf, String> + Send>;
+
 fn invoke(
     runtime: &RuntimeExecutor,
+    media: &Mutex<MediaReader>,
     invocation: &Invocation,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let request = || {
@@ -62,6 +65,15 @@ fn invoke(
             runtime.cancel_source_open();
             Ok(serde_json::Value::Null)
         }
+        // The desktop media listener's resolver: only an admitted source id yields a path.
+        "source_media_path" => {
+            let reader = media
+                .lock()
+                .map_err(|_| serde_json::json!("QA media lock poisoned"))?;
+            reader(id()?)
+                .map(|path| serde_json::Value::String(path.to_string_lossy().into_owned()))
+                .map_err(|_| serde_json::json!({"code":"not_found","message":"Source media is unavailable"}))
+        }
         _ => Err(serde_json::json!(
             "This browser-core harness does not provide native window/media/clipboard services"
         )),
@@ -87,6 +99,7 @@ fn reply(
 fn worker(
     receiver: Arc<Mutex<mpsc::Receiver<Invocation>>>,
     runtime: &RuntimeExecutor,
+    media: &Mutex<MediaReader>,
     stdout: &Mutex<std::io::Stdout>,
 ) -> Result<(), String> {
     loop {
@@ -98,7 +111,7 @@ fn worker(
             Ok(value) => value,
             Err(_) => return Ok(()),
         };
-        reply(stdout, invocation.id, invoke(runtime, &invocation))?;
+        reply(stdout, invocation.id, invoke(runtime, media, &invocation))?;
     }
 }
 
@@ -115,12 +128,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if arguments.next().is_some() {
         return Err("Unexpected QA host argument".into());
     }
-    let runtime = RuntimeExecutor::new(Runtime::open(
+    let runtime = Runtime::open(
         std::path::Path::new(&profile),
         CodePolicy::DesktopDownloaded,
         Some(trust),
         vec![],
-    )?);
+    )?;
+    let media: Mutex<MediaReader> = Mutex::new(Box::new(runtime.media_source_reader()?));
+    let runtime = RuntimeExecutor::new(runtime);
     let stdout = Mutex::new(std::io::stdout());
     {
         let mut output = stdout.lock().map_err(|_| "QA output lock poisoned")?;
@@ -143,8 +158,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for _ in 0..count {
                 let receiver = Arc::clone(&receiver);
                 let runtime = &runtime;
+                let media = &media;
                 let stdout = &stdout;
-                workers.push(scope.spawn(move || worker(receiver, runtime, stdout)));
+                workers.push(scope.spawn(move || worker(receiver, runtime, media, stdout)));
             }
         }
         let mut stdin = std::io::stdin().lock();
@@ -162,7 +178,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 invocation.command.as_str(),
                 "begin_bounded_read" | "begin_review_validation" | "cancel_source_open"
             ) {
-                reply(&stdout, invocation.id, invoke(&runtime, &invocation))?;
+                reply(
+                    &stdout,
+                    invocation.id,
+                    invoke(&runtime, &media, &invocation),
+                )?;
                 continue;
             }
             let destination = if matches!(

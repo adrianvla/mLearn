@@ -10,6 +10,8 @@ import { Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 const active = (report: MaterialGenerationReport) =>
   report.generation.status === 'pending' || report.generation.status === 'streaming';
@@ -32,8 +34,8 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
   const [report, setReport] = useState<MaterialGenerationReport | null>(null);
   const [pending, setPending] = useState(false);
   const [controlling, setControlling] = useState(false);
-  const [error, setError] = useState('');
-  const [listError, setListError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
+  const [listError, setListError] = useState<Failure | null>(null);
   const [retry, setRetry] = useState<(() => Promise<MaterialGenerationReport>) | null>(null);
   const mounted = useRef(true);
   const actionOwner = useRef<object | null>(null);
@@ -49,11 +51,11 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
   useEffect(() => {
     if (!open || !expanded) return;
     let current = true;
-    setLoading(true); setListError('');
+    setLoading(true); setListError(null);
     void client.materialGenerations(after).then(value => {
       if (current) setPage(value);
     }).catch((cause: unknown) => {
-      if (current) setListError(cause instanceof Error ? cause.message : String(cause));
+      if (current) setListError(failure(cause, 'Generation jobs couldn’t be loaded.'));
     }).finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [client, open, expanded, after, reload]);
@@ -72,7 +74,7 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
         if (active(value)) timer = setTimeout(() => void refresh(), 350);
         else setReload(value => value + 1);
       } catch (cause) {
-        if (current) setError(cause instanceof Error ? cause.message : String(cause));
+        if (current) setError(failure(cause, 'This generation’s progress couldn’t be read.'));
       }
     }
     void refresh();
@@ -81,7 +83,7 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
   async function execute(action: () => Promise<MaterialGenerationReport>) {
     if (actionOwner.current) return;
     const actionScope = {}; actionOwner.current = actionScope;
-    setPending(true); setError('');
+    setPending(true); setError(null);
     try {
       const value = await action();
       // A concurrent Cancel may already have a newer terminal readback.
@@ -91,7 +93,7 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
       }
     } catch (cause) {
       if (mounted.current && actionOwner.current === actionScope) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(failure(cause, 'This generation action didn’t finish.'));
         setRetry(() => action);
       }
     } finally {
@@ -113,14 +115,14 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
         if (uncertain.current === admit) uncertain.current = null;
         return value;
       });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    } catch (cause) { setError(failure(cause, 'Proposal generation couldn’t start.')); }
   }
   async function cancel() {
     if (controllingRef.current) return;
     const admit = uncertain.current;
     const current = reportRef.current;
     if (!admit && !current) return;
-    controllingRef.current = true; setControlling(true); setError('');
+    controllingRef.current = true; setControlling(true); setError(null);
     try {
       // Resolve the same native admission if its first wire receipt is held/lost.
       const value = admit ? await admit() : current;
@@ -136,7 +138,7 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
         setPending(false); setReport(latest); setRetry(null); setReload(value => value + 1);
       }
     } catch (cause) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : String(cause));
+      if (mounted.current) setError(failure(cause, 'Proposal generation couldn’t be cancelled.'));
     } finally { controllingRef.current = false; if (mounted.current) setControlling(false); }
   }
   function retryGeneration(previous: MaterialGenerationReport) {
@@ -185,8 +187,8 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
         <Text variant="section">{report.label}</Text>
         <Text accessibilityLiveRegion="polite">{report.generation.status.replaceAll('_', ' ')}
           {report.collected ? ` · ${report.proposalIds.length} of up to ${report.maximum} proposals retained` : ''}</Text>
-        {report.generation.error ? <Text accessibilityRole="alert">{report.generation.error}</Text> : null}
-        {report.errors.map((message, index) => <Text key={index} accessibilityRole="alert">{message}</Text>)}
+        {report.generation.error ? <FailureNotice message="Proposal generation failed." detail={report.generation.error} /> : null}
+        {report.errors.length ? <FailureNotice message="Some proposals couldn’t be generated." detail={report.errors.join('\n')} /> : null}
         <Row>
           <Button label="Refresh generation" variant="secondary" disabled={pending || controlling}
             onPress={() => void execute(() => client.materialGeneration(report.generation.id))} />
@@ -204,14 +206,19 @@ export function MaterialGenerationControls({ client, open, basis, onProposal, on
       </View> : null}
       {uncertain.current || report && active(report) ? <Button label="Cancel proposal generation" variant="secondary"
         busy={controlling} onPress={() => void cancel()} /> : null}
-      {error ? <Text accessibilityRole="alert">{error}</Text> : null}
-      {retry ? <Button label="Recover generation action" variant="secondary" disabled={pending || controlling}
+      {error ? <FailureNotice message={error.message} detail={error.detail}>
+        {retry ? <Button label="Recover generation action" variant="secondary" disabled={pending || controlling}
+        onPress={() => void execute(retry)} /> : null}
+      </FailureNotice> : retry ? <Button label="Recover generation action" variant="secondary" disabled={pending || controlling}
         onPress={() => void execute(retry)} /> : null}
       <Text variant="caption" muted>Jobs continue after closing.</Text>
       <Row><Button label="Refresh generation jobs" variant="quiet" disabled={loading || pending || controlling}
         onPress={() => setReload(value => value + 1)} /></Row>
       {loading ? <Text accessibilityLiveRegion="polite">Loading generation jobs…</Text> : null}
-      {listError ? <Text accessibilityRole="alert">{listError}</Text> : null}
+      {listError ? <FailureNotice message={listError.message} detail={listError.detail}>
+        <Button label="Retry" accessibilityLabel="Retry generation jobs" variant="secondary" disabled={loading}
+          onPress={() => setReload(value => value + 1)} />
+      </FailureNotice> : null}
       {!loading && page?.items.length === 0 ? <Text>No saved generation jobs.</Text> : null}
       {page?.items.map(item => <Button key={item.generation.id} label={item.label}
         detail={item.generation.status.replaceAll('_', ' ')} variant="secondary" disabled={pending || controlling}

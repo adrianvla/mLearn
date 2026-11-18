@@ -5,7 +5,8 @@ import { initialTheme } from '../../packages/theme/src/theme';
 
 test('native SDK installation enables execution and retains accepted theme after restart', async ({ page, nativeCore }) => {
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Runtime', exact: true }).click();
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
   const run = page.getByRole('button', { name: 'Run hello', exact: true });
   await expect(run).toBeDisabled();
   await page.getByRole('button', { name: 'Install SDK example', exact: true }).click();
@@ -13,15 +14,16 @@ test('native SDK installation enables execution and retains accepted theme after
   await run.click();
   await expect(page.getByTestId('runtime-message')).toHaveText('Hello, world!');
 
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await page.getByRole('button', { name: 'General', exact: true }).click();
   await page.getByRole('combobox', { name: 'Select theme: Quartz', exact: true }).click();
   await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Select theme: Dark Quartz', exact: true })).toBeEnabled();
   await nativeCore.crashRestart();
   await page.reload();
-  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await page.getByRole('button', { name: 'General', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Select theme: Dark Quartz', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Runtime', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'On', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
   await expect(run).toBeEnabled();
   await run.click();
   await expect(page.getByTestId('runtime-message')).toHaveText('Hello, world!');
@@ -35,6 +37,8 @@ for (const id of ['qa.saved-palette', initialTheme.id]) {
       colors: { ...initialTheme.colors, background: '#223344' },
     };
     await page.goto('/settings');
+    await page.getByRole('button', { name: 'On', exact: true }).click();
+    await page.getByRole('button', { name: 'Developer', exact: true }).click();
     await page.getByRole('button', { name: 'Edit theme JSON', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Custom theme', exact: true });
     await dialog.getByRole('textbox', { name: 'Theme JSON', exact: true }).fill(JSON.stringify(custom));

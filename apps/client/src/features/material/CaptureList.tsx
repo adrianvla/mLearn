@@ -11,6 +11,8 @@ import { Menu } from '@mlearn/ui/menu';
 import { dialogSidebarBreakpoint } from '@mlearn/ui/dialog';
 import { InlineWord, type TextAnchor } from '@mlearn/ui/inline-word';
 import { LinguisticWord, Pronunciation } from '../linguistic';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 export type CaptureCandidate = {
   readonly key: string;
@@ -39,8 +41,8 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   const { width } = useWindowDimensions();
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [error, setError] = useState('');
-  const [availabilityError, setAvailabilityError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
+  const [availabilityError, setAvailabilityError] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
   const [exclusionRetry, setExclusionRetry] = useState<CaptureExclusion | null>(null);
@@ -52,19 +54,19 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   useEffect(() => {
     const scope = {}; owner.current = scope;
     lock.current = false; setPending(false);
-    setEntries([]); setAvailability([]); setError(''); setAvailabilityError(''); setExclusionRetry(null);
+    setEntries([]); setAvailability([]); setError(null); setAvailabilityError(null); setExclusionRetry(null);
     return () => { if (owner.current === scope) owner.current = null; };
   }, [client, identity]);
   useEffect(() => {
     const scope = owner.current;
     let active = true;
-    setAvailabilityError('');
+    setAvailabilityError(null);
     const targets = candidates.flatMap(({ content }) => content.targetId ? [{ packageId: content.packageId, targetId: content.targetId }] : []);
     if (!targets.length) { setAvailability([]); return () => { active = false; }; }
     void client.materialEligibility(targets).then(items => {
       if (active && scope && owner.current === scope && current.current === identity) setAvailability(items);
     }).catch((cause: unknown) => {
-      if (active && scope && owner.current === scope && current.current === identity) setAvailabilityError(cause instanceof Error ? cause.message : String(cause));
+      if (active && scope && owner.current === scope && current.current === identity) setAvailabilityError(failure(cause, 'Saved words couldn’t be checked.'));
     });
     return () => { active = false; };
   }, [client, identity, reload, refreshKey]);
@@ -73,7 +75,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   }
   async function capture(selected: Entry[]) {
     if (lock.current || !selected.length) return;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     const scope = owner.current;
     // Retain intent before admission: even a whole-call rejection can lose a
     // committed receipt. Until a result arrives, only this command may retry.
@@ -88,13 +90,13 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
         setReload(value => value + 1);
       }
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function begin(selected: readonly CaptureCandidate[], distinct = false) {
     if (lock.current) return;
     const scope = owner.current;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     try {
       const next: Entry[] = [];
       const positions = new Map<string, number>();
@@ -116,13 +118,13 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       lock.current = false;
       if (scope && owner.current === scope && current.current === identity) await capture(next);
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function reuse(candidate: CaptureCandidate, id: string) {
     if (lock.current) return;
     const scope = owner.current;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     try {
       const material = await client.material(id);
       const targets = candidates.flatMap(({ content }) => content.targetId ? [{ packageId: content.packageId, targetId: content.targetId }] : []);
@@ -133,12 +135,12 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
         onOpenMaterial?.(material.id);
       }
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function exclude(command: CaptureExclusion) {
     if (lock.current) return;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     const scope = owner.current;
     try {
       const item = await client.setCaptureExclusion(command);
@@ -148,7 +150,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       }
     } catch (cause) {
       if (scope && owner.current === scope && current.current === identity) {
-        setError(cause instanceof Error ? cause.message : String(cause)); setExclusionRetry(command);
+        setError(failure(cause, 'This word’s capture setting wasn’t saved.')); setExclusionRetry(command);
       }
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
@@ -246,10 +248,10 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       return cards ? <Panel key={candidate.key} inset="compact" material="card">{content}</Panel>
         : <View key={candidate.key}>{content}</View>;
     })}
-    {error ? <><Text tone={tone} accessibilityRole="alert">These words weren’t saved.</Text>
-      {exclusionRetry ? <Button label="Retry capture exclusion" variant={primary} disabled={disabled || pending} onPress={() => void exclude(exclusionRetry)} /> : null}</> : null}
-    {availabilityError ? <><Text tone={tone} accessibilityRole="alert">Saved words couldn’t be checked.</Text>
-      <Button label="Retry availability" variant={primary} disabled={disabled || pending} onPress={() => setReload(value => value + 1)} /></> : null}
+    {error ? <FailureNotice tone={tone} message={error.message} detail={error.detail}>
+      {exclusionRetry ? <Button label="Retry capture exclusion" variant={primary} disabled={disabled || pending} onPress={() => void exclude(exclusionRetry)} /> : null}</FailureNotice> : null}
+    {availabilityError ? <FailureNotice tone={tone} message={availabilityError.message} detail={availabilityError.detail}>
+      <Button label="Retry availability" variant={primary} disabled={disabled || pending} onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
   </View>;
 }
 const styles = StyleSheet.create(theme => ({

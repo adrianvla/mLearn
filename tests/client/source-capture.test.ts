@@ -9,6 +9,7 @@ import { prepareSourcePractice } from '../../apps/client/src/features/material/s
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 const source: SourceRecord = {
   id: 'video', title: 'Source', mediaPath: '/source.mp4', mediaRevision: 'media',
@@ -269,7 +270,7 @@ test('shared source practice retries the original admission after an uncertain r
           return <><button disabled={practice.pending} onClick={() => practice.start()}>Start</button>
             <button onClick={() => setVisible(value => !value)}>{visible ? 'Hide words' : 'Show words'}</button>
             <button onClick={() => setReplacement(true)}>Replace words</button>
-            <span role="alert">{practice.error}</span><output>{session}</output></>;
+            <span role="alert">{practice.error?.message}</span><span data-testid="failure-detail">{practice.error?.detail}</span><output>{session}</output></>;
         }
         createRoot(document.getElementById('root')).render(<Fixture />);
       };
@@ -289,10 +290,12 @@ test('shared source practice retries the original admission after an uncertain r
         await page.addScriptTag({ content: script.text });
         await page.evaluate(mode => Reflect.get(window, 'mount')(mode), mode);
         await page.getByRole('button', { name: 'Start', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await expect(page.getByRole('alert')).toHaveText('Practice couldn’t start.');
+        await expect(page.getByTestId('failure-detail')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
         await page.getByRole('button', { name: 'Hide words', exact: true }).click();
         await page.getByRole('button', { name: 'Show words', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await expect(page.getByRole('alert')).toHaveText('Practice couldn’t start.');
+        await expect(page.getByTestId('failure-detail')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
         if (mode === 'replacement') {
           await page.getByRole('button', { name: 'Replace words', exact: true }).click();
           await expect(page.getByRole('alert')).toBeEmpty();
@@ -458,6 +461,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
                 measure: publish => publish(node.getBoundingClientRect()), restoreFocus: () => node.focus() });
             }}>{children ?? text}</button>;
             export const Badge = ({ label }) => <span>{label}</span>;
+            ${failureNoticeStub}
             export const StyleSheet = { create: definition => typeof definition === 'function'
               ? definition(resolveTheme(initialTheme)) : definition };
           `,
@@ -482,7 +486,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           mount(mode);
         }, mode);
         if (mode === 'dictionary') {
-          await expect(page.getByRole('alert')).toHaveText('Source dictionary unavailable');
+          await expectFailure(page, 'Dictionary entries for these words couldn’t be loaded.', 'Source dictionary unavailable');
           await expect(page.getByTestId('dialog-description')).toHaveText('Words unavailable');
           await page.getByRole('button', { name: 'Retry source dictionary', exact: true }).click();
           await expect(page.getByRole('button', { name: 'Capture word0', exact: true })).toBeVisible();

@@ -36,6 +36,7 @@ mod operation_leases;
 mod packages;
 mod review;
 mod source_file;
+mod speech;
 mod watch;
 use catalog::verify_artifact;
 use catalog::{CatalogClient, CatalogTrust, Manifest};

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 test('the real cosmetic selector updates shared annotations without learning commands and retries the same write', { timeout: 30000 }, async () => {
   const bundle = await build({
@@ -61,7 +62,7 @@ test('the real cosmetic selector updates shared annotations without learning com
     plugins: [{
       name: 'native-control-adapters',
       setup(builder) {
-        builder.onResolve({ filter: /^@mlearn\/ui\/(button|layout|select|text|inline-word)$/ },
+        builder.onResolve({ filter: /^@mlearn\/ui\/(button|failure-notice|layout|select|text|inline-word)$/ },
           args => ({ path: args.path, namespace: 'controls' }));
         builder.onLoad({ filter: /.*/, namespace: 'controls' }, () => ({
           loader: 'tsx', resolveDir: resolve('.'), contents: `
@@ -69,6 +70,7 @@ test('the real cosmetic selector updates shared annotations without learning com
             import { InlineWordElement, DocumentWordContent } from './packages/ui/src/InlineWordElement.web';
             export const InlineWord=props=><InlineWordElement {...props} color="#000" knownColor="#080"/>;
             export const InlineWordContent=DocumentWordContent;
+            ${failureNoticeStub}
             export const SettingRow=({children})=><section>{children}</section>;
             export const Text=({children,accessibilityRole})=><span role={accessibilityRole}>{children}</span>;
             export const Button=({label,disabled,onPress})=><button disabled={disabled} onClick={onPress}>{label}</button>;
@@ -89,18 +91,18 @@ test('the real cosmetic selector updates shared annotations without learning com
     page.on('pageerror', error => errors.push(error.message));
     await page.setContent('<div id="root"></div>');
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
-  const selector = page.getByRole('combobox', { name: 'Stars scale' });
+  const selector = page.getByRole('combobox', { name: 'Level marks' });
     await expect(selector).toBeEnabled();
     await expect(page.locator('[data-level-star]')).toHaveCount(0);
     await selector.selectOption('p:exam');
-    await expect(page.getByRole('alert')).toHaveText('Reply lost after commit');
+    await expectFailure(page, 'This change wasn’t saved.', 'Reply lost after commit');
     await expect(selector).toBeDisabled();
-    await page.getByRole('button', { name: 'Retry saving inline level scale' }).click();
+    await page.getByRole('button', { name: 'Retry saving level marks' }).click();
     await expect(selector).toBeEnabled();
     await expect(page.locator('[data-level-star]')).toHaveCount(4);
     await selector.selectOption('p:course');
     await expect(page.locator('[data-level-star]')).toHaveCount(2);
-    const collapse = page.getByRole('combobox', { name: 'Star display' });
+    const collapse = page.getByRole('combobox', { name: 'Level mark display' });
     await collapse.selectOption('always');
     await expect(page.locator('[data-level-star]')).toHaveCount(1);
     await expect(page.locator('[data-level-stars-count]')).toHaveText('2');

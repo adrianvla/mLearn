@@ -15,13 +15,16 @@ export type ImageSelection = { readonly resourceId: string; readonly ocrRevision
 type Display = InlineDocumentFlow & { readonly background: string; readonly fontFamily: string;
     readonly lens: Parameters<typeof DocumentImageLens>[0]['display'] };
 type Natural = { readonly width: number; readonly height: number };
+/** The spread on screen: it stays until every page of its successor is decoded. */
+type Shown = { readonly key: string; readonly pages: readonly ImageCanvasPage[];
+    readonly uris: Readonly<Record<string, string>>; readonly natural: Readonly<Record<string, Natural>> };
 type Drag = { readonly resourceId: string; readonly pointer: number; readonly x: number; readonly y: number };
 
 /** Original pixels and source-local geometry live in this narrow rendering
  * boundary. Native OCR, package interpretation and Knowledge never run here.
  */
 export default function ImageCanvas({ ref, identity, sourceIdentity, pages, settings, cropMode, magnifier, selection, display,
-    onReady, onImage, onInspect, onMeasured, onCrop, onMagnify, onMagnifierActive, onImageError, onThumbnail, onNavigate }: {
+    onReady, onImage, onInspect, onMeasured, onCrop, onMagnifierActive, onImageError, onThumbnail, onNavigate }: {
     readonly ref?: Ref<ImageCanvasRef>;
     readonly dom?: DOMProps;
     readonly identity: string;
@@ -38,7 +41,6 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
         tokenStart: number, bounds: TextBounds) => Promise<void>;
     readonly onMeasured: (identity: string, occurrence: number, request: number, bounds: TextBounds) => Promise<void>;
     readonly onCrop: (identity: string, resourceId: string, crop: OcrRect) => Promise<void>;
-    readonly onMagnify: (sourceIdentity: string, resourceId: string, crop: OcrRect) => Promise<string>;
     readonly onMagnifierActive: (identity: string, active: boolean) => Promise<void>;
     readonly onImageError: (identity: string, resourceId: string) => Promise<void>;
     readonly onThumbnail: (identity: string, resourceId: string, thumbnail: SourceThumbnail) => Promise<void>;
@@ -46,8 +48,8 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
 }) {
     const root = useRef<HTMLDivElement>(null);
     const images = useRef(new Map<string, HTMLImageElement>());
-    const [pixels, setPixels] = useState<{ key: string; uris: Record<string, string> }>({ key: '', uris: {} });
-    const [natural, setNatural] = useState<Record<string, Natural>>({});
+    const [shown, setShown] = useState<Shown>({ key: '', pages: [], uris: {}, natural: {} });
+    const [loads, setLoads] = useState(0);
     const [size, setSize] = useState<Natural>({ width: 1, height: 1 });
     const anchor = useRef<TextAnchor | null>(null);
     const occurrence = useRef(0);
@@ -61,23 +63,32 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
     const pixelKey = JSON.stringify([sourceIdentity, pages.map(page => page.resourceId)]);
     useEffect(() => {
         let live = true;
-        setPixels({ key: pixelKey, uris: {} }); setNatural({});
         // Pixel data crosses the bridge once per visible source, never again
-        // for an Inspector, Knowledge or OCR projection update.
+        // for an Inspector, Knowledge or OCR projection update. The next spread
+        // decodes off-screen and replaces the current one in a single render, so
+        // a page turn never blanks the canvas.
         void (async () => {
+            const uris: Record<string, string> = {}, natural: Record<string, Natural> = {};
             for (const page of pages) {
                 try {
                     const uri = await imageCallbacks.current.onImage(sourceIdentity, page.resourceId);
-                    if (live) setPixels(value => value.key === pixelKey
-                        ? { key: pixelKey, uris: { ...value.uris, [page.resourceId]: uri } } : value);
+                    const image = new Image(); image.src = uri;
+                    await image.decode();
+                    uris[page.resourceId] = uri;
+                    natural[page.resourceId] = { width: image.naturalWidth, height: image.naturalHeight };
                 } catch {
                     if (live) void imageCallbacks.current.onImageError(imageCallbacks.current.identity, page.resourceId);
                 }
-                if (!live) break;
+                if (!live) return;
             }
+            setShown({ key: pixelKey, pages, uris, natural });
         })();
         return () => { live = false; };
     }, [pixelKey]);
+    // OCR/Knowledge updates of the current spread apply at once; a departing
+    // spread keeps its last projection and takes no input while it is replaced.
+    const current = shown.key === pixelKey;
+    const visiblePages = current ? pages : shown.pages;
     useDOMImperativeHandle<ImageCanvasRef>(ref ?? null, () => ({
         measure(request) {
             if (typeof request !== 'number') return;
@@ -102,7 +113,7 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
         if (pages.length && pages.every(page => images.current.get(page.resourceId)?.complete
             && (images.current.get(page.resourceId)?.naturalWidth ?? 0) > 0))
             void onReady(identity);
-    }, [identity, natural, size, pages.length]);
+    }, [identity, shown, loads, size, pages.length]);
 
     function activate(resourceId: string, regionId: string, start: number, selected: TextAnchor) {
         unsubscribe.current?.();
@@ -145,11 +156,11 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
             transform: `matrix(${vx.x / width},${vx.y / width},${vy.x / height},${vy.y / height},0,0)`,
             clipPath: `polygon(0 0,${width}px 0,${endX}px ${endY}px,0 ${height}px)` } };
     }
-    const ordered = settings.direction === 'rtl' ? [...pages].reverse() : pages;
+    const ordered = settings.direction === 'rtl' ? [...visiblePages].reverse() : visiblePages;
     const gap = settings.collate ? 0 : 8;
-    const availableWidth = Math.max(1, (size.width - gap * Math.max(0, pages.length - 1)) / Math.max(1, pages.length));
+    const availableWidth = Math.max(1, (size.width - gap * Math.max(0, visiblePages.length - 1)) / Math.max(1, visiblePages.length));
     const frames = ordered.map(page => {
-        const dimensions = natural[page.resourceId] ?? { width: 1, height: 1 };
+        const dimensions = shown.natural[page.resourceId] ?? { width: 1, height: 1 };
         const frame = imageFrame(dimensions.width, dimensions.height,
             { x: 0, y: 0, width: availableWidth, height: Math.max(1, size.height) }, settings.fit);
         return { page, frame };
@@ -170,7 +181,8 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
                     height: Math.max(size.height, frame.height) }}>
                 <div data-source-image={page.resourceId}
                     style={{ position: 'absolute', left: frame.x, top: frame.y, width: frame.width, height: frame.height,
-                    overflow: 'hidden', touchAction: cropMode ? 'none' : 'auto', cursor: cropMode ? 'crosshair' : 'auto' }}
+                    overflow: 'hidden', touchAction: cropMode ? 'none' : 'auto', cursor: cropMode ? 'crosshair' : 'auto',
+                    pointerEvents: current ? 'auto' : 'none' }}
                     onPointerDown={event => {
                         if (!cropMode || event.button !== 0) return;
                         const bounds = event.currentTarget.getBoundingClientRect();
@@ -199,11 +211,11 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
                     }}
                     onPointerCancel={() => { drag.current = null; setCrop(null); }}>
                     <img ref={node => { if (node) images.current.set(page.resourceId, node); else images.current.delete(page.resourceId); }}
-                        src={pixels.key === pixelKey ? pixels.uris[page.resourceId] : undefined}
+                        src={shown.uris[page.resourceId]}
                         alt={`Page ${page.index + 1}`} draggable={false}
                         onLoad={event => {
                             const node = event.currentTarget;
-                            setNatural(value => ({ ...value, [page.resourceId]: { width: node.naturalWidth, height: node.naturalHeight } }));
+                            setLoads(value => value + 1);
                             const preview = document.createElement('canvas');
                             const scale = Math.min(1, 128 / node.naturalWidth, 160 / node.naturalHeight);
                             preview.width = Math.max(1, Math.round(node.naturalWidth * scale));
@@ -217,8 +229,8 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
                             }
                         }} onError={() => { void onImageError(identity, page.resourceId); }}
                         style={{ display: 'block', width: '100%', height: '100%', userSelect: 'none',
-                            visibility: natural[page.resourceId] ? 'visible' : 'hidden' }} />
-                    {settings.showOverlay && natural[page.resourceId] && !cropMode && !lensActive ? page.page?.regions.filter(region => !region.readingOf).map(region => {
+                            visibility: shown.uris[page.resourceId] ? 'visible' : 'hidden' }} />
+                    {settings.showOverlay && shown.natural[page.resourceId] && !cropMode && !lensActive ? page.page?.regions.filter(region => !region.readingOf).map(region => {
                         const geometry = regionFrame(region, frame.width, frame.height);
                         if (!geometry) return null;
                         const analyzed = page.batch?.regions.find(item => item.regionId === region.id);
@@ -237,7 +249,7 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
                             })}
                         </div>;
                     }) : null}
-                    {settings.showOverlay && natural[page.resourceId] && !cropMode
+                    {settings.showOverlay && shown.natural[page.resourceId] && !cropMode
                         ? page.page?.regions.filter(region => region.readingOf).map(region => {
                             const geometry = regionFrame(region, frame.width, frame.height);
                             return geometry ? <div key={region.id} data-ocr-reading={region.id}
@@ -254,7 +266,7 @@ export default function ImageCanvas({ ref, identity, sourceIdentity, pages, sett
             </div>)}
         </div>
         <DocumentImageLens viewport={root} images={images.current} identity={pixelKey} enabled={magnifier} disabled={cropMode}
-            pixels={(resourceId, crop) => onMagnify(sourceIdentity, resourceId, crop)} display={display.lens}
+            display={display.lens}
             onActiveChange={active => { setLensActive(active); void onMagnifierActive(identity, active); }} />
     </div>;
 }

@@ -68,7 +68,8 @@ test('one shared surface is honest about missing native capabilities', async ({ 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Runtime', exact: true }).click();
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
   await expect(page.getByText('Browser preview', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run hello', exact: true })).toBeDisabled();
   await expect(page.getByText('The browser preview has no native runtime.', { exact: false })).toBeVisible();
@@ -87,12 +88,12 @@ test('one shared surface is honest about missing native capabilities', async ({ 
 
 test('navigation buttons expose their selected state', async ({ page }) => {
   await page.goto('/settings');
-  const appearance = page.getByRole('button', { name: 'Appearance', exact: true });
-  const runtime = page.getByRole('button', { name: 'Runtime', exact: true });
-  await expect(appearance).toHaveAttribute('aria-pressed', 'true');
-  await runtime.click();
-  await expect(runtime).toHaveAttribute('aria-pressed', 'true');
-  await expect(appearance).toHaveAttribute('aria-pressed', 'false');
+  const general = page.getByRole('button', { name: 'General', exact: true });
+  const plugins = page.getByRole('button', { name: 'Plugins', exact: true });
+  await expect(general).toHaveAttribute('aria-pressed', 'true');
+  await plugins.click();
+  await expect(plugins).toHaveAttribute('aria-pressed', 'true');
+  await expect(general).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('runtime theme updates, dialog labeling and keyboard focus work', async ({ page }) => {
@@ -108,6 +109,8 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   await expect(selector).toBeFocused();
   await expect(heading).not.toHaveCSS('color', before);
   await expect(page.getByText('Preview only. Changes are not saved.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
   const trigger = page.getByRole('button', { name: 'Edit theme JSON', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });
@@ -126,6 +129,8 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
 
 test('shared controls pass automated WCAG checks', async ({ page }) => {
   await page.goto('/settings');
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Edit theme JSON' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Edit theme JSON' }).click();
@@ -150,7 +155,8 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button', { name: 'Home', exact: true }).click();
  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
- await page.getByRole('button',{name:'Runtime',exact:true}).click();
+ await page.getByRole('button', { name: 'On', exact: true }).click();
+ await page.getByRole('button', { name: 'Developer', exact: true }).click();
  await expect(page.getByRole('button',{name:'Run hello',exact:true})).toBeDisabled();
  const home = page.getByRole('button',{name:'Home',exact:true});
  await expect(home).toBeVisible();

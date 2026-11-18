@@ -67,7 +67,7 @@ async function start(page: Page, offline = false) {
       },
     });
   }, { theme: initialTheme, offline, modelTest: nativeModelTest });
-  await page.goto('/settings?section=languages');
+  await page.goto('/settings?section=components');
   await expect(page.getByText('OCR models', { exact: true })).toBeVisible();
   await expect(page.getByText('Native detector and recognizer', { exact: true }).first()).toBeVisible();
 }
@@ -89,6 +89,10 @@ test(`native OCR models install, cancel, test and remove through their genuine h
     window.__ocrModelNative.complete();
   });
   await expect(page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true })).toBeVisible();
+  // Engine diagnostics are a Developer-mode surface; the recognized text is not.
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Components', exact: true }).click();
   await page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true }).click();
   await expect(page.getByText('3 detected regions · 845.2719 ms engine work', { exact: true })).toBeVisible();
   await expect(page.getByText('日本語を読む', { exact: true })).toBeVisible();

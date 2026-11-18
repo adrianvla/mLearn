@@ -9,6 +9,8 @@ import { Row } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 type Predicate = Exclude<CollectionFilter, { kind: 'all' | 'any' | 'not' }>;
 type Draft = { id: number; negated: boolean } & (
@@ -95,13 +97,13 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
   const [catalog, setCatalog] = useState<CollectionDescription | null>(null);
   const [sources, setSources] = useState<Option[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [draftError, setDraftError] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!expanded) return;
     let active = true;
-    setLoading(true); setError('');
+    setLoading(true); setError(null);
     void Promise.all([
       packageId ? client.describeLanguage(packageId) : Promise.resolve(null),
       client.recentSources(), client.recentDocuments(),
@@ -112,7 +114,7 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
       if (sourceId && !options.has(sourceId)) options.set(sourceId, { value: sourceId, label: 'Current source' });
       setSources([...options.values()]);
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Filter options couldn’t be loaded.'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [client, packageId, sourceId, expanded, retry]);
@@ -213,8 +215,8 @@ export function CollectionFilters({ client, packageId, value, sourceId, onApply 
     }>
     <View style={styles.root}>
       {loading ? <Text accessibilityLiveRegion="polite">Loading filter options…</Text> : null}
-      {error ? <><Text accessibilityRole="alert">{error}</Text><Button label="Retry filter options" variant="secondary"
-        onPress={() => setRetry(value => value + 1)} /></> : null}
+      {error ? <FailureNotice message={error.message} detail={error.detail}><Button label="Retry filter options" variant="secondary"
+        onPress={() => setRetry(value => value + 1)} /></FailureNotice> : null}
       {!packageId ? <Text variant="caption" muted>Select a language for level and Knowledge filters.</Text> : null}
       {render(draft)}
       {draftError ? <Text accessibilityRole="alert">{draftError}</Text> : null}

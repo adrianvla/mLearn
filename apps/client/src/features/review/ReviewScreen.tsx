@@ -18,7 +18,8 @@ import { CalibrationSetup } from './CalibrationSetup';
 import { ExpertProbeSetup } from './ExpertProbeSetup';
 
 type MutationAction = Parameters<RuntimeClient['prepareReviewMutation']>[1];
-const messageOf = (error: unknown) => error instanceof Error ? error.message : String(error);
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 function practiceScope(mode: ReviewMode): string | null {
   switch (mode.kind) {
@@ -55,8 +56,8 @@ function ReviewWorkspace({ client, media }: {
   const current = useRef<ReviewSession | null>(null);
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [readError, setReadError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
+  const [readError, setReadError] = useState<Failure | null>(null);
   const [failed, setFailed] = useState<ReviewCommand | null>(null);
   const [limit, setLimit] = useState('20');
   const [sessionOptions, setSessionOptions] = useState(false);
@@ -68,7 +69,7 @@ function ReviewWorkspace({ client, media }: {
   const readOwner = useRef<object | null>(null);
   const [returning, setReturning] = useState(false);
   const returnLock = useRef(false);
-  const [returnError, setReturnError] = useState('');
+  const [returnError, setReturnError] = useState<Failure | null>(null);
   const audio = useRef<{ readonly cancel: () => Promise<void> } | null>(null);
   const validation = useRef<AbortController | null>(null);
   const [validating, setValidating] = useState(false);
@@ -85,7 +86,7 @@ function ReviewWorkspace({ client, media }: {
     const active = scope.current;
     if (!active) return;
     const read = {}; readOwner.current = read;
-    setLoading(true); setReadError('');
+    setLoading(true); setReadError(null);
     try {
       const values = await client.reviewSessions();
       const requested = typeof params.sessionId === 'string' ? params.sessionId : null;
@@ -96,7 +97,7 @@ function ReviewWorkspace({ client, media }: {
         current.current = restored; setSession(restored);
       }
     } catch (cause) {
-      if (scope.current === active && readOwner.current === read) setReadError(messageOf(cause));
+      if (scope.current === active && readOwner.current === read) setReadError(failure(cause, 'Your Review sessions couldn’t be loaded.'));
     } finally {
       if (scope.current === active && readOwner.current === read) setLoading(false);
     }
@@ -122,7 +123,7 @@ function ReviewWorkspace({ client, media }: {
     const controller = command.kind === 'capture_response' ? new AbortController() : null;
     validation.current = controller;
     setValidating(controller !== null); setStopping(false);
-    setPending(true); setError('');
+    setPending(true); setError(null);
     const result = client.review(command, controller?.signal).then(commit => {
       failedCommand.current = null;
       if (scope.current === active && active) {
@@ -131,7 +132,7 @@ function ReviewWorkspace({ client, media }: {
       }
       return commit.session;
     }).catch(async (cause: unknown) => {
-      let failure = cause;
+      let rejection = cause;
       if (controller?.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled'
         && command.kind === 'capture_response') {
         // Only confirmed native termination permits retiring this intent.
@@ -141,13 +142,13 @@ function ReviewWorkspace({ client, media }: {
           failedCommand.current = null;
           if (scope.current === active && active) { publish(restored); setFailed(null); }
           return restored;
-        } catch (refreshFailure) { failure = refreshFailure; }
+        } catch (refreshFailure) { rejection = refreshFailure; }
       }
-      const rejectedAuthored = failure instanceof RuntimeError && failure.code === 'stale_authored_preview'
+      const rejectedAuthored = rejection instanceof RuntimeError && rejection.code === 'stale_authored_preview'
         && command.kind === 'start' && command.start.mode.kind === 'authored_practice';
       failedCommand.current = rejectedAuthored ? null : command;
       if (scope.current === active && active) {
-        setFailed(rejectedAuthored ? null : command); setError(messageOf(failure));
+        setFailed(rejectedAuthored ? null : command); setError(failure(rejection, rejectedAuthored ? 'This Material changed, so practice didn’t start. Preview it again.' : 'Your Review progress wasn’t saved.'));
       }
       return null;
     }).finally(() => {
@@ -182,12 +183,12 @@ function ReviewWorkspace({ client, media }: {
       const restored = await client.reviewSession(value.id);
       if (scope.current !== active) return;
       failedCommand.current = null;
-      setFailed(null); setError('');
+      setFailed(null); setError(null);
       if (restored.state === 'complete' || restored.state === 'stopped') publish(restored);
       else
         await execute(client.prepareReviewMutation(restored, { kind: 'stop' }));
     } catch (cause) {
-      if (scope.current === active) setError(messageOf(cause));
+      if (scope.current === active) setError(failure(cause, 'This practice couldn’t be ended.'));
     } finally {
       endingScope.current = false;
       if (scope.current === active) setPending(false);
@@ -234,7 +235,7 @@ function ReviewWorkspace({ client, media }: {
       if (scope.current === active && !failedCommand.current
         && current.current?.id === value?.id && current.current?.encounter?.id === encounterId) complete();
     } catch (cause) {
-      if (scope.current === active && !failedCommand.current) setError(messageOf(cause));
+      if (scope.current === active && !failedCommand.current) setError(failure(cause, 'Review couldn’t be left cleanly. Try again.'));
     } finally {
       returnLock.current = false;
       if (scope.current) setReturning(false);
@@ -251,7 +252,7 @@ function ReviewWorkspace({ client, media }: {
     if (flight.current || failedCommand.current || loading || returnLock.current) return;
     const active = scope.current;
     const read = {}; readOwner.current = read;
-    setLoading(true); setReadError('');
+    setLoading(true); setReadError(null);
     try {
       const value = await client.reviewSession(id);
       if (active && scope.current === active && readOwner.current === read) {
@@ -259,7 +260,7 @@ function ReviewWorkspace({ client, media }: {
         router.setParams({ sessionId: value.id });
       }
     } catch (cause) {
-      if (scope.current === active && readOwner.current === read) setReadError(messageOf(cause));
+      if (scope.current === active && readOwner.current === read) setReadError(failure(cause, 'Your Review sessions couldn’t be loaded.'));
     } finally {
       if (scope.current === active && readOwner.current === read) setLoading(false);
     }
@@ -292,7 +293,7 @@ function ReviewWorkspace({ client, media }: {
     const value = current.current;
     const encounter = value?.encounter;
     if (!value || !encounter?.source || flight.current || failedCommand.current || returnLock.current) return;
-    returnLock.current = true; setReturning(true); setReturnError('');
+    returnLock.current = true; setReturning(true); setReturnError(null);
     const active = scope.current;
     try {
       // Persist changed retrieval conditions before opening any source content.
@@ -312,7 +313,7 @@ function ReviewWorkspace({ client, media }: {
         }
       }
     } catch (cause) {
-      if (scope.current === active) setReturnError(messageOf(cause));
+      if (scope.current === active) setReturnError(failure(cause, 'The source for this item couldn’t be opened.'));
     } finally {
       returnLock.current = false;
       if (scope.current === active) setReturning(false);
@@ -339,7 +340,7 @@ function ReviewWorkspace({ client, media }: {
     }
     try {
       void mutate({ kind: 'capture_response', encounterId: encounter.id, response: input });
-    } catch (cause) { setError(messageOf(cause)); }
+    } catch (cause) { setError(failure(cause, 'Your answer couldn’t be checked.')); }
   }
   function reveal() {
     if (actionable && canReveal && encounter && !encounter.conditions.revealed && !audioPlaying)
@@ -406,7 +407,7 @@ function ReviewWorkspace({ client, media }: {
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} ${selectedScope ? 'completed' : 'reviewed'}` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>
-      {readError ? <Panel><Text accessibilityRole="alert">{readError}</Text><Button label="Retry Review sessions" onPress={() => void refresh()} /></Panel> : null}
+      {readError ? <Panel><FailureNotice message={readError.message} detail={readError.detail}><Button label="Retry Review sessions" onPress={() => void refresh()} /></FailureNotice></Panel> : null}
       {loading ? <Text accessibilityLiveRegion="polite">Loading Review sessions…</Text> : null}
       {!calibrationSetup && !authoringSetup ? recentSessions : null}
       {!session && !requestedSession ? <Panel>
@@ -493,7 +494,10 @@ function ReviewWorkspace({ client, media }: {
             </Stack> : null}
             {encounter.source ? <Button label="Return to source" variant="quiet" disabled={blocked || !!audioPlaying}
               onPress={() => void returnSource()} /> : null}
-            {returnError ? <Text accessibilityRole="alert">{returnError}</Text> : null}
+            {returnError ? <FailureNotice message={returnError.message} detail={returnError.detail}>
+              <Button label="Retry" accessibilityLabel="Retry returning to source" variant="quiet" disabled={blocked || !!audioPlaying}
+                onPress={() => void returnSource()} />
+            </FailureNotice> : null}
           </> : null}
         <View style={styles.optionGroup}>
           <Row>
@@ -513,13 +517,13 @@ function ReviewWorkspace({ client, media }: {
         </View>
       </> : null}
       {pending ? <Text accessibilityLiveRegion="polite">Saving {purpose}…</Text> : null}
-      {error ? <Panel><Text accessibilityRole="alert">{error}</Text>
+      {error ? <Panel><FailureNotice message={error.message} detail={error.detail}>
         {failed ? <Button label="Retry Review save" busy={pending} onPress={() => {
           void execute(failed).then(value => {
             if (value && scope.current && failed.kind === 'start') router.setParams({ sessionId: value.id });
             return failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined;
           });
-        }} /> : null}</Panel> : null}
+        }} /> : null}</FailureNotice></Panel> : null}
       {calibrationSetup || authoringSetup ? recentSessions : null}
     </View>
   </AppShell>;

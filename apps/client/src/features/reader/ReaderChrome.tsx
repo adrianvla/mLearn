@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { DocumentAppearance, DocumentPosition, DocumentRecord, DocumentSearchHit, DocumentWritingMode } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import type { InspectionMode } from '@mlearn/ui/inline-word';
 import { Row, SettingRow } from '@mlearn/ui/layout';
 import { Select } from '@mlearn/ui/select';
@@ -15,7 +16,8 @@ import type { useImageReader } from './useImageReader';
 import type { useReader } from './useReader';
 
 export type ReaderPanel = 'vocabulary' | 'appearance' | 'options';
-type Strip = { readonly message: string; readonly action: 'retry' | 'install' | null; readonly onAction: () => void };
+type Strip = { readonly message: string; readonly detail?: string | null; readonly action: 'retry' | 'install' | null;
+    readonly onAction: () => void };
 
 const triggers: readonly { value: InspectionMode; label: string }[] = [
     { value: 'click', label: 'Click' }, { value: 'immediate', label: 'Hover' },
@@ -73,14 +75,17 @@ export function ReaderToolbar({ title, position, imageMode, wide, optionsRef, le
     const options = <Button ref={optionsRef} label="View options" icon={imageMode ? 'settings' : undefined} iconOnly={imageMode}
         variant="secondary" size="compact" disabled={disabled} accessibilityState={{ expanded: optionsOpen }} onPress={onOptions} />;
     const layout = imageMode || wide ? <ImageLayoutControls reader={imageReader} onBeforeAction={onBeforeLayout} /> : null;
-    return <View testID="reader-toolbar" style={[styles.toolbar, !wide && styles.narrowToolbar]}>
-        <View style={[styles.leading, { paddingLeft: leadingInset }]}>
+    // One row at every width. Narrow windows keep Home, title and page turns
+    // fixed and scroll the remaining controls; the page position stays only in
+    // the status strip there, so it is never shown twice side by side.
+    return <View testID="reader-toolbar" style={styles.toolbar}>
+        <View style={[styles.leading, !wide && styles.narrowLeading, { paddingLeft: leadingInset }]}>
             {wide ? <Button label={railOpen ? 'Hide page rail' : 'Show page rail'} icon="sidebarLeft" iconOnly size="compact"
                 variant="secondary" accessibilityState={{ expanded: railOpen }} onPress={onRail} /> : null}
-            <Button label="Home" icon="arrowLeft" size="compact" variant="secondary" disabled={homeDisabled} onPress={onHome} />
-            <View style={styles.title}><Text variant="navigation" muted numberOfLines={1} accessibilityRole="header"
+            <Button label="Home" icon="arrowLeft" iconOnly={!wide} size="compact" variant="secondary" disabled={homeDisabled} onPress={onHome} />
+            <View style={[styles.title, !wide && styles.narrowTitle]}><Text variant="navigation" muted numberOfLines={1} accessibilityRole="header"
                 testID="reader-title">{title}</Text></View>
-            {position ? <Text variant="detail" muted testID="reader-toolbar-position">{position}</Text> : null}
+            {position && wide ? <Text variant="detail" muted testID="reader-toolbar-position">{position}</Text> : null}
             {!wide ? navigation : null}
         </View>
         <Actions wide={wide}>
@@ -89,27 +94,24 @@ export function ReaderToolbar({ title, position, imageMode, wide, optionsRef, le
     </View>;
 }
 
-/** Narrow windows move navigation into the first row; the remaining controls scroll. */
+/** Narrow windows keep navigation beside the title; the remaining controls scroll in the same row. */
 function Actions({ wide, children }: { readonly wide: boolean; readonly children: ReactNode }) {
     return <ScrollView horizontal style={[styles.actionsViewport, !wide && styles.narrowActions]} contentContainerStyle={styles.actions}
         keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>{children}</ScrollView>;
 }
 
-export function ReaderStatusStrip({ position, imageMode, status, inspectionMode, onInspectionMode, annotations, onAnnotations,
-    readingFilter, onReadingFilter, crop, onCrop, magnifier, onMagnifier, controlsDisabled, notice }: {
+/** Bottom strip: position, inspection trigger, annotations and the real
+ * reading state. Page tools (area recognition, magnifier, reading covers) live
+ * in View options beside the recognized text they act on.
+ */
+export function ReaderStatusStrip({ position, status, inspectionMode, onInspectionMode, annotations, onAnnotations,
+    controlsDisabled, notice }: {
     readonly position: string | null;
-    readonly imageMode: boolean;
     readonly status: string;
     readonly inspectionMode: InspectionMode;
     readonly onInspectionMode: (value: InspectionMode) => void;
     readonly annotations: boolean;
     readonly onAnnotations: () => void;
-    readonly readingFilter: boolean;
-    readonly onReadingFilter: () => void;
-    readonly crop: boolean;
-    readonly onCrop: () => void;
-    readonly magnifier: boolean;
-    readonly onMagnifier: () => void;
     readonly controlsDisabled: boolean;
     readonly notice: Strip | null;
 }) {
@@ -125,24 +127,44 @@ export function ReaderStatusStrip({ position, imageMode, status, inspectionMode,
                         if (selected) onInspectionMode(selected.value);
                     }} />
             </View>
-            {imageMode ? <Button label={`Crop: ${onOff(crop)}`} variant="quiet" size="compact" disabled={controlsDisabled}
-                accessibilityState={{ selected: crop }} onPress={onCrop} /> : null}
             <Button label={`Reading annotations: ${onOff(annotations)}`} variant="quiet" size="compact" disabled={controlsDisabled}
                 accessibilityState={{ selected: annotations }} onPress={onAnnotations} />
-            {imageMode ? <>
-                <Button label={`OCR reading filter: ${onOff(readingFilter)}`} variant="quiet" size="compact"
-                    disabled={controlsDisabled || !annotations} accessibilityState={{ selected: readingFilter }}
-                    onPress={onReadingFilter} />
-                <Button label={magnifier ? 'Press Z to close magnifier' : 'Press Z to open magnifier'} variant="quiet" size="compact"
-                    disabled={controlsDisabled} accessibilityState={{ selected: magnifier }} onPress={onMagnifier} />
-            </> : null}
         </ScrollView>
         {notice ? <View style={styles.notice}>
-            <Text variant="detail" accessibilityRole="alert">{notice.message}</Text>
-            {notice.action ? <Button label={notice.action === 'install' ? 'Install' : 'Retry'} variant="secondary" size="compact"
-                onPress={notice.onAction} /> : null}
+            <FailureNotice message={notice.message} detail={notice.detail} testID="reader-status-notice">
+                {notice.action ? <Button label={notice.action === 'install' ? 'Install' : 'Retry'} variant="secondary" size="compact"
+                    onPress={notice.onAction} /> : null}
+            </FailureNotice>
         </View> : <View style={styles.state}><Text variant="detail" muted numberOfLines={1} accessibilityLiveRegion="polite"
             testID="reader-status-text">{status}</Text></View>}
+    </View>;
+}
+
+/** Image page tools. Each is a toggle whose on state is visibly selected;
+ * a disabled tool says why beside it.
+ */
+export function ImagePageTools({ crop, onCrop, magnifier, onMagnifier, covers, onCovers, annotations, disabled }: {
+    readonly crop: boolean;
+    readonly onCrop: () => void;
+    readonly magnifier: boolean;
+    readonly onMagnifier: () => void;
+    readonly covers: boolean;
+    readonly onCovers: () => void;
+    readonly annotations: boolean;
+    readonly disabled: boolean;
+}) {
+    return <View style={styles.group} testID="reader-page-tools">
+        <Text variant="groupTitle">Page tools</Text>
+        <Row>
+            <Button label="Read a selected area" variant={crop ? 'primary' : 'secondary'} size="compact" disabled={disabled}
+                accessibilityHint="Drag over the page to recognize that area" accessibilityState={{ selected: crop }} onPress={onCrop} />
+            <Button label="Magnifier" variant={magnifier ? 'primary' : 'secondary'} size="compact" disabled={disabled}
+                accessibilityHint="You can also hold Z over the page" accessibilityState={{ selected: magnifier }} onPress={onMagnifier} />
+            <Button label="Cover printed readings" variant={covers && annotations ? 'primary' : 'secondary'} size="compact"
+                disabled={disabled || !annotations} accessibilityState={{ selected: covers && annotations }} onPress={onCovers} />
+        </Row>
+        {!annotations ? <Text variant="detail" muted>Turn on reading annotations to cover printed readings.</Text> : null}
+        <Text variant="detail" muted>Hold Z over the page to magnify.</Text>
     </View>;
 }
 
@@ -272,10 +294,11 @@ const styles = StyleSheet.create(theme => ({
     toolbar: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
         paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border, _web: { userSelect: 'none' } },
-    narrowToolbar: { flexWrap: 'wrap', rowGap: theme.spacing.tiny },
-    narrowActions: { flexBasis: '100%' },
+    narrowActions: { flexGrow: 1, flexBasis: 0, minWidth: 44 },
     leading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small, flexShrink: 1, flexGrow: 1, minWidth: 0 },
+    narrowLeading: { flexGrow: 0, maxWidth: '70%' },
     title: { flexShrink: 1, minWidth: 0 },
+    narrowTitle: { minWidth: 48 },
     actionsViewport: { flexGrow: 0, flexShrink: 1 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
     segmented: { flexDirection: 'row', gap: 1 },

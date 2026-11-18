@@ -6,6 +6,8 @@ import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
     readonly client: RuntimeClient;
@@ -15,7 +17,7 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
 }) {
     const [page, setPage] = useState<KnowledgeEvidencePage | null>(null);
     const [pending, setPending] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<Failure | null>(null);
     const [stopped, setStopped] = useState(false);
     const [expanded, setExpanded] = useState<string | null>(null);
     const operation = useRef<AbortController | null>(null);
@@ -26,14 +28,14 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
         const owner = new AbortController();
         operation.current = owner;
         retry.current = after;
-        setPending(true); setError(''); setStopped(false);
+        setPending(true); setError(null); setStopped(false);
         try {
             const value = await client.knowledgeEvidence({ key: knowledgeKey, after }, owner.signal);
             if (operation.current !== owner) return;
             setPage(value); setExpanded(null);
         } catch (cause) {
             if (operation.current === owner)
-                setError(cause instanceof Error ? cause.message : String(cause));
+                setError(failure(cause, 'Evidence for this word couldn’t be loaded.'));
         } finally {
             if (operation.current === owner) {
                 operation.current = null; setPending(false);
@@ -102,14 +104,15 @@ export function KnowledgeEvidence({ client, knowledgeKey, label, onBack }: {
         </> : null}
         {pending ? <Text tone="media" accessibilityLiveRegion="polite">Loading evidence…</Text> : null}
         {stopped ? <Text tone="media" accessibilityLiveRegion="polite">Evidence loading stopped.</Text> : null}
-        {error ? <Text tone="media" accessibilityRole="alert">{error}</Text> : null}
+        {error ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
+            <Button label="Retry" accessibilityLabel="Retry evidence" variant="media" size="compact" disabled={pending}
+                onPress={() => void load(retry.current)} />
+        </FailureNotice> : null}
         <Row>
             {pending ? <Button label="Stop loading evidence" variant="media" size="compact" onPress={() => {
                 operation.current?.abort();
                 operation.current = null; setPending(false); setStopped(true);
             }} /> : null}
-            {error ? <Button label="Retry evidence" variant="media" size="compact" disabled={pending}
-                onPress={() => void load(retry.current)} /> : null}
             <Button label="Refresh evidence" variant="media" size="compact" disabled={pending}
                 onPress={() => void load(null)} />
             {page?.next ? <Button label="Older observations" variant="media" size="compact" disabled={pending}

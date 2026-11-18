@@ -56,6 +56,7 @@ fn seed(runtime: &RuntimeExecutor, endpoint: &str) {
                 name: "Conversation partner".into(),
                 description: "Answer the actual question.".into(),
                 archived: false,
+                voice: String::new(),
             },
         },
     );
@@ -72,6 +73,7 @@ fn seed(runtime: &RuntimeExecutor, endpoint: &str) {
                 package_id: "org.mlearn.english".into(),
                 participants: vec![ContactId("person".into())],
                 discarded: false,
+                absent: Vec::new(),
             },
         },
     );
