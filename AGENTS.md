@@ -1,5 +1,22 @@
 # mLearn engineering contract
 
+## Active authorization — complete M01–M11 including M08 and M09, 2026-11-18
+
+The maintainer authorizes implementing **M08 (shared speech and native calls)
+and M09 (optional Sea/Rooms and scenario continuity)**, superseding the M08/M09
+non-authorization in the 2026-10-27 M10/M11 batch below. The job is to make
+M01–M11 fully implemented and working: every "Deliver:" item exists and every
+"Review:" paragraph runs as an executable journey on the real Rust runtime
+(and natively for UI) with zero console errors and no open bugs. Rust contract,
+command and storage changes required by missing deliverables are authorized.
+Model downloads, API keys, permissions or hardware the agent cannot obtain are
+logged in `.mlearn/RESUME.md` with what is needed and why, and skipped; they
+are never reported as success. Language- or exam-specific names (JLPT, stars,
+N-levels, pitch terms) do not appear in core UI, settings or code; they come
+from the active language plugin's data under neutral core names. Resource,
+serial-build, local-commit (no push/merge) and fixture-preservation rules below
+remain in force. No M12+.
+
 ## Active authorization — structural UI conformance, 2026-11-10
 
 The backend is accepted as working. Do not change Rust contracts, commands or
