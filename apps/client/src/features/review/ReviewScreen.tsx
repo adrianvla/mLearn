@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
@@ -9,7 +9,8 @@ import { AppShell, Panel, Row, Stack } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
-import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { useRuntime, type SpeechHost } from '../../bootstrap/RuntimeProvider';
+import { PronunciationPlayback } from '../inspector';
 import { ReviewAudio } from '../review-media';
 import { ActivityNavigation } from '../navigation';
 import { RatingMatrix } from './RatingMatrix';
@@ -43,16 +44,17 @@ const assistanceLabel: Record<ReviewAssistance, string> = {
 
 export function ReviewScreen() {
   const host = useRuntime();
-  return host.available ? <ReviewWorkspace client={host.client} media={host.authoredMedia} />
+  return host.available ? <ReviewWorkspace client={host.client} media={host.authoredMedia} speech={host.speech} />
     : <AppShell header={<ActivityNavigation active="review">
       <Text variant="heading" accessibilityRole="header">Review</Text>
     </ActivityNavigation>}>
       <Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
 }
 
-function ReviewWorkspace({ client, media }: {
+function ReviewWorkspace({ client, media, speech }: {
   readonly client: RuntimeClient;
   readonly media: { readonly uri: (id: AuthoredMediaId) => Promise<string> };
+  readonly speech: SpeechHost | undefined;
 }) {
   const router = useRouter();
   const params = useLocalSearchParams<{ sessionId?: string; activity?: string; packageId?: string; materialId?: string }>();
@@ -326,6 +328,20 @@ function ReviewWorkspace({ client, media }: {
     }
   }
   const encounter = session?.encounter;
+  // After Reveal the item's target-language form can be heard through the shared speech
+  // provider the Inspector uses: the Material's reading or phrase, or the entry's headword.
+  const [spoken, setSpoken] = useState<{ readonly id: string; readonly text: string } | null>(null);
+  const revealedId = encounter?.conditions.revealed ? encounter.id : null;
+  useEffect(() => {
+    if (!encounter || !revealedId) return;
+    let live = true;
+    const form = 'materialId' in encounter
+      ? client.material(encounter.materialId).then(item => item ? item.content.reading || item.content.phrase : '')
+      : client.inspectTarget(encounter.packageId, encounter.targetId).then(item => item.entry.reading ?? item.entry.headword);
+    // Without a spoken form the item simply offers no pronunciation; Review itself is unaffected.
+    form.then(text => { if (live && text.trim()) setSpoken({ id: revealedId, text }); }, () => {});
+    return () => { live = false; };
+  }, [client, revealedId]);
   const audioPlaying = encounter?.conditions.delivery === 'pending' || encounter?.conditions.delivery === 'started';
   const blocked = pending || failed !== null || loading || returning;
   const actionable = focused && session?.state === 'active' && !!encounter && !blocked;
@@ -462,6 +478,8 @@ function ReviewWorkspace({ client, media }: {
                 disabled={blocked} onDelivery={delivery} /> : null}
               {encounter.conditions.revealed && encounter.answer !== null ?
                 <Text testID="review-answer" selectable align="center" variant="reviewExample">{encounter.answer}</Text> : null}
+              {spoken?.id === revealedId ? <PronunciationPlayback key={spoken.id} client={client} speech={speech} text={spoken.text}
+                onOpenVoiceSettings={() => router.navigate({ pathname: '/settings', params: { section: 'voice' } })} /> : null}
             </View>
             {responseSpec?.kind === 'typed_text' ? <TextField label="Your response"
               value={response?.kind === 'typed_text' ? response.text : ''}

@@ -30,12 +30,14 @@ function level(analyser: AnalyserNode, samples: Float32Array<ArrayBuffer>) {
 async function microphone() {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
   const context = new AudioContext();
-  // A context created after an async gap starts suspended in WebKit and reads silence.
-  if (context.state === 'suspended') await context.resume();
+  const release = () => { for (const track of stream.getTracks()) track.stop(); void context.close(); };
+  try {
+    // A context created after an async gap starts suspended in WebKit and reads silence.
+    if (context.state === 'suspended') await context.resume();
+  } catch (cause) { release(); throw cause; }
   const analyser = context.createAnalyser();
   analyser.fftSize = 1024;
   context.createMediaStreamSource(stream).connect(analyser);
-  const release = () => { for (const track of stream.getTracks()) track.stop(); void context.close(); };
   return { stream, analyser, samples: new Float32Array(analyser.fftSize), release };
 }
 

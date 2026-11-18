@@ -57,6 +57,26 @@ test.use({ launchOptions: { args: ['--autoplay-policy=no-user-gesture-required']
       expect(speech.requests.some(request => request.path === '/v1/audio/speech' && request.body.includes('"voice":"river"'))).toBe(true);
       await inspector.getByRole('button', { name: 'Stop pronunciation', exact: true }).click();
 
+      // Review voices the same item through the same speech provider, only once it is revealed.
+      await inspector.getByRole('button', { name: 'Capture children', exact: true }).click();
+      await expect(inspector.getByRole('button', { name: 'Open saved children: revision 1', exact: true })).toBeVisible();
+      await page.goto('/');
+      await page.getByTestId('home-open-review').click();
+      await page.getByRole('button', { name: 'Session size', exact: true }).click();
+      await page.getByRole('textbox', { name: 'Finite Review limit', exact: true }).fill('1');
+      await page.getByRole('button', { name: 'Start finite Review', exact: true }).click();
+      await expect(page.getByTestId('review-cue')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Play pronunciation', exact: true })).toHaveCount(0);
+      const spokenBefore = speech.requests.filter(request => request.path === '/v1/audio/speech').length;
+      await page.getByRole('button', { name: 'Reveal', exact: true }).click();
+      await page.getByRole('button', { name: 'Play pronunciation', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Stop pronunciation', exact: true })).toBeVisible();
+      const spoken = speech.requests.filter(request => request.path === '/v1/audio/speech');
+      expect(spoken.length).toBe(spokenBefore + 1);
+      expect(spoken.at(-1)?.body).toContain('children');
+      await page.screenshot({ path: info.outputPath('m08-review-pronunciation.png') });
+      await page.getByRole('button', { name: 'Stop pronunciation', exact: true }).click();
+
       // An interruptible call: what was heard is recorded separately from what was generated.
       await openMessenger(page, nativeCore, ['Ana']);
       await createConversation(page, 'Evening call', 'Separate history', ['Ana']);
