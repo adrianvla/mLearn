@@ -330,7 +330,8 @@ function ReviewWorkspace({ client, media, speech }: {
   const encounter = session?.encounter;
   // After Reveal the item's target-language form can be heard through the shared speech
   // provider the Inspector uses: the Material's reading or phrase, or the entry's headword.
-  const [spoken, setSpoken] = useState<{ readonly id: string; readonly text: string } | null>(null);
+  const [spoken, setSpoken] = useState<{ readonly id: string; readonly text: string | null } | null>(null);
+  const [spokenAttempt, setSpokenAttempt] = useState(0);
   const revealedId = encounter?.conditions.revealed ? encounter.id : null;
   useEffect(() => {
     if (!encounter || !revealedId) return;
@@ -338,10 +339,11 @@ function ReviewWorkspace({ client, media, speech }: {
     const form = 'materialId' in encounter
       ? client.material(encounter.materialId).then(item => item ? item.content.reading || item.content.phrase : '')
       : client.inspectTarget(encounter.packageId, encounter.targetId).then(item => item.entry.reading ?? item.entry.headword);
-    // Without a spoken form the item simply offers no pronunciation; Review itself is unaffected.
-    form.then(text => { if (live && text.trim()) setSpoken({ id: revealedId, text }); }, () => {});
+    // An item without a spoken form offers no pronunciation; a failed lookup says so with Retry.
+    form.then(text => { if (live && text.trim()) setSpoken({ id: revealedId, text }); },
+      () => { if (live) setSpoken({ id: revealedId, text: null }); });
     return () => { live = false; };
-  }, [client, revealedId]);
+  }, [client, revealedId, spokenAttempt]);
   const audioPlaying = encounter?.conditions.delivery === 'pending' || encounter?.conditions.delivery === 'started';
   const blocked = pending || failed !== null || loading || returning;
   const actionable = focused && session?.state === 'active' && !!encounter && !blocked;
@@ -478,8 +480,11 @@ function ReviewWorkspace({ client, media, speech }: {
                 disabled={blocked} onDelivery={delivery} /> : null}
               {encounter.conditions.revealed && encounter.answer !== null ?
                 <Text testID="review-answer" selectable align="center" variant="reviewExample">{encounter.answer}</Text> : null}
-              {spoken?.id === revealedId ? <PronunciationPlayback key={spoken.id} client={client} speech={speech} text={spoken.text}
-                onOpenVoiceSettings={() => router.navigate({ pathname: '/settings', params: { section: 'voice' } })} /> : null}
+              {spoken?.id === revealedId && spoken.text !== null ? <PronunciationPlayback key={spoken.id} client={client} speech={speech} text={spoken.text}
+                onOpenVoiceSettings={() => router.navigate({ pathname: '/settings', params: { section: 'voice' } })} />
+                : spoken?.id === revealedId ? <FailureNotice message="The pronunciation couldn’t be prepared.">
+                  <Button label="Retry pronunciation" variant="secondary" onPress={() => { setSpoken(null); setSpokenAttempt(value => value + 1); }} />
+                </FailureNotice> : null}
             </View>
             {responseSpec?.kind === 'typed_text' ? <TextField label="Your response"
               value={response?.kind === 'typed_text' ? response.text : ''}
