@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { appendFile, copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -117,6 +119,27 @@ test('M02 subtitle interaction, package management, ambiguity, stale analysis an
     await page.getByRole('option', { name: /^English/ }).click();
     await expect.poll(async () => (await stored(walk.id)).packageId).toBe('org.mlearn.english');
     await options.getByRole('button', { name: 'Close', exact: true }).click();
+
+    // Tracks carried inside the video: embedded text subtitles can be used, picture subtitles and
+    // audio switching are explained in place. The remuxed corpus video adds a second audio track,
+    // English text, ASS and picture subtitle tracks (crates/runtime/examples/multitrack_webm.rs).
+    const tracked = path.join(directory, 'Harbour tracks.webm');
+    await promisify(execFile)(path.resolve('target/debug/examples/multitrack_webm'), [corpusVideo, tracked]);
+    const multitrack = await execute(nativeCore, { type: 'open_source', path: tracked, packageId: 'org.mlearn.english' });
+    await page.goto(`/watch?id=${multitrack.window.source.id}`);
+    await page.getByRole('button', { name: 'Playback options', exact: true }).click();
+    const trackOptions = page.getByRole('dialog', { name: 'Playback and subtitles', exact: true });
+    await expect(trackOptions.getByText('Subtitles in this video', { exact: true })).toBeVisible();
+    await expect(trackOptions.getByText('These subtitles are pictures, so they can’t be shown as text.', { exact: true })).toBeVisible();
+    // Chromium exposes no audio track list, so switching is explained rather than offered.
+    await expect(trackOptions.getByRole('combobox', { name: /^Audio track/ })).toBeDisabled();
+    await expect(trackOptions.getByText('This player can’t switch between this video’s audio tracks.', { exact: true })).toBeVisible();
+    expect(await trackOptions.innerText()).not.toMatch(/S_TEXT|PGS|A_OPUS|codec|track 10\d/i);
+    await page.screenshot({ path: info.outputPath('m02-embedded-tracks.png') });
+    await trackOptions.getByRole('button', { name: /^Use English/ }).click();
+    await expect.poll(async () => (await stored(multitrack.window.source.id)).subtitleRevision).not.toBeNull();
+    await trackOptions.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(subtitles.getByRole('button', { name: /^Ships: / })).toBeVisible();
 
     // A held analysis of one source never paints over the next source.
     let release = () => {};

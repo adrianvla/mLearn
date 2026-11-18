@@ -585,7 +585,9 @@ impl Runtime {
                     .clone();
                 Ok(Prepared::Work(GuestWork::Catalog(catalog)))
             }
-            request @ (Request::ResumeSource { .. } | Request::AttachSubtitles { .. }) => {
+            request @ (Request::ResumeSource { .. }
+            | Request::AttachSubtitles { .. }
+            | Request::AttachEmbeddedSubtitles { .. }) => {
                 cancellation.check()?;
                 let response = self.watch(request, epoch);
                 cancellation.check()?;
@@ -623,6 +625,8 @@ impl Runtime {
             | Request::SetSubtitleOffset { .. }
             | Request::AlignSubtitleOffset { .. }
             | Request::SetPlaybackRate { .. }
+            | Request::SourceTracks { .. }
+            | Request::SetAudioTrack { .. }
             | Request::SetInspectionTrigger { .. }
             | Request::SavePosition { .. }
             | Request::Knowledge { .. }

@@ -26,6 +26,7 @@ mod media_file;
 mod media_format;
 mod media_import;
 mod media_recovery;
+mod media_tracks;
 pub mod native_ocr;
 #[cfg(test)]
 mod native_test_profile;

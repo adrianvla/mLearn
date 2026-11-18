@@ -15,6 +15,7 @@ import type { SourceWindow, SourceAnchor, AnalysisBatch, PluginSummary, Subtitle
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
+import { MediaTracks } from './MediaTracks';
 import { AnnotatedText } from '../annotated-text';
 import { Inspector, type Inspection } from '../inspector';
 import { Transcript } from './Transcript';
@@ -71,6 +72,7 @@ function WatchWorkspace() {
     const [inspection, setInspection] = useState<Inspection | null>(null);
     // Words the learner inspected in this source feed the Vocabulary "Hovered words" view, as in the Reader.
     const [hovered, setHovered] = useState<ReadonlySet<string>>(new Set());
+    const [playerAudioTracks, setPlayerAudioTracks] = useState(0);
     useEffect(() => { setHovered(new Set()); }, [id]);
     function inspect(value: Inspection) {
         setInspection(value);
@@ -691,6 +693,8 @@ function WatchWorkspace() {
                           <Button label="Use installed language version" variant="secondary" disabled={busy}
                             onPress={() => void changeSource(client => client.setSourceLanguage(id, window.source.packageId), true)} />
                         </> : null}
+                        <MediaTracks client={host.client} source={window.source} busy={busy}
+                          playerAudioTracks={playerAudioTracks} onChange={changeSource} />
                         {Platform.OS === 'web' ? <>
                           <Text>Desktop inspection</Text>
                           <Row>{([
@@ -790,6 +794,7 @@ function WatchWorkspace() {
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
                         controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
+                        audioTrack={window.source.audioTrack} onAudioTracks={setPlayerAudioTracks}
                         paused={!!inspection || !!returnedSelection || busy || (transcriptOpen && sidebarInset === 0) || playbackOpen || captureOpen}
                         onController={value => {
                             controller.current = value;

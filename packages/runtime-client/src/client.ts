@@ -160,7 +160,7 @@ export function createRuntimeClient(transport: Transport) {
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','knowledge_evidence','return_material_source','return_material_proposal_source','return_review_source','return_source_anchor'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','attach_embedded_subtitles','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','knowledge_evidence','return_material_source','return_material_proposal_source','return_review_source','return_source_anchor'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -275,6 +275,9 @@ export function createRuntimeClient(transport: Transport) {
         throw new RuntimeError('protocol','Mismatched subtitle alignment');
       return r.window;
     },
+    async sourceTracks(sourceId:string){const r=await watch({type:'source_tracks',sourceId});if(r.type!=='media_tracks'||r.sourceId!==sourceId)throw new RuntimeError('protocol','Missing media tracks');return r.tracks;},
+    async attachEmbeddedSubtitles(sourceId:string,number:number){const r=await watch({type:'attach_embedded_subtitles',sourceId,number});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    async setAudioTrack(sourceId:string,ordinal:number|null){const r=await watch({type:'set_audio_track',sourceId,ordinal});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async setPlaybackRate(sourceId:string,rate:number){const r=await watch({type:'set_playback_rate',sourceId,rate});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async setInspectionTrigger(sourceId:string,trigger:InspectionTrigger){const r=await watch({type:'set_inspection_trigger',sourceId,trigger});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async setSourceLanguage(sourceId:string,packageId:string){const r=await watch({type:'set_source_language',sourceId,packageId});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},

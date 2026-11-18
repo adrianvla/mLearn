@@ -17,6 +17,7 @@ fn source() -> SourceRecord {
         playback_rate: 1.0,
         inspection_trigger: Default::default(),
         subtitle_limitations: Vec::new(),
+        audio_track: None,
     }
 }
 #[test]

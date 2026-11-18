@@ -6,7 +6,11 @@ const integer = (v: unknown): v is number => Number.isInteger(v) && Number(v) >=
 const optionalString = (v: unknown) => v === null || string(v);
 const optionalBoolean = (v: unknown) => v === null || typeof v === 'boolean';
 function list(v: unknown, limit: number, guard: (v: unknown) => boolean): boolean { return Array.isArray(v) && v.length <= limit && v.every(guard); }
-function source(v: unknown): boolean { return object(v) && ['id','title','mediaPath','mediaRevision','packageId','packageVersion'].every(k=>string(v[k])) && optionalString(v.subtitlePath) && optionalString(v.subtitleRevision) && integer(v.positionMs) && integer(v.durationMs) && integer(v.subtitleOffsetRevision) && Number.isInteger(v.subtitleOffsetMs) && Math.abs(Number(v.subtitleOffsetMs))<=86400000 && typeof v.playbackRate==='number' && v.playbackRate>=0.5 && v.playbackRate<=2 && typeof v.inspectionTrigger==='string' && ['click','immediate','delayed','modifier'].includes(v.inspectionTrigger); }
+function source(v: unknown): boolean { return object(v) && ['id','title','mediaPath','mediaRevision','packageId','packageVersion'].every(k=>string(v[k])) && optionalString(v.subtitlePath) && optionalString(v.subtitleRevision) && integer(v.positionMs) && integer(v.durationMs) && integer(v.subtitleOffsetRevision) && Number.isInteger(v.subtitleOffsetMs) && Math.abs(Number(v.subtitleOffsetMs))<=86400000 && typeof v.playbackRate==='number' && v.playbackRate>=0.5 && v.playbackRate<=2 && typeof v.inspectionTrigger==='string' && ['click','immediate','delayed','modifier'].includes(v.inspectionTrigger) && (v.audioTrack===undefined||v.audioTrack===null||integer(v.audioTrack)); }
+function mediaTrack(v: unknown): boolean {
+ return object(v)&&['audio','subtitles'].includes(String(v.kind))&&integer(v.ordinal)&&integer(v.number)&&optionalString(v.language)&&optionalString(v.name)
+  &&typeof v.default==='boolean'&&['available','image_subtitles','unsupported_codec'].includes(String(v.availability));
+}
 function cue(v: unknown): boolean { return object(v) && integer(v.index) && integer(v.startMs) && integer(v.endMs) && Number(v.endMs)>Number(v.startMs) && string(v.text); }
 function capability(v: unknown): boolean { return object(v) && string(v.id) && string(v.label); }
 function levelMetadata(v: unknown): boolean {
@@ -112,6 +116,7 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'installed':return plugin(v.plugin);
  case 'package_removed':return typeof v.pluginId==='string';
  case 'package_install_status':return v.status===null||isPackageInstallStatus(v.status);
+ case 'media_tracks':return string(v.sourceId)&&list(v.tracks,64,mediaTrack);
  case 'source':return object(v.window) && source(v.window.source) && integer(v.window.totalCues) && list(v.window.cues,16,cue);
  case 'transcript':return object(v.page) && string(v.page.sourceId) && string(v.page.subtitleRevision) && list(v.page.cues,16,cue) && (v.page.nextIndex===null||integer(v.page.nextIndex));
  case 'cue_position':return object(v.position) && string(v.position.sourceId) && string(v.position.subtitleRevision) && integer(v.position.cueIndex) && integer(v.position.positionMs);

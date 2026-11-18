@@ -28,7 +28,28 @@ pub enum SubtitleLimitation {
     Positioning,
     Effects,
 }
-model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger,#[serde(default)] subtitle_limitations:Vec<SubtitleLimitation> });
+/// Audio or subtitles carried inside the media file itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum MediaTrackKind {
+    Audio,
+    Subtitles,
+}
+/// Whether an embedded track can be used, and if not, why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum TrackAvailability {
+    Available,
+    /// Subtitles stored as pictures; they cannot become text cues.
+    ImageSubtitles,
+    UnsupportedCodec,
+}
+// `ordinal` counts tracks of the same kind in file order (the player's track index);
+// `number` is the container's track identity used to extract it.
+model!(MediaTrack { kind:MediaTrackKind,ordinal:u32,number:u32,language:Option<String>,name:Option<String>,default:bool,availability:TrackAvailability });
+model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger,#[serde(default)] subtitle_limitations:Vec<SubtitleLimitation>,#[serde(default)] audio_track:Option<u32> });
 model!(Cue {
     index: u32,
     start_ms: u32,

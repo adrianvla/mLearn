@@ -279,6 +279,23 @@ pub enum Request {
         source_id: String,
         rate: f64,
     },
+    /// Lists the audio and subtitle tracks embedded in a source's media file.
+    SourceTracks {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+    },
+    /// Uses an embedded text subtitle track as the source's subtitles.
+    AttachEmbeddedSubtitles {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        number: u32,
+    },
+    /// Remembers which audio track (ordinal) plays; `None` plays the file's default.
+    SetAudioTrack {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        ordinal: Option<u32>,
+    },
     SetInspectionTrigger {
         #[serde(rename = "sourceId")]
         source_id: String,

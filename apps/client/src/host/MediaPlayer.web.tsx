@@ -33,7 +33,16 @@ function MediaRange({ label, value, maximum, onChange, valueText, compact = fals
                 margin: 0, opacity: 0, cursor: 'pointer' }} />
     </View>;
 }
-export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, controls, onProgress, onError, onController }: MediaPlayerProps) {
+type AudioTrackList = { readonly length: number; readonly [index: number]: { enabled: boolean } };
+/** The audio tracks this engine can switch; engines without the API report none. */
+const audioTracks = (video: HTMLVideoElement) => (video as HTMLVideoElement & { audioTracks?: AudioTrackList }).audioTracks;
+function applyAudioTrack(video: HTMLVideoElement, ordinal: number | null | undefined) {
+    const list = audioTracks(video);
+    if (ordinal == null || !list || ordinal >= list.length) return;
+    for (let index = 0; index < list.length; index++) list[index].enabled = index === ordinal;
+}
+
+export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, controls, audioTrack, onAudioTracks, onProgress, onError, onController }: MediaPlayerProps) {
     const ref = useRef<HTMLVideoElement>(null);
     const pendingPositionMs = useRef(initialPositionMs);
     const [controlHeight, setControlHeight] = useState(64);
@@ -147,6 +156,9 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         if (paused)
             ref.current?.pause();
     }, [paused]);
+    useEffect(() => {
+        if (ref.current) applyAudioTrack(ref.current, audioTrack);
+    }, [audioTrack, uri]);
     useEffect(() => () => {
         const video = ref.current;
         if (video) {
@@ -177,6 +189,8 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
             if (ref.current) {
                 seekTo(pendingPositionMs.current);
                 ref.current.playbackRate = playbackRate;
+                applyAudioTrack(ref.current, audioTrack);
+                onAudioTracks?.(audioTracks(ref.current)?.length ?? 0);
                 progress(false);
             }
         }}

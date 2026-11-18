@@ -587,6 +587,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::AvailablePackages
         | Request::ResumeSource { .. }
         | Request::AttachSubtitles { .. }
+        | Request::AttachEmbeddedSubtitles { .. }
         | Request::SourceWindow { .. }
         | Request::SavePosition { .. }
         | Request::Transcript { .. }
@@ -594,6 +595,8 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::SetSubtitleOffset { .. }
         | Request::AlignSubtitleOffset { .. }
         | Request::SetPlaybackRate { .. }
+        | Request::SourceTracks { .. }
+        | Request::SetAudioTrack { .. }
         | Request::SetInspectionTrigger { .. }
         | Request::Knowledge { .. }
         | Request::KnowledgeEvidence { .. }

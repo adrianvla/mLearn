@@ -248,6 +248,11 @@ pub enum Response {
     Installed {
         plugin: PluginSummary,
     },
+    MediaTracks {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        tracks: Vec<crate::MediaTrack>,
+    },
     PackageRemoved {
         #[serde(rename = "pluginId")]
         plugin_id: String,
