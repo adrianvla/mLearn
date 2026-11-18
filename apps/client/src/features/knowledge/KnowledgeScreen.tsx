@@ -51,6 +51,8 @@ export function KnowledgeScreen() {
   const practiceFlight = useRef(false);
   const [preparation, setPreparation] = useState<CollectionPreparationStatus | null>(null);
   const preparing = useRef<CollectionPreparationCommand | null>(null);
+  // The preparation whose own final result has arrived; later progress reads for it are stale.
+  const finished = useRef<string | null>(null);
   const owner = useRef<object | null>(null);
   const heading = useRef<NativeText>(null);
   const inspectionChanged = useRef(false);
@@ -153,6 +155,7 @@ export function KnowledgeScreen() {
     setError(null);
     try {
       const status = await host.client.prepareCollectionCatalog(command);
+      finished.current = command.commandId;
       if (scope && owner.current === scope) {
         setPreparation(status);
         setAfter(null); setReload(value => value + 1);
@@ -168,8 +171,9 @@ export function KnowledgeScreen() {
     try {
       const status = cancel ? await host.client.cancelCollectionPreparation(command.commandId)
         : await host.client.collectionPreparationStatus(command.commandId);
-      // A progress read that lands after the preparation itself returned is stale.
-      if (!cancel && preparing.current !== command) return;
+      // A progress read that lands after the preparation itself returned is stale. A preparation
+      // this screen did not start (after a reload or remount) is still followed to its end.
+      if (!cancel && finished.current === command.commandId) return;
       if (scope && owner.current === scope) {
         setPreparation(status);
         if (status?.phase === 'succeeded') { setAfter(null); setReload(value => value + 1); }
@@ -263,18 +267,19 @@ export function KnowledgeScreen() {
         {pending ? <View style={styles.notice}><Text>Loading Knowledge…</Text></View> : null}
         {error ? <View style={styles.notice}><FailureNotice message={error.message} detail={error.detail}>
           <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice></View> : null}
-        {currentResult?.state === 'unavailable' ? <View style={styles.notice}>
+        {/* While words are being prepared, the live progress below is the only status shown. */}
+        {currentResult?.state === 'unavailable' && !activePreparation ? <View style={styles.notice}>
           {description?.catalog ? <Text>Words in this language need to be prepared before you can browse them.</Text>
             : description ? <FailureNotice message="Knowledge isn’t available for this language." detail={currentResult.message} /> : null}
           {description?.catalog ? <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId}
             onPress={() => void prepare()} /> : null}
         </View> : null}
-        {currentResult?.state === 'preparing' ? <View style={styles.notice}>
-          <Text>Words need to be prepared · {currentResult.processed} of {currentResult.total}</Text>
+        {currentResult?.state === 'preparing' && !activePreparation ? <View style={styles.notice}>
+          <Text>Words need to be prepared · {currentResult.processed.toLocaleString()} of {currentResult.total.toLocaleString()}</Text>
           <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId} onPress={() => void prepare()} />
         </View> : null}
         {preparation?.command.packageId === packageId && !page ? <View style={styles.notice}>
-          <Text accessibilityLiveRegion="polite">{preparationLabel[preparation.phase]} · {preparation.processed}{preparation.total === null ? '' : ` of ${preparation.total}`}</Text>
+          <Text accessibilityLiveRegion="polite">{preparationLabel[preparation.phase]} · {preparation.processed.toLocaleString()}{preparation.total === null ? '' : ` of ${preparation.total.toLocaleString()}`}</Text>
           {preparation.message ? <FailureNotice message={preparation.phase === 'failed' ? 'Words couldn’t be prepared.' : 'Preparation stopped early.'}
             detail={preparation.message} /> : null}
           {activePreparation ? <Row>

@@ -85,7 +85,21 @@ test('M10 dense Knowledge and Material management', async ({ page, nativeCore },
   await expect(prepare).toBeVisible();
   await prepare.click();
   await expect(page.getByText(/^Preparing words · [1-9]/)).toBeVisible({ timeout: 60_000 });
-  await expect(prepare).toHaveCount(0, { timeout: 300_000 });
+  // Preparation runs natively: a reloaded screen keeps following its progress.
+  await page.reload();
+  const followed = page.getByText(/^Preparing words · /);
+  await expect(followed).toBeVisible({ timeout: 30_000 });
+  const followedFirst = await followed.innerText();
+  await expect.poll(() => followed.innerText(), { timeout: 60_000 }).not.toBe(followedFirst);
+  // Once progress has advanced (the collection has been re-read), one status line remains.
+  const progress = page.getByText(/^Preparing words · /);
+  const first = await progress.innerText();
+  await expect.poll(() => progress.innerText(), { timeout: 60_000 }).not.toBe(first);
+  await expect(page.getByText(/^Words need to be prepared/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true })).toHaveCount(0);
+  // Prepare is hidden while preparing, so completion is the end of the progress line.
+  await expect(page.getByText(/^Preparing words · /)).toHaveCount(0, { timeout: 300_000 });
+  await expect(prepare).toHaveCount(0);
   const targetId = captured.items[0]?.content.targetId;
   if (!targetId) throw new Error('The captured word kept no target');
   await page.getByRole('button', { name: 'Filters', exact: true }).click();

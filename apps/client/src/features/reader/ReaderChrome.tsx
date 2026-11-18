@@ -90,12 +90,15 @@ export function ReaderToolbar({ title, position, imageMode, pageImages, wide, ro
             <Button label="Home" icon="arrowLeft" iconOnly={!roomy} size="compact" variant="secondary" disabled={homeDisabled} onPress={onHome} />
             <View style={[styles.title, !wide && styles.narrowTitle]}><Text variant="navigation" muted numberOfLines={1} accessibilityRole="header"
                 testID="reader-title">{title}</Text></View>
-            {position && wide ? <Text variant="detail" muted testID="reader-toolbar-position">{position}</Text> : null}
+            {/* The status strip always shows the position; the toolbar repeats it only where there is room. */}
+            {position && roomy ? <Text variant="detail" muted testID="reader-toolbar-position">{position}</Text> : null}
             {!wide ? navigation : null}
         </View>
         <Actions wide={wide}>
-            {wide ? <>{writing}{appearance}{layout}{options}{navigation}</> : <>{appearance}{options}{writing}{layout}</>}
+            {wide ? <>{writing}{appearance}{layout}{options}</> : <>{appearance}{options}{writing}{layout}</>}
         </Actions>
+        {/* Page turns and Vocabulary stay in reach; the controls before them scroll when space runs out. */}
+        {wide ? <View style={styles.trailing}>{navigation}</View> : null}
     </View>;
 }
 
@@ -299,13 +302,14 @@ const styles = StyleSheet.create(theme => ({
     toolbar: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
         paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border, _web: { userSelect: 'none' } },
-    narrowToolbar: { flexWrap: 'wrap', rowGap: theme.spacing.small },
+    narrowToolbar: { flexWrap: 'wrap', rowGap: theme.spacing.small / 2, paddingVertical: theme.spacing.small / 2 },
     narrowActions: { flexGrow: 1, flexBasis: '100%', minWidth: 0 },
     leading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small, flexShrink: 1, flexGrow: 1, minWidth: 0 },
     narrowLeading: { flexBasis: '100%' },
     title: { flexShrink: 1, minWidth: 0 },
     narrowTitle: { minWidth: 48 },
-    actionsViewport: { flexGrow: 0, flexShrink: 1 },
+    actionsViewport: { flexGrow: 0, flexShrink: 1, minWidth: 0 },
+    trailing: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small, flexShrink: 0 },
     actions: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
     segmented: { flexDirection: 'row', gap: 1 },
     status: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact,
