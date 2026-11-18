@@ -149,6 +149,8 @@ fn damaged_package_does_not_block_settings_recents_or_other_installed_code() {
         subtitle_offset_revision: 0,
         playback_rate: 1.0,
         inspection_trigger: Default::default(),
+        subtitle_limitations: Vec::new(),
+        audio_track: None,
     };
     store.save_source(&source).unwrap();
     let stored_before = store.plugin_manifests().unwrap();

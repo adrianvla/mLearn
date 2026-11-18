@@ -74,6 +74,17 @@ impl Runtime {
         epoch: u64,
     ) -> Result<Response, Failure> {
         match request {
+            Request::RemoveMaterial { command } => Ok(Response::MaterialRemoved {
+                outcome: self
+                    .store
+                    .remove_material(&command)
+                    .map_err(|error| match error {
+                        mlearn_storage::StorageError::Conflict => {
+                            Failure::Protocol("conflict", error.to_string())
+                        }
+                        error => Failure::Operation(error.to_string()),
+                    })?,
+            }),
             Request::PlanMaterialMedia { request } => self.plan_material_media(&request, epoch),
             Request::MaterialMedia { id } => self.material_media_location(&id),
             Request::Materials { query } => Ok(Response::Materials {

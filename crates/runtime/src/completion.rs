@@ -20,6 +20,14 @@ impl Runtime {
                 Ok((self.complete_review(work, admissions)?, None))
             }
             GuestWork::Language(work) => {
+                if let LanguageAction::ReviewCapture { command, .. } = &work.action
+                    && let Some(commit) = self
+                        .store
+                        .review_receipt(command)
+                        .map_err(crate::review::storage_failure)?
+                {
+                    return Ok((Response::Review { commit }, None));
+                }
                 work.cancellation.check()?;
                 let current = self
                     .installed
@@ -34,7 +42,7 @@ impl Runtime {
                     self.validate_analysis_source(input)?;
                 }
                 let source = match &work.action {
-                    LanguageAction::Summaries { source, .. } => Some(source),
+                    LanguageAction::Summaries { source, .. } => source.as_ref(),
                     _ => None,
                 };
                 if let Some(source) = source {
@@ -50,6 +58,10 @@ impl Runtime {
                     }
                 }
                 let response = match (&work.action, output) {
+                    (
+                        LanguageAction::ReviewCapture { command, admission },
+                        GuestOutput::Validation(output),
+                    ) => self.complete_review_capture(work, command, admission, output)?,
                     (
                         LanguageAction::OpenDocument { .. }
                         | LanguageAction::OpenImageCollection { .. },
@@ -163,7 +175,55 @@ impl Runtime {
                             knowledge: self.target_knowledge(&work.package.manifest.id, entry)?,
                         }
                     }
-                    (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {
+                    (LanguageAction::Graph(query), GuestOutput::Graph(value)) => {
+                        self.complete_graph(query, &work.package, value)?
+                    }
+                    (LanguageAction::SourcePractice(_), GuestOutput::SourcePractice(items)) => {
+                        self.validate_target_practice(
+                            items,
+                            &[mlearn_core::ReviewAssistance::Source],
+                        )?;
+                        Response::SourcePractice {
+                            items: std::mem::take(items),
+                        }
+                    }
+                    (
+                        LanguageAction::AuthoredPreview(material),
+                        GuestOutput::AuthoredPreview(preview),
+                    ) => {
+                        let current = self
+                            .store
+                            .review_practice_materials(&[mlearn_core::PracticeItem {
+                                material_id: material.id.clone(),
+                                source: None,
+                            }])
+                            .map_err(crate::review::storage_failure)?
+                            .pop()
+                            .ok_or_else(|| Failure::Operation("Material is unavailable".into()))?;
+                        if current.revision != material.revision {
+                            return Err(Failure::Operation(
+                                "Material changed during probe preview".into(),
+                            ));
+                        }
+                        Response::AuthoredPracticePreview {
+                            preview: preview.as_ref().clone(),
+                        }
+                    }
+                    (
+                        LanguageAction::Summaries { source: None, .. },
+                        GuestOutput::Dictionary(items),
+                    ) => Response::TargetSummaries {
+                        package_id: work.package.manifest.id.clone(),
+                        package_revision: work.package.revision()?,
+                        items: items.clone(),
+                    },
+                    (
+                        LanguageAction::Summaries {
+                            source: Some(source),
+                            ..
+                        },
+                        GuestOutput::Dictionary(items),
+                    ) => {
                         Response::Dictionary {
                             batch: mlearn_core::DictionaryBatch {
                                 source_id: source.id.clone(),

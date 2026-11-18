@@ -89,25 +89,35 @@ if __name__ == '__main__':
  db=sqlite3.connect(temporary)
  db.execute('CREATE TABLE resource_entries(key TEXT PRIMARY KEY,value BLOB NOT NULL) WITHOUT ROWID')
  lemmas={}; count=0
+ # WordNet's index files list each lemma's synsets most-frequent first and count tagged senses;
+ # analysis consumers treat the first target as the nearby meaning, so keep that order.
+ rank={}; tagged={}
  with tarfile.open(archive) as tar:
+  for pos in ['noun','verb','adj','adv']:
+   for line in tar.extractfile('WordNet-3.0/dict/index.'+pos).read().decode().splitlines():
+    if not line or line[0]==' ': continue
+    fields=line.split(); lemma=fields[0]; synsets=int(fields[2]); pointers=int(fields[3])
+    tagged[(lemma,pos)]=int(fields[5+pointers])
+    for index,offset in enumerate(fields[6+pointers:6+pointers+synsets]): rank[(lemma,pos,offset)]=index
   for pos in ['noun','verb','adj','adv']:
    for line in tar.extractfile('WordNet-3.0/dict/data.'+pos).read().decode().splitlines():
     if not line or not line[0].isdigit(): continue
     data,definition=line.split('|',1); fields=data.split(); offset,_,tag,n=fields[:4]
     words=[fields[4+i*2].replace('(a)','').replace('(p)','').replace('(ip)','') for i in range(int(n,16))]
-    value={'pos':pos,'definition':definition.strip()}
+    value={'pos':pos,'definition':definition.strip(),'words':words}
     db.execute('INSERT INTO resource_entries VALUES(?,?)',('sense/'+tag+':'+offset,json.dumps(value,separators=(',',':')).encode()))
     for word in words:
      target=f'wn30:{tag}:{offset}:{word}'
-     lemmas.setdefault(word.lower(),[]).append(target); count+=1
+     lemmas.setdefault(word.lower(),[]).append((target,pos,offset)); count+=1
    for line in tar.extractfile('WordNet-3.0/dict/'+pos+'.exc').read().decode().splitlines():
     values=line.split()
     key='exception/'+pos+'/'+values[0]
     previous=db.execute('SELECT value FROM resource_entries WHERE key=?',(key,)).fetchone()
     merged=list(dict.fromkeys((json.loads(previous[0]) if previous else [])+values[1:]))
     db.execute('INSERT OR REPLACE INTO resource_entries VALUES(?,?)',(key,json.dumps(merged,separators=(',',':')).encode()))
-  for lemma,targets in sorted(lemmas.items()):
-   db.execute('INSERT INTO resource_entries VALUES(?,?)',('lemma/'+lemma,json.dumps(list(dict.fromkeys(targets)),separators=(',',':')).encode()))
+  for lemma,entries in sorted(lemmas.items()):
+   ordered=sorted(entries,key=lambda entry:(-tagged.get((lemma,entry[1]),0),['noun','verb','adj','adv'].index(entry[1]),rank.get((lemma,entry[1],entry[2]),1<<30)))
+   db.execute('INSERT INTO resource_entries VALUES(?,?)',('lemma/'+lemma,json.dumps(list(dict.fromkeys(target for target,_,_ in ordered)),separators=(',',':')).encode()))
   db.execute('INSERT INTO resource_entries VALUES(?,?)',('metadata',json.dumps({'schemaVersion':1,'source':url,'sha256':expected,'entries':count,'lemmas':len(lemmas),'license':(root/'language-plugins/english/WordNet-LICENSE.txt').read_text()}).encode()))
  db.commit(); db.execute('VACUUM'); db.close(); temporary.rename(destination)
  receipt.write_text(json.dumps({'recipe':recipe,'sha256':hashlib.sha256(destination.read_bytes()).hexdigest()}))

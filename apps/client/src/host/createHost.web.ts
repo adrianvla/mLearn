@@ -10,6 +10,8 @@ import type { MaterialMediaKind } from '@mlearn/contracts';
 import { createImageOcrHost } from './imageOcr';
 import { RuntimeError } from '@mlearn/runtime-client';
 import { createOcrModelsHost } from './ocrModels';
+import { nativeControlFailure } from './nativeControlFailure';
+import { createBrowserSpeech } from './speechCapture';
 
 declare global {
   interface Window {
@@ -52,6 +54,7 @@ export function createHost(): Host {
       uri:(sourceId,resourceId,crop)=>invoke<string>('image_page_uri',{sourceId,resourceId,crop:crop ?? null}),
     }),
     ocrModels: createOcrModelsHost((command, args) => invoke<unknown>(command, args)),
+    speech: createBrowserSpeech(),
     authoredMedia:{
       capture:captureAuthoredMedia({
         reserve:jobId=>invoke<void>('reserve_media_capture',{jobId}),
@@ -84,6 +87,17 @@ export function createHost(): Host {
       return stop;
     },
     media:{subscribeDrop:handler=>getCurrentWebview().onDragDropEvent(event=>{if(event.payload.type==='drop')handler(event.payload.paths);}),releasePicked:async()=>{},pick:(subtitles)=>invoke<string|null>('pick_local_file',{subtitles}),uri:(source)=>`${mediaBase}${encodeURIComponent(source.id)}`},
-    client: createRuntimeClient({ execute: (request) => invoke<string>('runtime_execute', { request }), cancelSourceOpen:()=>invoke<void>('cancel_source_open'),commandId: () => crypto.randomUUID() }),
+    client: createRuntimeClient({ execute: (request) => invoke<string>('runtime_execute', { request }),
+      boundedReads: {
+        begin:()=>invoke<string>('begin_bounded_read').catch(nativeControlFailure),
+        execute:(id,request)=>invoke<string>('execute_bounded_read',{id,request}).catch(nativeControlFailure),
+        cancel:id=>invoke<void>('cancel_bounded_read',{id}).catch(nativeControlFailure),
+      },
+      reviewValidation: {
+        begin:request=>invoke<string>('begin_review_validation',{request}).catch(nativeControlFailure),
+        execute:(id,request)=>invoke<string>('execute_review_validation',{id,request}).catch(nativeControlFailure),
+        cancel:id=>invoke<void>('cancel_review_validation',{id}).catch(nativeControlFailure),
+      },
+      cancelSourceOpen:()=>invoke<void>('cancel_source_open'),commandId: () => crypto.randomUUID() }),
   };
 }

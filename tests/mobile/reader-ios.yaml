@@ -84,11 +84,11 @@ name: Reader opens local EPUB and preserves authored source readings
     clearState: false
     permissions: {}
 - scrollUntilVisible:
-    element: Resume m05-journey.epub
+    element: Continue m05-journey.epub
     direction: DOWN
     timeout: 60000
     centerElement: false
-- tapOn: Resume m05-journey.epub
+- tapOn: Continue m05-journey.epub
 - extendedWaitUntil:
     visible:
       id: reader-position

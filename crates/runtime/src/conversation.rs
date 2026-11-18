@@ -1,8 +1,8 @@
 use crate::{
+    Runtime,
     analysis::{AnalysisInput, AnalysisSource},
     execution::{Cancellation, Failure},
     guest::{LanguageAction, Prepared},
-    Runtime,
 };
 use mlearn_core::*;
 use sha2::{Digest, Sha256};
@@ -53,6 +53,7 @@ impl Runtime {
             | ConversationCommand::RetryGeneration { .. }
             | ConversationCommand::CancelGeneration { .. }
             | ConversationCommand::SetSessionCredential { .. }
+            | ConversationCommand::GenerateMaterial { .. }
             | ConversationCommand::Explain { .. } => Err(Failure::Operation(
                 "This action requires the native generation execution owner".into(),
             )),
@@ -92,6 +93,9 @@ impl Runtime {
         }
         if let ConversationCommand::Explain { source, .. } = command {
             self.validate_capture_source(source)?;
+        }
+        if let ConversationCommand::GenerateMaterial { command } = command {
+            self.validate_material_generation_basis(&command.basis)?;
         }
         self.store
             .conversation_command(command, credential_ready)

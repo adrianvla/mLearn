@@ -67,28 +67,32 @@ async function start(page: Page, offline = false) {
       },
     });
   }, { theme: initialTheme, offline, modelTest: nativeModelTest });
-  await page.goto('/settings?section=languages');
+  await page.goto('/settings?section=components');
   await expect(page.getByText('OCR models', { exact: true })).toBeVisible();
-  await expect(page.getByText('Native detector and recognizer', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Text recognition model', { exact: true }).first()).toBeVisible();
 }
 
 for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'narrow', width: 390, height: 844 }]) {
 test(`native OCR models install, cancel, test and remove through their genuine host owner on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
-  const install = page.getByRole('button', { name: 'Install Native detector and recognizer', exact: true });
+  const install = page.getByRole('button', { name: 'Install Text recognition model', exact: true });
   await install.click();
-  await expect(page.getByRole('progressbar', { name: 'Native OCR model installation', exact: true })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'Model installation', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel OCR model installation', exact: true }).click();
-  await expect(page.getByText('cancelled', { exact: true })).toBeVisible();
+  await expect(page.getByText('Cancelled', { exact: true })).toBeVisible();
   await expect(install).toBeEnabled();
   await install.click();
-  await expect(page.getByRole('progressbar', { name: 'Native OCR model installation', exact: true })).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'Model installation', exact: true })).toBeVisible();
   await page.evaluate(() => {
     if (!window.__ocrModelNative.complete) throw new Error('Native installation was not admitted');
     window.__ocrModelNative.complete();
   });
-  await expect(page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Test Text recognition model', exact: true })).toBeVisible();
+  // Engine diagnostics are a Developer-mode surface; the recognized text is not.
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Components', exact: true }).click();
   await page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true }).click();
   await expect(page.getByText('3 detected regions · 845.2719 ms engine work', { exact: true })).toBeVisible();
   await expect(page.getByText('日本語を読む', { exact: true })).toBeVisible();
@@ -98,14 +102,18 @@ test(`native OCR models install, cancel, test and remove through their genuine h
   await page.screenshot({ path: testInfo.outputPath('native-model-settings.png') });
   await page.getByRole('button', { name: 'Remove Native detector and recognizer', exact: true }).click();
   await page.getByRole('button', { name: 'Remove model resources', exact: true }).click();
-  await expect(install).toBeVisible();
+  // Developer mode is on here, so the row names the engine again.
+  await expect(page.getByRole('button', { name: 'Install Native detector and recognizer', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__ocrModelNative.installed)).toBe(false);
 });
 }
 
 test('installed native OCR models stay usable when catalog discovery fails offline', async ({ page }) => {
   await start(page, true);
-  await expect(page.getByRole('alert')).toContainText('Catalog unavailable while offline');
-  await page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true }).click();
+  const offline = page.getByRole('alert');
+  await expect(offline).toContainText('New models can’t be downloaded right now. Installed models still work.');
+  await page.getByRole('button', { name: 'Details', exact: true }).click();
+  await expect(page.getByText(/Catalog unavailable while offline/)).toBeVisible();
+  await page.getByRole('button', { name: 'Test Text recognition model', exact: true }).click();
   await expect(page.getByText('日本語を読む', { exact: true })).toBeVisible();
 });

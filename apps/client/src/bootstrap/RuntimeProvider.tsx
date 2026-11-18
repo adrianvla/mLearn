@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useEffect, useLayoutEffect, useStat
 import { createHost } from '../host/createHost';
 import {applyTheme} from '@mlearn/theme/runtime';
 import type { Host } from '../host/types';
+export type { Playback, SpeechHost } from '../host/speechCapture';
 import { WindowChrome } from '../host/WindowChrome';
 import { UIProvider } from '@mlearn/ui/provider';
 import type { ViewPreferences } from '@mlearn/contracts';
@@ -21,7 +22,9 @@ export function RuntimeProvider({ children }: PropsWithChildren) {
     let stop: (() => void) | undefined;
     host.subscribeWindowMaterial(value => { if (active) setWindowMaterial(value); })
       .then(unsubscribe => { if (active) stop = unsubscribe; else unsubscribe(); })
-      .catch(error => { console.error('Native window material unavailable', error); });
+      // Without native translucency the opaque theme background is the supported presentation;
+      // the host records the platform reason in its own log.
+      .catch(() => { if (active) setWindowMaterial(false); });
     return () => { active = false; stop?.(); };
   }, [host]);
   useEffect(()=>{let active=true;if(host.available)host.client.snapshot().then(s=>{if(active){applyTheme(s.theme);setViewPreferences(s.viewPreferences??null);}}).catch(()=>{/* Screens expose runtime recovery beside their action. */});return()=>{active=false;};},[host]);

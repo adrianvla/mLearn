@@ -1,4 +1,5 @@
 use crate::Runtime;
+use crate::media_tracks;
 use crate::source_file::revision as hash;
 use mlearn_core::*;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,7 +17,7 @@ fn check(cancellation: &AtomicU64, epoch: u64) -> Result<(), String> {
     }
 }
 #[path = "subtitles.rs"]
-mod subtitles;
+pub(crate) mod subtitles;
 fn local(path: &str, extensions: &[&str]) -> Result<PathBuf, String> {
     if path.len() > 4096 {
         return Err("Path is too long".into());
@@ -169,6 +170,40 @@ impl Runtime {
         }
         Ok(dest)
     }
+    /// Attaches a subtitle document from a validated local path: a picked file or an extracted track.
+    fn attach_subtitle_file(&mut self, source_id: &str, path: &Path, epoch: u64) -> Result<Response, String> {
+        if fs::metadata(path).map_err(|e| e.to_string())?.len() > 2 * 1024 * 1024 {
+            return Err("Subtitle file exceeds 2 MiB".into());
+        }
+        let extension = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        let parsed = subtitles::parse(
+            &fs::read_to_string(path).map_err(|e| format!("Subtitles must be UTF-8: {e}"))?,
+            &extension,
+        )?;
+        let revision = hash(path, &self.cancellation, epoch)?;
+        let imported = self.import_path(path, &revision, true, epoch)?;
+        let mut source = self.source_record(source_id)?;
+        source.subtitle_path = Some(imported.to_string_lossy().into_owned());
+        source.subtitle_revision = Some(revision);
+        source.subtitle_offset_ms = 0;
+        source.subtitle_limitations = parsed.limitations;
+        source.subtitle_offset_revision = source
+            .subtitle_offset_revision
+            .checked_add(1)
+            .ok_or("Subtitle synchronization revision exhausted")?;
+        self.store
+            .attach_cues(&source, &parsed.cues)
+            .map_err(|e| e.to_string())?;
+        self.analysis_cache
+            .retain(|(key, _)| !key.starts_with(source_id));
+        Ok(Response::Source {
+            window: self.window(source.clone(), source.position_ms)?,
+        })
+    }
     pub(crate) fn watch(&mut self, request: Request, epoch: u64) -> Result<Response, String> {
         match request {
             Request::RecentSources => Ok(Response::Sources {
@@ -195,6 +230,11 @@ impl Runtime {
                     .unwrap_or("Video")
                     .to_owned();
                 let path = self.import_path(&path, &media_revision, false, epoch)?;
+                // A replaced media file may carry different tracks.
+                let audio_track = old
+                    .as_ref()
+                    .filter(|s| s.media_revision == media_revision)
+                    .and_then(|s| s.audio_track);
                 let source = SourceRecord {
                     id,
                     title,
@@ -214,6 +254,10 @@ impl Runtime {
                     inspection_trigger: old
                         .as_ref()
                         .map_or(InspectionTrigger::Click, |s| s.inspection_trigger),
+                    subtitle_limitations: old
+                        .as_ref()
+                        .map_or_else(Vec::new, |s| s.subtitle_limitations.clone()),
+                    audio_track,
                 };
                 self.store.save_source(&source).map_err(|e| e.to_string())?;
                 Ok(Response::Source {
@@ -228,31 +272,44 @@ impl Runtime {
                 })
             }
             Request::AttachSubtitles { source_id, path } => {
-                let path = local(&path, &["srt"])?;
-                if fs::metadata(&path).map_err(|e| e.to_string())?.len() > 2 * 1024 * 1024 {
-                    return Err("Subtitle file exceeds 2 MiB".into());
-                }
-                let cues = subtitles::parse(
-                    &fs::read_to_string(&path).map_err(|e| format!("SRT must be UTF-8: {e}"))?,
-                )?;
-                let revision = hash(&path, &self.cancellation, epoch)?;
-                let path = self.import_path(&path, &revision, true, epoch)?;
-                let mut source = self.source_record(&source_id)?;
-                source.subtitle_path = Some(path.to_string_lossy().into_owned());
-                source.subtitle_revision = Some(revision);
-                source.subtitle_offset_ms = 0;
-                source.subtitle_offset_revision = source
-                    .subtitle_offset_revision
-                    .checked_add(1)
-                    .ok_or("Subtitle synchronization revision exhausted")?;
-                self.store
-                    .attach_cues(&source, &cues)
+                let path = local(&path, &["srt", "vtt", "ass", "ssa"])?;
+                self.attach_subtitle_file(&source_id, &path, epoch)
+            }
+            Request::AttachEmbeddedSubtitles { source_id, number } => {
+                let source = self.source_record(&source_id)?;
+                let cancellation = self.cancellation.clone();
+                let stopped = || cancellation.load(std::sync::atomic::Ordering::Relaxed) != epoch;
+                let (document, format) =
+                    media_tracks::extract(Path::new(&source.media_path), number, &stopped)?;
+                let mut extracted = tempfile::Builder::new()
+                    .suffix(&format!(".{}", format.extension()))
+                    .tempfile_in(&self.root)
                     .map_err(|e| e.to_string())?;
-                self.analysis_cache
-                    .retain(|(key, _)| !key.starts_with(&source_id));
-                Ok(Response::Source {
-                    window: self.window(source.clone(), source.position_ms)?,
+                std::io::Write::write_all(&mut extracted, document.as_bytes()).map_err(|e| e.to_string())?;
+                self.attach_subtitle_file(&source_id, extracted.path(), epoch)
+            }
+            Request::SourceTracks { source_id } => {
+                let source = self.source_record(&source_id)?;
+                Ok(Response::MediaTracks {
+                    tracks: media_tracks::tracks(Path::new(&source.media_path))?,
+                    source_id,
                 })
+            }
+            Request::SetAudioTrack { source_id, ordinal } => {
+                let mut source = self.source_record(&source_id)?;
+                if let Some(ordinal) = ordinal {
+                    let audio = media_tracks::tracks(Path::new(&source.media_path))?
+                        .into_iter()
+                        .filter(|track| track.kind == mlearn_core::MediaTrackKind::Audio)
+                        .count();
+                    if ordinal as usize >= audio {
+                        return Err("This audio track is not in the video".into());
+                    }
+                }
+                source.audio_track = ordinal;
+                let window = self.window(source.clone(), source.position_ms)?;
+                self.store.save_source(&source).map_err(|e| e.to_string())?;
+                Ok(Response::Source { window })
             }
             Request::SourceWindow {
                 source_id,
@@ -435,6 +492,12 @@ impl Runtime {
                     projections: self.store.knowledge(&keys).map_err(|e| e.to_string())?,
                 })
             }
+            Request::KnowledgeEvidence { query } => Ok(Response::KnowledgeEvidence {
+                page: self
+                    .store
+                    .knowledge_evidence(&query)
+                    .map_err(|e| e.to_string())?,
+            }),
             _ => Err("Not a Watch action".into()),
         }
     }

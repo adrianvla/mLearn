@@ -7,12 +7,12 @@ import { RuntimeError } from '../src/errors.ts';
 import { createRuntimeClient } from '../src/client.ts';
 
 const revision = 'a'.repeat(64);
-const contact: Contact = { id: 'person', revision: 1, name: 'Person', description: '', archived: false };
+const contact: Contact = { id: 'person', revision: 1, name: 'Person', description: '', archived: false, voice: '' };
 const conversation: Conversation = { id: 'chat', revision: 4, kind: 'direct', title: 'Person',
-  purpose: '', packageId: 'language', participants: [contact.id], discarded: false };
+  purpose: '', packageId: 'language', participants: [contact.id], discarded: false, absent: [] };
 const message: ConversationMessage = { id: 'message', conversationId: conversation.id, sequence: 1, revision: 1,
   text: '猫🌱', contentRevision: revision, createdAtMs: 123, role: 'user', participantId: null,
-  replyTo: null, generationId: null, status: 'complete', sources: [] };
+  replyTo: null, generationId: null, status: 'complete', sources: [], witnesses: [], integratedFrom: null, delivery: null };
 const batch: ConversationAnalysisBatch = { conversationId: conversation.id, packageId: 'language', packageVersion: '1',
   packageRevision: revision, messages: [{ messageId: message.id, messageRevision: 1, contentRevision: revision,
     text: message.text, tokens: [{ start: 0, end: 3, text: '猫', targets: ['cat'] }, { start: 3, end: 7, text: '🌱', targets: [] }] }],

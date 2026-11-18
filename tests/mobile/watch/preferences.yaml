@@ -143,11 +143,11 @@ appId: net.kikan.mlearn.v3dev
     clearState: false
     permissions: {}
 - scrollUntilVisible:
-    element: Resume m01-watch.mp4
+    element: Continue m01-watch.mp4
     direction: DOWN
     timeout: 30000
     centerElement: false
-- tapOn: Resume m01-watch.mp4
+- tapOn: Continue m01-watch.mp4
 - extendedWaitUntil:
     visible: Playback options
     timeout: 60000

@@ -1,5 +1,6 @@
 use super::{hiragana, DictionaryVariant, PACKAGE};
 use crate::Token;
+use mlearn_core::InlineLevel;
 use mlearn_language_sdk::serde_json::{self, json, Value};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -11,6 +12,16 @@ use std::{
 const READING_SOURCE: &str = "SudachiDict Small 20260116; Apache-2.0";
 const PITCH_SOURCE: &str = "Uros Ozvatic / Kanjium; CC-BY-SA-4.0";
 const LEVEL_SOURCE: &str = "Reference JLPT vocabulary list, 1788f9c7; not an official syllabus";
+
+pub(super) fn vocabulary_level(level: u32) -> InlineLevel {
+    InlineLevel {
+        scale_id: format!("{PACKAGE}:jlpt-vocabulary"),
+        level: format!("N{level}"),
+        label: format!("JLPT N{level}"),
+        rank: level,
+        attribution: LEVEL_SOURCE.into(),
+    }
+}
 
 // Package-owned linguistic.v1 records. Compact wire keys are defined here,
 // independently of the source-bank structures understood only by conversion.
@@ -101,7 +112,7 @@ fn build(
     ruby: Option<(&str, &str)>,
     tag: Option<&str>,
     lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
-) -> Result<Option<Value>, String> {
+) -> Result<(Option<Value>, BTreeSet<u32>), String> {
     let mut contours = BTreeMap::new();
     let mut levels = BTreeSet::new();
     for reading in readings {
@@ -130,17 +141,15 @@ fn build(
         }
     }
     if ruby.is_none() && levels.is_empty() && contours.is_empty() {
-        return Ok(None);
+        return Ok((None, levels));
+    }
+    if levels.iter().any(|level| !(1..=5).contains(level)) {
+        return Err("Invalid vocabulary level".into());
     }
     // v2's five declared JLPT levels rank hardest -> easiest as 1 -> 5.
     // Multiple source memberships retain all labels; inline stars show the hardest.
-    let inline_levels = levels.first().map(|level| {
-        json!({
-            "scaleId":format!("{PACKAGE}:jlpt-vocabulary"),"level":format!("N{level}"),
-            "label":format!("JLPT N{level}"),"rank":level,"attribution":LEVEL_SOURCE
-        })
-    });
-    let labels = levels.into_iter().map(|level| {
+    let inline_levels = levels.first().map(|level| vocabulary_level(*level));
+    let labels = levels.iter().copied().map(|level| {
         // Package-owned level display, measured from the reference label palette.
         let color = match level {
             1 => "#FF3C59", 2 => "#3C91FF", 3 => "#42D631",
@@ -164,7 +173,7 @@ fn build(
     if let Some(level) = inline_levels {
         value["levels"] = json!([level]);
     }
-    Ok(Some(value))
+    Ok((Some(value), levels))
 }
 
 pub(super) fn token(
@@ -257,7 +266,7 @@ pub(super) fn token(
         .map(|value| Some(Rc::new(value)))
         .map_err(|e| e.to_string())
     };
-    let mut value = build(&token.surface, readings, ruby, tag, &lookup_surface)?;
+    let (mut value, _) = build(&token.surface, readings, ruby, tag, &lookup_surface)?;
     if ruby.is_some() && token.processed_surface != token.surface {
         let mut original = token.surface.chars();
         // Use only an actual input-preprocessed subsequence. Other normalization
@@ -280,7 +289,7 @@ pub(super) fn entry(
     written: &str,
     variants: &[DictionaryVariant],
     lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
-) -> Result<Option<Value>, String> {
+) -> Result<(Option<Value>, BTreeSet<u32>), String> {
     let readings = variants
         .iter()
         .filter(|variant| variant.written == written)
@@ -366,6 +375,7 @@ mod tests {
             },
         )
         .unwrap()
+        .0
         .unwrap();
         assert_eq!(value["contours"].as_array().unwrap().len(), 2);
         assert_eq!(value["labels"][0]["label"], "JLPT N3");
@@ -434,6 +444,7 @@ mod tests {
             Ok(None)
         })
         .unwrap()
+        .0
         .unwrap();
         assert_eq!(value["readings"][0]["text"], "せいぶつ");
         assert_eq!(value["contours"], json!([]));

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentAnalysisBatch, DocumentPosition, DocumentWindow, SourceAnchor } from '@mlearn/contracts';
-import type { TextAnchor } from '@mlearn/ui/inline-word';
+import type { InspectionMode, TextAnchor } from '@mlearn/ui/inline-word';
+import type { SourceThumbnail } from '@mlearn/ui/source-preview';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
@@ -13,18 +14,26 @@ import { useSourceAnchor } from './useSourceAnchor';
 /** Only this adapter turns WebView-local CSS pixels into native viewport
  * coordinates. Functions stay here; the DOM bridge carries rectangles/IDs.
  */
-export function DocumentViewport({ window, batch, target, returned, inspecting, onPosition, onInspect, onThumbnail, onNavigate }: {
+export function DocumentViewport({ window: projection, batch: analysis, annotations, inspectionMode, target, returned, inspecting, onPosition, onInspect, onThumbnail, onNavigate }: {
     readonly window: DocumentWindow;
     readonly batch: DocumentAnalysisBatch | null;
+    readonly annotations: boolean;
+    readonly inspectionMode: InspectionMode;
     readonly target: DocumentPosition | null;
     readonly returned: SourceAnchor | null;
     readonly inspecting: boolean;
     readonly onPosition: (position: DocumentPosition, checkpoint: boolean) => void;
     readonly onInspect: (resource: string, blockId: string, start: number, anchor: TextAnchor) => void;
-    readonly onThumbnail: (resourceId: string, uri: string) => void;
+    readonly onThumbnail: (resourceId: string, thumbnail: SourceThumbnail) => void;
     readonly onNavigate: (direction: 'previous' | 'next') => void;
 }) {
     const host = useRuntime();
+    // Hidden reading annotations are presentation only; source readings stay stored.
+    const window = useMemo(() => annotations ? projection
+        : { ...projection, blocks: projection.blocks.map(block => ({ ...block, readings: [] })) }, [projection, annotations]);
+    const batch = useMemo(() => annotations || !analysis ? analysis : { ...analysis, blocks: analysis.blocks.map(block => ({ ...block,
+        tokens: block.tokens.map(token => token.presentation ? { ...token, presentation: { ...token.presentation, readings: [] } } : token) })) },
+        [analysis, annotations]);
     const inlineLevelScale = useInlineLevelScale();
     const starCollapse = useStarCollapse();
     const { theme } = useUnistyles();
@@ -62,7 +71,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
                 } catch (cause) {
                     if (live && active.current === identity)
                         updateImages(previous => previous.map(item => item.resourceId === resourceId
-                            ? { ...item, uri: null, error: cause instanceof Error ? cause.message : String(cause) } : item));
+                            ? { ...item, uri: null, error: 'This image couldn’t be shown.' } : item));
                 }
             }
         })();
@@ -80,7 +89,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             blocks={window.blocks} batch={batch} appearance={source.appearance} target={target} inspecting={inspecting}
             selection={selection} images={images}
             display={{ background: theme.shell.canvas, color: theme.colors.text, knownColor: theme.feedback.success,
-                inlineLevelScale, starCollapse,
+                inlineLevelScale, starCollapse, inspectionMode,
                 selectionColor: theme.source.selection,
                 muted: theme.colors.muted, selection: theme.controls.selected,
                 fontFamily: theme.typography.body._web.fontFamily, textScale: theme.textScale, caption: theme.typography.detail }}
@@ -102,13 +111,13 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             }}
             onImageError={async (key, resourceId) => {
                 if (key === active.current) updateImages(previous => previous.map(item => item.resourceId === resourceId
-                    ? { ...item, uri: null, error: 'The source image could not be displayed.' } : item));
+                    ? { ...item, uri: null, error: 'This image couldn’t be shown.' } : item));
             }}
-            onThumbnail={async (key, resourceId, uri) => {
-                if (key === active.current) handlers.current.onThumbnail(resourceId, uri);
+            onThumbnail={async (key, resourceId, thumbnail) => {
+                if (key === active.current) handlers.current.onThumbnail(resourceId, thumbnail);
             }}
             onNavigate={async (key, direction) => { if (key === active.current) handlers.current.onNavigate(direction); }} />,
-        [identity, window, batch, imageState, inspecting, inlineLevelScale, starCollapse, theme.shell.canvas, theme.colors.text, theme.feedback.success,
+        [identity, window, batch, imageState, inspecting, inlineLevelScale, starCollapse, inspectionMode, theme.shell.canvas, theme.colors.text, theme.feedback.success,
             theme.colors.muted, theme.controls.selected, theme.typography.body._web.fontFamily, theme.textScale]);
     return <View ref={container} style={styles.viewport}
         testID={renderedIdentity === identity ? 'reader-document-ready' : 'reader-document-loading'}
@@ -119,8 +128,8 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             <Text variant="caption" accessibilityLiveRegion="polite">Loading document…</Text>
         </View> : null}
         {images.some(image => image.error) ? <View style={styles.imageFeedback}>
-            <Text accessibilityRole="alert" variant="caption">A source image is unavailable.</Text>
-            <Button label="Retry source images" variant="secondary" size="compact" onPress={() => setImageReload(value => value + 1)} />
+            <Text accessibilityRole="alert" variant="caption">An image in this passage couldn’t be shown.</Text>
+            <Button label="Retry" accessibilityLabel="Retry showing images" variant="secondary" size="compact" onPress={() => setImageReload(value => value + 1)} />
         </View> : null}
     </View>;
 }

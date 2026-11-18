@@ -95,9 +95,11 @@ export function checkSource(filename, source) {
       if ((ts.isIdentifier(name) || ts.isStringLiteral(name)) && typography.has(name.text)) {
         const object = node.parent;
         const parent = object.parent;
-        const acceptedAppearance = file === 'apps/client/src/features/reader/ReaderScreen.tsx'
-          && ts.isObjectLiteralExpression(object) && ts.isCallExpression(parent)
-          && parent.expression.getText(ast) === 'changeAppearance' && parent.arguments[0] === object
+        const acceptedAppearance = (file === 'apps/client/src/features/reader/ReaderScreen.tsx'
+            && ts.isCallExpression(parent) && parent.expression.getText(ast) === 'changeAppearance'
+            || file === 'apps/client/src/features/reader/ReaderChrome.tsx'
+            && ts.isCallExpression(parent) && parent.expression.getText(ast) === 'onChange')
+          && ts.isObjectLiteralExpression(object) && parent.arguments[0] === object
           && object.properties.every(property => ts.isPropertyAssignment(property)
             && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
             && appearanceFields.has(property.name.text));

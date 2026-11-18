@@ -8,18 +8,20 @@ import { Button } from '@mlearn/ui/button';
 import { Badge } from '@mlearn/ui/badge';
 import { Row } from '@mlearn/ui/layout';
 import { AttachmentPlayer } from './AttachmentPlayer';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { MAX_ATTACHMENTS, formatBytes, formatRangeMs, stageFile, type MaterialMediaHost, type StagedMedia } from './media';
 
 type PreviewState =
   | { readonly state: 'pending' }
   | { readonly state: 'ready'; readonly uri: string }
-  | { readonly state: 'error'; readonly message: string };
+  | { readonly state: 'error'; readonly failure: Failure };
 
 type ExportState =
   | { readonly state: 'pending' }
   | { readonly state: 'done' }
   | { readonly state: 'unavailable' }
-  | { readonly state: 'failed'; readonly message: string };
+  | { readonly state: 'failed'; readonly failure: Failure };
 
 const IMPORT_KINDS = ['image', 'audio', 'video'] as const;
 
@@ -42,7 +44,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
   const [pickPending, setPickPending] = useState<MaterialMediaKind | null>(null);
   const [capturePending, setCapturePending] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [captureRetry, setCaptureRetry] = useState<{ readonly label: string; readonly request: MediaCaptureRequest } | null>(null);
   const [expanded, setExpanded] = useState<AuthoredMediaId | null>(null);
   const [previews, setPreviews] = useState<Readonly<Record<string, PreviewState>>>({});
@@ -59,8 +61,9 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
     return () => {
       if (owner.current === scope) owner.current = null;
       abort.current?.abort();
+      onBusyChange(false);
     };
-  }, []);
+  }, [onBusyChange]);
   const mediaById = new Map((base?.media ?? []).map(item => [item.id, item]));
   const full = attachments.length + staged.length >= MAX_ATTACHMENTS;
   const busy = disabled || pickPending !== null || capturePending !== null;
@@ -84,7 +87,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
     if (actionLock.current || disabled) return;
     actionLock.current = true;
     onBusyChange(true);
-    setPickPending(kind); setError(''); setCaptureRetry(null); setNotice('');
+    setPickPending(kind); setError(null); setCaptureRetry(null); setNotice('');
     try {
       const picked = await host.pick(kind);
       if (!picked) return;
@@ -93,7 +96,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       if (replaceMediaId !== null) onRemoveAttachment(replaceMediaId);
       setNotice(replaceMediaId !== null ? 'Replacement staged. Save this Material to keep it.' : `${picked.name} staged. Save this Material to keep it.`);
     } catch (cause) {
-      if (owner.current) setError(cause instanceof Error ? cause.message : String(cause));
+      if (owner.current) setError(failure(cause, 'This file couldn’t be added.'));
     } finally {
       actionLock.current = false;
       if (owner.current) { setPickPending(null); onBusyChange(false); }
@@ -105,7 +108,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
     onBusyChange(true);
     const controller = new AbortController();
     abort.current = controller;
-    setCapturePending(label); setError(''); setCaptureRetry(null); setNotice('');
+    setCapturePending(label); setError(null); setCaptureRetry(null); setNotice('');
     try {
       const result = await host.capture(request, controller.signal);
       if (!owner.current) { await result.release(); return; }
@@ -115,7 +118,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       if (owner.current) {
         if (cause instanceof RuntimeError && cause.code === 'cancelled') setNotice('Capture cancelled.');
         else {
-          setError(cause instanceof Error ? cause.message : String(cause));
+          setError(failure(cause, 'This clip couldn’t be captured.'));
           setCaptureRetry({ label, request });
         }
       }
@@ -135,7 +138,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       const uri = await host.uri(mediaId);
       if (owner.current) setPreviews(previous => ({ ...previous, [mediaId]: { state: 'ready', uri } }));
     } catch (cause) {
-      if (owner.current) setPreviews(previous => ({ ...previous, [mediaId]: { state: 'error', message: cause instanceof Error ? cause.message : String(cause) } }));
+      if (owner.current) setPreviews(previous => ({ ...previous, [mediaId]: { state: 'error', failure: failure(cause, 'This attachment couldn’t be previewed.') } }));
     }
   }
   async function exportMedia(mediaId: AuthoredMediaId) {
@@ -145,7 +148,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       const exported = await host.export(mediaId);
       if (owner.current) setExportStates(previous => ({ ...previous, [mediaId]: { state: exported ? 'done' : 'unavailable' } }));
     } catch (cause) {
-      if (owner.current) setExportStates(previous => ({ ...previous, [mediaId]: { state: 'failed', message: cause instanceof Error ? cause.message : String(cause) } }));
+      if (owner.current) setExportStates(previous => ({ ...previous, [mediaId]: { state: 'failed', failure: failure(cause, 'This attachment couldn’t be exported.') } }));
     }
   }
   function removeSaved(mediaId: AuthoredMediaId) {
@@ -166,7 +169,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       <Text accessibilityLiveRegion="polite">{capturePending}…</Text>
       <Button label="Cancel capture" size="compact" variant="quiet" onPress={() => abort.current?.abort()} />
     </Row> : null}
-    {full ? <Text variant="caption" muted>Material supports up to {MAX_ATTACHMENTS} attachments.</Text> : null}
+    {full ? <Text variant="caption" muted>{MAX_ATTACHMENTS} attachment limit</Text> : null}
     {staged.some(item => item.kind === 'audio') || attachments.some(item => mediaById.get(item.mediaId)?.kind === 'audio')
       ? <Text variant="caption" muted>For listening, select audio that speaks this phrase. Changing the phrase clears the selection.</Text> : null}
     {staged.map(item => <View key={item.key} style={styles.attachment}>
@@ -210,7 +213,10 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
             onPress={() => removeSaved(attachment.mediaId)} />
         </Row>
         {expanded === attachment.mediaId && preview?.state === 'pending' ? <Text accessibilityLiveRegion="polite">Loading preview…</Text> : null}
-        {expanded === attachment.mediaId && preview?.state === 'error' ? <Text accessibilityRole="alert">{preview.message}</Text> : null}
+        {expanded === attachment.mediaId && preview?.state === 'error' ? <FailureNotice message={preview.failure.message} detail={preview.failure.detail}>
+          <Button label="Retry" accessibilityLabel={`Retry preview of ${name}`} size="compact" variant="secondary"
+            onPress={() => void togglePreview(attachment.mediaId)} />
+        </FailureNotice> : null}
         {expanded === attachment.mediaId && preview?.state === 'ready' && metadata ? (
           metadata.kind === 'image'
             ? <Image source={{ uri: preview.uri }} style={styles.image} resizeMode="contain" accessibilityLabel={name} />
@@ -219,15 +225,17 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
         {exportState?.state === 'pending' ? <Text accessibilityLiveRegion="polite" variant="caption">Exporting {name}…</Text> : null}
         {exportState?.state === 'done' ? <Text accessibilityLiveRegion="polite" variant="caption">Exported {name}.</Text> : null}
         {exportState?.state === 'unavailable' ? <Text variant="caption" muted>Export of {name} was cancelled or is unavailable on this host.</Text> : null}
-        {exportState?.state === 'failed' ? <Text accessibilityRole="alert" variant="caption">{exportState.message}</Text> : null}
+        {exportState?.state === 'failed' ? <FailureNotice message={exportState.failure.message} detail={exportState.failure.detail}>
+          <Button label="Retry" accessibilityLabel={`Retry export of ${name}`} size="compact" variant="secondary" disabled={busy}
+            onPress={() => void exportMedia(attachment.mediaId)} />
+        </FailureNotice> : null}
       </View>;
     })}
     {notice ? <Text accessibilityLiveRegion="polite">{notice}</Text> : null}
-    {error ? <View style={styles.feedback}>
-      <Text accessibilityRole="alert">{error}</Text>
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
       {captureRetry ? <Button label={`Retry ${captureRetry.label}`} size="compact" disabled={busy}
         onPress={() => void capture(captureRetry.label, captureRetry.request)} /> : null}
-    </View> : null}
+    </FailureNotice> : null}
   </View>;
 }
 
@@ -235,5 +243,4 @@ const styles = StyleSheet.create(theme => ({
   section: { gap: theme.spacing.compact, minWidth: 0 },
   attachment: { gap: theme.spacing.small, paddingVertical: theme.spacing.small, borderTopWidth: 1, borderTopColor: theme.colors.border },
   image: { width: '100%', height: 200, borderRadius: theme.radius, backgroundColor: theme.colors.surface },
-  feedback: { gap: theme.spacing.small },
 }));

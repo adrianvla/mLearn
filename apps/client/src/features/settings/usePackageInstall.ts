@@ -3,16 +3,17 @@ import { useFocusEffect } from 'expo-router';
 import { AppState } from 'react-native';
 import type { PackageInstallCommand, PackageInstallStatus } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
+import { failure, type Failure } from '../failure';
 
 export function usePackageInstall(client: RuntimeClient | null, enabled: boolean, onInstalled: () => Promise<void>) {
   const [command, setCommand] = useState<PackageInstallCommand | null>(null);
   const [status, setStatus] = useState<PackageInstallStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [cancelRequested, setCancelRequested] = useState<string | null>(null);
-  const [installError, setInstallError] = useState<string | null>(null);
-  const [readError, setReadError] = useState<string | null>(null);
-  const [cancelError, setCancelError] = useState<string | null>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<Failure | null>(null);
+  const [readError, setReadError] = useState<Failure | null>(null);
+  const [cancelError, setCancelError] = useState<Failure | null>(null);
+  const [refreshError, setRefreshError] = useState<Failure | null>(null);
   const [ready, setReady] = useState(false);
   const [readVersion, setReadVersion] = useState(0);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -46,7 +47,7 @@ export function usePackageInstall(client: RuntimeClient | null, enabled: boolean
       if (mounted.current) setRefreshError(null);
     } catch (cause: unknown) {
       refreshed.current = null;
-      if (mounted.current) setRefreshError(cause instanceof Error ? cause.message : String(cause));
+      if (mounted.current) setRefreshError(failure(cause, 'Installed language packages couldn’t be reloaded.'));
     }
   }, []);
 
@@ -92,14 +93,14 @@ export function usePackageInstall(client: RuntimeClient | null, enabled: boolean
           observed.current = null;
           setStatus(null);
         } else {
-          setReadError('No native status is available for this install. Retry status before starting another.');
+          setReadError({ message: 'This install’s progress is unknown. Check its status before starting another.', detail: null });
           return;
         }
         if (value?.phase === 'downloading' || value?.phase === 'validating') {
           timer = setTimeout(() => void readStatus(), 500);
         }
       } catch (cause: unknown) {
-        if (active) setReadError(cause instanceof Error ? cause.message : String(cause));
+        if (active) setReadError(failure(cause, 'This install’s progress couldn’t be read.'));
       }
     }
     void readStatus();
@@ -126,7 +127,7 @@ export function usePackageInstall(client: RuntimeClient | null, enabled: boolean
       await client.installPackage(prepared);
     } catch (cause: unknown) {
       if (mounted.current && !(cause instanceof RuntimeError && cause.code === 'cancelled'))
-        setInstallError(cause instanceof Error ? cause.message : String(cause));
+        setInstallError(failure(cause, 'This language package wasn’t installed.'));
     } finally {
       pending.current = false;
       generation.current++;
@@ -153,10 +154,10 @@ export function usePackageInstall(client: RuntimeClient | null, enabled: boolean
         setStatus(result);
         if (result.phase === 'succeeded') void refreshInstalled(commandId);
       } else {
-        setCancelError('Native cancellation was not acknowledged. Retry status.');
+        setCancelError({ message: 'Cancellation wasn’t confirmed. Try cancelling again.', detail: null });
       }
     } catch (cause: unknown) {
-      if (mounted.current) setCancelError(cause instanceof Error ? cause.message : String(cause));
+      if (mounted.current) setCancelError(failure(cause, 'This installation couldn’t be cancelled.'));
     } finally {
       cancelling.current = false;
       generation.current++;

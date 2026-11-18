@@ -72,6 +72,7 @@ name: Finite Review commits undoes and resumes the original attempt
 - tapOn: Close editor
 - tapOn: Home
 - tapOn: Review
+- tapOn: Session size
 - extendedWaitUntil:
     visible: Finite Review limit
     timeout: 60000

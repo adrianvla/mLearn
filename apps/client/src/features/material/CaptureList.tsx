@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Platform, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AnalyzedToken, CaptureExclusion, MaterialContent, MaterialCreate, MaterialCaptureResult, MaterialEligibility } from '@mlearn/contracts';
@@ -11,6 +11,8 @@ import { Menu } from '@mlearn/ui/menu';
 import { dialogSidebarBreakpoint } from '@mlearn/ui/dialog';
 import { InlineWord, type TextAnchor } from '@mlearn/ui/inline-word';
 import { LinguisticWord, Pronunciation } from '../linguistic';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 
 export type CaptureCandidate = {
   readonly key: string;
@@ -22,7 +24,7 @@ export type CaptureCandidate = {
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, renderMenu, captureAllLabel = 'Save all for review' }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
@@ -32,12 +34,15 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   readonly onLocate?: (candidate: CaptureCandidate) => void;
   readonly presentation?: 'rows' | 'cards' | 'actions';
   readonly header?: ReactNode;
+  readonly disabled?: boolean;
+  readonly renderMenu?: (actions: ComponentProps<typeof Menu>['actions']) => ReactNode;
+  readonly captureAllLabel?: string;
 }) {
   const { width } = useWindowDimensions();
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [error, setError] = useState('');
-  const [availabilityError, setAvailabilityError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
+  const [availabilityError, setAvailabilityError] = useState<Failure | null>(null);
   const [pending, setPending] = useState(false);
   const [reload, setReload] = useState(0);
   const [exclusionRetry, setExclusionRetry] = useState<CaptureExclusion | null>(null);
@@ -49,18 +54,19 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   useEffect(() => {
     const scope = {}; owner.current = scope;
     lock.current = false; setPending(false);
-    setEntries([]); setAvailability([]); setError(''); setAvailabilityError(''); setExclusionRetry(null);
+    setEntries([]); setAvailability([]); setError(null); setAvailabilityError(null); setExclusionRetry(null);
     return () => { if (owner.current === scope) owner.current = null; };
   }, [client, identity]);
   useEffect(() => {
     const scope = owner.current;
     let active = true;
-    setAvailabilityError('');
+    setAvailabilityError(null);
     const targets = candidates.flatMap(({ content }) => content.targetId ? [{ packageId: content.packageId, targetId: content.targetId }] : []);
+    if (!targets.length) { setAvailability([]); return () => { active = false; }; }
     void client.materialEligibility(targets).then(items => {
       if (active && scope && owner.current === scope && current.current === identity) setAvailability(items);
     }).catch((cause: unknown) => {
-      if (active && scope && owner.current === scope && current.current === identity) setAvailabilityError(cause instanceof Error ? cause.message : String(cause));
+      if (active && scope && owner.current === scope && current.current === identity) setAvailabilityError(failure(cause, 'Saved words couldn’t be checked.'));
     });
     return () => { active = false; };
   }, [client, identity, reload, refreshKey]);
@@ -69,7 +75,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   }
   async function capture(selected: Entry[]) {
     if (lock.current || !selected.length) return;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     const scope = owner.current;
     // Retain intent before admission: even a whole-call rejection can lose a
     // committed receipt. Until a result arrives, only this command may retry.
@@ -84,13 +90,13 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
         setReload(value => value + 1);
       }
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function begin(selected: readonly CaptureCandidate[], distinct = false) {
     if (lock.current) return;
     const scope = owner.current;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     try {
       const next: Entry[] = [];
       const positions = new Map<string, number>();
@@ -112,13 +118,13 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       lock.current = false;
       if (scope && owner.current === scope && current.current === identity) await capture(next);
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function reuse(candidate: CaptureCandidate, id: string) {
     if (lock.current) return;
     const scope = owner.current;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     try {
       const material = await client.material(id);
       const targets = candidates.flatMap(({ content }) => content.targetId ? [{ packageId: content.packageId, targetId: content.targetId }] : []);
@@ -129,12 +135,12 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
         onOpenMaterial?.(material.id);
       }
     } catch (cause) {
-      if (scope && owner.current === scope && current.current === identity) setError(cause instanceof Error ? cause.message : String(cause));
+      if (scope && owner.current === scope && current.current === identity) setError(failure(cause, 'These words weren’t saved.'));
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
   async function exclude(command: CaptureExclusion) {
     if (lock.current) return;
-    lock.current = true; setPending(true); setError('');
+    lock.current = true; setPending(true); setError(null);
     const scope = owner.current;
     try {
       const item = await client.setCaptureExclusion(command);
@@ -144,7 +150,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       }
     } catch (cause) {
       if (scope && owner.current === scope && current.current === identity) {
-        setError(cause instanceof Error ? cause.message : String(cause)); setExclusionRetry(command);
+        setError(failure(cause, 'This word’s capture setting wasn’t saved.')); setExclusionRetry(command);
       }
     } finally { if (owner.current === scope) { lock.current = false; setPending(false); } }
   }
@@ -156,10 +162,10 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   const cards = presentation === 'cards';
   const actions = presentation === 'actions';
   const compact = cards || actions;
-  const batchActions = <Row><Button label={cards ? 'Capture view' : 'Capture all eligible in this view'} accessibilityLabel="Capture all eligible in this view"
+  const batchActions = <Row><Button label={cards ? captureAllLabel : 'Capture all eligible in this view'} accessibilityLabel="Capture all eligible in this view"
       variant={cards ? 'quiet' : primary}
-      size="compact" disabled={pending || !eligible.length} onPress={() => begin(eligible)} />
-      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} variant={primary} size="compact" disabled={pending} onPress={() => void capture(failed)} /> : null}</Row>;
+      size="compact" disabled={disabled || pending || !eligible.length} onPress={() => begin(eligible)} />
+      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} variant={primary} size="compact" disabled={disabled || pending} onPress={() => void capture(failed)} /> : null}</Row>;
   return <View style={styles.list}>
     {cards ? <View style={styles.cardHeader(Platform.OS === 'web' && width >= dialogSidebarBreakpoint)}>
       {header}<View style={styles.batchActions}>{batchActions}</View>
@@ -169,16 +175,32 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       const result = item?.result;
       const status = available(candidate);
       const excluded = status?.state === 'excluded' || status?.state === 'existing' && status.excluded;
+      const menuActions: ComponentProps<typeof Menu>['actions'] = [
+        ...(status?.state === 'existing' && result?.state !== 'saved' ? [{
+          id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
+          disabled: disabled || pending, onPress: () => onOpenMaterial?.(status.materialId),
+        }] : []),
+        ...(status && candidate.content.targetId ? [{
+          id: 'capture-exclusion',
+          label: excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`,
+          disabled: disabled || pending, onPress: () => {
+            if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({
+              packageId: candidate.content.packageId, targetId: candidate.content.targetId,
+            }, !excluded));
+          },
+        }] : []),
+      ];
+      const actionSize = actions && width >= 720 ? 'default' : 'compact';
       const checking = !status ? <Text tone={tone} muted variant="caption">Checking capture availability…</Text> : null;
-      const exclusion = status && candidate.content.targetId ? <Button label={cards ? excluded ? 'Allow' : 'Exclude'
+      const exclusion = status && candidate.content.targetId ? <Button label={cards ? excluded ? 'Include in study' : 'Exclude from study'
         : excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
         accessibilityLabel={excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
-        variant={cards ? 'pill' : quiet} size="compact" disabled={pending} onPress={() => {
+        variant={cards ? 'pill' : quiet} surface={tone} size="compact" disabled={disabled || pending} onPress={() => {
           if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({ packageId: candidate.content.packageId, targetId: candidate.content.targetId }, !excluded));
         }} /> : null;
       const content = <View style={actions ? styles.action : cards ? styles.card : styles.item(tone === 'media')}>
         {!actions ? <View style={styles.wordHeading(cards)}>
-        {onInspect && cards ? <LinguisticWord text={candidate.content.phrase} presentation={candidate.presentation}
+        {onInspect && cards ? <LinguisticWord text={candidate.content.phrase} presentation={candidate.presentation} variant="listTitle"
           activation={{ status: candidate.knowledgeStatus ?? 'pending', onActivate: anchor => onInspect(candidate, anchor) }} />
           : onInspect ? <InlineWord text={candidate.content.phrase} status={candidate.knowledgeStatus ?? 'pending'}
           variant="body" onActivate={anchor => onInspect(candidate, anchor)} />
@@ -192,51 +214,44 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           {onLocate ? <Button label={`Locate ${candidate.content.phrase}`} icon="play" iconOnly={cards} variant={quiet} size="compact"
             onPress={() => onLocate(candidate)} /> : null}
           {cards ? exclusion : null}
-          {!item && status?.state === 'eligible' ? <Button label={compact ? 'Capture' : `Capture ${candidate.content.phrase}`}
+          {!item && status?.state === 'eligible' ? <Button label={compact ? 'Flashcard' : `Capture ${candidate.content.phrase}`}
             accessibilityLabel={`Capture ${candidate.content.phrase}`} variant={compact ? 'pill' : primary}
-            tone={compact ? 'info' : 'neutral'} icon={compact ? 'plusCircle' : undefined}
-            size="compact" disabled={pending} onPress={() => begin([candidate])} /> : null}
+            tone={compact ? 'info' : 'neutral'} surface={tone} icon={compact && (!actions || width >= 720) ? 'plusCircle' : undefined}
+            size={actionSize} disabled={disabled || pending} onPress={() => begin([candidate])} /> : null}
           {!actions && status?.state === 'existing' ? <Button label={cards ? 'Saved' : `Open saved ${candidate.content.phrase}`}
-            accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} size="compact"
+            accessibilityLabel={`Open saved ${candidate.content.phrase}`} variant={cards ? 'pill' : secondary} surface={tone} size="compact"
+            disabled={disabled}
             onPress={() => onOpenMaterial?.(status.materialId)} /> : null}
-          {!item && status?.state === 'existing' && !excluded ? <Button label={compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
+          {!item && status?.state === 'existing' && !excluded ? <Button label={actions && width < 720 ? 'Capture' : compact ? 'Capture context' : `Capture this context: ${candidate.content.phrase}`}
             accessibilityLabel={`Capture this context: ${candidate.content.phrase}`}
-            icon={actions ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined}
-            size="compact" variant={compact ? 'pill' : secondary} disabled={pending} onPress={() => void begin([candidate])} /> : null}
+            icon={actions && width >= 720 ? 'plusCircle' : undefined} tone={actions ? 'info' : undefined} surface={tone}
+            size={actionSize} variant={compact ? 'pill' : secondary} disabled={disabled || pending} onPress={() => void begin([candidate])} /> : null}
           {actions && result?.state === 'saved' ? <Button label={result.reused ? 'Reused' : 'Saved'}
             accessibilityLabel={`Open saved ${candidate.content.phrase}`}
             accessibilityValue={{ text: `revision ${result.committedRevision}` }} accessibilityLiveRegion="polite"
-            variant="pill" size="compact" disabled={pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
-          {actions && status ? <Menu label="Capture options" icon="more" disabled={pending} actions={[
-            ...(status.state === 'existing' && result?.state !== 'saved' ? [{ id: 'open-saved-material', label: `Open saved ${candidate.content.phrase}`,
-              onPress: () => onOpenMaterial?.(status.materialId) }] : []),
-            ...(candidate.content.targetId ? [{ id: 'capture-exclusion',
-              label: excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`,
-              onPress: () => {
-                if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({
-                  packageId: candidate.content.packageId, targetId: candidate.content.targetId,
-                }, !excluded));
-              } }] : []),
-          ]} /> : null}
+            variant="pill" size={actionSize} surface={tone} disabled={disabled || pending} onPress={() => onOpenMaterial?.(result.materialId)} /> : null}
+          {actions ? renderMenu ? renderMenu(menuActions)
+            : status ? <Menu label="Capture options" icon="more" disabled={disabled || pending} actions={menuActions} /> : null : null}
           {!compact ? exclusion : null}
         </Row>
-        {!actions && result?.state === 'saved' ? <Text tone={tone} accessibilityLiveRegion="polite">{result.reused ? 'Reused' : 'Saved'} · {result.materialId} · revision {result.committedRevision}</Text> : null}
-        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <Text tone={tone} accessibilityRole="alert">{result.message}</Text> : null}
-          <Button label={`Retry capture ${candidate.content.phrase}`} variant={primary} disabled={pending} onPress={() => void capture([item])} /></> : null}
+        {!actions && result?.state === 'saved' ? <Text tone={tone} accessibilityLiveRegion="polite" testID="capture-receipt">
+          {cards ? result.reused ? 'Saved earlier' : 'Saved for review' : `${result.reused ? 'Reused' : 'Saved'} · ${result.materialId} · revision ${result.committedRevision}`}</Text> : null}
+        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <FailureNotice tone={tone} message="This word wasn’t saved." detail={result.message} /> : null}
+          <Button label={`Retry capture ${candidate.content.phrase}`} variant={primary} disabled={disabled || pending} onPress={() => void capture([item])} /></> : null}
         {result?.state === 'duplicate' ? <>
           <Text tone={tone}>Choose existing Material or keep this context distinct.</Text>
-          {result.materialIds.map(id => <Button key={id} label={`Use existing ${id}`} variant={secondary} disabled={pending}
+          {result.materialIds.map(id => <Button key={id} label={`Use existing ${id}`} variant={secondary} disabled={disabled || pending}
             onPress={() => void reuse(candidate, id)} />)}
-          <Button label={`Keep distinct ${candidate.content.phrase}`} variant={primary} disabled={pending} onPress={() => begin([candidate], true)} />
+          <Button label={`Keep distinct ${candidate.content.phrase}`} variant={primary} disabled={disabled || pending} onPress={() => begin([candidate], true)} />
         </> : null}
       </View>;
       return cards ? <Panel key={candidate.key} inset="compact" material="card">{content}</Panel>
         : <View key={candidate.key}>{content}</View>;
     })}
-    {error ? <><Text tone={tone} accessibilityRole="alert">{error}</Text>
-      {exclusionRetry ? <Button label="Retry capture exclusion" variant={primary} disabled={pending} onPress={() => void exclude(exclusionRetry)} /> : null}</> : null}
-    {availabilityError ? <><Text tone={tone} accessibilityRole="alert">{availabilityError}</Text>
-      <Button label="Retry availability" variant={primary} disabled={pending} onPress={() => setReload(value => value + 1)} /></> : null}
+    {error ? <FailureNotice tone={tone} message={error.message} detail={error.detail}>
+      {exclusionRetry ? <Button label="Retry capture exclusion" variant={primary} disabled={disabled || pending} onPress={() => void exclude(exclusionRetry)} /> : null}</FailureNotice> : null}
+    {availabilityError ? <FailureNotice tone={tone} message={availabilityError.message} detail={availabilityError.detail}>
+      <Button label="Retry availability" variant={primary} disabled={disabled || pending} onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
   </View>;
 }
 const styles = StyleSheet.create(theme => ({
@@ -247,6 +262,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: wide ? theme.colors.surface : undefined,
     paddingHorizontal: wide ? theme.spacing.medium : 0,
     paddingBottom: wide ? theme.spacing.medium : 0,
+    paddingTop: wide ? theme.spacing.medium : 0,
     marginHorizontal: wide ? -theme.spacing.medium : 0,
     marginTop: wide ? -theme.spacing.medium : 0,
     marginBottom: wide ? theme.spacing.medium + theme.spacing.tiny : 0,

@@ -8,8 +8,26 @@ use mlearn_core::{Request, Response};
 impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
+        self.prepare_cancellable(request, cancellation)
+    }
+    pub(crate) fn prepare_cancellable(
+        &mut self,
+        request: Request,
+        cancellation: Cancellation,
+    ) -> Result<Prepared, Failure> {
+        let epoch = cancellation.epoch;
         match request {
+            Request::PrepareCollection { .. }
+            | Request::CollectionPreparationStatus { .. }
+            | Request::CancelCollectionPreparation { .. }
+            | Request::MaterialBulk { .. } => Err(Failure::Protocol(
+                "requires_executor",
+                "Task control requires the shared native executor".into(),
+            )),
             Request::Conversation { command } => self.prepare_conversation(command, cancellation),
+            Request::Speech { .. } => Err(Failure::Operation(
+                "Speech requires the shared native executor".into(),
+            )),
             Request::ImportImageCollection {
                 paths,
                 title,
@@ -108,10 +126,17 @@ impl Runtime {
             | Request::RecentDocuments
             | Request::DocumentWindow { .. }
             | Request::DocumentContents { .. }
+            | Request::SearchDocument { .. }
             | Request::CheckpointDocument { .. }
             | Request::DocumentResource { .. }) => Ok(Prepared::Immediate(Box::new(
                 self.document_request(request, &cancellation)?,
             ))),
+            Request::ReturnSourceAnchor { anchor } => {
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(
+                    self.return_source_anchor(anchor, cancellation.epoch)?,
+                )))
+            }
             Request::AnalyzeDocument {
                 source_id,
                 position,
@@ -143,7 +168,80 @@ impl Runtime {
                     cancellation,
                 )
             }
-            Request::Review { command } => self.prepare_review(command),
+            Request::Review { command } => self.prepare_review(command, cancellation),
+            Request::PreviewAuthoredPractice {
+                material_id,
+                material_revision,
+            } => {
+                let material = self
+                    .store
+                    .review_practice_materials(&[mlearn_core::PracticeItem {
+                        material_id,
+                        source: None,
+                    }])
+                    .map_err(crate::review::storage_failure)?
+                    .pop()
+                    .ok_or_else(|| Failure::Operation("Saved Material is unavailable".into()))?;
+                if material.revision != material_revision {
+                    return Err(Failure::Operation(
+                        "Material changed; reload before authoring".into(),
+                    ));
+                }
+                let package_id = material.content.package_id.clone();
+                if !self.installed.get(&package_id).is_some_and(|package| {
+                    package
+                        .manifest
+                        .capabilities
+                        .iter()
+                        .any(|id| id == "learning.probes.v1")
+                }) {
+                    return Err(Failure::Operation(
+                        "Package does not support authored recall probes".into(),
+                    ));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::AuthoredPreview(Box::new(material)),
+                    cancellation,
+                )
+            }
+            Request::PrepareCalibration { query } => {
+                cancellation.check()?;
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|id| id == "learning.probes.v2")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not support Word Sync tasks".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                if self
+                    .store
+                    .collection_catalog_revision(&query.package_id)
+                    .map_err(crate::review::storage_failure)?
+                    .as_deref()
+                    != Some(revision.as_str())
+                {
+                    return Err(Failure::Operation(
+                        "Language package changed; prepare its current Knowledge catalog".into(),
+                    ));
+                }
+                let items = self
+                    .store
+                    .calibration_candidates(&query)
+                    .map_err(crate::review::storage_failure)?;
+                cancellation.check()?;
+                Ok(Prepared::Immediate(Box::new(Response::Calibration {
+                    items,
+                })))
+            }
             Request::ReviewSession { session_id } => {
                 Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
                     session: self
@@ -274,6 +372,94 @@ impl Runtime {
                     cancellation,
                 )
             }
+            Request::PrepareSourcePractice {
+                package_id,
+                package_revision,
+                targets,
+            } => {
+                if !(1..=128).contains(&targets.len())
+                    || targets.iter().any(|target| {
+                        target.target_id.is_empty()
+                            || target.target_id.len() > 512
+                            || target.target_id.contains('\0')
+                            || target.source.package_id != package_id
+                    })
+                    || targets
+                        .iter()
+                        .map(|target| &target.target_id)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != targets.len()
+                {
+                    return Err(Failure::Operation(
+                        "Invalid visible Practice target scope".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if package.revision()? != package_revision {
+                    return Err(Failure::Operation(
+                        "Language package changed; refresh the selected source".into(),
+                    ));
+                }
+                for target in &targets {
+                    self.validate_capture_source(&target.source)?;
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::SourcePractice(targets),
+                    cancellation,
+                )
+            }
+            Request::GraphNeighborhood { query } => {
+                if [&query.package_id, &query.target_id]
+                    .iter()
+                    .any(|value| value.is_empty() || value.len() > 512 || value.contains('\0'))
+                    || query.after.as_ref().is_some_and(|cursor| {
+                        cursor.after.is_empty()
+                            || cursor.after.len() > 512
+                            || cursor.after.contains('\0')
+                    })
+                {
+                    return Err(Failure::Operation(
+                        "Invalid graph neighborhood query".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&query.package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if !package
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .any(|value| value == "graph.neighborhood.v1")
+                {
+                    return Err(Failure::Operation(
+                        "Package does not provide related-entity inspection".into(),
+                    ));
+                }
+                let revision = package.revision()?;
+                let identity =
+                    crate::graph::identity(&query.package_id, &revision, &query.target_id)?;
+                if query
+                    .expected_revision
+                    .as_ref()
+                    .is_some_and(|expected| expected != &revision)
+                    || query
+                        .after
+                        .as_ref()
+                        .is_some_and(|cursor| cursor.identity != identity)
+                {
+                    return Err(Failure::Operation(
+                        "Language package or graph scope changed; refresh related entities".into(),
+                    ));
+                }
+                let package_id = query.package_id.clone();
+                self.language_work(&package_id, LanguageAction::Graph(query), cancellation)
+            }
             Request::InspectTargets {
                 source_id,
                 subtitle_revision,
@@ -310,7 +496,41 @@ impl Runtime {
                 self.language_work(
                     &package_id,
                     LanguageAction::Summaries {
-                        source,
+                        source: Some(source),
+                        targets: target_ids,
+                    },
+                    cancellation,
+                )
+            }
+            Request::TargetSummaries {
+                package_id,
+                package_revision,
+                target_ids,
+            } => {
+                if target_ids.is_empty()
+                    || target_ids.len() > 6
+                    || target_ids.iter().any(|id| id.is_empty() || id.len() > 512)
+                    || target_ids
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != target_ids.len()
+                {
+                    return Err(Failure::Operation(
+                        "Dictionary batch requires one to six distinct targets".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if package.revision()? != package_revision {
+                    return Err(Failure::Operation("Language package changed".into()));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::Summaries {
+                        source: None,
                         targets: target_ids,
                     },
                     cancellation,
@@ -348,6 +568,9 @@ impl Runtime {
             Request::PackageInstallStatus { command_id } => Ok(Prepared::Immediate(Box::new(
                 self.installs.status(&command_id, false)?,
             ))),
+            Request::RemovePackage { plugin_id } => {
+                Ok(Prepared::Immediate(Box::new(self.remove_package(&plugin_id)?)))
+            }
             Request::CurrentPackageInstall => Ok(Prepared::Immediate(Box::new(
                 self.installs.current_status()?,
             ))),
@@ -362,17 +585,36 @@ impl Runtime {
                     .clone();
                 Ok(Prepared::Work(GuestWork::Catalog(catalog)))
             }
-            request @ (Request::ResumeSource { .. } | Request::AttachSubtitles { .. }) => {
+            request @ (Request::ResumeSource { .. }
+            | Request::AttachSubtitles { .. }
+            | Request::AttachEmbeddedSubtitles { .. }) => {
                 cancellation.check()?;
                 let response = self.watch(request, epoch);
                 cancellation.check()?;
                 Ok(Prepared::Immediate(Box::new(response?)))
             }
-            request @ (Request::Snapshot
+            request @ (Request::Collection { .. }
+            | Request::RefreshMaterialCollection { .. }
+            | Request::CreateCollectionSelection { .. }
+            | Request::CollectionSelection { .. }
+            | Request::CollectionSelections
+            | Request::CollectionSelectionMembership { .. }
+            | Request::CollectionSelectionPage { .. }
+            | Request::ReleaseCollectionSelection { .. }
+            | Request::Snapshot
             | Request::PlanMaterialMedia { .. }
             | Request::MaterialMedia { .. }
             | Request::Materials { .. }
             | Request::Material { .. }
+            | Request::MaterialProposals { .. }
+            | Request::MaterialGeneration { .. }
+            | Request::MaterialGenerations { .. }
+            | Request::CollectMaterialGeneration { .. }
+            | Request::MaterialProposal { .. }
+            | Request::SuggestMaterial { .. }
+            | Request::ReviewMaterialProposal { .. }
+            | Request::ReturnMaterialProposalSource { .. }
+            | Request::RemoveMaterial { .. }
             | Request::MaterialEligibility { .. }
             | Request::SetCaptureExclusion { .. }
             | Request::ReturnMaterialSource { .. }
@@ -383,15 +625,60 @@ impl Runtime {
             | Request::SetSubtitleOffset { .. }
             | Request::AlignSubtitleOffset { .. }
             | Request::SetPlaybackRate { .. }
+            | Request::SourceTracks { .. }
+            | Request::SetAudioTrack { .. }
             | Request::SetInspectionTrigger { .. }
             | Request::SavePosition { .. }
             | Request::Knowledge { .. }
+            | Request::KnowledgeEvidence { .. }
             | Request::SaveTheme { .. }
             | Request::SaveInlineLevelScale { .. }
             | Request::SaveStarCollapse { .. }) => {
                 Ok(Prepared::Immediate(Box::new(self.metadata(request)?)))
             }
         }
+    }
+    /// Uninstalls a downloaded package and deletes the stored files no remaining package uses.
+    /// In-flight work keeps its own reference to the package; new work reports it not installed.
+    fn remove_package(&mut self, plugin_id: &str) -> Result<Response, Failure> {
+        self.policy
+            .authorize(mlearn_language_host::CodeOrigin::Download)?;
+        if self.installs.active()? {
+            return Err(Failure::Busy);
+        }
+        if !self
+            .store
+            .remove_plugin(plugin_id)
+            .map_err(|e| Failure::Operation(e.to_string()))?
+            && !self.installed.contains_key(plugin_id)
+        {
+            return Err(Failure::Protocol("not_found", "This language package is not installed".into()));
+        }
+        let retired = self.installed.remove(plugin_id);
+        self.package_issues.remove(plugin_id);
+        self.analysis_cache.clear();
+        if let Some(retired) = retired {
+            let kept: std::collections::BTreeSet<&str> = self
+                .installed
+                .values()
+                .flat_map(|package| {
+                    std::iter::once(package.manifest.code.sha256.as_str())
+                        .chain(package.manifest.assets.values().map(|a| a.sha256.as_str()))
+                })
+                .collect();
+            let owned = std::iter::once(&retired.manifest.code).chain(retired.manifest.assets.values());
+            for artifact in owned.filter(|a| !kept.contains(a.sha256.as_str())) {
+                let path = self.root.join("plugin-blobs").join(&artifact.sha256);
+                // The removal is already committed; a file another process holds open stays as an
+                // unreferenced blob that a later install of the same artifact reuses.
+                if let Err(error) = std::fs::remove_file(&path)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    eprintln!("Package file cleanup: {error}");
+                }
+            }
+        }
+        Ok(Response::PackageRemoved { plugin_id: plugin_id.into() })
     }
     fn prepare_install(
         &self,

@@ -220,10 +220,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mlearn-core"
+version = "3.0.0-dev.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mlearn-japanese-engine"
 version = "0.1.0"
 dependencies = [
  "miniz_oxide",
+ "mlearn-core",
  "mlearn-language-sdk",
  "serde",
  "serde_json",
@@ -238,6 +249,7 @@ dependencies = [
 name = "mlearn-language-sdk"
 version = "3.0.0-dev.0"
 dependencies = [
+ "mlearn-core",
  "serde",
  "serde_json",
 ]

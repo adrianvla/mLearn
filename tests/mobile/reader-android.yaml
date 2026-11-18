@@ -85,10 +85,10 @@ name: Reader imports real PDF text and retains original empty-page identity
     clearState: false
     permissions: {}
 - scrollUntilVisible:
-    element: Resume m05-journey.pdf
+    element: Continue m05-journey.pdf
     direction: DOWN
     timeout: 60000
-- tapOn: Resume m05-journey.pdf
+- tapOn: Continue m05-journey.pdf
 - extendedWaitUntil:
     visible:
       id: reader-position

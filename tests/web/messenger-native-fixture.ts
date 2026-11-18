@@ -28,7 +28,7 @@ export async function openNativeConversation(page: Page, native: NativeCore, nam
   await page.getByRole('button', { name: 'Get language packages', exact: true }).click();
   await page.getByRole('button', { name: 'Check for packages', exact: true }).click();
   await page.getByRole('button', { name: /^Install .*English/ }).click();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
   await page.goto('/');
   await page.getByRole('button', { name: 'Conversation', exact: true }).click();
   await page.getByRole('button', { name: 'People', exact: true }).click();

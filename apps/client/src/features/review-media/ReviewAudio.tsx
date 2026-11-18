@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { View } from 'react-native';
 import type { AuthoredMediaId, ReviewDelivery, ReviewEncounter, ReviewEncounterId } from '@mlearn/contracts';
 import { RuntimeError } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { AttachmentPlayer } from '../material';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { createReviewAudioDelivery, type AudioState, type ReviewAudioDelivery } from './delivery';
 
 export type ReviewAudioProps = {
+  readonly ref?: Ref<Pick<ReviewAudioDelivery, 'cancel'>>;
   readonly encounter: ReviewEncounter;
   readonly media: { readonly uri: (id: AuthoredMediaId) => Promise<string> } | null;
   readonly disabled?: boolean;
@@ -20,7 +22,7 @@ export function ReviewAudio(props: ReviewAudioProps) {
   return <EncounterAudio key={props.encounter.id} {...props} mediaId={props.encounter.requiredMedia} />;
 }
 
-function EncounterAudio({ encounter, media, mediaId, disabled = false, onDelivery }: ReviewAudioProps & {
+function EncounterAudio({ ref, encounter, media, mediaId, disabled = false, onDelivery }: ReviewAudioProps & {
   readonly mediaId: string;
 }) {
   const [attempt, setAttempt] = useState(0);
@@ -30,6 +32,8 @@ function EncounterAudio({ encounter, media, mediaId, disabled = false, onDeliver
   initialDelivery.current = encounter.conditions.delivery;
   const callback = useRef(onDelivery);
   callback.current = onDelivery;
+  // Departure awaits this attempt while its encounter's persistence scope is live.
+  useImperativeHandle(ref, () => ({ cancel: async () => { await owner.current?.cancel(); } }), []);
   useEffect(() => {
     const delivery = createReviewAudioDelivery({
       encounterId: encounter.id, mediaId,
@@ -64,7 +68,8 @@ function EncounterAudio({ encounter, media, mediaId, disabled = false, onDeliver
       <Text accessibilityLiveRegion="polite">{state.delivery === 'completed' ? 'Audio playback completed.' : 'Audio playback interrupted.'}</Text>
       <Button label="Play audio again" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} />
     </> : null}
-    {state.kind === 'failed' ? <Text accessibilityRole="alert">{state.message}</Text> : null}
-    {state.kind === 'failed' ? <Button label="Retry audio" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} /> : null}
+    {state.kind === 'failed' ? <FailureNotice message={state.failure.message} detail={state.failure.detail}>
+      <Button label="Retry audio" variant="secondary" disabled={disabled} onPress={() => setAttempt(value => value + 1)} />
+    </FailureNotice> : null}
   </View>;
 }

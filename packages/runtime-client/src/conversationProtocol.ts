@@ -1,4 +1,4 @@
-import type { Contact, Conversation, ConversationDraft, ConversationGeneration, ConversationMessage, ConversationResult, Response } from '@mlearn/contracts';
+import type { Contact, Conversation, ConversationDraft, ConversationWorld, ConversationGeneration, ConversationMessage, ConversationResult, Response } from '@mlearn/contracts';
 import { isSourceAnchor } from './sourceProtocol';
 import { isAnalyzedToken, isKnowledgeProjection } from './watchProtocol';
 
@@ -20,14 +20,22 @@ const unique = (items: unknown[], key: string) =>
 
 export function isContact(v: unknown): v is Contact {
   return object(v) && id(v.id) && uint(v.revision) && text(v.name, 256) && v.name.trim().length > 0
-    && text(v.description) && typeof v.archived === 'boolean';
+    && text(v.description) && typeof v.archived === 'boolean' && text(v.voice, 256);
 }
 export function isConversation(v: unknown): v is Conversation {
-  return object(v) && id(v.id) && uint(v.revision) && member(v.kind, ['direct', 'thread'])
+  return object(v) && id(v.id) && uint(v.revision) && member(v.kind, ['direct', 'thread', 'room'])
     && text(v.title, 256) && text(v.purpose, 4096) && id(v.packageId)
     && list(v.participants, 8, id) && v.participants.length > 0
     && new Set(v.participants).size === v.participants.length
-    && (v.kind !== 'direct' || v.participants.length === 1) && typeof v.discarded === 'boolean';
+    && (v.kind !== 'direct' || v.participants.length === 1) && typeof v.discarded === 'boolean'
+    && list(v.absent, 8, id) && new Set(v.absent).size === v.absent.length
+    && v.absent.every(person => (v.participants as unknown[]).includes(person))
+    && (v.kind === 'room' || v.absent.length === 0);
+}
+export function isConversationWorld(v: unknown): v is ConversationWorld {
+  return object(v) && id(v.conversationId) && uint(v.revision) && text(v.scenario, 2048) && uint(v.progress)
+    && list(v.canon, 16, entry => object(entry) && uint(entry.position) && text(entry.text, 600)
+      && entry.text.trim().length > 0);
 }
 export function isConversationDraft(v: unknown): v is ConversationDraft {
   return object(v) && id(v.conversationId) && uint(v.revision) && text(v.text)
@@ -39,7 +47,10 @@ export function isConversationMessage(v: unknown): v is ConversationMessage {
     && nullable(v.participantId, id) && nullable(v.replyTo, reference) && text(v.text)
     && member(v.status, ['pending', 'partial', 'complete', 'failed', 'cancelled', 'interrupted', 'invalidated', 'deleted'])
     && nullable(v.generationId, id) && list(v.sources, 8, isSourceAnchor)
-    && time(v.createdAtMs) && typeof v.contentRevision === 'string' && /^[a-f0-9]{64}$/.test(v.contentRevision);
+    && time(v.createdAtMs) && typeof v.contentRevision === 'string' && /^[a-f0-9]{64}$/.test(v.contentRevision)
+    && list(v.witnesses, 8, id) && nullable(v.integratedFrom, reference)
+    && nullable(v.delivery, delivery => object(delivery) && uint(delivery.deliveredChars)
+      && typeof delivery.interrupted === 'boolean');
 }
 export function isConversationGeneration(v: unknown): v is ConversationGeneration {
   return object(v) && id(v.id) && id(v.conversationId) && uint(v.conversationRevision)
@@ -76,7 +87,8 @@ export function isConversationResult(v: unknown): v is ConversationResult {
     case 'draft': return isConversationDraft(v.draft);
     case 'prepared': return isConversation(v.conversation) && list(v.participants, 8, isContact)
       && unique(v.participants, 'id') && list(v.messages, 40, isConversationMessage)
-      && unique(v.messages, 'id') && typeof v.truncated === 'boolean';
+      && unique(v.messages, 'id') && typeof v.truncated === 'boolean' && nullable(v.speaker, id);
+    case 'world': return isConversationWorld(v.world);
     case 'generation': return isConversationGeneration(v.generation);
     case 'trace': {
       const p = v.page;

@@ -23,7 +23,7 @@ const library = path.join(root, 'target/debug', process.platform === 'darwin' ? 
 const moduleRoot = path.join(root, 'apps/client/modules/mlearn-native');
 const generated = path.join(moduleRoot, platform, 'generated');
 await mkdir(generated, { recursive: true });
-run('cargo', ['run', '--locked', '-p', 'mlearn-bindgen', '--', 'generate', '--library', library, '--language', platform === 'ios' ? 'swift' : 'kotlin', '--config', 'crates/ffi/uniffi.toml', '--out-dir', generated, '--no-format']);
+run('cargo', ['run', '--locked', '-p', 'mlearn-bindgen', '--', 'generate', '--library', library, '--language', platform === 'ios' ? 'swift' : 'kotlin', '--out-dir', generated, '--no-format']);
 if (platform === 'ios') {
   const headers = path.join(generated, 'headers');
   const frameworkHeaders = path.join(generated, 'xcframework-headers');

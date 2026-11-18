@@ -60,16 +60,33 @@ export function LevelStars({ rank, label, size = 'medium', collapse = 'auto', ma
   useLayoutEffect(() => {
     const word = root.current?.parentElement;
     if (!word || collapse !== 'auto') return;
+    const row = word.parentElement;
     const measure = () => {
       const bounds = rectangle(word);
-      if (bounds) setAvailableWidth(levelStarsAvailableWidth({
+      if (!bounds) return;
+      let available = levelStarsAvailableWidth({
         word: bounds,
         previous: rectangle(word.previousElementSibling),
         next: rectangle(word.nextElementSibling),
-      }, margin));
+      }, margin);
+      if (row) {
+        const style = getComputedStyle(row);
+        // A flex heading's missing neighbor does not grant space outside its
+        // row. Inline prose keeps the reference's unbounded edge behavior.
+        if ((style.display === 'flex' || style.display === 'inline-flex')
+          && (style.flexDirection === 'row' || style.flexDirection === 'row-reverse')) {
+          const boundary = rectangle(row);
+          if (boundary) {
+            const center = bounds.x + bounds.width / 2;
+            const inside = Math.max(0, 2 * Math.min(center - boundary.x, boundary.x + boundary.width - center));
+            available = Math.min(available, inside);
+          }
+        }
+      }
+      setAvailableWidth(available);
     };
     measure();
-    const dispose = [word, word.previousElementSibling, word.nextElementSibling]
+    const dispose = [word, word.previousElementSibling, word.nextElementSibling, row]
       .filter((element): element is Element => element !== null)
       .map(element => observeResize(element, measure));
     return () => { for (const release of dispose) release(); };

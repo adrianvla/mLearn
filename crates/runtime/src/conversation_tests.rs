@@ -4,6 +4,9 @@ use mlearn_language_host::CodePolicy;
 use std::{sync::mpsc, thread::JoinHandle, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+#[path = "material_generation_tests.rs"]
+mod material_generation_tests;
+
 fn action(runtime: &RuntimeExecutor, command: ConversationCommand) -> ConversationResult {
     let response: Response = serde_json::from_str(
         &runtime.execute(&serde_json::to_string(&Request::Conversation { command }).unwrap()),
@@ -53,6 +56,7 @@ fn seed(runtime: &RuntimeExecutor, endpoint: &str) {
                 name: "Conversation partner".into(),
                 description: "Answer the actual question.".into(),
                 archived: false,
+                voice: String::new(),
             },
         },
     );
@@ -69,6 +73,7 @@ fn seed(runtime: &RuntimeExecutor, endpoint: &str) {
                 package_id: "org.mlearn.english".into(),
                 participants: vec![ContactId("person".into())],
                 discarded: false,
+                absent: Vec::new(),
             },
         },
     );

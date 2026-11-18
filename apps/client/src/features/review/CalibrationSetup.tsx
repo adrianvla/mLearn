@@ -1,0 +1,170 @@
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import type { CollectionFilter, LanguageDescription, PluginSummary, ReviewMode } from '@mlearn/contracts';
+import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
+import { Button } from '@mlearn/ui/button';
+import { Row, SettingRow, Stack } from '@mlearn/ui/layout';
+import { Select } from '@mlearn/ui/select';
+import { Text } from '@mlearn/ui/text';
+import { TextField } from '@mlearn/ui/text-field';
+import { CollectionFilters } from '../collection';
+
+type CalibrationMode = Extract<ReviewMode, { kind: 'calibration' }>;
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
+
+/** Unsubmitted scope only; native Knowledge and Review own selection and evidence. */
+export function CalibrationSetup({ client, initialPackageId, disabled, saving = false, onStart, onOpenKnowledge }: {
+  readonly client: RuntimeClient;
+  readonly initialPackageId: string;
+  readonly disabled: boolean;
+  readonly saving?: boolean;
+  readonly onStart: (mode: CalibrationMode) => Promise<void>;
+  readonly onOpenKnowledge: (packageId: string) => void;
+}) {
+  const [packages, setPackages] = useState<PluginSummary[]>([]);
+  const [packageId, setPackageId] = useState(initialPackageId);
+  const [description, setDescription] = useState<LanguageDescription | null>(null);
+  const [capability, setCapability] = useState('');
+  const [text, setText] = useState('');
+  const [filter, setFilter] = useState<CollectionFilter>({ kind: 'all', filters: [] });
+  const [limit, setLimit] = useState('8');
+  const [loading, setLoading] = useState(true);
+  const [metadataError, setMetadataError] = useState<Failure | null>(null);
+  const [error, setError] = useState<Failure | null>(null);
+  const [reload, setReload] = useState(0);
+  const [selecting, setSelecting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [notice, setNotice] = useState<'empty' | 'cancelled' | 'unprepared' | null>(null);
+  const [assessmentDetails, setAssessmentDetails] = useState(false);
+  const [scopeOptions, setScopeOptions] = useState(false);
+  const owner = useRef<object | null>(null);
+  const operation = useRef<AbortController | null>(null);
+  const flight = useRef(false);
+  useFocusEffect(useCallback(() => {
+    const scope = {}; owner.current = scope;
+    setLoading(true); setMetadataError(null); setDescription(null);
+    setSelecting(operation.current !== null);
+    void (async () => {
+      const snapshot = await client.snapshot();
+      if (owner.current !== scope) return;
+      const available = snapshot.installedPlugins.filter(item => item.capabilities.includes('learning.probes.v2'));
+      setPackages(available);
+      if (!packageId) { setPackageId(available[0]?.id ?? ''); return; }
+      const language = await client.describeLanguage(packageId);
+      if (owner.current !== scope) return;
+      setDescription(language);
+      const allowed = language.catalog?.calibrationCapabilities ?? [];
+      setCapability(previous => allowed.includes(previous) ? previous : allowed[0] ?? '');
+    })().catch((cause: unknown) => {
+      if (owner.current === scope) setMetadataError(failure(cause, 'Word Sync options couldn’t be loaded.'));
+    }).finally(() => { if (owner.current === scope) setLoading(false); });
+    return () => {
+      if (owner.current === scope) owner.current = null;
+      operation.current?.abort();
+    };
+  }, [client, packageId, reload]));
+  function changed() { setNotice(null); setError(null); }
+  const capabilities = description?.catalog?.capabilities.filter(item =>
+    description.catalog?.calibrationCapabilities?.includes(item.id)) ?? [];
+  const valid = /^[1-9]\d?$/.test(limit) && Number(limit) <= 32
+    && capabilities.some(item => item.id === capability);
+  async function select() {
+    const scope = owner.current;
+    if (!scope || disabled || loading || flight.current || !valid) return;
+    const controller = new AbortController();
+    operation.current = controller; flight.current = true;
+    setSelecting(true); setCancelling(false); changed();
+    const query = { packageId, capability, limit: Number(limit),
+      filter: { kind: 'all' as const, filters: [{ kind: 'text' as const, text }, filter] } };
+    try {
+      const items = await client.calibrationCandidates(query, controller.signal);
+      if (owner.current !== scope) return;
+      if (!items.length) { setNotice('empty'); return; }
+      operation.current = null; setSelecting(false);
+      await onStart({ kind: 'calibration', query, items });
+    } catch (cause) {
+      if (owner.current !== scope) return;
+      if (controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled')
+        setNotice('cancelled');
+      else {
+        // Selection reads the prepared Knowledge catalog; retrying cannot help until it is prepared.
+        const catalog = await client.collection({ packageId, surface: 'knowledge', filter: { kind: 'all', filters: [] }, sort: 'default', after: null })
+          .catch(() => null);
+        if (owner.current !== scope) return;
+        if (catalog && catalog.state !== 'ready') setNotice('unprepared');
+        else setError(failure(cause, 'Words for Word Sync couldn’t be selected.'));
+      }
+    } finally {
+      if (operation.current === controller) operation.current = null;
+      flight.current = false;
+      if (owner.current) { setSelecting(false); setCancelling(false); }
+    }
+  }
+  const scopeSummary = <SettingRow label={text.trim() || 'All'}>
+    <Text variant="caption" muted>Up to {limit}</Text>
+    {filter.kind !== 'all' || filter.filters.length ? <Text variant="caption" muted>Filtered</Text> : null}
+  </SettingRow>;
+  const selection = <>
+    <Text variant="section" accessibilityRole="header">Selected scope</Text>
+    <Row><Text>{packages.find(item => item.id === packageId)?.displayName ?? packageId}</Text>
+      {capability ? <Text muted>{capabilities.find(item => item.id === capability)?.label ?? capability}</Text> : null}</Row>
+    {scopeSummary}
+  </>;
+  if (selecting) return <Stack>
+    {selection}
+    <Text accessibilityLiveRegion="polite">Selecting unmeasured targets...</Text>
+    <Button label={cancelling ? 'Stopping selection' : 'Cancel selection'} variant="secondary"
+      disabled={cancelling} onPress={() => { setCancelling(true); operation.current?.abort(); }} />
+  </Stack>;
+  if (disabled) return <Stack>
+    {selection}
+    {saving ? <Text accessibilityLiveRegion="polite">Starting Word Sync...</Text> : null}
+  </Stack>;
+  return <Stack>
+    <SettingRow label="Language">
+    <Select label="Word Sync language" value={packageId} disabled={loading} size="compact"
+      options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
+      onValueChange={value => {
+        changed(); setPackageId(value); setCapability(''); setText('');
+        setFilter({ kind: 'all', filters: [] });
+      }} /></SettingRow>
+    {loading ? <Text accessibilityLiveRegion="polite">Loading Word Sync options...</Text> : null}
+    {metadataError ? <FailureNotice message={metadataError.message} detail={metadataError.detail}>
+      <Button label="Retry Word Sync options" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
+    {!loading && !metadataError && !capabilities.length
+      ? <Text>Word Sync isn’t available for this language.</Text> : null}
+    <SettingRow label="Skill to check">
+    <Select label="Word Sync capability" value={capability} disabled={loading} size="compact"
+      options={capabilities.map(item => ({ value: item.id, label: item.label }))}
+      onValueChange={value => { changed(); setCapability(value); }} /></SettingRow>
+    <Button label="Unmeasured items" variant="disclosure" size="compact" icon={scopeOptions ? 'chevronDown' : 'chevronRight'}
+      iconPosition="trailing" accessibilityState={{ expanded: scopeOptions }}
+      onPress={() => setScopeOptions(value => !value)} />
+    {scopeOptions ? <Stack>
+    <TextField label="Scope text" placeholder="All words and topics, or search to narrow" value={text} maxLength={2048}
+      onChangeText={value => { changed(); setText(value); }} />
+    <CollectionFilters key={packageId} client={client} packageId={packageId || null} value={filter}
+      onApply={value => { changed(); setFilter(value); }} />
+    <TextField label="Maximum targets" value={limit} keyboardType="number-pad" maxLength={2}
+      onChangeText={value => { changed(); setLimit(value); }} />
+    </Stack> : null}
+    {scopeSummary}
+    <Button label="Start Word Sync" disabled={loading || !valid || !!metadataError} onPress={() => void select()} />
+    {notice === 'empty' ? <Text testID="calibration-empty" accessibilityLiveRegion="polite">No unmeasured targets match this scope.</Text> : null}
+    {notice === 'cancelled' ? <Text testID="calibration-cancelled" accessibilityLiveRegion="polite">Selection cancelled.</Text> : null}
+    {notice === 'unprepared' ? <Stack>
+      <Text testID="calibration-unprepared" accessibilityLiveRegion="polite">Words in this language need to be prepared before Word Sync can choose from them.</Text>
+      <Button label="Prepare words" variant="secondary" onPress={() => onOpenKnowledge(packageId)} />
+    </Stack> : null}
+    {error ? <FailureNotice message={error.message} detail={error.detail}>
+      <Button label="Retry selection" variant="secondary" disabled={loading || !valid} onPress={() => void select()} /></FailureNotice> : null}
+    <Button label="How Word Sync is assessed" variant="disclosure" size="compact"
+      icon={assessmentDetails ? 'chevronDown' : 'chevronRight'} iconPosition="trailing"
+      accessibilityState={{ expanded: assessmentDetails }} onPress={() => setAssessmentDetails(value => !value)} />
+    {assessmentDetails ? <Text variant="caption" muted>Claims remain separate from measured responses.
+      Recall is self-reported; typed and choice tasks use their declared validators.</Text> : null}
+    <Button label="Open Knowledge catalog" variant="quiet" disabled={!packageId}
+      onPress={() => onOpenKnowledge(packageId)} />
+  </Stack>;
+}

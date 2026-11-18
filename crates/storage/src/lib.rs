@@ -1,25 +1,39 @@
+mod collection;
+mod collection_catalog;
+mod collection_selection;
 mod conversation;
 mod conversation_generation;
 mod conversation_read;
+mod conversation_world;
+mod speech;
 mod document;
 mod document_read;
+mod document_search;
 mod document_validation;
 mod knowledge;
 mod material;
+mod material_bulk;
+mod material_generation;
 mod material_identity;
 mod material_media;
+mod material_proposal;
 mod material_read;
 mod material_receipts;
+mod material_removal;
 mod material_validation;
 mod ocr;
 mod ocr_validation;
 mod review;
 mod review_admission;
 mod review_attempt;
+mod review_calibration;
+mod review_capture;
+mod review_collection_practice;
 mod review_evidence;
 mod review_read;
 mod review_receipts;
 mod review_state;
+mod review_target_practice;
 mod view_preferences;
 mod watch;
 pub use material_media::PreparedAuthoredMedia;
@@ -57,7 +71,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 11 {
+        if version > 23 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -98,6 +112,42 @@ impl ProfileStore {
         }
         if version < 11 {
             view_preferences::migrate_collapse(&transaction)?;
+        }
+        if version < 12 {
+            collection_catalog::migrate(&transaction)?;
+        }
+        if version < 13 {
+            collection_catalog::migrate_cursors(&transaction)?;
+        }
+        if version < 14 {
+            collection_selection::migrate(&transaction)?;
+        }
+        if version < 15 {
+            material_removal::migrate(&transaction)?;
+        }
+        if version < 16 {
+            material_bulk::migrate(&transaction)?;
+        }
+        if version < 17 {
+            material_bulk::migrate_projection(&transaction)?;
+        }
+        if version < 18 {
+            material_proposal::migrate(&transaction)?;
+        }
+        if version < 19 {
+            material_generation::migrate(&transaction)?;
+        }
+        if version < 20 {
+            review_capture::migrate(&transaction)?;
+        }
+        if version < 21 {
+            review_collection_practice::migrate(&transaction)?;
+        }
+        if version < 22 {
+            conversation_world::migrate(&transaction)?;
+        }
+        if version < 23 {
+            speech::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;
@@ -178,6 +228,10 @@ impl ProfileStore {
         Ok(statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .collect::<Result<Vec<_>, _>>()?)
+    }
+    /// Deactivates an installed package. Learner records keyed by the package are kept.
+    pub fn remove_plugin(&mut self, id: &str) -> Result<bool, StorageError> {
+        Ok(self.connection.execute("DELETE FROM plugins WHERE id=?1", [id])? > 0)
     }
     pub fn activate_plugin(&mut self, id: &str, manifest: &str) -> Result<(), StorageError> {
         self.connection.execute("INSERT INTO plugins(id,manifest) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET manifest=excluded.manifest", params![id, manifest])?;

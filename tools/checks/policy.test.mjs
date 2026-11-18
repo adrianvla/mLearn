@@ -113,6 +113,11 @@ test('accepted document appearance payloads do not authorize feature-local typog
     'otherOwner({ fontSize: 24 });',
   ]) assert.ok(checkSource(file, source).length, source);
   assert.ok(checkSource(feature, 'changeAppearance({ fontSize: 24 });').length);
+  const panel = 'apps/client/src/features/reader/ReaderChrome.tsx';
+  assert.deepEqual(checkSource(panel, 'onChange({ fontSize: value });'), []);
+  assert.ok(checkSource(panel, 'onChange({ fontSize: value, color: "red" });').length);
+  assert.ok(checkSource(panel, 'const style = { fontSize: 24 };').length);
+  assert.ok(checkSource(feature, 'onChange({ fontSize: 24 });').length);
 });
 
 test('only accepted shared-font display data crosses the document WebView boundary', () => {

@@ -72,6 +72,23 @@ pub struct MaterialEdit {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialRemove {
+    pub command_id: String,
+    pub id: MaterialId,
+    pub expected_revision: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialRemoval {
+    pub id: MaterialId,
+    pub committed_revision: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct MaterialQuery {
     pub after: Option<MaterialId>,
     pub query: String,

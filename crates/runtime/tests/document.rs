@@ -1,6 +1,6 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{catalog::Manifest, BundledPlugin, Runtime};
-use serde_json::{json, Value};
+use mlearn_runtime::{BundledPlugin, Runtime, catalog::Manifest};
+use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -43,6 +43,59 @@ fn fixture(extension: &str) -> PathBuf {
 }
 
 #[test]
+fn native_source_search_returns_the_exact_original_span_without_material_or_provider_admission() {
+    // Given: real imported bytes, including text the selected analyzer cannot interpret.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = open(&directory.path().join("profile"));
+    let imported = call(
+        &mut runtime,
+        json!({ "type": "open_document", "path": fixture("txt"), "packageId": "org.mlearn.english" }),
+    );
+    let source = &imported["window"]["source"];
+
+    // When: native literal search returns a span and the shared source owner opens it.
+    let found = call(
+        &mut runtime,
+        json!({ "type": "search_document", "query": {
+            "sourceId": source["id"], "contentRevision": source["contentRevision"],
+            "parserRevision": source["parserRevision"], "scope": "text", "text": "東京", "after": null,
+        } }),
+    );
+    assert_eq!(found["type"], "document_search");
+    let hits = found["page"]["hits"].as_array().unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0]["position"]["offset"], 5);
+    let anchor = hits[0]["anchor"].clone();
+    let returned = call(
+        &mut runtime,
+        json!({ "type": "return_source_anchor", "anchor": anchor }),
+    );
+
+    // Then: navigation binds the actual parser/block/UTF-8 position, without authored state.
+    assert_eq!(returned["type"], "document_material_source");
+    assert_eq!(returned["anchor"], anchor);
+    assert_eq!(
+        returned["window"]["source"]["position"],
+        hits[0]["position"]
+    );
+    let materials = call(
+        &mut runtime,
+        json!({ "type": "materials", "query": {
+            "query": "", "sourceId": null, "after": null, "includeExcluded": true,
+        } }),
+    );
+    assert_eq!(materials["page"]["items"], json!([]));
+    let mut fabricated = anchor;
+    fabricated["text"] = json!("Not the original source passage");
+    let refused: Value = serde_json::from_str(
+        &runtime
+            .execute(&json!({ "type": "return_source_anchor", "anchor": fabricated }).to_string()),
+    )
+    .unwrap();
+    assert_eq!(refused["type"], "error");
+}
+
+#[test]
 fn document_analysis_isolates_the_visible_passage_from_unsupported_neighboring_text() {
     let directory = tempfile::tempdir().unwrap();
     let mut runtime = open(&directory.path().join("profile"));
@@ -64,11 +117,13 @@ fn document_analysis_isolates_the_visible_passage_from_unsupported_neighboring_t
     let blocks = analyzed["batch"]["blocks"].as_array().unwrap();
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0]["text"], "A small journey");
-    assert!(blocks[0]["tokens"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|token| !token["targets"].as_array().unwrap().is_empty()));
+    assert!(
+        blocks[0]["tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|token| !token["targets"].as_array().unwrap().is_empty())
+    );
     let unsupported: Value = serde_json::from_str(&runtime.execute(&json!({
         "type":"analyze_document","sourceId":source["id"],"position":{
             "parserRevision":source["parserRevision"],"resource":"text","blockId":"byte:17","offset":0,
@@ -224,10 +279,12 @@ fn imported_epub_retains_authored_ruby_images_flow_and_exact_progress_after_prof
     );
     let image_bytes = std::fs::read(resource["location"]["path"].as_str().unwrap()).unwrap();
     assert!(!image_bytes.is_empty());
-    assert!(resource["location"]["mimeType"]
-        .as_str()
-        .unwrap()
-        .starts_with("image/"));
+    assert!(
+        resource["location"]["mimeType"]
+            .as_str()
+            .unwrap()
+            .starts_with("image/")
+    );
     drop(runtime);
     std::fs::remove_file(original).unwrap();
     let relocated = directory.path().join("relocated");
@@ -346,10 +403,12 @@ fn pdf_import_preserves_original_blank_page_identity_without_fabricated_text_or_
     assert_eq!(blocks[1]["text"], "");
     assert_eq!(blocks[1]["image"], Value::Null);
     assert_eq!(blocks[2]["page"], 2);
-    assert!(blocks[2]["text"]
-        .as_str()
-        .unwrap()
-        .contains("Turn the page."));
+    assert!(
+        blocks[2]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Turn the page.")
+    );
     let analysis = call(
         &mut runtime,
         json!({
@@ -531,10 +590,12 @@ fn image_collection_ocr_uses_shared_analysis_and_frozen_capture_review_return_af
         analyzed["batch"]["regions"][0]["text"],
         "Children walked home."
     );
-    assert!(!analyzed["batch"]["knowledge"]
-        .as_array()
-        .unwrap()
-        .is_empty());
+    assert!(
+        !analyzed["batch"]["knowledge"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     let key = analyzed["batch"]["knowledge"][0]["key"].clone();
     call(
         &mut runtime,
@@ -547,11 +608,13 @@ fn image_collection_ocr_uses_shared_analysis_and_frozen_capture_review_return_af
         }),
     );
     assert_eq!(refreshed["batch"]["regions"], analyzed["batch"]["regions"]);
-    assert!(refreshed["batch"]["knowledge"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|item| item["key"] == key && item["claim"] == false));
+    assert!(
+        refreshed["batch"]["knowledge"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["key"] == key && item["claim"] == false)
+    );
     let anchor = json!({
         "sourceId":source["id"],"contentRevision":source["contentRevision"],
         "packageId":source["packageId"],"packageVersion":source["packageVersion"],"text":"A😀 bridge",

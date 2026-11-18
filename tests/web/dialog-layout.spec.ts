@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-test('Settings header keeps its Home action clear of the description', async ({ page }) => {
+test('Settings header keeps its Home action clear of the section heading', async ({ page }) => {
   await page.setViewportSize({ width: 500, height: 850 });
   await page.goto('/settings');
   const home = page.getByRole('button', { name: 'Home', exact: true });
-  const description = page.getByText('Configure mLearn to your preferences', { exact: true });
+  const description = page.getByRole('heading', { name: 'Appearance', exact: true });
   await expect(home).toBeVisible();
   await expect(description).toBeVisible();
   const actionBounds = await home.boundingBox();
@@ -27,6 +27,8 @@ for (const viewport of [{ width: 1080, height: 900 }, { width: 390, height: 740 
       const search = await page.getByRole('textbox', { name: 'Search settings', exact: true }).boundingBox();
       expect(search!.y).toBeGreaterThanOrEqual(28);
     }
+    await page.getByRole('button', { name: 'On', exact: true }).click();
+    await page.getByRole('button', { name: 'Developer', exact: true }).click();
     await page.getByRole('button', { name: 'Edit theme JSON', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Custom theme' });
     await expect(dialog).toBeVisible();

@@ -5,5 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 license-file = "../../LICENSE"
 [dependencies]
+mlearn-core = { path = "../core" }
 serde.workspace = true
 serde_json.workspace = true

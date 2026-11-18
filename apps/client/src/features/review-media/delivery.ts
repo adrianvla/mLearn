@@ -1,4 +1,5 @@
 import type { AuthoredMediaId, ReviewDelivery, ReviewEncounterId } from '@mlearn/contracts';
+import { failure, type Failure } from '../failure';
 
 export type PlaybackEvent =
   | { readonly kind: 'started' | 'completed' | 'interrupted' }
@@ -8,7 +9,7 @@ export type AudioState =
   | { readonly kind: 'loading' | 'settling' }
   | { readonly kind: 'ready' | 'playing'; readonly uri: string }
   | { readonly kind: 'settled'; readonly delivery: ReviewDelivery }
-  | { readonly kind: 'failed'; readonly message: string };
+  | { readonly kind: 'failed'; readonly failure: Failure };
 
 export type ReviewAudioDelivery = {
   readonly load: () => Promise<void>;
@@ -43,18 +44,18 @@ export function createReviewAudioDelivery({
       if (!writeFailed) await onDelivery(encounterId, delivery);
     }).catch((cause: unknown) => {
       writeFailed = true;
-      show({ kind: 'failed', message: cause instanceof Error ? cause.message : String(cause) });
+      show({ kind: 'failed', failure: failure(cause, 'This audio’s playback state wasn’t saved.') });
     });
     return writes;
   };
-  async function finish(delivery: 'completed' | 'interrupted' | 'failed', message?: string) {
-    if (terminal || writeFailed) return;
+  async function finish(delivery: 'completed' | 'interrupted' | 'failed', detail: string | null = null) {
+    if (terminal || writeFailed) { await writes; return; }
     terminal = true;
     show({ kind: 'settling' });
     await commit(delivery);
     if (!writeFailed) {
       show(delivery === 'failed'
-        ? { kind: 'failed', message: message ?? 'Audio playback failed.' }
+        ? { kind: 'failed', failure: { message: 'This audio couldn’t be played.', detail } }
         : { kind: 'settled', delivery });
     }
   }
@@ -70,7 +71,7 @@ export function createReviewAudioDelivery({
           return;
         case 'failed':
           terminal = true;
-          show({ kind: 'failed', message: 'Previous audio playback failed. Retry to play it again.' });
+          show({ kind: 'failed', failure: { message: 'This audio didn’t play last time.', detail: null } });
           return;
         case 'started':
           await finish('interrupted');
@@ -87,7 +88,7 @@ export function createReviewAudioDelivery({
         if (!disposed && !terminal) show({ kind: 'ready', uri: resolvedUri });
       } catch (cause) {
         if (!disposed && !terminal) {
-          await finish('failed', cause instanceof Error ? cause.message : String(cause));
+          await finish('failed', failure(cause, '').detail);
         }
       }
     },

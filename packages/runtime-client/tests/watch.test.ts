@@ -21,6 +21,10 @@ test('structured dictionary senses remain bounded typed values at transport admi
  assert.equal(isWatchResponse({...response,entry:{...entry,senses:null}}),true);
  assert.equal(isWatchResponse({...response,entry:{...entry,senses:[{...entry.senses[0],definitions:'flattened'}]}}),false);
  assert.equal(isWatchResponse({...response,entry:{...entry,senses:new Array(129).fill(entry.senses[0])}}),false);
+ const supported={...entry,capabilities:[{id:'meaning',label:'Meaning'}],canonicalPracticeCapabilities:['meaning']};
+ assert.equal(isWatchResponse({...response,entry:supported}),true);
+ for(const canonicalPracticeCapabilities of [['meaning','meaning'],['unavailable'],[1],'meaning'])
+  assert.equal(isWatchResponse({...response,entry:{...supported,canonicalPracticeCapabilities}}),false);
 });
 test('retry keeps the admitted claim identity and exact payload',async()=>{
  const requests:string[]=[];let attempt=0;

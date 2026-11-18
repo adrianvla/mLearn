@@ -35,7 +35,7 @@ pub(super) fn persist_conversation(
             &value.package_id,
             &value.participants[0],
         ))?),
-        ConversationKind::Direct | ConversationKind::Thread => None,
+        ConversationKind::Direct | ConversationKind::Thread | ConversationKind::Room => None,
     };
     db.execute("INSERT INTO conversations(id,data,direct_key) VALUES(?1,?2,?3) ON CONFLICT(id) DO UPDATE SET data=excluded.data,direct_key=excluded.direct_key",
         params![value.id.0, serde_json::to_string(value)?, direct_key])?;
@@ -64,9 +64,12 @@ fn command_identity(command: &ConversationCommand) -> Option<&str> {
         | ConversationCommand::DeleteMessage { command_id, .. }
         | ConversationCommand::CancelGeneration { command_id, .. }
         | ConversationCommand::SaveProviderSettings { command_id, .. }
-        | ConversationCommand::Explain { command_id, .. } => Some(command_id),
+        | ConversationCommand::Explain { command_id, .. }
+        | ConversationCommand::SaveWorld { command_id, .. }
+        | ConversationCommand::IntegrateThread { command_id, .. } => Some(command_id),
         ConversationCommand::SendTurn { turn } => Some(&turn.command_id),
         ConversationCommand::RetryGeneration { retry } => Some(&retry.command_id),
+        ConversationCommand::GenerateMaterial { command } => Some(&command.command_id),
         ConversationCommand::ListContacts { .. }
         | ConversationCommand::GetContact { .. }
         | ConversationCommand::ListConversations { .. }
@@ -76,6 +79,8 @@ fn command_identity(command: &ConversationCommand) -> Option<&str> {
         | ConversationCommand::PrepareTurn { .. }
         | ConversationCommand::ReadGeneration { .. }
         | ConversationCommand::ReadTrace { .. }
+        | ConversationCommand::ReadWorld { .. }
+        | ConversationCommand::ReadMemory { .. }
         | ConversationCommand::ReadProviderSettings
         | ConversationCommand::SetSessionCredential { .. }
         | ConversationCommand::AnalyzeVisibleMessages { .. }
@@ -179,6 +184,9 @@ fn refresh(
         },
         ConversationResult::ProviderSettings { .. } => ConversationResult::ProviderSettings {
             settings: settings(db, ready)?,
+        },
+        ConversationResult::World { world } => ConversationResult::World {
+            world: crate::conversation_world::world(db, &world.conversation_id)?,
         },
         ConversationResult::Contacts { .. }
         | ConversationResult::Conversations { .. }
@@ -354,7 +362,13 @@ fn execute(
             }
             let mut saved = value.clone();
             saved.revision = next(previous.revision)?;
-            crate::conversation_generation::invalidate_conversation(db, &saved.id)?;
+            if saved.kind == ConversationKind::Room {
+                // A Room's history is an authoritative record; presence or membership changes
+                // stop only work still being generated under the old composition.
+                crate::conversation_generation::invalidate_active(db, &saved.id)?;
+            } else {
+                crate::conversation_generation::invalidate_conversation(db, &saved.id)?;
+            }
             persist_conversation(db, &saved)?;
             R::Conversation {
                 conversation: saved,
@@ -435,11 +449,13 @@ fn execute(
             let owner = live_conversation(db, conversation_id, *expected_revision)?;
             let (messages, truncated) = context(db, &owner, None)?;
             let people = participants(db, &owner)?;
+            let speaker = crate::conversation_world::speaker(&owner, &people, &messages);
             R::Prepared {
                 conversation: owner,
                 participants: people,
                 messages,
                 truncated,
+                speaker,
             }
         }
         C::SendTurn { turn } => R::Generation {
@@ -492,6 +508,42 @@ fn execute(
         } => R::Generation {
             generation: admit_explanation(db, command_id, source, instruction)?,
         },
+        C::GenerateMaterial { command } => R::Generation {
+            generation: crate::material_generation::admit(db, command)?,
+        },
+        C::ReadWorld { conversation_id } => R::World {
+            world: crate::conversation_world::world(db, conversation_id)?,
+        },
+        C::SaveWorld {
+            world,
+            expected_revision,
+            ..
+        } => R::World {
+            world: crate::conversation_world::save_world(db, world, *expected_revision)?,
+        },
+        C::IntegrateThread {
+            command_id,
+            thread_id,
+            room_id,
+            expected_room_revision,
+            messages: references,
+        } => R::Conversation {
+            conversation: crate::conversation_world::integrate(
+                db,
+                command_id,
+                thread_id,
+                room_id,
+                *expected_room_revision,
+                references,
+            )?,
+        },
+        C::ReadMemory {
+            conversation_id,
+            contact_id,
+            before,
+        } => R::Messages {
+            page: crate::conversation_world::memory(db, conversation_id, contact_id, *before)?,
+        },
         C::SetSessionCredential { .. }
         | C::AnalyzeVisibleMessages { .. }
         | C::AnalyzeMessageSource { .. } => {
@@ -510,31 +562,7 @@ fn admit_explanation(
 ) -> Result<ConversationGeneration, StorageError> {
     // Runtime has already validated source identity/selection and provider
     // readiness. Only related content is admitted in this receipt transaction.
-    let participant = ContactId(CONVERSATION_EXPLANATION_CONTACT_ID.into());
-    let exists: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM conversation_contacts WHERE id=?1)",
-        [&participant.0],
-        |r| r.get(0),
-    )?;
-    if exists {
-        if contact(db, &participant)?.archived {
-            return Err(invalid(
-                "Restore the archived Assistant contact before requesting an explanation",
-            ));
-        }
-    } else {
-        let assistant = Contact {
-            id: participant.clone(),
-            revision: 1,
-            name: "Assistant".into(),
-            description: "Software assistant for contextual language explanations.".into(),
-            archived: false,
-        };
-        db.execute(
-            "INSERT INTO conversation_contacts VALUES(?1,?2)",
-            params![participant.0, serde_json::to_string(&assistant)?],
-        )?;
-    }
+    let participant = assistant(db)?;
     let digest = format!("{:x}", Sha256::digest(command_id.as_bytes()));
     let owner = Conversation {
         id: ConversationId(format!("explanation-{digest}")),
@@ -545,6 +573,7 @@ fn admit_explanation(
         package_id: source.package_id.clone(),
         participants: vec![participant.clone()],
         discarded: false,
+        absent: Vec::new(),
     };
     let exists: bool = db.query_row(
         "SELECT EXISTS(SELECT 1 FROM conversations WHERE id=?1)",
@@ -570,6 +599,36 @@ fn admit_explanation(
             sources: vec![source.clone()],
         },
     )
+}
+
+pub(super) fn assistant(db: &Connection) -> Result<ContactId, StorageError> {
+    let participant = ContactId(CONVERSATION_EXPLANATION_CONTACT_ID.into());
+    let exists: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM conversation_contacts WHERE id=?1)",
+        [&participant.0],
+        |r| r.get(0),
+    )?;
+    if exists {
+        if contact(db, &participant)?.archived {
+            return Err(invalid(
+                "Restore the archived Assistant contact before requesting generation",
+            ));
+        }
+    } else {
+        let assistant = Contact {
+            id: participant.clone(),
+            revision: 1,
+            name: "Assistant".into(),
+            description: "Software assistant for contextual language explanations.".into(),
+            archived: false,
+            voice: String::new(),
+        };
+        db.execute(
+            "INSERT INTO conversation_contacts VALUES(?1,?2)",
+            params![participant.0, serde_json::to_string(&assistant)?],
+        )?;
+    }
+    Ok(participant)
 }
 
 fn mutate_message(

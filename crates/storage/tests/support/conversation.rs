@@ -17,6 +17,7 @@ pub fn person(store: &mut ProfileStore, key: &str) -> Contact {
                 name: key.into(),
                 description: "Actual participant".into(),
                 archived: false,
+                voice: String::new(),
             },
         },
     ) {
@@ -39,6 +40,7 @@ pub fn create(store: &mut ProfileStore, key: &str, kind: ConversationKind) -> Co
                 package_id: "package".into(),
                 participants: vec![ContactId("person".into())],
                 discarded: false,
+                absent: Vec::new(),
             },
         },
     ) {

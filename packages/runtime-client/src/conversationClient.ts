@@ -1,4 +1,4 @@
-import type { Contact, Conversation, ConversationCommand, ConversationDraft, ConversationGeneration,
+import type { Contact, Conversation, ConversationCommand, ConversationWorld, ConversationDraft, ConversationGeneration,
   ConversationResult, ConversationRetry, ConversationTurn, MessageReference, Request, SourceAnchor } from '@mlearn/contracts';
 import { RuntimeError } from './errors';
 import { encodedBytes } from './materialProtocol';
@@ -13,7 +13,10 @@ export function createConversationClient(request: (request: Request) => Promise<
     if (encodedBytes(snapshot) > 65536) throw new RuntimeError('invalid_request', 'Conversation command exceeds its byte budget.');
     // Explanation may await a provider; neither cancellation nor saved-history
     // reads should queue behind that network lifetime.
-    const execute = command.action === 'explain' || command.action === 'cancel_generation' ? control : request;
+    // Exact retry admission recovery must also bypass its original lost/held
+    // receipt, so Cancel can resolve the admitted generation identity.
+    const execute = command.action === 'explain' || command.action === 'cancel_generation'
+      || command.action === 'retry_generation' ? control : request;
     const response = await execute({ type: 'conversation', command: snapshot });
     if (!isConversationResponse(response)) throw malformed();
     return response.result;
@@ -59,9 +62,39 @@ export function createConversationClient(request: (request: Request) => Promise<
       if (r.kind !== 'conversation' || r.conversation.id !== id) throw malformed();
       return r.conversation;
     },
-    prepareConversation(value: Omit<Conversation, 'id' | 'revision' | 'discarded'>): Command<'create_conversation'> {
+    prepareConversation(value: Omit<Conversation, 'id' | 'revision' | 'discarded' | 'absent'>): Command<'create_conversation'> {
       return { action: 'create_conversation', commandId: identity(),
-        conversation: structuredClone({ ...value, id: identity(), revision: 0, discarded: false }) };
+        conversation: structuredClone({ ...value, id: identity(), revision: 0, discarded: false, absent: [] }) };
+    },
+    async conversationWorld(conversationId: string) {
+      const r = await read({ action: 'read_world', conversationId });
+      if (r.kind !== 'world' || r.world.conversationId !== conversationId) throw malformed();
+      return r.world;
+    },
+    prepareConversationWorld(world: ConversationWorld): Command<'save_world'> {
+      return { action: 'save_world', commandId: identity(), world: structuredClone(world), expectedRevision: world.revision };
+    },
+    async saveConversationWorld(command: Command<'save_world'>) {
+      const r = await read(command);
+      if (r.kind !== 'world' || r.world.conversationId !== command.world.conversationId
+        || r.world.revision !== command.expectedRevision + 1) throw malformed();
+      return r.world;
+    },
+    prepareThreadIntegration(thread: Conversation, room: Conversation, messages: MessageReference[]): Command<'integrate_thread'> {
+      return { action: 'integrate_thread', commandId: identity(), threadId: thread.id, roomId: room.id,
+        expectedRoomRevision: room.revision, messages: messages.map(ref) };
+    },
+    async integrateThread(command: Command<'integrate_thread'>) {
+      const r = await read(command);
+      if (r.kind !== 'conversation' || r.conversation.id !== command.roomId || r.conversation.kind !== 'room'
+        || r.conversation.revision <= command.expectedRoomRevision) throw malformed();
+      return r.conversation;
+    },
+    async conversationMemory(conversationId: string, contactId: string, before: number | null = null) {
+      const r = await read({ action: 'read_memory', conversationId, contactId, before });
+      if (r.kind !== 'messages' || r.page.items.some((item, index, items) => item.conversationId !== conversationId
+        || item.status !== 'complete' || item.sequence >= (index ? items[index - 1].sequence : before ?? Infinity))) throw malformed();
+      return r.page;
     },
     async createConversation(command: Command<'create_conversation'>) {
       const r = await read(command);
@@ -131,7 +164,8 @@ export function createConversationClient(request: (request: Request) => Promise<
       const r = await read({ action: 'prepare_turn', conversationId: conversation.id, expectedRevision: conversation.revision });
       if (r.kind !== 'prepared' || r.conversation.id !== conversation.id || r.conversation.revision !== conversation.revision
         || r.messages.some(item => item.conversationId !== conversation.id)
-        || JSON.stringify(r.participants.map(item => item.id).sort()) !== JSON.stringify([...conversation.participants].sort())) throw malformed();
+        || JSON.stringify(r.participants.map(item => item.id).sort()) !== JSON.stringify([...conversation.participants].sort())
+        || r.speaker !== null && (!conversation.participants.includes(r.speaker) || conversation.absent.includes(r.speaker))) throw malformed();
       return r;
     },
     prepareConversationTurn(conversation: Conversation, participantId: string, text: string,

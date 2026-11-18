@@ -35,6 +35,61 @@ fn saved(reply: &Value) -> &Value {
 }
 
 #[test]
+fn native_removal_requires_the_selected_revision_and_replays_without_resurrection() {
+    // Given an actual authored item through the native runtime boundary.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = open(directory.path());
+    let create_command = create("create-to-remove");
+    let created = call(
+        &mut runtime,
+        json!({"type":"create_material","command":create_command}),
+    );
+    let item = saved(&created);
+    let command = json!({
+        "commandId":"remove-once","id":item["id"],"expectedRevision":item["revision"]
+    });
+    let mut stale = command.clone();
+    stale["expectedRevision"] = json!(0);
+    let refused = execute(
+        &mut runtime,
+        json!({"type":"remove_material","command":stale}),
+    );
+    assert_eq!(refused["code"], "conflict", "{refused}");
+
+    // When removed, then retried after reopening the persisted profile.
+    let removed = call(
+        &mut runtime,
+        json!({"type":"remove_material","command":command}),
+    );
+    drop(runtime);
+    let mut runtime = open(directory.path());
+
+    // Then the exact receipt survives, but the historical create cannot resurrect it.
+    assert_eq!(removed["type"], "material_removed");
+    assert_eq!(removed["outcome"]["id"], item["id"]);
+    assert_eq!(removed["outcome"]["committedRevision"], 2);
+    assert_eq!(
+        call(
+            &mut runtime,
+            json!({"type":"remove_material","command":command})
+        ),
+        removed
+    );
+    let old_create = execute(
+        &mut runtime,
+        json!({"type":"create_material","command":create_command}),
+    );
+    assert_eq!(old_create["type"], "error");
+    let listed = call(
+        &mut runtime,
+        json!({"type":"materials","query":{
+            "after":null,"query":"","sourceId":null,"includeExcluded":true
+        }}),
+    );
+    assert_eq!(listed["page"]["items"], json!([]));
+}
+
+#[test]
 fn model_free_authoring_and_old_receipts_survive_restart_without_reapplying() {
     let dir = tempfile::tempdir().unwrap();
     let mut runtime = open(dir.path());

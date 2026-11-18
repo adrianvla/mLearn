@@ -36,6 +36,13 @@ impl InstallOwner {
             .map_err(|_| Failure::Operation("Package install lock poisoned".into()))).transpose()?;
         Ok(Response::PackageInstallStatus { status })
     }
+    /// Whether a package transfer or validation is in progress.
+    pub fn active(&self) -> Result<bool, Failure> {
+        let current = self.current.lock().map_err(|_| Failure::Operation("Package install lock poisoned".into()))?;
+        current.as_ref().map_or(Ok(false), |entry| entry.record.lock()
+            .map(|record| record.active)
+            .map_err(|_| Failure::Operation("Package install lock poisoned".into())))
+    }
     pub fn legacy_command(&self, plugin_id: String) -> PackageInstallCommand {
         PackageInstallCommand { plugin_id, command_id: format!("native:{}", self.legacy_sequence.fetch_add(1, Ordering::Relaxed)) }
     }

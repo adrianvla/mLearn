@@ -15,6 +15,8 @@ name: Material authoring persists across native process restart
       id: material-add
       enabled: true
     timeout: 60000
+- assertVisible:
+    id: material-search
 - tapOn:
     id: material-add
 - tapOn:

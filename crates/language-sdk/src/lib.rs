@@ -33,6 +33,18 @@ unsafe extern "C" {
         output: *mut u8,
         capacity: usize,
     ) -> i32;
+    #[link_name = "resource_keys"]
+    fn host_resource_keys(
+        resource: *const u8,
+        resource_len: usize,
+        prefix: *const u8,
+        prefix_len: usize,
+        after: *const u8,
+        after_len: usize,
+        limit: usize,
+        output: *mut u8,
+        capacity: usize,
+    ) -> i32;
     fn asset_len(key: *const u8, key_len: usize) -> i32;
     fn asset_read(key: *const u8, key_len: usize, output: *mut u8, capacity: usize) -> i32;
 }
@@ -202,5 +214,187 @@ pub fn resource_get(resource: &str, key: &str) -> Result<Option<Vec<u8>>, String
     {
         let _ = (resource, key);
         Err("Indexed resources are supplied by the Wasm host".into())
+    }
+}
+
+/// Bounds shared by the SDK and host's ordered indexed-resource import.
+pub const RESOURCE_KEYS_MAX_PAGE_SIZE: usize = 64;
+pub const RESOURCE_KEYS_MAX_OUTPUT_BYTES: usize = 131072;
+
+/// Bytewise ordered keys from an immutable, declared indexed resource.
+/// `next` is the last returned key when another matching key exists.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceKeyPage {
+    pub keys: Vec<String>,
+    pub next: Option<String>,
+}
+
+/// Enumerate up to 64 nonempty keys, each at most 256 UTF-8 bytes.
+/// Prefixes are literal, may be empty, and require a BINARY primary-key index.
+/// Pass `next` back as `after`; no offsets, raw SQL or resource paths are accepted.
+pub fn resource_keys(
+    resource: &str,
+    prefix: &str,
+    after: Option<&str>,
+    limit: usize,
+) -> Result<ResourceKeyPage, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        read_resource_keys(resource, prefix, after, limit, host_resource_keys)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (resource, prefix, after, limit);
+        Err("Indexed resources are supplied by the Wasm host".into())
+    }
+}
+
+// The same adapter runs against a Rust implementation of the host's span
+// contract under Miri; real Wasmi tests separately verify the foreign import.
+#[cfg(any(target_arch = "wasm32", test))]
+type ResourceKeysImport = unsafe extern "C" fn(
+    *const u8,
+    usize,
+    *const u8,
+    usize,
+    *const u8,
+    usize,
+    usize,
+    *mut u8,
+    usize,
+) -> i32;
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn read_resource_keys(
+    resource: &str,
+    prefix: &str,
+    after: Option<&str>,
+    limit: usize,
+    import: ResourceKeysImport,
+) -> Result<ResourceKeyPage, String> {
+    if resource.is_empty()
+        || resource.len() > 256
+        || prefix.len() > 256
+        || !(1..=RESOURCE_KEYS_MAX_PAGE_SIZE).contains(&limit)
+        || after.is_some_and(|key| key.is_empty() || key.len() > 256 || !key.starts_with(prefix))
+    {
+        return Err("Invalid indexed-resource key window".into());
+    }
+    let cursor = after.unwrap_or_default();
+    let mut bytes = vec![0; RESOURCE_KEYS_MAX_OUTPUT_BYTES];
+    // SAFETY: FFI/bounds (8,10): borrowed input spans remain live and immutable.
+    // The verified host writes at most capacity into this disjoint owned buffer.
+    let count = unsafe {
+        import(
+            resource.as_ptr(),
+            resource.len(),
+            prefix.as_ptr(),
+            prefix.len(),
+            cursor.as_ptr(),
+            cursor.len(),
+            limit,
+            bytes.as_mut_ptr(),
+            bytes.len(),
+        )
+    };
+    if count < 0 || count as usize > bytes.len() {
+        return Err("Indexed key window unavailable or resource budget exceeded".into());
+    }
+    let page: ResourceKeyPage =
+        serde_json::from_slice(&bytes[..count as usize]).map_err(|error| error.to_string())?;
+    if page.keys.len() > limit
+        || page.keys.iter().any(|key| {
+            key.is_empty()
+                || key.len() > 256
+                || !key.starts_with(prefix)
+                || after.is_some_and(|cursor| key.as_str() <= cursor)
+        })
+        || page.keys.windows(2).any(|pair| pair[0] >= pair[1])
+        || page
+            .next
+            .as_ref()
+            .is_some_and(|next| page.keys.len() != limit || page.keys.last() != Some(next))
+    {
+        return Err("Malformed indexed-resource key window".into());
+    }
+    Ok(page)
+}
+
+#[cfg(test)]
+mod resource_key_tests {
+    use super::*;
+
+    unsafe extern "C" fn keys_import(
+        resource: *const u8,
+        resource_len: usize,
+        prefix: *const u8,
+        prefix_len: usize,
+        after: *const u8,
+        after_len: usize,
+        limit: usize,
+        output: *mut u8,
+        capacity: usize,
+    ) -> i32 {
+        // SAFETY: FFI/bounds (8,10): read_resource_keys supplies live read-only
+        // spans and a disjoint initialized capacity-byte allocation for output.
+        let (resource, prefix, after, output) = unsafe {
+            (
+                std::slice::from_raw_parts(resource, resource_len),
+                std::slice::from_raw_parts(prefix, prefix_len),
+                std::slice::from_raw_parts(after, after_len),
+                std::slice::from_raw_parts_mut(output, capacity),
+            )
+        };
+        if prefix != b"entry/" || limit != 2 {
+            return -1;
+        }
+        let bytes: &[u8] = match resource {
+            b"fixture" => match after {
+                b"" => br#"{"keys":["entry/1","entry/2"],"next":"entry/2"}"#,
+                b"entry/2" => br#"{"keys":["entry/3"],"next":null}"#,
+                _ => return -1,
+            },
+            b"duplicate" => br#"{"keys":["entry/1","entry/1"],"next":null}"#,
+            b"outside" => br#"{"keys":["other/1"],"next":null}"#,
+            b"cursor" => br#"{"keys":["entry/1","entry/2"],"next":"entry/1"}"#,
+            b"oversize" => return capacity as i32 + 1,
+            b"missing" => return -1,
+            _ => b"not JSON",
+        };
+        if bytes.len() > output.len() {
+            return bytes.len() as i32;
+        }
+        output[..bytes.len()].copy_from_slice(bytes);
+        bytes.len() as i32
+    }
+
+    #[test]
+    fn indexed_key_adapter_preserves_borrowed_spans_and_cursor_progress() {
+        let first = read_resource_keys("fixture", "entry/", None, 2, keys_import).unwrap();
+        assert_eq!(first.keys, ["entry/1", "entry/2"]);
+        assert_eq!(first.next.as_deref(), Some("entry/2"));
+        let last =
+            read_resource_keys("fixture", "entry/", first.next.as_deref(), 2, keys_import).unwrap();
+        assert_eq!(last.keys, ["entry/3"]);
+        assert_eq!(last.next, None);
+    }
+
+    #[test]
+    fn indexed_key_adapter_rejects_invalid_windows_and_host_results() {
+        for resource in [
+            "duplicate",
+            "outside",
+            "cursor",
+            "oversize",
+            "missing",
+            "bad-json",
+        ] {
+            assert!(read_resource_keys(resource, "entry/", None, 2, keys_import).is_err());
+        }
+        assert!(read_resource_keys("fixture", "entry/", None, 0, keys_import).is_err());
+        assert!(read_resource_keys("fixture", "entry/", None, 65, keys_import).is_err());
+        assert!(read_resource_keys("fixture", "entry/", Some("outside"), 2, keys_import).is_err());
+        assert!(read_resource_keys("fixture", &"x".repeat(257), None, 2, keys_import).is_err());
     }
 }

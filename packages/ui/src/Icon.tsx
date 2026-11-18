@@ -6,6 +6,7 @@ const paths = {
   arrowLeft: 'M19 12H5m6-6-6 6 6 6',
   chevronDown: 'm6 9 6 6 6-6',
   chevronRight: 'm9 6 6 6-6 6',
+  chevronLeft: 'm15 6-6 6 6 6',
   previousCue: cueArrow,
   nextCue: cueArrow,
   sync: 'M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0 1 11.6-2L20 9M4 15l2.3 3A7 7 0 0 0 17.9 16',
@@ -20,6 +21,8 @@ const paths = {
   shrink: 'M3 8h5V3m8 0v5h5M8 21v-5H3m13 5v-5h5',
   subtitles: 'M3 5h18v14H3Zm4 6h3m4 0h3M7 15h10',
   transcript: 'M5 6h14M5 12h14M5 18h14',
+  sidebarRight: 'M3 4h18v16H3ZM15 4v16',
+  sidebarLeft: 'M3 4h18v16H3ZM9 4v16',
   settings: 'm10 2-.6 3-2 .9-2.5-1.5-2 3.4L5 10v2l-2.1 2.2 2 3.4 2.5-1.5 2 .9.6 3h4l.6-3 2-.9 2.5 1.5 2-3.4L19 12v-2l2.1-2.2-2-3.4-2.5 1.5-2-.9L14 2ZM15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
   palette: 'M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 1-2.8h2a4 4 0 0 0 4-4A9 9 0 0 0 12 3Zm-5 7h.01M10 6h.01M15 7h.01M6 14h.01',
   globe: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18',
@@ -27,6 +30,8 @@ const paths = {
   check: 'm5 12 4 4L19 6',
   checkCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-14 0 3 3 7-7',
   plusCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM7 12h10M12 7v10',
+  plus: 'M5 12h14M12 5v14',
+  minus: 'M5 12h14',
   closeCircle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-12-3 6 6m0-6-6 6',
   circle: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
   info: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v6m0-10v.01',
@@ -35,8 +40,11 @@ const paths = {
   camera: 'M3 7h4l2-3h6l2 3h4v13H3Zm13 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
   book: 'M12 5C8 2 4 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v15',
   conversation: 'M5 11h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2ZM14 5a2 2 0 1 1-4 0 2 2 0 1 1 4 0M12 7v4M8 15.5v1M16 15.5v1',
+  person: 'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2',
+  people: 'M14 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM2 21v-2a8 8 0 0 1 16 0v2M17 3a4 4 0 0 1 0 8m3 10v-2a8 8 0 0 0-3-6',
   search: 'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1 5 6 6',
   clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2',
+  phone: 'M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2',
 } as const;
 
 export type IconName = keyof typeof paths;

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { failure, type Failure } from '../failure';
 
 type ImportKind = 'video' | 'document' | 'images' | 'folder';
 
@@ -15,12 +16,12 @@ export function useSourceImport(packageId: string) {
   const selection = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
   const [opening, setOpening] = useState<ImportKind | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const cancel = useCallback(() => {
     intent.current = null;
     selection.current?.abort();
     void session.current?.cancel().catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(failure(cause, 'Opening couldn’t be stopped.'));
     });
   }, []);
   useFocusEffect(useCallback(() => () => cancel(), [cancel, host, packageId]));
@@ -28,7 +29,7 @@ export function useSourceImport(packageId: string) {
   async function run(kind: ImportKind, operation: (current: () => boolean) => Promise<void>) {
     if (!host.available || busyRef.current) return;
     if (!packageId) {
-      setError('Select a language package before opening a source.');
+      setError({ message: 'Choose a language before opening a source.', detail: null });
       return;
     }
     busyRef.current = true;
@@ -39,12 +40,12 @@ export function useSourceImport(packageId: string) {
     const current = () => intent.current === ownedIntent && ownedSession.isCurrent();
     setBusy(true);
     setOpening(kind);
-    setError('');
+    setError(null);
     try {
       await ownedSession.ready;
       if (current()) await operation(current);
     } catch (cause: unknown) {
-      if (current()) setError(cause instanceof Error ? cause.message : String(cause));
+      if (current()) setError(failure(cause, 'This source couldn’t be opened.'));
     } finally {
       if (intent.current === ownedIntent) intent.current = null;
       if (session.current === ownedSession) session.current = null;
@@ -116,7 +117,7 @@ export function useSourceImport(packageId: string) {
       if (paths.length && paths.every(path => /\.(?:png|jpe?g|gif|webp)$/i.test(path))) {
         void openImages(false, paths);
       } else if (paths.length !== 1) {
-        setError('Drop one video or document at a time.');
+        setError({ message: 'Drop one video or document at a time.', detail: null });
       } else if (/\.(?:txt|epub|pdf)$/i.test(paths[0])) {
         void openDocument(paths[0]);
       } else {
@@ -126,7 +127,7 @@ export function useSourceImport(packageId: string) {
       if (active) stop = unsubscribe;
       else unsubscribe();
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'Dropping files here isn’t available right now.'));
     });
     return () => { active = false; stop?.(); };
   }, [host, packageId]));

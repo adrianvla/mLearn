@@ -5,6 +5,8 @@ import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Text } from '@mlearn/ui/text';
 import { AnnotatedText } from '../annotated-text';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
+import { failure, type Failure } from '../failure';
 import { Inspector, type Inspection } from '../inspector';
 import { SourceActions } from '../explanation';
 import { messageAnchor } from './messageFlow';
@@ -13,22 +15,23 @@ type Original = Extract<Response, { type: 'conversation_material_source' }>;
 const readOnly = 'Captured original · open the current conversation to capture or explain again.';
 
 /** A captured revision is distinct from the editable current conversation. */
-export function ConversationSource({ client, materialId, reviewSessionId, reviewEncounterId, onKnowledgeChanged }: {
+export function ConversationSource({ client, materialId, proposalId, reviewSessionId, reviewEncounterId, onKnowledgeChanged }: {
   readonly client: RuntimeClient;
   readonly materialId?: string;
+  readonly proposalId?: string;
   readonly reviewSessionId?: string;
   readonly reviewEncounterId?: string;
   readonly onKnowledgeChanged: () => void;
 }) {
   const [open, setOpen] = useState(true);
-  const originKey = JSON.stringify([materialId, reviewSessionId, reviewEncounterId]);
+  const originKey = JSON.stringify([materialId, proposalId, reviewSessionId, reviewEncounterId]);
   const [snapshot, setSnapshot] = useState<{ key: string; value: Original } | null>(null);
   const original = snapshot?.key === originKey ? snapshot.value : null;
   const scope = useRef<object | null>(null);
   const [batch, setBatch] = useState<ConversationAnalysisBatch | null>(null);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
@@ -36,11 +39,12 @@ export function ConversationSource({ client, materialId, reviewSessionId, review
     scope.current = owner;
     setOpen(true);
     setPending(true);
-    setError('');
+    setError(null);
     setBatch(null);
     setInspection(null);
     const read = async () => {
       const result = materialId ? await client.returnMaterialSource(materialId)
+        : proposalId ? await client.returnMaterialProposalSource(proposalId)
         : reviewSessionId && reviewEncounterId ? await client.returnReviewSource(reviewSessionId, reviewEncounterId) : null;
       if (!result || result.type !== 'conversation_material_source')
         throw new Error('This saved source does not identify an original conversation message.');
@@ -50,10 +54,10 @@ export function ConversationSource({ client, materialId, reviewSessionId, review
       if (active) setBatch(prepared);
     };
     void read().catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : String(cause));
+      if (active) setError(failure(cause, 'The original message couldn’t be restored.'));
     }).finally(() => { if (active) setPending(false); });
     return () => { active = false; if (scope.current === owner) scope.current = null; };
-  }, [client, materialId, reviewSessionId, reviewEncounterId, reload]);
+  }, [client, materialId, proposalId, reviewSessionId, reviewEncounterId, reload]);
   const analyzed = original ? batch?.messages.find(message => message.messageId === original.message.id
     && message.messageRevision === original.message.revision
     && message.contentRevision === original.message.contentRevision) : null;
@@ -84,8 +88,8 @@ export function ConversationSource({ client, materialId, reviewSessionId, review
         </Text> : null}
       </> : null}
       {pending ? <Text accessibilityLiveRegion="polite">Preparing original message…</Text> : null}
-      {error ? <><Text accessibilityRole="alert">{error}</Text>
-        <Button label="Retry original source" variant="secondary" onPress={() => setReload(value => value + 1)} /></> : null}
+      {error ? <FailureNotice message={error.message} detail={error.detail}>
+        <Button label="Retry original source" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
       <Button label="Close captured source" variant="secondary" onPress={() => { setOpen(false); setInspection(null); }} />
     </Dialog>
     {inspection && original ? <Inspector inspection={inspection} packageId={original.anchor.packageId}

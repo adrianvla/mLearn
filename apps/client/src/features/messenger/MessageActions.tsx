@@ -11,9 +11,10 @@ import { messageAnchor } from './messageFlow';
 import { ActionFeedback } from './MessengerDialogs';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { SourceActions } from '../explanation';
+import type { Failure } from '../failure';
 
 type Actions = {
-  readonly client: RuntimeClient; readonly busy: boolean; readonly error: string; readonly origin: string;
+  readonly client: RuntimeClient; readonly busy: boolean; readonly error: Failure | null; readonly origin: string;
   readonly retry: { readonly origin: string; readonly run: () => Promise<void> } | null;
   readonly act: (action: { readonly origin: string; readonly run: () => Promise<void> }) => Promise<void>;
   readonly refreshCurrent: () => Promise<void>;
@@ -21,7 +22,7 @@ type Actions = {
 export function MessageActions({ actions, message, conversation, packageVersion, onReply, onTrace }: {
   readonly actions: Actions; readonly message: ConversationMessage; readonly conversation: Conversation;
   readonly packageVersion: string | null;
-  readonly onReply: () => void; readonly onTrace: () => void;
+  readonly onReply: () => void; readonly onTrace?: () => void;
 }) {
   const host = useRuntime();
   const [open, setOpen] = useState(false);
@@ -86,11 +87,11 @@ export function MessageActions({ actions, message, conversation, packageVersion,
         <Row><Button label="Save message" disabled={actions.busy || !text.trim()} onPress={() => edit(false)} />
           <Button label="Cancel edit" variant="quiet" disabled={actions.busy} onPress={() => { setEditing(false); setText(message.text); }} /></Row>
       </> : null}
-      {message.generationId ? <Button label="Inspect execution" variant="secondary" onPress={() => { onTrace(); setOpen(false); }} /> : null}
+      {message.generationId && onTrace ? <Button label="Inspect execution" variant="secondary" onPress={() => { onTrace(); setOpen(false); }} /> : null}
       {message.generationId && ['failed', 'cancelled', 'interrupted'].includes(message.status)
         ? <Button label="Retry response" disabled={actions.busy} onPress={retryGeneration} /> : null}
       {source ? <SourceActions client={actions.client} source={source} />
-        : message.status === 'complete' ? <Text muted variant="caption">Message analysis must be available before contextual feedback.</Text> : null}
+        : message.status === 'complete' ? <Text muted variant="caption">Analysis required</Text> : null}
       <ActionFeedback actions={actions} origin={origin} />
       {feedback ? <><Text variant="caption" muted>Action feedback · not learner evidence</Text><Text selectable>{feedback}</Text></> : null}
     </Dialog>

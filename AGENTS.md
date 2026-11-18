@@ -1,5 +1,101 @@
 # mLearn engineering contract
 
+## Active authorization — complete M01–M11 including M08 and M09, 2026-11-18
+
+The maintainer authorizes implementing **M08 (shared speech and native calls)
+and M09 (optional Sea/Rooms and scenario continuity)**, superseding the M08/M09
+non-authorization in the 2026-10-27 M10/M11 batch below. The job is to make
+M01–M11 fully implemented and working: every "Deliver:" item exists and every
+"Review:" paragraph runs as an executable journey on the real Rust runtime
+(and natively for UI) with zero console errors and no open bugs. Rust contract,
+command and storage changes required by missing deliverables are authorized.
+Model downloads, API keys, permissions or hardware the agent cannot obtain are
+logged in `.mlearn/RESUME.md` with what is needed and why, and skipped; they
+are never reported as success. Language- or exam-specific names (JLPT, stars,
+N-levels, pitch terms) do not appear in core UI, settings or code; they come
+from the active language plugin's data under neutral core names. Resource,
+serial-build, local-commit (no push/merge) and fixture-preservation rules below
+remain in force. No M12+.
+
+## Active authorization — structural UI conformance, 2026-11-10
+
+The backend is accepted as working. Do not change Rust contracts, commands or
+storage for this job; bind to them. Home is accepted and out of scope.
+
+Goal: make each pictured surface structurally match its golden screenshot
+(docs/product/screenshots/). "Structurally" means: the same regions, the same
+controls in the same regions, with the same labels and states. Colors, blur,
+opacity and pixel spacing are secondary and are judged only after structure
+passes. A functional test passing is not evidence of conformity.
+
+Rules for every UI change:
+1. Controls live where their effect is visible and one action away. A modal
+   that covers the content it configures is not acceptable for settings that
+   change that content. Recognition of an opened source starts automatically
+   and reports state in place; it is not a configuration dialog.
+2. No implementation vocabulary in rendered text: no OS or library error
+   strings, package ids, ISO script codes, provider/engine names, byte counts,
+   fixture names. Backend failures map to a small set of user states
+   (not installed / failed, retry / unavailable here / working) with one
+   sentence of plain language and one action. Raw detail goes behind a
+   "Details" disclosure at most.
+3. A disabled control must show why, in place. Disabled and selected states
+   must be visually distinct.
+4. Interface chrome is not text-selectable. Content (subtitles, dictionary
+   text, document text) is.
+5. If a golden image omits a control the feature catalogue requires, or shows
+   one that looks dev-only, report the conflict in the checkpoint. Do not
+   silently delete it and do not silently reinsert it.
+6. Capture the real running app in the golden's state, with realistic fixture
+   content, before and after every change. No fixture may surface a name like
+   "loadable" or a "byte 0" subtitle.
+
+Checkpoints: the independent visual critic (see conductor pack) must pass the
+surface before it is called done. Implementers do not grade themselves.
+
+Commits: no Co-Authored-By or other AI attribution trailers.
+
+Resource constraints from the 16 GB Mac incidents above remain in force:
+serial builds, no emulators, bounded output. The critic model may be the
+strongest vision-capable model available; use it only at checkpoints.
+
+## Active authorization — implement M10 then M11, 2026-10-27
+
+The maintainer cannot perform comprehensive M03–M07 review yet and explicitly
+authorizes productive development on their **provisional, committed foundation**.
+They are not maintainer-accepted. Preserve every recorded M07 blocker, source
+identity, verification limit and visual discrepancy. Keep PR #44 draft,
+unmerged and unreleased; its unresolved acceptance gates are not silently closed.
+
+Implement **M10, then M11** on a separate stacked development branch and draft
+PR based on the committed M07 source. The initial stack base is
+`2a1f13a53b6cc4852e6b4fea24881d05d31f8af9`; its product/test evidence remains
+bound to `3ffc28fb7599bbf4945787b9ca8b23c84ea04761`.
+
+- M10 delivers real bounded Knowledge/Material collections, compound filters,
+  bulk operations, grounded generation/suggestion review, source search,
+  evidence inspection, graph relationships and supported character views.
+- After M10 passes engineering and independent-review gates, M11 delivers
+  deliberate Word Practice, Word Sync/calibration, grammar tasks and expert
+  probe authoring, including actual content/validator execution.
+- Reuse existing Rust Knowledge, Material, learning-session and language-package
+  authorities. Do not add competing stores, speculative abstractions or
+  incompatible frontend state owners. Preserve approved v2.9 interactions.
+- Verify genuine functionality, persistence/restart, cancellation and recoverable
+  failures at each milestone, including independent review with blockers repaired.
+  Commit/push small coherent exact-source checkpoints. Reviewers and agents do
+  not grant maintainer acceptance.
+- Keep disk/memory admission, bounded serial local builds and prompt resource
+  cleanup mandatory. Do not keep unnecessary devices alive, restart workloads
+  on recovery, repeat infrastructure investigations without new evidence, or
+  resume the old hosted-iOS diagnostic campaign.
+- M08/M09 architectural research may run only as independent, resource-bounded
+  work that does not disrupt current contracts. Their implementation is not
+  authorized by this batch. No M12+, merge, release or self-acceptance.
+
+This direct authorization supersedes the older M07 ceiling and manual-review
+wait below, not their architecture, resource, verification or preservation rules.
+
 ## Active execution-resource constraint — 16 GB Mac, 2026-10-23
 
 On October 24 the maintainer reported a second exhaustion incident: OmO used

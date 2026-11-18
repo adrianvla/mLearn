@@ -33,7 +33,16 @@ function MediaRange({ label, value, maximum, onChange, valueText, compact = fals
                 margin: 0, opacity: 0, cursor: 'pointer' }} />
     </View>;
 }
-export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, controls, onProgress, onError, onController }: MediaPlayerProps) {
+type AudioTrackList = { readonly length: number; readonly [index: number]: { enabled: boolean } };
+/** The audio tracks this engine can switch; engines without the API report none. */
+const audioTracks = (video: HTMLVideoElement) => (video as HTMLVideoElement & { audioTracks?: AudioTrackList }).audioTracks;
+function applyAudioTrack(video: HTMLVideoElement, ordinal: number | null | undefined) {
+    const list = audioTracks(video);
+    if (ordinal == null || !list || ordinal >= list.length) return;
+    for (let index = 0; index < list.length; index++) list[index].enabled = index === ordinal;
+}
+
+export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, controls, audioTrack, onAudioTracks, onProgress, onError, onController }: MediaPlayerProps) {
     const ref = useRef<HTMLVideoElement>(null);
     const pendingPositionMs = useRef(initialPositionMs);
     const [controlHeight, setControlHeight] = useState(64);
@@ -46,6 +55,8 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         const video = ref.current;
         if (video && video.readyState >= 1) {
             video.currentTime = Math.min(pendingPositionMs.current / 1000, video.duration);
+            // Show the requested position now so repeated keyboard steps accumulate before `seeked`.
+            setPlayback(previous => ({ ...previous, position: video.currentTime }));
         }
     }, []);
     useEffect(() => { onController({
@@ -64,7 +75,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         if (!video || callbacks.current.paused)
             return;
         if (video.paused)
-            void video.play().catch(error => callbacks.current.onError(String(error)));
+            void video.play().catch(error => callbacks.current.onError('Playback couldn’t start. Press Play again.', String(error)));
         else
             video.pause();
     }, []);
@@ -74,11 +85,11 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
             return;
         // Include source controls, subtitles and portaled Inspector UI, not video alone.
         if (!doc.fullscreenEnabled || !doc.documentElement.requestFullscreen || !doc.exitFullscreen) {
-            callbacks.current.onError('Fullscreen with source and Inspector overlays is unavailable on this host.');
+            callbacks.current.onError('Fullscreen isn’t available here.');
             return;
         }
         const request = doc.fullscreenElement ? doc.exitFullscreen() : doc.documentElement.requestFullscreen();
-        void request.catch(error => callbacks.current.onError(`Fullscreen failed: ${String(error)}`));
+        void request.catch(error => callbacks.current.onError('Fullscreen couldn’t start.', String(error)));
     }, []);
     useEffect(() => {
         const video = ref.current;
@@ -145,6 +156,9 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         if (paused)
             ref.current?.pause();
     }, [paused]);
+    useEffect(() => {
+        if (ref.current) applyAudioTrack(ref.current, audioTrack);
+    }, [audioTrack, uri]);
     useEffect(() => () => {
         const video = ref.current;
         if (video) {
@@ -175,6 +189,8 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
             if (ref.current) {
                 seekTo(pendingPositionMs.current);
                 ref.current.playbackRate = playbackRate;
+                applyAudioTrack(ref.current, audioTrack);
+                onAudioTracks?.(audioTracks(ref.current)?.length ?? 0);
                 progress(false);
             }
         }}
@@ -184,7 +200,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
     onSeeked={() => progress(true)}
     onPause={() => progress(true)}
     onEnded={() => progress(true)}
-    onError={() => callbacks.current.onError(`This host could not decode the video (media error ${ref.current?.error?.code ?? 'unknown'}). Select a compatible local video; saved progress is preserved.`)}/>
+    onError={() => callbacks.current.onError('This video can’t be played here. Your place is kept; choose another copy of the video.', `media error ${ref.current?.error?.code ?? 'unknown'}`)}/>
     <View testID="media-controls" style={styles.controls} onLayout={event => setControlHeight(event.nativeEvent.layout.height)}>
         <MediaRange label="Playback position" value={playback.position} maximum={playback.duration}
             valueText={`${timeLabel(playback.position)} of ${timeLabel(playback.duration)}`}

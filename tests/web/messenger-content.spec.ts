@@ -55,7 +55,7 @@ test('temporary Thread participant changes draft restart and discard retain inde
   await expect(person).toBeHidden();
   await page.getByRole('button', { name: 'Chats', exact: true }).click();
   await page.getByRole('button', { name: 'New Thread', exact: true }).click();
-  const thread = page.getByRole('dialog', { name: 'New temporary Thread', exact: true });
+  const thread = page.getByRole('dialog', { name: 'New conversation', exact: true });
   await thread.getByRole('textbox', { name: 'Title', exact: true }).fill('Planning practice');
   await thread.getByRole('textbox', { name: 'Purpose', exact: true }).fill('Arrange a trip.');
   await thread.getByRole('button', { name: 'Coach', exact: true }).click();

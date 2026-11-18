@@ -14,11 +14,15 @@ pub fn practice(items: &[ReviewAdmission]) -> ReviewMode {
         items: items
             .iter()
             .map(|item| PracticeItem {
-                material_id: item.material_id.clone(),
+                material_id: material_id(item),
                 source: item.source.clone(),
             })
             .collect(),
     }
+}
+
+pub fn material_id(admission: &ReviewAdmission) -> MaterialId {
+    admission.subject.material().unwrap().0.clone()
 }
 
 pub fn admission(store: &mut ProfileStore, command: &str) -> ReviewAdmission {
@@ -49,12 +53,15 @@ pub fn admission(store: &mut ProfileStore, command: &str) -> ReviewAdmission {
     };
     ReviewAdmission {
         work_id: ReviewWorkId(format!("work-{command}")),
-        material_id: material.id,
-        material_revision: 1,
+        subject: ReviewSubject::Material {
+            material_id: material.id,
+            material_revision: 1,
+        },
         package_id: "package".into(),
         package_version: "1".into(),
         package_revision: "revision".into(),
         scheduler_version: REVIEW_POLICY_VERSION,
+        task: None,
         source: Some(SourceAnchor {
             source_id: "source".into(),
             content_revision: "source-v1".into(),
@@ -140,6 +147,7 @@ pub fn reveal(store: &mut ProfileStore, session: &ReviewSession, id: &str) -> Re
 
 pub fn response(session: &ReviewSession, quality: Option<AttemptQuality>) -> ReviewResponse {
     ReviewResponse {
+        capture_id: None,
         encounter_id: session.encounter.as_ref().unwrap().id.clone(),
         grades: session
             .encounter
@@ -171,11 +179,12 @@ pub fn submit(store: &mut ProfileStore, session: &ReviewSession, id: &str) -> Re
 }
 
 pub fn schedule(store: &ProfileStore, admission: &ReviewAdmission) -> Option<ReviewSchedule> {
+    let id = material_id(admission);
     store
         .review_due_materials(None, 100, 128)
         .unwrap()
         .into_iter()
-        .find(|m| m.material.id == admission.material_id)
+        .find(|m| m.material.id == id)
         .unwrap()
         .schedules
         .into_iter()

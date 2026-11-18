@@ -3,6 +3,33 @@ import { expect } from '@playwright/test';
 import { test } from './messenger-native-fixture';
 import { initialTheme } from '../../packages/theme/src/theme';
 
+test('native SDK installation enables execution and retains accepted theme after restart', async ({ page, nativeCore }) => {
+  await page.goto('/settings');
+  await page.getByRole('button', { name: 'On', exact: true }).click();
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
+  const run = page.getByRole('button', { name: 'Run hello', exact: true });
+  await expect(run).toBeDisabled();
+  await page.getByRole('button', { name: 'Install SDK example', exact: true }).click();
+  await expect(run).toBeEnabled();
+  await run.click();
+  await expect(page.getByTestId('runtime-message')).toHaveText('Hello, world!');
+
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Select theme: Quartz', exact: true }).click();
+  await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Select theme: Dark Quartz', exact: true })).toBeEnabled();
+  await nativeCore.crashRestart();
+  await page.reload();
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Select theme: Dark Quartz', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'On', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Developer', exact: true }).click();
+  await expect(run).toBeEnabled();
+  await run.click();
+  await expect(page.getByTestId('runtime-message')).toHaveText('Hello, world!');
+  expect(nativeCore.metadata().providerRequests).toBe(0);
+});
+
 for (const id of ['qa.saved-palette', initialTheme.id]) {
   test(`a custom theme remains selected after restart and can reset to its preset (${id})`, async ({ page, nativeCore }, info) => {
     const custom = {
@@ -10,6 +37,8 @@ for (const id of ['qa.saved-palette', initialTheme.id]) {
       colors: { ...initialTheme.colors, background: '#223344' },
     };
     await page.goto('/settings');
+    await page.getByRole('button', { name: 'On', exact: true }).click();
+    await page.getByRole('button', { name: 'Developer', exact: true }).click();
     await page.getByRole('button', { name: 'Edit theme JSON', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Custom theme', exact: true });
     await dialog.getByRole('textbox', { name: 'Theme JSON', exact: true }).fill(JSON.stringify(custom));
@@ -27,7 +56,7 @@ for (const id of ['qa.saved-palette', initialTheme.id]) {
       .toHaveAttribute('aria-selected', 'true');
     await page.screenshot({ path: info.outputPath('saved-custom-theme.png') });
     await page.getByRole('option', { name: initialTheme.name, exact: true }).click();
-    await expect(page.getByText('Theme saved.', { exact: true })).toBeVisible();
+    await expect(selector).toHaveText(initialTheme.name);
     const snapshot = JSON.parse(await nativeCore.invoke('runtime_execute', {
       request: JSON.stringify({ type: 'snapshot' }),
     }));
@@ -49,7 +78,12 @@ test('package errors recover, cancelled downloads retry and installed data survi
   const failure = JSON.parse((await (await rejected).json()).value);
   expect(failure.type).toBe('error');
   expect(typeof failure.message).toBe('string');
-  await expect(page.getByRole('alert').filter({ hasText: failure.message })).toBeVisible();
+  // The native message is detail: the alert stays plain and Details reveals it.
+  const alert = page.getByRole('alert').first();
+  await expect(alert).toBeVisible();
+  await expect(alert).not.toContainText(failure.message);
+  await page.getByRole('button', { name: 'Details', exact: true }).first().click();
+  await expect(page.getByText(failure.message, { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: info.outputPath('package-catalog-error.png') });
 
   nativeCore.catalogMode('complete');
@@ -73,7 +107,7 @@ test('package errors recover, cancelled downloads retry and installed data survi
   nativeCore.catalogMode('complete');
   await page.getByRole('button', { name: 'Retry installation', exact: true }).click();
   await expect(page.getByText('Installed', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
+  await expect(page.getByLabel(/^English.* installed$/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check for packages', exact: true })).toBeEnabled();
   await page.screenshot({ path: info.outputPath('package-retry-installed.png') });
   await nativeCore.crashRestart();

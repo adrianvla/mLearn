@@ -44,7 +44,7 @@ pub(crate) fn migrate(db: &Connection) -> Result<(), StorageError> {
     Ok(())
 }
 
-fn advance_revision(session: &mut ReviewSession) -> Result<(), StorageError> {
+pub(crate) fn advance_revision(session: &mut ReviewSession) -> Result<(), StorageError> {
     session.revision = session
         .revision
         .checked_add(1)
@@ -83,29 +83,95 @@ impl ProfileStore {
                     "Finite Review limit must be 1..128".into(),
                 ));
             }
+            ReviewMode::AuthoredPractice {
+                material_id,
+                material_revision,
+                package_revision,
+                fingerprint,
+            } => {
+                let material = review_admission::practice_material(&tx, material_id)?;
+                let probes: Vec<_> = admissions.iter().map(|value| value.probe.clone()).collect();
+                if material.revision != *material_revision
+                    || admissions.is_empty()
+                    || admissions.len() > 8
+                    || fingerprint.len() != 64
+                    || admissions.iter().any(|value| {
+                        value.subject.material() != Some((material_id, *material_revision))
+                            || value.package_id != material.content.package_id
+                            || value.package_revision != *package_revision
+                            || value.source != material.content.source
+                            || value.task.is_some()
+                    })
+                    || mlearn_core::authored_probe_fingerprint(&probes)
+                        .map_err(|error| StorageError::Invalid(error.to_string()))?
+                        != *fingerprint
+                {
+                    return Err(StorageError::Invalid(
+                        "Authored probe preview changed; preview again".into(),
+                    ));
+                }
+                admissions.len() as u32
+            }
             ReviewMode::Practice { items } => {
                 review_admission::practice_items(items)?;
                 // Package admission supplies at most eight compatible probes per Material.
                 if admissions.len() > items.len() * 8 {
-                    return Err(StorageError::Invalid("Word Practice probe bound exceeded".into()));
+                    return Err(StorageError::Invalid(
+                        "Word Practice probe bound exceeded".into(),
+                    ));
                 }
                 for item in items {
                     let material = review_admission::practice_material(&tx, &item.material_id)?;
-                    if !admissions.iter().any(|value| value.material_id == item.material_id)
-                        || admissions.iter().any(|value| {
-                            value.material_id == item.material_id
-                                && (value.material_revision != material.revision
+                    if !admissions.iter().any(|value| {
+                        value
+                            .subject
+                            .material()
+                            .is_some_and(|(id, _)| id == &item.material_id)
+                    }) || admissions.iter().any(|value| {
+                        value.subject.material().is_some_and(|(id, revision)| {
+                            id == &item.material_id
+                                && (revision != material.revision
                                     || value.package_id != material.content.package_id
-                                    || value.source != item.source.clone().or_else(|| material.content.source.clone()))
+                                    || value.source
+                                        != item
+                                            .source
+                                            .clone()
+                                            .or_else(|| material.content.source.clone()))
                         })
-                    {
-                        return Err(StorageError::Invalid("Selected Word Practice membership changed or is unavailable".into()));
+                    }) {
+                        return Err(StorageError::Invalid(
+                            "Selected Word Practice membership changed or is unavailable".into(),
+                        ));
                     }
                 }
-                if admissions.iter().any(|value| !items.iter().any(|item| item.material_id == value.material_id)) {
-                    return Err(StorageError::Invalid("Word Practice cannot broaden selected membership".into()));
+                if admissions.iter().any(|value| {
+                    !items.iter().any(|item| {
+                        value
+                            .subject
+                            .material()
+                            .is_some_and(|(id, _)| id == &item.material_id)
+                    })
+                }) {
+                    return Err(StorageError::Invalid(
+                        "Word Practice cannot broaden selected membership".into(),
+                    ));
                 }
-                u32::try_from(admissions.len()).map_err(|error| StorageError::Invalid(error.to_string()))?
+                u32::try_from(admissions.len())
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?
+            }
+            ReviewMode::TargetPractice { items, assistance } => {
+                crate::review_target_practice::admit(
+                    &tx,
+                    items,
+                    assistance.as_deref().unwrap_or_default(),
+                    admissions,
+                )?
+            }
+            ReviewMode::CollectionPractice { .. } => {
+                crate::review_collection_practice::admit_start(&tx, &start.mode, admissions)?
+            }
+            ReviewMode::Calibration { query, items } => {
+                crate::review_calibration::admit(&tx, query, items, admissions)?
             }
         };
         let exists: bool = tx.query_row(
@@ -133,13 +199,21 @@ impl ProfileStore {
             "INSERT INTO review_sessions(id,projection,touched) VALUES(?1,?2,?3)",
             params![session.id.0, serde_json::to_string(&session)?, now],
         )?;
+        if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+            crate::review_collection_practice::start(&tx, &session)?;
+        }
         let mut count = 0_u32;
         for admission in admissions {
             if count == maximum {
                 break;
             }
             review_admission::validate_admission(admission)?;
-            if !matches!(&start.mode, ReviewMode::Practice { .. }) {
+            if admission.task.is_some() && start.mode.is_scheduled() {
+                return Err(StorageError::Invalid(
+                    "Package response tasks require deliberate Word Practice".into(),
+                ));
+            }
+            if start.mode.is_scheduled() {
                 review_admission::due(&tx, admission, now)?;
             }
             let inserted = tx.execute("INSERT OR IGNORE INTO review_work(session_id,work_id,position,admission) VALUES(?1,?2,?3,?4)",
@@ -148,12 +222,16 @@ impl ProfileStore {
                 count += 1;
             }
         }
-        if matches!(&start.mode, ReviewMode::Practice { .. }) && count != maximum {
+        if !start.mode.is_scheduled() && count != maximum {
             return Err(StorageError::Invalid("Duplicate Word Practice work".into()));
         }
         session.total = match &start.mode {
-            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => Some(count),
-            ReviewMode::Continuous => None,
+            ReviewMode::Finite { .. }
+            | ReviewMode::Practice { .. }
+            | ReviewMode::TargetPractice { .. }
+            | ReviewMode::Calibration { .. }
+            | ReviewMode::AuthoredPractice { .. } => Some(count),
+            ReviewMode::Continuous | ReviewMode::CollectionPractice { .. } => None,
         };
         review_admission::next(&tx, &mut session, None)?;
         let result = commit(&tx, &command, &session, now)?;
@@ -171,7 +249,22 @@ impl ProfileStore {
             &ReviewCommand::Next {
                 mutation: mutation.clone(),
             },
-            admission,
+            admission.map_or(&[], std::slice::from_ref),
+            now,
+        )
+    }
+
+    pub fn review_collection_next(
+        &mut self,
+        mutation: &ReviewMutation,
+        admissions: &[ReviewAdmission],
+        now: i64,
+    ) -> Result<ReviewCommit, StorageError> {
+        self.review_mutate(
+            &ReviewCommand::Next {
+                mutation: mutation.clone(),
+            },
+            admissions,
             now,
         )
     }
@@ -182,7 +275,9 @@ impl ProfileStore {
         now: i64,
     ) -> Result<ReviewCommit, StorageError> {
         match command {
-            ReviewCommand::Start { .. } | ReviewCommand::Next { .. } => Err(StorageError::Invalid(
+            ReviewCommand::Start { .. }
+            | ReviewCommand::Next { .. }
+            | ReviewCommand::CaptureResponse { .. } => Err(StorageError::Invalid(
                 "Review admission requires its storage entry point".into(),
             )),
             ReviewCommand::Reveal { .. }
@@ -192,14 +287,15 @@ impl ProfileStore {
             | ReviewCommand::Undo { .. }
             | ReviewCommand::Correct { .. }
             | ReviewCommand::Pause { .. }
-            | ReviewCommand::Resume { .. } => self.review_mutate(command, None, now),
+            | ReviewCommand::Stop { .. }
+            | ReviewCommand::Resume { .. } => self.review_mutate(command, &[], now),
         }
     }
 
     fn review_mutate(
         &mut self,
         command: &ReviewCommand,
-        admission: Option<&ReviewAdmission>,
+        admissions: &[ReviewAdmission],
         now: i64,
     ) -> Result<ReviewCommit, StorageError> {
         let tx = self
@@ -215,6 +311,7 @@ impl ProfileStore {
                 return Err(StorageError::Invalid("Use Review start".into()));
             }
             ReviewCommand::Next { mutation }
+            | ReviewCommand::CaptureResponse { mutation, .. }
             | ReviewCommand::Reveal { mutation, .. }
             | ReviewCommand::Delivery { mutation, .. }
             | ReviewCommand::Assistance { mutation, .. }
@@ -222,11 +319,22 @@ impl ProfileStore {
             | ReviewCommand::Undo { mutation }
             | ReviewCommand::Correct { mutation, .. }
             | ReviewCommand::Pause { mutation }
+            | ReviewCommand::Stop { mutation }
             | ReviewCommand::Resume { mutation } => mutation,
         };
         if session.revision != mutation.expected_revision {
             return Err(StorageError::Conflict);
         }
+        if matches!(session.mode, ReviewMode::CollectionPractice { .. })
+            && matches!(command, ReviewCommand::Next { .. })
+        {
+            crate::review_collection_practice::append(&tx, &session, admissions)?;
+        } else if admissions.len() > 1 {
+            return Err(StorageError::Invalid(
+                "Unexpected Review admission batch".into(),
+            ));
+        }
+        let admission = admissions.first();
         if matches!(session.mode, ReviewMode::Continuous)
             && let Some(value) = admission
         {

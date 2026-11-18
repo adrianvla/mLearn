@@ -1,7 +1,8 @@
 """Pinned JMdict English / Sudachi resources; offline by default, no learner data.
 
 The XML is iterated, not loaded as a tree. Candidate accumulation stays in SQLite;
-the largest retained record is one entry. ent_seq is the only learner target ID.
+the largest retained record is one entry. JMdict keeps ent_seq identities;
+character facts have separate UCS resource keys, never word-derived knowledge.
 """
 from pathlib import Path
 from contextlib import closing
@@ -16,6 +17,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 import zlib
+from japanese_characters import prepare_characters
 
 ROOT = Path(__file__).resolve().parent.parent
 PIN_PATH = ROOT / "language-plugins/japanese/data-pin.json"
@@ -99,11 +101,27 @@ def prepare_enrichment(db, source) -> None:
         db.execute("INSERT OR REPLACE INTO resource_entries VALUES (?,?)", (key, stored(value)))
 
 
-def prepare_index(source: Path, destination: Path, enrichment=None) -> None:
+def prepare_index(
+    source: Path,
+    destination: Path,
+    enrichment=None,
+    *,
+    character_archives: tuple[Path, Path],
+) -> None:
     temporary = destination.with_suffix(".part")
     temporary.unlink(missing_ok=True)
     with closing(sqlite3.connect(temporary)) as db:
+        # 4 KiB pages put the complete character/word resource above the existing
+        # 128 MiB artifact limit. Measured 64 KiB pages preserve every key/BLOB
+        # while fitting that contract; the host still bounds its cache in KiB.
+        db.execute("PRAGMA page_size=65536")
         db.execute("CREATE TABLE resource_entries(key TEXT PRIMARY KEY,value BLOB NOT NULL) WITHOUT ROWID")
+        characters = prepare_characters(
+            db,
+            dictionary=character_archives[0], dictionary_pin=PIN["kanjidic2"],
+            components=character_archives[1], components_pin=PIN["kradfile"],
+            encode=stored,
+        )
         db.execute("CREATE TABLE candidates(form TEXT NOT NULL, target TEXT NOT NULL, value BLOB NOT NULL)")
         entries = 0
         # A pinned, bounded gzip member; ElementTree handles only its internal DTD
@@ -211,9 +229,16 @@ def prepare_index(source: Path, destination: Path, enrichment=None) -> None:
             "linguisticSchema": {"id": "org.mlearn.japanese.linguistic", "version": 1},
             "provenance": {
                 "jmdict": PIN["jmdict"], "importArtifact": ENRICHMENT_PIN["artifact"],
+                "kanjidic2": PIN["kanjidic2"], "kradfile": PIN["kradfile"],
                 "sources": {key: ENRICHMENT_PIN[key] for key in ("referenceRevision", "pitch", "levels")},
             },
             "entries": entries, "forms": form_count,
+            "characterSchema": {
+                "id": "org.mlearn.japanese.characters", "version": 1,
+                "characters": characters.characters,
+                "componentCharacters": characters.component_records,
+                "componentSourceRecords": characters.component_source_records,
+            },
         })))
         db.commit()
         db.execute("VACUUM")
@@ -254,11 +279,17 @@ def main() -> None:
         raise RuntimeError("Cached JMdict pin mismatch")
     lexical = DESTINATION / "lexicon-v1.sqlite"
     enrichment = enrichment_source()
-    recipe = hashlib.sha256(Path(__file__).read_bytes() + PIN_PATH.read_bytes() + ENRICHMENT_PIN_PATH.read_bytes()).hexdigest()
+    recipe = hashlib.sha256(
+        Path(__file__).read_bytes() + Path(__file__).with_name("japanese_characters.py").read_bytes()
+        + PIN_PATH.read_bytes() + ENRICHMENT_PIN_PATH.read_bytes()
+    ).hexdigest()
     receipt = DESTINATION / "lexicon.recipe.json"
     saved = json.loads(receipt.read_text()) if receipt.exists() else {}
     if not lexical.exists() or saved.get("recipe") != recipe or saved.get("sha256") != digest(lexical):
-        prepare_index(archive, lexical, enrichment)
+        assets = ROOT / "language-plugins/japanese/assets"
+        prepare_index(archive, lexical, enrichment, character_archives=(
+            assets / PIN["kanjidic2"]["artifactPath"], assets / PIN["kradfile"]["artifactPath"],
+        ))
         receipt.write_text(json.dumps({"recipe": recipe, "sha256": digest(lexical)}))
     sudachi = PIN["sudachi"]
     dictionary = DESTINATION / "system.dic"

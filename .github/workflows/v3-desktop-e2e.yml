@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           bash tools/configure-ci-apt.sh
           timeout 120s sudo apt-get update
-          packages=(libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools fontconfig fonts-noto-cjk)
+          packages=(libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkitgtk-webdriver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools fontconfig fonts-noto-cjk)
           timeout 360s sudo apt-get --download-only install -y "${packages[@]}"
           sudo apt-get --no-download install -y "${packages[@]}"
       - name: Verify real Japanese glyph coverage

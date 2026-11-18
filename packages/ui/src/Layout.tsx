@@ -7,9 +7,10 @@ import { Text } from './Text';
 import { useWindowMaterial } from './Provider';
 
 /** Bounded application frame with independently scrolling compact controls and content. */
-export function AppShell({ header, navigation, children }: PropsWithChildren<{
+export function AppShell({ header, navigation, contentInset = 'standard', children }: PropsWithChildren<{
   readonly header: ReactNode;
   readonly navigation?: ReactNode;
+  readonly contentInset?: 'standard' | 'none';
 }>) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -20,7 +21,8 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
   const top = Platform.OS === 'web' && compact ? Math.max(insets.top, 28) : insets.top;
   return <View testID="app-shell" style={styles.shell(top, insets.bottom, compact, windowMaterial)}>
     {Platform.OS === 'web' ? <View pointerEvents="none" style={styles.material(windowMaterial)} /> : null}
-    {navigation ? <ScrollView style={styles.navigationViewport(compact)}
+    {navigation ? <ScrollView
+      style={styles.navigationViewport(compact)}
       contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
       {navigation}
     </ScrollView> : null}
@@ -28,9 +30,9 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
       <ScrollView testID="app-shell-header" scrollEnabled={compact}
         style={styles.headerViewport(compact)} contentContainerStyle={styles.shellHeader(!!navigation && !compact)}
         keyboardShouldPersistTaps="handled">{header}</ScrollView>
-      <ScrollView testID="app-shell-content" style={styles.shellScroll} contentContainerStyle={styles.shellBody(!!navigation && !compact)}
+      <ScrollView testID="app-shell-content" style={styles.shellScroll} contentContainerStyle={styles.shellBody(!!navigation && !compact, contentInset)}
         keyboardShouldPersistTaps="handled">
-        <View style={styles.shellContent}>{children}</View>
+        <View style={styles.shellContent(contentInset)}>{children}</View>
       </ScrollView>
     </View>
   </View>;
@@ -99,10 +101,14 @@ const styles = StyleSheet.create((theme) => ({
   headerViewport: (compact: boolean) => ({
     flexGrow: 0, flexShrink: compact ? 1 : 0, maxHeight: compact ? '35%' : undefined,
   }),
-  shellScroll: { flex: 1, minHeight: 0 },
-  shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingLeft: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
-    paddingRight: sidebar ? theme.spacing.section : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
-  shellContent: { width: '100%', maxWidth: 1184, gap: theme.spacing.comfortable },
+  // Retained viewports must keep their offset through responsive reflow and portal dialogs.
+  shellScroll: { flex: 1, minHeight: 0, _web: { overflowAnchor: 'none' } },
+  shellBody: (sidebar: boolean, inset: 'standard' | 'none') => ({ flexGrow: 1,
+    paddingLeft: inset === 'none' ? 0 : sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
+    paddingRight: inset === 'none' ? 0 : sidebar ? theme.spacing.section : theme.spacing.large,
+    paddingTop: inset === 'none' ? 0 : theme.spacing.medium,
+    paddingBottom: theme.spacing.large, alignItems: 'center' }),
+  shellContent: (inset: 'standard' | 'none') => ({ width: '100%', maxWidth: inset === 'none' ? undefined : 1184, gap: inset === 'none' ? 0 : theme.spacing.comfortable }),
   panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid' | 'card') => ({
     backgroundColor: material === 'solid' || material === 'card' ? theme.colors.surface : theme.surfaces.glass,
     borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,

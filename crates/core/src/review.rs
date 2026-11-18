@@ -1,5 +1,5 @@
 //! Native-owned Review admission, exposure and retrospective self-report.
-use crate::{AuthoredMediaId, KnowledgeKey, MaterialId, SourceAnchor};
+use crate::{AuthoredMediaId, CollectionSelectionId, KnowledgeKey, MaterialId, SourceAnchor};
 use serde::{Deserialize, Serialize};
 
 macro_rules! identity {
@@ -14,6 +14,7 @@ identity!(ReviewSessionId);
 identity!(ReviewEncounterId);
 identity!(ReviewAttemptId);
 identity!(ReviewWorkId);
+identity!(ReviewCaptureId);
 
 macro_rules! record {
     ($name:ident { $($(#[$attr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
@@ -68,17 +69,82 @@ record!(ReviewProbe {
     required_media: Option<AuthoredMediaId>
 });
 
+record!(AuthoredPracticePreview {
+    material_id: MaterialId,
+    material_revision: u32,
+    package_revision: String,
+    fingerprint: String,
+    probes: Vec<ReviewProbe>
+});
+
+/// Bind authoring admission to the package's exact private probe projection.
+/// Only the digest, never these answers, belongs in an active session's mode.
+pub fn authored_probe_fingerprint(probes: &[ReviewProbe]) -> Result<String, serde_json::Error> {
+    use sha2::{Digest, Sha256};
+    Ok(format!("{:x}", Sha256::digest(serde_json::to_vec(probes)?)))
+}
+
+/// An authored revision and a canonical package target have different identities.
+/// Flattening retains the existing Material wire shape and persisted admissions.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum ReviewSubject {
+    Material {
+        #[serde(rename = "materialId")]
+        material_id: MaterialId,
+        #[serde(rename = "materialRevision")]
+        material_revision: u32,
+    },
+    Target {
+        #[serde(rename = "targetId")]
+        target_id: String,
+    },
+}
+
+impl ReviewSubject {
+    #[must_use]
+    pub fn material(&self) -> Option<(&MaterialId, u32)> {
+        match self {
+            Self::Material {
+                material_id,
+                material_revision,
+            } => Some((material_id, *material_revision)),
+            Self::Target { .. } => None,
+        }
+    }
+}
+
 // Private resumable content. Never returned as the question projection.
 record!(ReviewAdmission {
     work_id: ReviewWorkId,
-    material_id: MaterialId,
-    material_revision: u32,
+    #[serde(flatten)]
+    #[cfg_attr(feature = "typescript", ts(flatten))]
+    subject: ReviewSubject,
     package_id: String,
     package_version: String,
     package_revision: String,
     probe: ReviewProbe,
     source: Option<SourceAnchor>,
-    scheduler_version: u32
+    scheduler_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    task: Option<crate::TaskContract>
+});
+
+// The question projection never contains validator rules or results.
+record!(ReviewTask {
+    revision: u32,
+    response_spec: crate::ResponseSpec,
+    attribution: String,
+    limitations: String
+});
+
+record!(ReviewCapture {
+    id: ReviewCaptureId,
+    response: crate::TaskResponse,
+    conditions: ReviewConditions,
+    feedback: Option<crate::ValidationOutput>
 });
 
 record!(PracticeItem {
@@ -86,13 +152,84 @@ record!(PracticeItem {
     source: Option<SourceAnchor>
 });
 
+record!(TargetPracticeItem {
+    package_id: String,
+    package_revision: String,
+    target_id: String,
+    capabilities: Vec<String>,
+    source: Option<SourceAnchor>
+});
+
+record!(SourcePracticeTarget {
+    target_id: String,
+    source: SourceAnchor
+});
+
+record!(CalibrationQuery {
+    package_id: String,
+    capability: String,
+    filter: crate::CollectionFilter,
+    limit: u32
+});
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum ReviewPurpose {
+    Review,
+    Practice,
+    Calibration,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum ReviewMode {
     Continuous,
-    Finite { limit: u32 },
-    Practice { items: Vec<PracticeItem> },
+    Finite {
+        limit: u32,
+    },
+    Practice {
+        items: Vec<PracticeItem>,
+    },
+    TargetPractice {
+        items: Vec<TargetPracticeItem>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "typescript", ts(optional))]
+        assistance: Option<Vec<ReviewAssistance>>,
+    },
+    CollectionPractice {
+        #[serde(rename = "selectionId")]
+        selection_id: CollectionSelectionId,
+        capabilities: Vec<String>,
+    },
+    Calibration {
+        query: CalibrationQuery,
+        items: Vec<TargetPracticeItem>,
+    },
+    AuthoredPractice {
+        #[serde(rename = "materialId")]
+        material_id: MaterialId,
+        #[serde(rename = "materialRevision")]
+        material_revision: u32,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        fingerprint: String,
+    },
+}
+
+impl ReviewMode {
+    #[must_use]
+    pub const fn is_scheduled(&self) -> bool {
+        match self {
+            Self::Continuous | Self::Finite { .. } => true,
+            Self::Practice { .. }
+            | Self::TargetPractice { .. }
+            | Self::CollectionPractice { .. }
+            | Self::Calibration { .. }
+            | Self::AuthoredPractice { .. } => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -103,6 +240,7 @@ pub enum ReviewSessionState {
     Paused,
     Complete,
     Unavailable,
+    Stopped,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -138,8 +276,9 @@ record!(ReviewConditions {
 record!(ReviewEncounter {
     id: ReviewEncounterId,
     work_id: ReviewWorkId,
-    material_id: MaterialId,
-    material_revision: u32,
+    #[serde(flatten)]
+    #[cfg_attr(feature = "typescript", ts(flatten))]
+    subject: ReviewSubject,
     package_id: String,
     package_version: String,
     package_revision: String,
@@ -153,7 +292,13 @@ record!(ReviewEncounter {
     required_media: Option<AuthoredMediaId>,
     source: Option<SourceAnchor>,
     conditions: ReviewConditions,
-    correction: bool
+    correction: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    task: Option<ReviewTask>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    capture: Option<ReviewCapture>
 });
 
 record!(ReviewSession {
@@ -189,7 +334,10 @@ record!(ReviewGrade {
 
 record!(ReviewResponse {
     encounter_id: ReviewEncounterId,
-    grades: Vec<ReviewGrade>
+    grades: Vec<ReviewGrade>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    capture_id: Option<ReviewCaptureId>
 });
 
 /// Command identity covers the complete operation and payload, not just its ID.
@@ -201,6 +349,9 @@ pub enum ReviewCommand {
         start: ReviewStart,
     },
     Next {
+        mutation: ReviewMutation,
+    },
+    Stop {
         mutation: ReviewMutation,
     },
     Reveal {
@@ -219,6 +370,12 @@ pub enum ReviewCommand {
         #[serde(rename = "encounterId")]
         encounter_id: ReviewEncounterId,
         assistance: ReviewAssistance,
+    },
+    CaptureResponse {
+        mutation: ReviewMutation,
+        #[serde(rename = "encounterId")]
+        encounter_id: ReviewEncounterId,
+        response: crate::TaskResponse,
     },
     Submit {
         mutation: ReviewMutation,

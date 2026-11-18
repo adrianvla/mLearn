@@ -9,10 +9,17 @@ pub(crate) fn apply(
     candidate: Option<&ReviewAdmission>,
     now: i64,
 ) -> Result<(), StorageError> {
+    if session.state == ReviewSessionState::Stopped
+        && !matches!(command, ReviewCommand::Stop { .. })
+    {
+        return Err(StorageError::Invalid(
+            "This Practice scope has ended".into(),
+        ));
+    }
     if session.state == ReviewSessionState::Paused
         && !matches!(
             command,
-            ReviewCommand::Resume { .. } | ReviewCommand::Pause { .. }
+            ReviewCommand::Resume { .. } | ReviewCommand::Pause { .. } | ReviewCommand::Stop { .. }
         )
     {
         return Err(StorageError::Invalid(
@@ -20,8 +27,22 @@ pub(crate) fn apply(
         ));
     }
     match command {
-        ReviewCommand::Start { .. } => Err(StorageError::Invalid("Use Review start".into())),
+        ReviewCommand::Start { .. } | ReviewCommand::CaptureResponse { .. } => Err(
+            StorageError::Invalid("Use the Review admission/capture entry point".into()),
+        ),
         ReviewCommand::Next { .. } => next(db, session, candidate),
+        ReviewCommand::Stop { .. } => {
+            if !matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                return Err(StorageError::Invalid(
+                    "Only collection Practice can end its frozen scope".into(),
+                ));
+            }
+            session.state = ReviewSessionState::Stopped;
+            session.encounter = None;
+            session.can_undo = false;
+            session.message = Some("Practice ended; completed responses are retained".into());
+            Ok(())
+        }
         ReviewCommand::Pause { .. } => {
             if let Some(encounter) = session.encounter.as_mut()
                 && matches!(
@@ -57,8 +78,22 @@ pub(crate) fn apply(
         }
         ReviewCommand::Reveal { encounter_id, .. } => {
             let encounter = current(session, encounter_id)?;
-            encounter.answer = Some(review_read::admission(db, encounter_id)?.probe.answer);
+            let admission = review_read::admission(db, encounter_id)?;
+            encounter.answer = Some(admission.probe.answer);
             encounter.conditions.revealed = true;
+            encounter.capture = crate::review_capture::read(db, encounter_id, true)?;
+            let keys = admission.task.map_or_else(
+                || {
+                    admission
+                        .probe
+                        .targets
+                        .into_iter()
+                        .filter_map(|row| row.key)
+                        .collect()
+                },
+                |task| task.answer_supplied,
+            );
+            crate::review_capture::disclose(db, encounter_id, &keys, "answer")?;
             Ok(())
         }
         ReviewCommand::Assistance {

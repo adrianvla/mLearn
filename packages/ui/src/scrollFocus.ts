@@ -7,10 +7,12 @@ export function revealScrollFocus(event: { readonly target: unknown; readonly cu
   if (!(target instanceof HTMLElement) || !(viewport instanceof HTMLElement) || !viewport.contains(target)) return;
   const bounds = target.getBoundingClientRect();
   const frame = viewport.getBoundingClientRect();
-  if (bounds.top < frame.top) viewport.scrollTop -= frame.top - bounds.top;
+  // Browsers can quantize scroll offsets to pixels. Round outward so fractional
+  // theme geometry cannot leave the focused edge clipped after scrolling.
+  if (bounds.top < frame.top) viewport.scrollTop -= Math.ceil(frame.top - bounds.top);
   else if (bounds.bottom > frame.bottom)
-    viewport.scrollTop += Math.min(bounds.bottom - frame.bottom, bounds.top - frame.top);
-  if (bounds.left < frame.left) viewport.scrollLeft -= frame.left - bounds.left;
+    viewport.scrollTop += Math.ceil(Math.min(bounds.bottom - frame.bottom, bounds.top - frame.top));
+  if (bounds.left < frame.left) viewport.scrollLeft -= Math.ceil(frame.left - bounds.left);
   else if (bounds.right > frame.right)
-    viewport.scrollLeft += Math.min(bounds.right - frame.right, bounds.left - frame.left);
+    viewport.scrollLeft += Math.ceil(Math.min(bounds.right - frame.right, bounds.left - frame.left));
 }

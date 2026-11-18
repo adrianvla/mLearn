@@ -3,6 +3,7 @@ import type { ReviewCommand } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import type { CaptureCandidate } from './CaptureList';
 import { prepareSourcePractice } from './sourcePractice';
+import { failure, type Failure } from '../failure';
 
 /** A view owns cancellation; an uncertain native admission retains its intent. */
 export function useSourcePractice(client: RuntimeClient, candidates: readonly CaptureCandidate[],
@@ -15,7 +16,7 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
   const command = useRef<ReviewCommand | null>(null);
   const commandContext = useRef({ client, scope, identity });
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Failure | null>(null);
   const [retry, setRetry] = useState(false);
   useEffect(() => {
     const next = {}; owner.current = next;
@@ -26,7 +27,7 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
       command.current = null; commandContext.current = { client, scope, identity };
     }
     setPending(false);
-    if (!command.current) setError('');
+    if (!command.current) setError(null);
     setRetry(command.current !== null);
     return () => {
       if (owner.current === next) {
@@ -40,7 +41,7 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
     operation.current = controller;
     const capturedOwner = owner.current;
     const active = () => capturedOwner !== null && owner.current === capturedOwner && current.current === identity;
-    setPending(true); setError('');
+    setPending(true); setError(null);
     try {
       const prepared = command.current ?? await prepareSourcePractice(client, candidates, controller.signal);
       if (!active()) return;
@@ -52,7 +53,7 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
       onStarted(session.id);
     } catch (cause) {
       if (active()) {
-        setError(cause instanceof Error ? cause.message : String(cause));
+        setError(failure(cause, 'Practice couldn’t start.'));
         setRetry(command.current !== null);
       }
     } finally {

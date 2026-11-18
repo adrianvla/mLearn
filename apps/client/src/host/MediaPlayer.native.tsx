@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import type { MediaPlayerProps } from './MediaPlayer.types';
-export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, onProgress, onError, onController }: MediaPlayerProps) {
+export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, audioTrack, onAudioTracks, onProgress, onError, onController }: MediaPlayerProps) {
     const lastProgress = useRef({
         positionMs: initialPositionMs, durationMs: 0
     });
@@ -39,6 +39,16 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
             player.pause();
     }, [paused, player]);
     useEffect(() => {
+        const apply = () => {
+            const tracks = player.availableAudioTracks;
+            onAudioTracks?.(tracks.length);
+            if (audioTrack != null && audioTrack < tracks.length) player.audioTrack = tracks[audioTrack];
+        };
+        apply();
+        const subscription = player.addListener('availableAudioTracksChange', apply);
+        return () => subscription.remove();
+    }, [player, audioTrack]);
+    useEffect(() => {
         const report = (checkpoint: boolean) => {
             if (Number.isFinite(player.duration) && player.duration > 0) {
                 lastProgress.current = {
@@ -60,7 +70,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
         });
         const status = player.addListener('statusChange', ({ status, error }) => {
             if (status === 'error')
-                callbacks.current.onError(error?.message ?? 'Video unavailable. Reselect a compatible local file.');
+                callbacks.current.onError('This video can’t be played here. Your place is kept; choose another copy of the video.', error?.message);
         });
         return () => {
             // Expo releases the shared player in its earlier hook cleanup. Never read it here.

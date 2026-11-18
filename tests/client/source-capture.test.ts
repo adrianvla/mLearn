@@ -9,12 +9,13 @@ import { prepareSourcePractice } from '../../apps/client/src/features/material/s
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { expectFailure, failureNoticeStub } from './failure-notice-stub';
 
 const source: SourceRecord = {
   id: 'video', title: 'Source', mediaPath: '/source.mp4', mediaRevision: 'media',
   subtitlePath: '/source.srt', subtitleRevision: 'subtitles', packageId: 'example.language',
   packageVersion: '1', positionMs: 1000, durationMs: 10000, subtitleOffsetMs: 500,
-  subtitleOffsetRevision: 1, playbackRate: 1.25, inspectionTrigger: 'click',
+  subtitleOffsetRevision: 1, playbackRate: 1.25, inspectionTrigger: 'click', subtitleLimitations: [],
 };
 
 function fixture(count: number) {
@@ -129,11 +130,11 @@ test('changed source identity and nonadvancing pages cannot admit capture', asyn
   assert.equal((await captureSourcePage(client, source, 0, new AbortController().signal)).done, true);
 });
 
-test('source practice freezes saved eligible video selections at native cue positions', async () => {
+test('source practice includes unsaved eligible targets at native cue positions without creating Materials', async () => {
   const cue = { index: 3, startMs: 1500, endMs: 4000, text: '前 勇気 次' };
   const candidates = ['courage', 'next', 'excluded', 'unsaved'].map((targetId, index) => ({
     key: targetId, resolveCuePosition: true,
-    content: { ...emptyMaterial(source.packageId), phrase: index ? '次' : '勇気', targetId,
+    content: { ...emptyMaterial(source.packageId), packageRevision: 'package', phrase: index ? '次' : '勇気', targetId,
       source: cueAnchor(source, cue, index ? { start: 11, end: 14 } : { start: 4, end: 10 }, 1000) },
   }));
   const positions: unknown[][] = [];
@@ -143,13 +144,17 @@ test('source practice freezes saved eligible video selections at native cue posi
         : { state: 'existing', materialId: target.targetId, excluded: target.targetId === 'excluded' } }));
     },
     async cuePosition(...args) { positions.push(args); return 900; },
+    async sourcePractice(packageId, packageRevision, targets) {
+      return targets.map(target => ({ ...target, packageId, packageRevision, capabilities: [`${packageId}:meaning`] }));
+    },
     prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
   };
   const command = await prepareSourcePractice(client, candidates, new AbortController().signal);
   assert.equal(command.kind, 'start');
-  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'target_practice');
   const items = command.start.mode.items;
-  assert.deepEqual(items.map(item => item.materialId), ['courage', 'next']);
+  assert.deepEqual(items.map(item => item.targetId), ['courage', 'next', 'unsaved']);
+  assert.deepEqual(command.start.mode.assistance, ['source']);
   assert.deepEqual(positions, [[source.id, source.subtitleRevision, cue.index]]);
   const anchor = items[0].source;
   assert.ok(anchor?.locator.kind === 'video');
@@ -169,11 +174,14 @@ test('source practice preserves the Reader image selection and original region p
     async materialEligibility(targets) { return targets.map(target => ({
       target, availability: { state: 'existing', materialId: 'saved', excluded: false },
     })); },
+    async sourcePractice(packageId, packageRevision, targets) {
+      return targets.map(target => ({ ...target, packageId, packageRevision, capabilities: [`${packageId}:meaning`] }));
+    },
     async cuePosition() { throw new Error('An image must not resolve a video cue.'); },
     prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
-  }, [{ key: 'courage', content: { ...emptyMaterial(source.packageId), targetId: 'courage', source: anchor } }],
+  }, [{ key: 'courage', content: { ...emptyMaterial(source.packageId), packageRevision: 'package', targetId: 'courage', source: anchor } }],
   new AbortController().signal);
-  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'target_practice');
   assert.deepEqual(command.start.mode.items[0].source, { ...anchor, text: '勇気',
     locator: { ...anchor.locator, contextStart: 24, selectionStart: 0, selectionEnd: 6 } });
 });
@@ -184,13 +192,14 @@ test('source practice cancellation admits no session after an in-flight position
   const reading = new Promise<void>(resolve => { entered = resolve; });
   let release!: () => void;
   const completion = new Promise<void>(resolve => { release = resolve; });
-  const candidate = { key: 'word', resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
+  const candidate = { key: 'word', resolveCuePosition: true, content: { ...emptyMaterial(source.packageId), packageRevision: 'package',
     targetId: 'word', source: cueAnchor(source, { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } };
   const pending = prepareSourcePractice({
     async materialEligibility(targets) { return targets.map(target => ({
       target, availability: { state: 'existing', materialId: 'saved', excluded: false },
     })); },
     async cuePosition() { entered(); await completion; return 1000; },
+    async sourcePractice() { throw new Error('Cancelled preparation must not run a native batch.'); },
     prepareReviewStart() { throw new Error('Cancelled preparation must not admit a session.'); },
   }, [candidate], controller.signal);
   await reading;
@@ -213,6 +222,17 @@ test('shared source practice retries the original admission after an uncertain r
         const commands = [], receipts = new Map();
         const client = createRuntimeClient({
           commandId: () => 'command-' + next++,
+          boundedReads: {
+            begin: async () => 'source-read',
+            execute: async (_id, raw) => {
+              const request = JSON.parse(raw);
+              return JSON.stringify({ type: 'source_practice', items: request.targets.map(target => ({
+                ...target, packageId: request.packageId, packageRevision: request.packageRevision,
+                capabilities: [request.packageId + ':meaning']
+              })) });
+            },
+            cancel: async () => {},
+          },
           execute: async raw => {
             const request = JSON.parse(raw);
             if (request.type === 'material_eligibility') return JSON.stringify({
@@ -235,7 +255,7 @@ test('shared source practice retries the original admission after an uncertain r
             return JSON.stringify({ type: 'review', commit: receipts.get(command.start.commandId) });
           }
         });
-        const candidates = [{ key: 'word', content: { ...emptyMaterial(source.packageId),
+        const candidates = [{ key: 'word', content: { ...emptyMaterial(source.packageId), packageRevision: 'package',
           targetId: 'word', phrase: 'word', source: cueAnchor(source,
             { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } }];
         window.practiceState = () => ({ commands, prepared: next, committed: receipts.size });
@@ -250,7 +270,7 @@ test('shared source practice retries the original admission after an uncertain r
           return <><button disabled={practice.pending} onClick={() => practice.start()}>Start</button>
             <button onClick={() => setVisible(value => !value)}>{visible ? 'Hide words' : 'Show words'}</button>
             <button onClick={() => setReplacement(true)}>Replace words</button>
-            <span role="alert">{practice.error}</span><output>{session}</output></>;
+            <span role="alert">{practice.error?.message}</span><span data-testid="failure-detail">{practice.error?.detail}</span><output>{session}</output></>;
         }
         createRoot(document.getElementById('root')).render(<Fixture />);
       };
@@ -270,10 +290,12 @@ test('shared source practice retries the original admission after an uncertain r
         await page.addScriptTag({ content: script.text });
         await page.evaluate(mode => Reflect.get(window, 'mount')(mode), mode);
         await page.getByRole('button', { name: 'Start', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await expect(page.getByRole('alert')).toHaveText('Practice couldn’t start.');
+        await expect(page.getByTestId('failure-detail')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
         await page.getByRole('button', { name: 'Hide words', exact: true }).click();
         await page.getByRole('button', { name: 'Show words', exact: true }).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await expect(page.getByRole('alert')).toHaveText('Practice couldn’t start.');
+        await expect(page.getByTestId('failure-detail')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
         if (mode === 'replacement') {
           await page.getByRole('button', { name: 'Replace words', exact: true }).click();
           await expect(page.getByRole('alert')).toBeEmpty();
@@ -286,7 +308,7 @@ test('shared source practice retries the original admission after an uncertain r
         assert.equal(state.commands.length, 2);
         if (mode === 'replacement') {
           assert.notDeepEqual(state.commands[1], state.commands[0]);
-          assert.equal(state.commands[1].start.mode.items[0].materialId, 'saved-other');
+          assert.equal(state.commands[1].start.mode.items[0].targetId, 'other');
         } else assert.deepEqual(state.commands[1], state.commands[0]);
       } finally { await page.close(); }
     });
@@ -369,7 +391,8 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
         if (mode === 'transcript' || mode === 'vocabulary-focus' || mode === 'dictionary') {
           function SourceTranscript() {
             const [vocabulary, setVocabulary] = React.useState(mode === 'dictionary');
-            return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
+            // WatchScreen owns hovered words; this harness records none, so "Hovered words" empties the view.
+            return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary} hovered={new Set()}
             open={true} onOpenChange={() => {}} onSeek={() => {}} analysis={analysis}
             onAnalysis={() => {}} onInspect={inspection => {
               window.sourceInspection = inspection;
@@ -400,6 +423,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             export { CaptureList } from './apps/client/src/features/material/CaptureList';
             export { SourceCapture } from './apps/client/src/features/material/SourceCapture';
             export { useSourcePractice } from './apps/client/src/features/material/useSourcePractice';
+            export { useCandidateMeanings } from './apps/client/src/features/material/useCandidateMeanings';
           `,
         }));
         builder.onResolve({ filter: /^(react-native(-unistyles)?|expo-router|@mlearn\/ui\/.*)$/ }, args =>
@@ -439,6 +463,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
                 measure: publish => publish(node.getBoundingClientRect()), restoreFocus: () => node.focus() });
             }}>{children ?? text}</button>;
             export const Badge = ({ label }) => <span>{label}</span>;
+            ${failureNoticeStub}
             export const StyleSheet = { create: definition => typeof definition === 'function'
               ? definition(resolveTheme(initialTheme)) : definition };
           `,
@@ -463,7 +488,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           mount(mode);
         }, mode);
         if (mode === 'dictionary') {
-          await expect(page.getByRole('alert')).toHaveText('Source dictionary unavailable');
+          await expectFailure(page, 'Dictionary entries for these words couldn’t be loaded.', 'Source dictionary unavailable');
           await expect(page.getByTestId('dialog-description')).toHaveText('Words unavailable');
           await page.getByRole('button', { name: 'Retry source dictionary', exact: true }).click();
           await expect(page.getByRole('button', { name: 'Capture word0', exact: true })).toBeVisible();
@@ -479,7 +504,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           }));
           await page.getByRole('button', { name: 'word0', exact: true }).click();
           await inspected;
-          await page.getByRole('button', { name: 'Unknown words', exact: true }).click();
+          await page.getByRole('button', { name: 'Hovered words', exact: true }).click();
           await expect(page.getByRole('button', { name: 'word0', exact: true })).toHaveCount(0);
           await page.evaluate(() => Reflect.get(window, 'sourceInspection').anchor.restoreFocus());
           await expect(page.getByRole('button', { name: 'Transcript', exact: true })).toBeFocused();
@@ -511,13 +536,16 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
         }
         await page.getByRole('button', { name: 'Capture all eligible in this view', exact: true }).click();
         if (mode !== 'availability') {
-          await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+          await expect(page.getByRole('alert')).toHaveText('These words weren’t saved.');
           await expect(page.getByRole('button', { name: 'Retry availability', exact: true })).toHaveCount(0);
           await expect(page.getByRole('button', { name: 'Capture word0', exact: true })).toHaveCount(0);
           await page.getByRole('button', { name: 'Retry failed captures (2)', exact: true }).click();
         }
-        await expect(page.getByText('Saved · saved-command-0 · revision 1', { exact: true })).toBeVisible();
-        await expect(page.getByText('Saved · saved-command-1 · revision 1', { exact: true })).toBeVisible();
+        if (mode === 'cards') await expect(page.getByText('Saved for review', { exact: true })).toHaveCount(2);
+        else {
+          await expect(page.getByText('Saved · saved-command-0 · revision 1', { exact: true })).toBeVisible();
+          await expect(page.getByText('Saved · saved-command-1 · revision 1', { exact: true })).toBeVisible();
+        }
         const state = await page.evaluate(() => Reflect.get(window, 'captureState')());
         assert.equal(state.prepared, 2);
         assert.equal(state.committed, 2);

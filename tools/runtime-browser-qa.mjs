@@ -1,3 +1,4 @@
+import { createPrivateKey, sign } from 'node:crypto';
 // UI acceptance adapter: real Rust/SQLite/language execution; only the external
 // text provider/catalog availability is controlled. Native window/media/clipboard claims require
 // the separate consuming-platform harness and are never fabricated here.
@@ -15,7 +16,23 @@ async function closeServer(server) {
 }
 
 function nativeHost(binary, profile, trust) {
-  const child = spawn(binary, [profile, JSON.stringify(trust)], { stdio: ['pipe', 'pipe', 'inherit'] });
+  // Plugin metrics let journeys count language-pipeline initializations; other diagnostics pass through.
+  const child = spawn(binary, [profile, JSON.stringify(trust)], {
+    stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, MLEARN_PLUGIN_METRICS: '1' },
+  });
+  // Language capability calls (not guest start-up) by capability id, for this runtime process.
+  /** @type {Record<string, number>} */
+  const calls = {};
+  const diagnostics = createInterface({ input: child.stderr });
+  diagnostics.on('line', line => {
+    if (line.startsWith('plugin-work ')) {
+      const [, capability] = line.match(/ capability="([^"]*)"/) ?? [];
+      if (capability && !line.includes(' phase=initialize ')) calls[capability] = (calls[capability] ?? 0) + 1;
+      return;
+    }
+    if (/^(plugin-slot|plugin-initialize-memory|plugin-memory|runtime-work) /.test(line)) return;
+    process.stderr.write(`${line}\n`);
+  });
   const pending = new Map();
   let next = 0;
   let readyResolve, readyReject;
@@ -54,17 +71,30 @@ function nativeHost(binary, profile, trust) {
       return;
     }
     pending.delete(response.id);
-    if (typeof response.error === 'string') waiter.reject(new Error(response.error));
-    else waiter.resolve(response.value);
+    if (Object.hasOwn(response, 'error')) {
+      if (typeof response.error === 'string') waiter.reject(new Error(response.error));
+      else if (response.error && typeof response.error === 'object'
+        && typeof response.error.code === 'string' && typeof response.error.message === 'string')
+        waiter.reject(response.error);
+      else waiter.reject(new Error('Malformed native QA error'));
+    } else waiter.resolve(response.value);
   });
   return {
     child, ready,
+    /** Language capability calls made by this runtime process, by capability id. */
+    get calls() { return { ...calls }; },
     invoke(command, args) {
-      if (pending.size >= 32) return Promise.reject(new Error('Native QA transport is full'));
+      const lane = ['begin_bounded_read', 'begin_review_validation'].includes(command) ? 'operation_begin'
+        : ['cancel_bounded_read', 'cancel_review_validation'].includes(command) ? 'operation_cancel'
+        : command === 'cancel_source_open' ? command : 'ordinary';
+      const limit = lane === 'ordinary' ? 32 : lane === 'cancel_source_open' ? 1 : 2;
+      if ([...pending.values()].filter(waiter => waiter.lane === lane).length >= limit)
+        return Promise.reject({ code: 'busy', message: 'Native QA transport lane is full' });
       const id = ++next;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        child.stdin.write(`${JSON.stringify({ id, command, request: args?.request ?? null })}\n`, error => {
+        pending.set(id, { resolve, reject, lane });
+        child.stdin.write(`${JSON.stringify({ id, command, request: args?.request ?? null,
+          read_id: args?.id ?? null })}\n`, error => {
           if (error) { pending.delete(id); reject(error); }
         });
       });
@@ -76,7 +106,7 @@ function nativeHost(binary, profile, trust) {
       const timeout = setTimeout(() => { forced = true; child.kill('SIGKILL'); }, 15000);
       const result = await exit;
       clearTimeout(timeout);
-      lines.close();
+      lines.close(); diagnostics.close();
       if (forced || !crash && result.code !== 0) throw new Error('Native QA owner did not shut down cleanly');
     },
   };
@@ -86,9 +116,21 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
   responseText = 'Children walked home.' }) {
   const trust = JSON.parse(await readFile('.mlearn/dev-trust.json', 'utf8'));
   await mkdir(profile, { recursive: true });
-  let catalogMode = 'complete', heldCatalog = null;
+  let catalogMode = 'complete', heldCatalog = null, release = null;
   const catalogEvents = new EventEmitter();
   const catalog = await startCatalog(path.resolve('target/plugin-cdn'), 0, async (request, response, byteLength) => {
+    if (release && request.url?.endsWith('catalog.json') && catalogMode !== 'fail') {
+      // A newer release of the same artifacts, signed with the development key the profile trusts.
+      const envelope = JSON.parse(await readFile(path.resolve('target/plugin-cdn/catalog.json'), 'utf8'));
+      const payload = JSON.parse(Buffer.from(envelope.payload, 'base64'));
+      for (const manifest of payload.plugins) if (manifest.id === release.pluginId) manifest.version = release.version;
+      const bytes = Buffer.from(JSON.stringify(payload));
+      const key = createPrivateKey(await readFile('.mlearn/dev-publisher.pem'));
+      const body = JSON.stringify({ payload: bytes.toString('base64'), signature: sign(null, bytes, key).toString('base64') });
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) });
+      response.end(body);
+      return;
+    }
     if (catalogMode === 'fail') {
       response.writeHead(503);
       response.end();
@@ -131,10 +173,12 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
       const value = JSON.parse(body);
       if (request.url === '/invoke') {
         if (typeof value.command !== 'string') throw new Error('Missing native command');
-        if (value.command === 'runtime_execute') {
+        if (value.command === 'runtime_execute' || value.command === 'execute_bounded_read') {
           const command = JSON.parse(value.args.request);
           const key = command.type === 'conversation' ? `conversation:${command.command.action}` : command.type;
           counts.set(key, (counts.get(key) ?? 0) + 1);
+        } else if (['begin_bounded_read', 'cancel_bounded_read', 'cancel_source_open'].includes(value.command)) {
+          counts.set(value.command, (counts.get(value.command) ?? 0) + 1);
         }
         const result = await core.invoke(value.command, value.args);
         if (!response.destroyed) {
@@ -165,7 +209,10 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
     } catch (error) {
       if (!response.destroyed) {
         response.writeHead(500, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
+        const coded = error && typeof error === 'object'
+          && typeof error.code === 'string' && typeof error.message === 'string';
+        response.end(JSON.stringify({ error: coded ? { code: error.code, message: error.message }
+          : error instanceof Error ? error.message : String(error) }));
       }
     }
   });
@@ -181,6 +228,8 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
       if (!['complete', 'hold', 'fail'].includes(value)) throw new Error('Unknown external provider fixture mode');
       mode = value;
     },
+    catalogRelease(pluginId, version) { release = { pluginId, version }; },
+    pluginCalls: () => core.calls,
     catalogMode(value) {
       if (!['complete', 'hold', 'fail'].includes(value)) throw new Error('Unknown catalog fixture mode');
       catalogMode = value;
@@ -229,7 +278,12 @@ export async function attachRuntimeBrowserQa(page, url) {
             body: JSON.stringify({ command, args }),
           });
           const result = await response.json();
-          if (!response.ok || typeof result.error === 'string') throw new Error(result.error ?? 'Native QA transport failed');
+          if (!response.ok || Object.hasOwn(result, 'error')) {
+            if (result.error && typeof result.error === 'object'
+              && typeof result.error.code === 'string' && typeof result.error.message === 'string')
+              throw result.error;
+            throw new Error(result.error ?? 'Native QA transport failed');
+          }
           return result.value;
         },
       },

@@ -17,8 +17,17 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[path = "review_capture.rs"]
+mod capture;
+#[cfg(test)]
+#[path = "review_capture_tests.rs"]
+mod capture_tests;
 #[path = "review_practice.rs"]
 mod practice;
+#[path = "review_source.rs"]
+mod source;
+#[path = "review_target_practice.rs"]
+mod target_practice;
 
 pub(super) struct ReviewWork {
     command: ReviewCommand,
@@ -45,7 +54,11 @@ fn now() -> Result<i64, Failure> {
 }
 
 impl Runtime {
-    pub(super) fn prepare_review(&mut self, command: ReviewCommand) -> Result<Prepared, Failure> {
+    pub(super) fn prepare_review(
+        &mut self,
+        command: ReviewCommand,
+        cancellation: Cancellation,
+    ) -> Result<Prepared, Failure> {
         // A committed retry does not depend on today's package, due queue or revision.
         if let Some(commit) = self
             .store
@@ -56,6 +69,9 @@ impl Runtime {
         }
         let now = now()?;
         let limit = match &command {
+            ReviewCommand::CaptureResponse { .. } => {
+                return self.prepare_review_capture(command, cancellation);
+            }
             ReviewCommand::Start { start } => match &start.mode {
                 ReviewMode::Continuous => 1,
                 ReviewMode::Finite { limit } if (1..=128).contains(limit) => {
@@ -69,6 +85,43 @@ impl Runtime {
                 }
                 ReviewMode::Practice { items } => {
                     self.validate_practice(items)?;
+                    items.len() * 8
+                }
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    self.validate_authored_practice(
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    )?;
+                    8
+                }
+                ReviewMode::TargetPractice { items, assistance } => {
+                    self.validate_target_practice(
+                        items,
+                        assistance.as_deref().unwrap_or_default(),
+                    )?;
+                    items.len() * 8
+                }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    self.store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                    8
+                }
+                ReviewMode::Calibration { query, items } => {
+                    self.store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
+                    self.validate_target_practice(items, &[])?;
                     items.len() * 8
                 }
             },
@@ -93,11 +146,31 @@ impl Runtime {
                 }
                 match session.mode {
                     ReviewMode::Continuous => 1,
-                    ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => {
+                    ReviewMode::CollectionPractice { .. } => {
+                        if self
+                            .store
+                            .review_collection_pending(&session.id)
+                            .map_err(storage_failure)?
+                        {
+                            let commit = self
+                                .store
+                                .review_next(mutation, None, now)
+                                .map_err(storage_failure)?;
+                            self.cancel_review_validation(&commit.session.id);
+                            return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
+                        }
+                        8
+                    }
+                    ReviewMode::Finite { .. }
+                    | ReviewMode::Practice { .. }
+                    | ReviewMode::TargetPractice { .. }
+                    | ReviewMode::Calibration { .. }
+                    | ReviewMode::AuthoredPractice { .. } => {
                         let commit = self
                             .store
                             .review_next(mutation, None, now)
                             .map_err(storage_failure)?;
+                        self.cancel_review_validation(&commit.session.id);
                         return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
                     }
                 }
@@ -109,11 +182,13 @@ impl Runtime {
             | ReviewCommand::Undo { .. }
             | ReviewCommand::Correct { .. }
             | ReviewCommand::Pause { .. }
+            | ReviewCommand::Stop { .. }
             | ReviewCommand::Resume { .. } => {
                 let commit = self
                     .store
                     .review_apply(&command, now)
                     .map_err(storage_failure)?;
+                self.cancel_review_validation(&commit.session.id);
                 return Ok(Prepared::Immediate(Box::new(Response::Review { commit })));
             }
         };
@@ -138,10 +213,41 @@ impl Runtime {
         {
             return Ok(Response::Review { commit });
         }
-        if let ReviewCommand::Start { start } = &work.command
-            && let ReviewMode::Practice { items } = &start.mode
-        {
-            self.validate_practice(items)?;
+        if let ReviewCommand::Start { start } = &work.command {
+            match &start.mode {
+                ReviewMode::Practice { items } => self.validate_practice(items)?,
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    self.validate_authored_practice(
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    )?;
+                }
+                ReviewMode::TargetPractice { items, assistance } => {
+                    self.validate_target_practice(items, assistance.as_deref().unwrap_or_default())?
+                }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    self.store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                }
+                ReviewMode::Calibration { query, items } => {
+                    self.store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
+                    self.validate_target_practice(items, &[])?;
+                }
+                ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
+            }
         }
         for admission in admissions {
             let package = self.installed.get(&admission.package_id).ok_or_else(|| {
@@ -151,14 +257,16 @@ impl Runtime {
                 .packages
                 .get(&admission.package_id)
                 .ok_or_else(|| Failure::Operation("Missing admitted Review package".into()))?;
-            let current = self
-                .store
-                .material(&admission.material_id)
-                .map_err(storage_failure)?;
+            let changed = match admission.subject.material() {
+                Some((material_id, material_revision)) => {
+                    let current = self.store.material(material_id).map_err(storage_failure)?;
+                    current.revision != material_revision || current.excluded
+                }
+                None => false,
+            };
             if !Arc::ptr_eq(&package.compiled, &prepared.compiled)
                 || package.revision()? != admission.package_revision
-                || current.revision != admission.material_revision
-                || current.excluded
+                || changed
             {
                 return Err(Failure::Protocol(
                     "conflict",
@@ -169,7 +277,16 @@ impl Runtime {
         let commit = match &work.command {
             ReviewCommand::Start { start } => self.store.review_start(start, admissions, now()?),
             ReviewCommand::Next { mutation } => {
-                self.store.review_next(mutation, admissions.first(), now()?)
+                let session = self
+                    .store
+                    .review_session(&mutation.session_id)
+                    .map_err(storage_failure)?;
+                if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                    self.store
+                        .review_collection_next(mutation, admissions, now()?)
+                } else {
+                    self.store.review_next(mutation, admissions.first(), now()?)
+                }
             }
             _ => return Err(Failure::Operation("Invalid Review admission action".into())),
         }
@@ -181,16 +298,73 @@ impl Runtime {
 impl ReviewWork {
     pub(super) fn run(&self) -> Result<Vec<ReviewAdmission>, Failure> {
         let store = ProfileStore::open(&self.profile).map_err(storage_failure)?;
-        if let ReviewCommand::Start { start } = &self.command
-            && let ReviewMode::Practice { items } = &start.mode
-        {
-            return self.run_practice(&store, items);
+        if let ReviewCommand::Start { start } = &self.command {
+            match &start.mode {
+                ReviewMode::Practice { items } => return self.run_practice(&store, items),
+                ReviewMode::AuthoredPractice {
+                    material_id,
+                    material_revision,
+                    package_revision,
+                    fingerprint,
+                } => {
+                    return self.run_authored_practice(
+                        &store,
+                        material_id,
+                        *material_revision,
+                        package_revision,
+                        fingerprint,
+                    );
+                }
+                ReviewMode::TargetPractice { items, assistance } => {
+                    return self.run_target_practice(
+                        &store,
+                        items,
+                        assistance.as_deref().unwrap_or_default(),
+                    );
+                }
+                ReviewMode::CollectionPractice {
+                    selection_id,
+                    capabilities,
+                } => {
+                    let item = store
+                        .review_collection_first(selection_id, capabilities)
+                        .map_err(storage_failure)?;
+                    return self.run_target_practice(
+                        &store,
+                        &[item],
+                        &[mlearn_core::ReviewAssistance::Source],
+                    );
+                }
+                ReviewMode::Calibration { query, items } => {
+                    store
+                        .validate_calibration(query, items)
+                        .map_err(storage_failure)?;
+                    return self.run_target_practice(&store, items, &[]);
+                }
+                ReviewMode::Continuous | ReviewMode::Finite { .. } => {}
+            }
         }
         let session_id = match &self.command {
             ReviewCommand::Start { start } => &start.session_id,
             ReviewCommand::Next { mutation } => &mutation.session_id,
             _ => return Err(Failure::Operation("Invalid Review admission action".into())),
         };
+        if let ReviewCommand::Next { .. } = &self.command {
+            let session = store.review_session(session_id).map_err(storage_failure)?;
+            if matches!(session.mode, ReviewMode::CollectionPractice { .. }) {
+                return match store
+                    .review_collection_candidate(session_id)
+                    .map_err(storage_failure)?
+                {
+                    Some(item) => self.run_target_practice(
+                        &store,
+                        &[item],
+                        &[mlearn_core::ReviewAssistance::Source],
+                    ),
+                    None => Ok(Vec::new()),
+                };
+            }
+        }
         let mut admissions = Vec::new();
         let mut after = None;
         let mut unavailable = None;
@@ -260,14 +434,17 @@ impl ReviewWork {
                     }
                     admissions.push(ReviewAdmission {
                         work_id,
-                        material_id: due.material.id.clone(),
-                        material_revision: due.material.revision,
+                        subject: mlearn_core::ReviewSubject::Material {
+                            material_id: due.material.id.clone(),
+                            material_revision: due.material.revision,
+                        },
                         package_id: package_id.clone(),
                         package_version: package.manifest.version.clone(),
                         package_revision: revision.clone(),
                         probe,
                         source: due.material.content.source.clone(),
                         scheduler_version: REVIEW_POLICY_VERSION,
+                        task: None,
                     });
                     if admissions.len() == self.limit {
                         return Ok(admissions);
@@ -285,8 +462,48 @@ struct ProbeOutput {
     probes: Vec<ReviewProbe>,
 }
 
+impl Runtime {
+    fn validate_authored_practice(
+        &self,
+        material_id: &mlearn_core::MaterialId,
+        material_revision: u32,
+        package_revision: &str,
+        fingerprint: &str,
+    ) -> Result<(), Failure> {
+        let material = self
+            .store
+            .review_practice_materials(&[mlearn_core::PracticeItem {
+                material_id: material_id.clone(),
+                source: None,
+            }])
+            .map_err(storage_failure)?
+            .pop()
+            .ok_or_else(|| Failure::Operation("Material is unavailable".into()))?;
+        let package = self
+            .installed
+            .get(&material.content.package_id)
+            .ok_or_else(|| Failure::Operation("Authoring package is unavailable".into()))?;
+        if material.revision != material_revision
+            || package.revision()? != package_revision
+            || fingerprint.len() != 64
+            || !fingerprint.bytes().all(|value| value.is_ascii_hexdigit())
+            || !package
+                .manifest
+                .capabilities
+                .iter()
+                .any(|value| value == "learning.probes.v1")
+        {
+            return Err(Failure::Protocol(
+                "stale_authored_preview",
+                "Authored preview changed; preview again".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl LanguageWork {
-    fn review_probes(
+    pub(super) fn review_probes(
         &self,
         material: &Material,
         revision: &str,
@@ -327,6 +544,27 @@ impl LanguageWork {
             .map_err(|e| Failure::Operation(format!("Invalid package Review probes: {e}")))?;
         validate_probes(material, entry.as_ref(), &output)?;
         Ok(output.probes)
+    }
+
+    pub(super) fn authored_preview(
+        &self,
+        material: &Material,
+    ) -> Result<mlearn_core::AuthoredPracticePreview, Failure> {
+        let revision = self.package.revision()?;
+        let probes = self.review_probes(material, &revision)?;
+        if probes.is_empty() {
+            return Err(Failure::Operation(
+                "Package does not support authored recall for this Material".into(),
+            ));
+        }
+        Ok(mlearn_core::AuthoredPracticePreview {
+            material_id: material.id.clone(),
+            material_revision: material.revision,
+            package_revision: revision,
+            fingerprint: mlearn_core::authored_probe_fingerprint(&probes)
+                .map_err(|error| Failure::Operation(error.to_string()))?,
+            probes,
+        })
     }
 }
 
@@ -395,10 +633,11 @@ fn validate_probes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_test_profile::NativeTestProfile;
     use mlearn_core::AuthoredMediaId;
     use serde_json::json;
 
-    fn runtime_with_package(root: &std::path::Path) -> Runtime {
+    pub(super) fn runtime_with_package(root: &std::path::Path) -> Runtime {
         let artifacts = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
         let manifests: Vec<crate::catalog::Manifest> =
             serde_json::from_slice(&std::fs::read(artifacts.join("bundle.json")).unwrap()).unwrap();
@@ -457,10 +696,155 @@ mod tests {
     }
 
     #[test]
+    fn due_queue_omits_v2_grammar_and_preserves_lexical_work() {
+        // Given ordinary saved vocabulary and a real package-owned grammar target.
+        let directory = NativeTestProfile::new();
+        let mut runtime = runtime_with_package(directory.path());
+        let mut content = material().content;
+        content.package_id = "org.mlearn.english".into();
+        content.target_id = Some("org.mlearn.english:grammar/past-simple-negative".into());
+        content.package_revision = Some(
+            runtime
+                .installed
+                .get("org.mlearn.english")
+                .unwrap()
+                .revision()
+                .unwrap(),
+        );
+        content.phrase = "Past simple negative".into();
+        let written: Response = serde_json::from_str(
+            &runtime.execute(
+                &json!({
+                    "type":"create_material","command":{
+                        "commandId":"grammar-material","content":content,"distinct":true
+                    }
+                })
+                .to_string(),
+            ),
+        )
+        .unwrap();
+        assert!(
+            matches!(written, Response::MaterialWritten { .. }),
+            "{written:?}"
+        );
+        let mut command = start_command();
+        let ReviewCommand::Start { start } = &mut command else {
+            unreachable!()
+        };
+        start.mode = ReviewMode::Finite { limit: 128 };
+        // When the real due owner scans the whole finite candidate set and commits it.
+        let Prepared::Work(GuestWork::Review(work)) = runtime
+            .prepare_review(command, Cancellation::durable())
+            .unwrap()
+        else {
+            unreachable!()
+        };
+        let admissions = work.run().unwrap();
+        let Response::Review { commit } = runtime.complete_review(&work, &admissions).unwrap()
+        else {
+            unreachable!()
+        };
+        // Then grammar neither aborts the queue nor becomes a fake lexical question.
+        assert_eq!(admissions.len(), 2);
+        assert!(
+            admissions
+                .iter()
+                .flat_map(|value| &value.probe.targets)
+                .all(|row| row.key.is_none())
+        );
+        assert_eq!(commit.session.total, Some(2));
+    }
+
+    #[test]
+    fn authenticated_grammar_tasks_execute_the_declared_finite_validator() {
+        // Given the real bundled package, authenticated resources and Wasmi owner.
+        let directory = NativeTestProfile::new();
+        let runtime = runtime_with_package(directory.path());
+        let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
+        let revision = package.revision().unwrap();
+        let work = LanguageWork {
+            package,
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        };
+        let target = "org.mlearn.english:grammar/past-simple-negative";
+        let generated = work
+            .invoke(
+                "learning.probes.v2",
+                json!({
+                    "contractVersion":2,"packageId":"org.mlearn.english",
+                    "packageRevision":revision,"targetId":target,
+                    "eligibleKeys":[{"packageId":"org.mlearn.english","targetId":target,
+                        "capability":"org.mlearn.english:grammar-form"}]
+                }),
+            )
+            .unwrap();
+        assert_eq!(generated["contractVersion"], 2);
+        assert_eq!(generated["tasks"].as_array().unwrap().len(), 1);
+        let task = &generated["tasks"][0];
+        let task_id = format!("{target}/typed");
+        let validator_id = format!("{task_id}/validator-v1");
+        assert_eq!(task["probe"]["id"], task_id);
+        assert_eq!(task["task"]["validatorId"], validator_id);
+        // When actual package validation runs across all finite result classes.
+        let outcomes: Vec<_> = [" DID NOT FOLD ", "did not folded", "never folded"]
+            .into_iter()
+            .map(|response| {
+                work.invoke(
+                    "learning.validate.v1",
+                    json!({
+                        "contractVersion":1,"packageId":"org.mlearn.english",
+                        "packageRevision":revision,"taskId":task_id,"taskRevision":1,
+                        "validatorId":validator_id,
+                        "response":{"kind":"typed_text","text":response}
+                    }),
+                )
+                .unwrap()
+            })
+            .collect();
+        // Then real guest execution, not a declared validator, supplies the outcomes.
+        for (output, result) in outcomes.iter().zip(["accepted", "rejected", "unassessed"]) {
+            assert_eq!(output["contractVersion"], 1);
+            assert_eq!(output["taskId"], task_id);
+            assert_eq!(output["validatorId"], validator_id);
+            assert_eq!(output["outcomes"].as_array().unwrap().len(), 1);
+            assert_eq!(output["outcomes"][0]["targetId"], "answer");
+            assert_eq!(output["outcomes"][0]["result"], result);
+        }
+    }
+
+    #[test]
+    fn authenticated_grammar_generation_does_not_substitute_an_unsupported_target() {
+        // Given a valid envelope naming a genuinely unsupported grammar target.
+        let directory = NativeTestProfile::new();
+        let runtime = runtime_with_package(directory.path());
+        let package = runtime.installed.get("org.mlearn.english").unwrap().clone();
+        let revision = package.revision().unwrap();
+        let work = LanguageWork {
+            package,
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        };
+        let target = "org.mlearn.english:grammar/present-perfect";
+        // When generation executes in the authenticated package.
+        let result = work.invoke(
+            "learning.probes.v2",
+            json!({
+                "contractVersion":2,"packageId":"org.mlearn.english",
+                "packageRevision":revision,"targetId":target,
+                "eligibleKeys":[{"packageId":"org.mlearn.english","targetId":target,
+                    "capability":"org.mlearn.english:grammar-form"}]
+            }),
+        );
+        // Then neither due Review nor an unrelated recall task replaces this request.
+        assert!(matches!(result, Err(Failure::Operation(_))));
+    }
+
+    #[test]
     fn admitted_review_commit_is_independent_of_source_navigation_cancellation() {
         for practice in [false, true] {
             // Given genuine package output already admitted for durable Review work.
-            let directory = tempfile::tempdir().unwrap();
+            let directory = NativeTestProfile::new();
             let mut runtime = runtime_with_package(directory.path());
             let mut command = start_command();
             if practice {
@@ -480,7 +864,10 @@ mod tests {
                     }],
                 };
             }
-            let Prepared::Work(work) = runtime.prepare_review(command).unwrap() else {
+            let Prepared::Work(work) = runtime
+                .prepare_review(command, Cancellation::durable())
+                .unwrap()
+            else {
                 panic!("Expected real package work");
             };
             let mut output = work.run().unwrap();
@@ -501,17 +888,23 @@ mod tests {
     #[test]
     fn authored_edit_during_package_work_rejects_stale_admission_without_receipt() {
         // Given package-generated content computed before an authored revision changes.
-        let directory = tempfile::tempdir().unwrap();
+        let directory = NativeTestProfile::new();
         let mut runtime = runtime_with_package(directory.path());
         let command = start_command();
-        let Prepared::Work(work) = runtime.prepare_review(command.clone()).unwrap() else {
+        let Prepared::Work(work) = runtime
+            .prepare_review(command.clone(), Cancellation::durable())
+            .unwrap()
+        else {
             panic!("Expected real package work");
         };
         let mut output = work.run().unwrap();
         let crate::guest::GuestOutput::Review(admissions) = &output else {
             panic!("Expected probes")
         };
-        let current = runtime.store.material(&admissions[0].material_id).unwrap();
+        let current = runtime
+            .store
+            .material(admissions[0].subject.material().unwrap().0)
+            .unwrap();
         let mut content = current.content;
         content.phrase = "changed phrase".into();
         let updated: serde_json::Value = serde_json::from_str(
@@ -534,7 +927,7 @@ mod tests {
         assert!(runtime.store.review_receipt(&command).unwrap().is_none());
     }
 
-    fn material() -> Material {
+    pub(super) fn material() -> Material {
         serde_json::from_value(json!({
             "id":"material","revision":1,"excluded":false,
             "content":{"packageId":"example.language","targetId":null,"packageRevision":null,

@@ -19,7 +19,37 @@ pub enum InspectionTrigger {
     Delayed,
     Modifier,
 }
-model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger });
+/// What an attached subtitle file carries that the product does not reproduce; only its text and timing are used.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum SubtitleLimitation {
+    Styling,
+    Positioning,
+    Effects,
+}
+/// Audio or subtitles carried inside the media file itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum MediaTrackKind {
+    Audio,
+    Subtitles,
+}
+/// Whether an embedded track can be used, and if not, why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum TrackAvailability {
+    Available,
+    /// Subtitles stored as pictures; they cannot become text cues.
+    ImageSubtitles,
+    UnsupportedCodec,
+}
+// `ordinal` counts tracks of the same kind in file order (the player's track index);
+// `number` is the container's track identity used to extract it.
+model!(MediaTrack { kind:MediaTrackKind,ordinal:u32,number:u32,language:Option<String>,name:Option<String>,default:bool,availability:TrackAvailability });
+model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger,#[serde(default)] subtitle_limitations:Vec<SubtitleLimitation>,#[serde(default)] audio_track:Option<u32> });
 model!(Cue {
     index: u32,
     start_ms: u32,
@@ -51,7 +81,8 @@ model!(InlineLevel {
     attribution: String
 });
 model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capability>,annotation_capability:String,attribution:String,
-    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] level_scales:Option<Vec<LevelScale>> });
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] level_scales:Option<Vec<LevelScale>>,
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] catalog:Option<crate::CollectionDescription> });
 // Packages own linguistic meaning. These bounded display values contain neither
 // executable layout nor a core-maintained inventory of language-specific features.
 model!(ReadingSpan {
@@ -76,13 +107,61 @@ model!(CueAnalysis { cue:Cue,tokens:Vec<AnalyzedToken> });
 model!(AnalysisBatch { source_id:String,subtitle_revision:String,package_id:String,package_version:String,package_revision:String,cues:Vec<CueAnalysis>,knowledge:Vec<KnowledgeProjection>,annotations:Vec<OccurrenceKnowledge> });
 model!(LexicalSense { heading:String,labels:Vec<String>,definitions:Vec<String>,notes:Vec<String> });
 // Absent structured detail remains readable for already installed ABI-v1 packages.
-model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,summary:Option<String>,senses:Option<Vec<LexicalSense>>,attribution:String,capabilities:Vec<Capability>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation> });
+model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,summary:Option<String>,senses:Option<Vec<LexicalSense>>,attribution:String,capabilities:Vec<Capability>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] canonical_practice_capabilities:Option<Vec<String>>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation> });
 model!(KnowledgeKey {
     package_id: String,
     target_id: String,
     capability: String
 });
 model!(KnowledgeProjection { key:KnowledgeKey,claim:Option<bool>,assessed:Option<bool>,prediction:Option<f64>,revision:u32,status:String });
+model!(KnowledgeEvidenceCursor {
+    identity: String,
+    before: u32,
+    revision: u32
+});
+model!(KnowledgeEvidenceQuery { key:KnowledgeKey,after:Option<KnowledgeEvidenceCursor> });
+// One row is one capability on one physical attempt. Correction replaces that
+// row; inactive Undo rows are visible provenance, not current assessment.
+model!(KnowledgeObservation {
+    sequence:u32,
+    attempt_id:crate::ReviewAttemptId,
+    session_id:crate::ReviewSessionId,
+    encounter_id:crate::ReviewEncounterId,
+    active:bool,
+    #[cfg_attr(feature="typescript",ts(type="number"))]
+    created_at:i64,
+    #[serde(flatten)]
+    #[cfg_attr(feature="typescript",ts(flatten))]
+    subject:crate::ReviewSubject,
+    package_version:String,
+    package_revision:String,
+    probe_id:String,
+    probe_contract_version:u32,
+    direction:crate::ReviewDirection,
+    conditions:crate::ReviewConditions,
+    grade:crate::ReviewGrade,
+    assessed:Option<bool>,
+    practice:bool,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[cfg_attr(feature="typescript",ts(optional))]
+    purpose:Option<crate::ReviewPurpose>,
+    source:Option<crate::SourceAnchor>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[cfg_attr(feature="typescript",ts(optional))]
+    capture:Option<crate::ReviewCapture>
+});
+// Projection is the same shared native projection, not a renderer aggregate.
+// Current assessment comes from the latest qualifying self-report or captured
+// package validation, with the measurement method retained in its observation.
+// Claims override displayed status; prediction remains absent until a real
+// predictor exists. Claim timestamps/history are not retained.
+model!(KnowledgeEvidencePage {
+    projection:KnowledgeProjection,
+    claim_revision:Option<u32>,
+    assessed_attempt:Option<crate::ReviewAttemptId>,
+    observations:Vec<KnowledgeObservation>,
+    next:Option<KnowledgeEvidenceCursor>
+});
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -95,6 +174,27 @@ pub enum AggregateClaim {
 }
 model!(TargetKnowledge { projections:Vec<KnowledgeProjection>,claim:AggregateClaim });
 model!(LexicalSummary { target_id:String,headword:String,reading:Option<String>,summary:String,presentation:Option<LinguisticPresentation> });
+impl From<LexicalEntry> for LexicalSummary {
+    fn from(entry: LexicalEntry) -> Self {
+        let summary = entry
+            .summary
+            .as_deref()
+            .unwrap_or(&entry.definition)
+            .lines()
+            .next()
+            .unwrap_or("")
+            .chars()
+            .take(512)
+            .collect();
+        Self {
+            target_id: entry.target_id,
+            headword: entry.headword,
+            reading: entry.reading,
+            summary,
+            presentation: entry.presentation,
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]

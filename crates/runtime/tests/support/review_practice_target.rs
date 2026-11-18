@@ -66,4 +66,60 @@ fn source_override_requires_the_saved_canonical_target_not_just_valid_source_coo
         started["commit"]["session"]["encounter"]["materialId"],
         material["id"]
     );
+    // Evidence inspection consumes the same actual admitted target and source,
+    // and remains readable after the executable package is unavailable.
+    let session = &started["commit"]["session"];
+    let key = session["encounter"]["targets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|target| !target["key"].is_null())
+        .unwrap()["key"]
+        .clone();
+    let revealed = mutate(
+        &mut runtime,
+        session,
+        "reveal-evidence",
+        "reveal",
+        json!({"encounterId":session["encounter"]["id"]}),
+    );
+    mutate(
+        &mut runtime,
+        &revealed,
+        "submit-evidence",
+        "submit",
+        json!({"response":response(&revealed)}),
+    );
+    call(
+        &mut runtime,
+        json!({"type":"change_claim","change":{
+            "key":key,"claim":true,"commandId":"claim-evidence"
+        }}),
+    );
+    let evidence = call(
+        &mut runtime,
+        json!({"type":"knowledge_evidence","query":{
+            "key":key,"after":null
+        }}),
+    );
+    let projection = call(&mut runtime, json!({"type":"knowledge","keys":[key]}));
+    assert_eq!(evidence["type"], "knowledge_evidence");
+    assert_eq!(evidence["page"]["projection"], projection["projections"][0]);
+    assert_eq!(evidence["page"]["projection"]["claim"], true);
+    assert_eq!(evidence["page"]["projection"]["prediction"], Value::Null);
+    assert_eq!(
+        evidence["page"]["observations"].as_array().unwrap().len(),
+        1
+    );
+    assert_eq!(evidence["page"]["observations"][0]["source"], anchor);
+    assert_eq!(evidence["page"]["observations"][0]["practice"], true);
+    drop(runtime);
+    let mut runtime = open(&directory.path().join("profile"), false);
+    let reopened = call(
+        &mut runtime,
+        json!({"type":"knowledge_evidence","query":{
+            "key":key,"after":null
+        }}),
+    );
+    assert_eq!(reopened, evidence);
 }

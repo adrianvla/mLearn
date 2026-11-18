@@ -55,13 +55,24 @@ impl ProfileStore {
         command: &MaterialCreate,
         media: &[PreparedAuthoredMedia],
     ) -> Result<MaterialWriteResult, StorageError> {
-        bounded(&command.command_id, 128)?;
-        let digest = digest("create", &serde_json::to_vec(command)?);
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if let Some(previous) = receipt(&tx, &command.command_id, &digest)? {
-            return previous.result(&tx);
+        let result = create_in_transaction(&tx, command, media)?;
+        tx.commit()?;
+        Ok(result)
+    }
+}
+
+pub(crate) fn create_in_transaction(
+    tx: &Connection,
+    command: &MaterialCreate,
+    media: &[PreparedAuthoredMedia],
+) -> Result<MaterialWriteResult, StorageError> {
+        bounded(&command.command_id, 128)?;
+        let digest = digest("create", &serde_json::to_vec(command)?);
+        if let Some(previous) = receipt(tx, &command.command_id, &digest)? {
+            return previous.result(tx);
         }
         let value = prepared_content(&command.content, &command.media_imports, media)?;
         let encoded = content(&value)?;
@@ -81,7 +92,7 @@ impl ProfileStore {
                 .collect::<Result<Vec<_>, _>>()?;
             if let Some(id) = exact.first() {
                 previous.item_id = Some(id.clone());
-                previous.revision = Some(read_material(&tx, &MaterialId(id.clone()))?.revision);
+                previous.revision = Some(read_material(tx, &MaterialId(id.clone()))?.revision);
                 previous.reused = true;
             } else {
                 let mut statement = tx.prepare(
@@ -110,21 +121,20 @@ impl ProfileStore {
                 Sha256::digest(command.command_id.as_bytes())
             );
             for asset in media {
-                register_media(&tx, &asset.media)?;
+                register_media(tx, &asset.media)?;
             }
             tx.execute("INSERT INTO materials(id,revision,excluded,content,package_id,target_id,source_id,exact_identity,capture_identity,search_text) VALUES(?1,1,0,?2,?3,?4,?5,?6,?7,?8)",
                 params![id, encoded, value.package_id, value.target_id, value.source.as_ref().map(|s| &s.source_id),
                     identity.exact, identity.capture, search_text(&value)])?;
-            replace_references(&tx, &id, &value)?;
+            replace_references(tx, &id, &value)?;
             previous.item_id = Some(id);
             previous.revision = Some(1);
         }
-        previous.write(&tx, &command.command_id)?;
-        let result = previous.result(&tx)?;
-        tx.commit()?;
-        Ok(result)
-    }
+        previous.write(tx, &command.command_id)?;
+        previous.result(tx)
+}
 
+impl ProfileStore {
     pub fn update_material(
         &mut self,
         command: &MaterialEdit,
@@ -137,16 +147,27 @@ impl ProfileStore {
         command: &MaterialEdit,
         media: &[PreparedAuthoredMedia],
     ) -> Result<MaterialWriteResult, StorageError> {
-        bounded(&command.command_id, 128)?;
-        bounded(&command.id.0, 512)?;
-        let digest = digest("update", &serde_json::to_vec(command)?);
         let tx = self
             .connection
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if let Some(previous) = receipt(&tx, &command.command_id, &digest)? {
-            return previous.result(&tx);
+        let result = update_in_transaction(&tx, command, media)?;
+        tx.commit()?;
+        Ok(result)
+    }
+}
+
+pub(crate) fn update_in_transaction(
+    tx: &Connection,
+    command: &MaterialEdit,
+    media: &[PreparedAuthoredMedia],
+) -> Result<MaterialWriteResult, StorageError> {
+        bounded(&command.command_id, 128)?;
+        bounded(&command.id.0, 512)?;
+        let digest = digest("update", &serde_json::to_vec(command)?);
+        if let Some(previous) = receipt(tx, &command.command_id, &digest)? {
+            return previous.result(tx);
         }
-        let current = read_material(&tx, &command.id)?;
+        let current = read_material(tx, &command.id)?;
         if current.revision != command.expected_revision {
             return Err(StorageError::Conflict);
         }
@@ -158,12 +179,12 @@ impl ProfileStore {
         let encoded = content(&value)?;
         let identity = identity(&value)?;
         for asset in media {
-            register_media(&tx, &asset.media)?;
+            register_media(tx, &asset.media)?;
         }
         tx.execute("UPDATE materials SET revision=?2,excluded=?3,content=?4,package_id=?5,target_id=?6,source_id=?7,exact_identity=?8,capture_identity=?9,search_text=?10 WHERE id=?1",
             params![command.id.0, revision, command.excluded, encoded, value.package_id, value.target_id,
                 value.source.as_ref().map(|s| &s.source_id), identity.exact, identity.capture, search_text(&value)])?;
-        replace_references(&tx, &command.id.0, &value)?;
+        replace_references(tx, &command.id.0, &value)?;
         let previous = Receipt {
             digest,
             item_id: Some(command.id.0.clone()),
@@ -171,12 +192,11 @@ impl ProfileStore {
             reused: false,
             duplicate_ids: Vec::new(),
         };
-        previous.write(&tx, &command.command_id)?;
-        let result = previous.result(&tx)?;
-        tx.commit()?;
-        Ok(result)
-    }
+        previous.write(tx, &command.command_id)?;
+        previous.result(tx)
+}
 
+impl ProfileStore {
     pub fn set_capture_exclusion(
         &mut self,
         command: &CaptureExclusion,
@@ -215,4 +235,5 @@ fn search_text(content: &mlearn_core::MaterialContent) -> String {
         content.notes,
         content.examples.join("\n")
     )
+    .to_lowercase()
 }

@@ -4,15 +4,25 @@ on:
     branches: ['agent/**', rewrite/v3]
     paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', '!tests/mobile/ocr/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
   workflow_dispatch:
+    inputs:
+      web_check:
+        description: Browser verification scope
+        type: choice
+        options: [full, messenger]
+        default: full
 permissions:
   contents: read
 concurrency:
-  group: v3-foundation-${{ github.ref }}
+  group: v3-foundation-${{ github.ref }}${{ inputs.web_check == 'messenger' && '-messenger' || '' }}
   cancel-in-progress: false
 jobs:
   web:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Run41971932567 completed 160/182 serial browser cases before the old
+    # 40-minute job budget expired, with no assertion failure. Allow the full
+    # cold package preparation, remaining cases and evidence upload to finish.
+    # Fixture/setup and individual assertion deadlines remain unchanged.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under test
@@ -27,14 +37,15 @@ jobs:
       - name: Configure bounded Ubuntu acquisition
         run: bash tools/configure-ci-apt.sh
       - run: npx playwright install chromium --with-deps
-      - name: Provide Linux CJK fonts for vertical source text
+      - name: Provide Linux CJK fonts and offline media fixture tooling
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          timeout 180s sudo apt-get --download-only install -y fonts-noto-cjk
-          sudo apt-get --no-download install -y fonts-noto-cjk
+          timeout 180s sudo apt-get --download-only install -y fonts-noto-cjk ffmpeg
+          sudo apt-get --no-download install -y fonts-noto-cjk ffmpeg
           dpkg-query -W -f='${binary:Package} ${Version}\n' fonts-noto-cjk | tee verification/cjk-font-package.txt
+          dpkg-query -W -f='${binary:Package} ${Version}\n' ffmpeg | tee verification/media-fixture-package.txt
           # Playwright's legacy WenQuanYi face has zero CJK vertical advances.
           sudo apt-get remove -y fonts-wqy-zenhei
           fc-list :lang=ja file > verification/cjk-fonts.txt
@@ -58,7 +69,13 @@ jobs:
           npm run build:plugin
           npm run build:documents
           cargo build --locked -p mlearn-runtime --example runtime_browser_qa
-      - run: npm run test:web
+      - run: npm run test:web -- --reporter=line
+        if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
+      - name: Reproduce native-backed Messenger analysis
+        if: github.event_name == 'workflow_dispatch' && inputs.web_check == 'messenger'
+        env:
+          MLEARN_TEST_HOLD_MESSENGER_IDLE: '1'
+        run: npm run test:web -- tests/web/messenger-native-core.spec.ts --workers=1 --reporter=line --trace=on
       - name: Ensure checks did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
@@ -76,6 +93,7 @@ jobs:
             package-lock.json
             verification
   rust:
+    if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -113,6 +131,7 @@ jobs:
             packages/contracts/src/generated.ts
             verification
   ocr-detector:
+    if: github.event_name != 'workflow_dispatch' || inputs.web_check != 'messenger'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -174,6 +193,24 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
+      - name: Retain source-bound macOS app for resource-bounded UI verification
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD 'HEAD^{tree}' > verification/macos-desktop-source.txt
+          shasum -a 256 target/debug/mlearn-desktop > verification/macos-desktop-executable.sha256
+          tar -czf verification/macos-desktop-app.tar.gz -C target/debug mlearn-desktop
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: macos-desktop-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            verification/macos-desktop-source.txt
+            verification/macos-desktop-executable.sha256
+            verification/macos-desktop-app.tar.gz
       - run: cargo test --locked -p mlearn-desktop --lib --all-features
       - name: Verify portable offline PDF rasterization
         run: cargo test --locked -p mlearn-desktop-ocr --all-targets

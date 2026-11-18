@@ -8,12 +8,19 @@ import { captureAuthoredMedia } from './authoredMedia';
 import type { PickedAuthoredMedia } from './authoredMedia';
 import type { MaterialMediaKind } from '@mlearn/contracts';
 import { createImageOcrHost } from './imageOcr';
+import { nativeControlFailure } from './nativeControlFailure';
 
 export function createHost(): Host {
   const module = requireOptionalNativeModule<{
     execute(request: string): Promise<string>;
     copyText(text:string):Promise<void>;
     cancelSourceOpen():Promise<void>;
+    beginBoundedRead():Promise<string>;
+    executeBoundedRead(id:string,request:string):Promise<string>;
+    cancelBoundedRead(id:string):Promise<void>;
+    beginReviewValidation(request:string):Promise<string>;
+    executeReviewValidation(id:string,request:string):Promise<string>;
+    cancelReviewValidation(id:string):Promise<void>;
     reserveMediaCapture(id:string):Promise<void>;
     importPickedMedia(uri:string,name:string):Promise<string>;
     importPickedDocument(uri:string,name:string):Promise<string>;
@@ -117,5 +124,16 @@ export function createHost(): Host {
       catch(error){directory.delete();if(cached.exists&&cached.uri.startsWith(Paths.cache.uri))cached.delete();throw error;}
     },
     uri:(source)=>new File(`file://${source.mediaPath.split('/').map(encodeURIComponent).join('/')}`).uri,
-  }, client: createRuntimeClient({ execute: (request) => module.execute(request), cancelSourceOpen:()=>module.cancelSourceOpen(),commandId: randomUUID }) };
+  }, client: createRuntimeClient({ execute: (request) => module.execute(request),
+    boundedReads: {
+      begin:()=>module.beginBoundedRead().catch(nativeControlFailure),
+      execute:(id,request)=>module.executeBoundedRead(id,request).catch(nativeControlFailure),
+      cancel:id=>module.cancelBoundedRead(id).catch(nativeControlFailure),
+    },
+    reviewValidation: {
+      begin:request=>module.beginReviewValidation(request).catch(nativeControlFailure),
+      execute:(id,request)=>module.executeReviewValidation(id,request).catch(nativeControlFailure),
+      cancel:id=>module.cancelReviewValidation(id).catch(nativeControlFailure),
+    },
+    cancelSourceOpen:()=>module.cancelSourceOpen(),commandId: randomUUID }) };
 }
