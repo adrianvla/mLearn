@@ -905,7 +905,11 @@ fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
                 close_requested
                     .recv_timeout(Duration::from_secs(5))
                     .unwrap();
-                stream.shutdown(Shutdown::Both).unwrap();
+                // macOS reports NotConnected when the client already closed its end;
+                // the connection is closed either way, which is the state under test.
+                if let Err(error) = stream.shutdown(Shutdown::Both) {
+                    assert_eq!(error.kind(), std::io::ErrorKind::NotConnected);
+                }
                 closed.send(()).unwrap();
             }
         }
