@@ -114,7 +114,8 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 {model.installed ? 'Installed' : 'Not installed'}
                 {model.installed && model.installedRevision !== model.revision ? ' · update available' : ''}
             </Text>
-            {model.reason ? <FailureNotice message="This model can’t be used on this device." detail={model.reason} /> : null}
+            {/* Before installation its resources are expectedly absent; only an installed model can be unusable. */}
+            {model.installed && model.reason ? <FailureNotice message="This model can’t be used on this device." detail={model.reason} /> : null}
             {result?.id === model.id ? <>
                 {developerMode ? <Text variant="caption" accessibilityLiveRegion="polite">
                     {result.value.detectedRegions} detected regions · {result.value.elapsedMs} ms engine work
@@ -145,7 +146,8 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 </> : null}
             </Row>
         </SettingRow>)}
-        {status ? <SettingRow label={(() => {
+        {/* A finished install is shown by its model row; this row reports work in progress or a failure. */}
+        {status && status.phase !== 'succeeded' ? <SettingRow label={(() => {
             const index = inventory?.items.findIndex(model => model.id === status.command.pluginId) ?? -1;
             return inventory && index >= 0 ? name(inventory.items[index], index) : 'Text recognition model';
         })()}

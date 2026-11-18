@@ -58,9 +58,10 @@ test('M06 image collection pages, spread, source-pixel magnifier and recognition
     await page.keyboard.up('z');
     await expect(lens).toHaveCount(0);
 
-    // Reopening returns to the same spread.
+    // Leaving through Home and reopening returns to the same spread.
     const position = await page.getByTestId('reader-position').innerText();
-    await page.reload();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
+    await page.getByRole('button', { name: /Rooftop/ }).first().click();
     await expect(page.getByTestId('reader-position')).toHaveText(position);
   } finally {
     await rm(path.dirname(directory), { recursive: true, force: true });

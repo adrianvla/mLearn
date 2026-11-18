@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test as base, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { open, stat } from 'node:fs/promises';
+import { open, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createServer } from 'node:http';
 import { startRuntimeBrowserQa, attachRuntimeBrowserQa } from '../../../tools/runtime-browser-qa.mjs';
@@ -45,6 +45,24 @@ export const test = base.extend<{ nativeCore: NativeCore; consoleErrors: string[
             'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(body.length),
           } });
         } finally { await handle.close(); }
+      });
+      // The desktop host turns a page's runtime location into displayable pixels; this harness
+      // has no native media service, so it does the same from the location the runtime reports.
+      await page.route(`${native.url}/invoke`, async route => {
+        const body = route.request().postDataJSON();
+        if (body?.command !== 'image_page_uri') { await route.fallback(); return; }
+        const reply = JSON.parse(await native.invoke('runtime_execute', { request: JSON.stringify({
+          type: 'image_page_location', sourceId: body.args.sourceId, resourceId: body.args.resourceId,
+        }) }));
+        if (reply.type !== 'image_page_location') {
+          // Like the desktop host, a runtime rejection reaches the app as a failed command.
+          console.warn('image_page_uri rejected', JSON.stringify(reply).slice(0, 200));
+          await route.fulfill({ status: 500, json: { error: reply.message ?? 'Image page unavailable' } });
+          return;
+        }
+        const location = reply.location;
+        const bytes = await readFile(location.path);
+        await route.fulfill({ json: { value: `data:${location.mimeType};base64,${bytes.toString('base64')}` } });
       });
       await use(native);
       const transport = `${native.url}/invoke`;

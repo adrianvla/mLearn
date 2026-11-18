@@ -82,7 +82,9 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         const background = AppState.addEventListener('change', state => {
             if (state !== 'active') operation.current?.controller.abort();
         });
-        void Promise.all([host.client.imageReaderSettings(source.id), host.ocr.providers()])
+        // Pages display without recognition: an unreadable provider list means recognition is
+        // unavailable here (reported in the status strip), not that the source cannot open.
+        void Promise.all([host.client.imageReaderSettings(source.id), host.ocr.providers().catch(() => [])])
             .then(([view, available]) => {
                 if (scope.current !== owner) return;
                 setSettings(view); setProviders(available);
