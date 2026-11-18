@@ -167,6 +167,11 @@ pub(super) fn integrate(
         .into_iter()
         .filter(|person| thread.participants.contains(person))
         .collect::<Vec<_>>();
+    // An empty witness list means "everyone" for earlier history, so a Thread nobody present
+    // took part in cannot be integrated: it would disclose a private Thread to the whole Room.
+    if witnesses.is_empty() {
+        return Err(invalid("No one present in this Room took part in this Thread"));
+    }
     let mut sequence: u32 = db.query_row(
         "SELECT COALESCE(MAX(sequence),0) FROM conversation_messages WHERE conversation_id=?1",
         [&room.id.0],

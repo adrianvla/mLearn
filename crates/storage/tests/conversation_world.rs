@@ -157,6 +157,37 @@ fn director_picks_the_addressed_present_member_then_the_least_recent_speaker() {
 }
 
 #[test]
+fn a_thread_nobody_present_took_part_in_is_not_integrated() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    let owner = room(&mut store, &["person", "ben"]);
+    let mut away = owner.clone();
+    away.absent = vec![ContactId("person".into())];
+    let owner = update(&mut store, &away, "away");
+    let thread = create(&mut store, "private", ConversationKind::Thread);
+    let generation = send(&mut store, &thread, "private-turn");
+    finish(&mut store, &generation);
+    let chosen: Vec<_> = page(&mut store, &thread)
+        .items
+        .iter()
+        .map(|m| MessageReference { id: m.id.clone(), revision: m.revision })
+        .collect();
+    let refused = store.conversation_command(
+        &ConversationCommand::IntegrateThread {
+            command_id: "integrate-private".into(),
+            thread_id: thread.id.clone(),
+            room_id: owner.id.clone(),
+            expected_room_revision: owner.revision,
+            messages: chosen,
+        },
+        false,
+    );
+    assert!(refused.is_err(), "{refused:?}");
+    assert!(page(&mut store, &owner).items.is_empty());
+    assert!(!memory(&mut store, &owner, "ben").contains(&"User private-turn".to_owned()));
+}
+
+#[test]
 fn integration_is_deliberate_attributable_and_deletion_updates_memory() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();

@@ -50,6 +50,8 @@ export function createBrowserSpeech(): SpeechHost | undefined {
   return {
     async listen({ signal, onLevel }) {
       const input = await microphone();
+      // Ending the call while permission was pending must not leave the microphone open.
+      if (signal.aborted) { input.release(); return null; }
       try {
         const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg', 'audio/mp4'].find(type => MediaRecorder.isTypeSupported(type)) ?? '';
         const recorder = new MediaRecorder(input.stream, mime ? { mimeType: mime } : undefined);
@@ -79,6 +81,7 @@ export function createBrowserSpeech(): SpeechHost | undefined {
     },
     async watchForSpeech(signal, onSpeech) {
       const input = await microphone();
+      if (signal.aborted) { input.release(); return; }
       await new Promise<void>(resolve => {
         let loud = 0;
         const timer = setInterval(() => {

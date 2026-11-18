@@ -43,7 +43,7 @@ export function ReaderSearch({ client, source, scope, position, disabled, onLoca
     async function search(query: string, after: DocumentSearchCursor | null = null) {
         if (operation.current || disabled) return;
         if (!query.length || new TextEncoder().encode(query).length > 1024) {
-            setError('Enter search text of at most 1024 UTF-8 bytes.'); return;
+            setError(query.length ? 'This search text is too long. Shorten it and search again.' : 'Enter text to search for.'); return;
         }
         const owner = new AbortController(); operation.current = owner;
         setPending(true); setError(''); setStatus('');

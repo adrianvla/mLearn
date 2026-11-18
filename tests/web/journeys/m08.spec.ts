@@ -16,7 +16,7 @@ async function setUpVoice(page: Page, endpoint: string) {
   await page.getByRole('button', { name: 'Save voice settings', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save voice settings', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Test voice', exact: true }).click();
-  await expect(page.getByText(/Played with fixture-speech · river/)).toBeVisible();
+  await expect(page.getByText('Played with the saved voice.', { exact: true })).toBeVisible();
 }
 
 async function openWatchWord(page: Page, native: NativeCore, directory: string) {

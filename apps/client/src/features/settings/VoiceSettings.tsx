@@ -139,7 +139,7 @@ export function VoiceSettings({ client, speech }: { readonly client: RuntimeClie
       {!speech ? <Text variant="detail" muted>Voice playback isn’t available on this device.</Text>
         : changed || pending ? <Text variant="detail" muted>Save your changes to test them.</Text>
         : <Text variant="detail" muted>Plays a short sentence with the saved settings.</Text>}
-      {played ? <Text variant="detail" accessibilityLiveRegion="polite">Played with {played.model} · {played.voice}</Text> : null}
+      {played ? <Text variant="detail" accessibilityLiveRegion="polite">Played with the saved voice.</Text> : null}
       {notice('test', <Button label="Try again" accessibilityLabel="Test voice again" variant="secondary" onPress={test} />)}
     </>}>
       <Button label="Test voice" icon="volume" variant="secondary" busy={busy === 'test'}

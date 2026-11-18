@@ -38,7 +38,9 @@ test('M11 source practice, Word Sync on another scope, resume, grammar tasks and
   await page.getByRole('button', { name: 'Prepare words', exact: true }).click();
   const prepare = page.getByRole('button', { name: 'Prepare Knowledge collection', exact: true });
   await prepare.click();
-  await expect(prepare).toHaveCount(0, { timeout: 300_000 });
+  // Prepare is hidden while preparing, so completion is the end of the progress line.
+  await expect(page.getByText(/^Preparing words · /)).toHaveCount(0, { timeout: 300_000 });
+  await expect(prepare).toHaveCount(0);
   await page.goto(`/review?activity=calibration&packageId=${packageId}`);
   await page.getByRole('button', { name: 'Unmeasured items', exact: true }).click();
   await page.getByRole('textbox', { name: 'Scope text', exact: true }).fill('bridge');
