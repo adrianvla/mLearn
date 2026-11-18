@@ -7,3 +7,4 @@ export { CaptureList, type CaptureCandidate } from './CaptureList';
 export { SourceCapture } from './SourceCapture';
 export { useSourcePractice } from './useSourcePractice';
 export { cueAnchor, emptyMaterial } from './content';
+export { useCandidateMeanings, type MeaningLookup } from './useCandidateMeanings';

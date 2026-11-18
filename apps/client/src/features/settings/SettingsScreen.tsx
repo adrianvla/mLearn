@@ -20,7 +20,7 @@ import { usePackageInstall } from './usePackageInstall';
 import { OcrModels } from './OcrModels';
 import { InlineLevelScaleSetting } from './InlineLevelScaleSetting';
 import { VoiceSettings } from './VoiceSettings';
-import { useDeveloperMode } from './developerMode';
+import { useDeveloperMode } from '../../bootstrap/developerMode';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { failure, type Failure } from '../failure';
 

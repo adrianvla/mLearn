@@ -1,4 +1,4 @@
-import { test, expect } from './fixture';
+import { test, expect, enableDeveloperMode } from './fixture';
 import { createConversation, memory, openMessenger, sendMessage, tools } from './messenger';
 
 // PLAN M09 Review: reuse a person across a Thread and Room, integrate selected continuity,
@@ -7,6 +7,7 @@ import { createConversation, memory, openMessenger, sendMessage, tools } from '.
 test('M09 Rooms keep shared history, witness-limited memory and the canon boundary', async ({ page, nativeCore }, info) => {
   test.setTimeout(300_000);
   page.setDefaultTimeout(20_000);
+  await enableDeveloperMode(page);
   await openMessenger(page, nativeCore, ['Ana', 'Ben']);
 
   // Task-focused practice: a Thread works with no scene or world setup.

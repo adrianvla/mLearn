@@ -116,6 +116,7 @@ pub(crate) fn fixture() -> (NativeTestProfile, Arc<RuntimeExecutor>, SourceRecor
         subtitle_offset_revision: 0,
         playback_rate: 1.0,
         inspection_trigger: Default::default(),
+        subtitle_limitations: Vec::new(),
     };
     let mut store = ProfileStore::open(&profile.join("profile.sqlite3")).unwrap();
     store.save_source(&source).unwrap();

@@ -131,6 +131,11 @@ export async function startSpeechFixture(): Promise<SpeechFixture> {
   };
 }
 
+/** Developer mode is a persisted presentation preference; diagnostics journeys turn it on like a user would. */
+export async function enableDeveloperMode(page: Page) {
+  await page.addInitScript(() => localStorage.setItem('mlearn.developerMode', 'true'));
+}
+
 export async function execute<T = any>(native: NativeCore, request: object): Promise<T> {
   return JSON.parse(await native.invoke('runtime_execute', { request: JSON.stringify(request) }));
 }

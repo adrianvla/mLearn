@@ -20,7 +20,7 @@ test('active native Review survives management roundtrips without replacing its 
     await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
-    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    await page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true }).click();
     const inspector = page.getByTestId('inspector-panel');
     await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
     await expect(inspector.getByRole('button', { name: 'Open saved Children: revision 1', exact: true })).toBeVisible();
@@ -100,7 +100,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
-    const word = page.getByRole('button', { name: 'Children: untracked', exact: true });
+    const word = page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true });
     await word.click();
     const inspector = page.getByTestId('inspector-panel');
     await inspector.getByRole('button', { name: 'Capture Children', exact: true }).click();
@@ -207,7 +207,7 @@ test('Inspector evidence preserves actual claims, physical attempts and source c
     for (const theme of builtInThemes) {
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.goto(`/reader?id=${document.source.id}`);
-      const current = page.getByRole('button', { name: `Children: ${summary.knowledge.claim}`, exact: true });
+      const current = page.getByTestId('reader-document-ready').getByRole('button', { name: `Children: ${summary.knowledge.claim}`, exact: true });
       await current.click();
       await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
       await inspector.getByRole('button', { name: capability.label, exact: true }).click();

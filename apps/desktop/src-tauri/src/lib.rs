@@ -283,7 +283,7 @@ async fn pick_local_file(subtitles: bool) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let picker = rfd::FileDialog::new();
         let picker = if subtitles {
-            picker.add_filter("Plain UTF-8 SRT", &["srt"])
+            picker.add_filter("Subtitles", &["srt", "vtt", "ass", "ssa"])
         } else {
             picker.add_filter("Video", &["mp4", "mov", "m4v", "webm", "mkv"])
         };

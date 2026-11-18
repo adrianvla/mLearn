@@ -370,6 +370,9 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
                   { heading: 'place', labels: ['place'], definitions: ['Tokyo metropolitan area'], notes: [] },
                 ] : null, attribution: 'Fixture dictionary', capabilities: [{ id: 'reading', label: 'Reading' }] },
               knowledge: { projections: [], claim: 'untracked' } });
+            case 'target_summaries': return JSON.stringify({ type: 'target_summaries', packageId: request.packageId,
+              packageRevision: request.packageRevision, items: (request.targetIds as string[]).map(targetId => ({ state: 'available',
+                summary: { targetId, headword: '東京', reading: 'とうきょう', summary: 'Tokyo', presentation: null } })) });
             case 'capture_materials': {
               if (!object(request.batch) || !Array.isArray(request.batch.commands)) throw new Error('Missing capture batch');
               return JSON.stringify({ type: 'material_captured', results: request.batch.commands.map(command => {

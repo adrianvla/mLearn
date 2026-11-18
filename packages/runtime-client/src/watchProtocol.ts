@@ -80,6 +80,10 @@ function presentation(v: unknown, text: string): boolean {
    &&list(c.units,64,u=>object(u)&&string(u.text)&&u.text.length>0&&u.text.length<=32&&typeof u.height==='number'&&Number.isFinite(u.height)&&u.height>=0&&u.height<=1)
    &&Array.isArray(c.units)&&c.units.length>0);
 }
+function dictionaryItem(item: unknown): boolean {
+  return object(item) && (item.state === 'unavailable' && string(item.targetId) && string(item.message)
+    || item.state === 'available' && isLexicalSummary(item.summary));
+}
 export function isLexicalSummary(v: unknown): v is LexicalSummary {
  return object(v)&&string(v.targetId)&&string(v.headword)&&optionalString(v.reading)
   &&string(v.summary)&&Array.from(v.summary).length<=512&&presentation(v.presentation,v.headword);
@@ -116,8 +120,8 @@ export function isWatchResponse(v: unknown): v is Response {
   &&(v.description.catalog===undefined||v.description.catalog===null||isCollectionDescription(v.description.catalog));
  case 'entry':return entry(v.entry)&&string(v.packageVersion)&&revision(v.packageRevision)&&targetKnowledge(v.knowledge);
  case 'dictionary':return object(v.batch)&&['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k]))
-  &&revision(v.batch.packageRevision)&&list(v.batch.items,6,item=>object(item)&&(item.state==='unavailable'&&string(item.targetId)&&string(item.message)
-   ||item.state==='available'&&isLexicalSummary(item.summary)));
+  &&revision(v.batch.packageRevision)&&list(v.batch.items,6,dictionaryItem);
+ case 'target_summaries':return string(v.packageId)&&revision(v.packageRevision)&&list(v.items,6,dictionaryItem);
  case 'knowledge':return list(v.projections,256,projection);
  case 'claim_changed':return projection(v.projection);
  case 'analysis':return object(v.batch) && ['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k])) && revision(v.batch.packageRevision) && list(v.batch.knowledge,256,projection) && list(v.batch.annotations,8192,a=>object(a)&&integer(a.cueIndex)&&integer(a.tokenStart)&&string(a.status)) && list(v.batch.cues,16,a=>object(a)&&cue(a.cue)&&list(a.tokens,512,isAnalyzedToken));

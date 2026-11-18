@@ -11,7 +11,7 @@ import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
 import type { TextBounds } from '@mlearn/ui/inline-word';
-import type { SourceWindow, SourceAnchor, AnalysisBatch, PluginSummary, SubtitleDirection } from '@mlearn/contracts';
+import type { SourceWindow, SourceAnchor, AnalysisBatch, PluginSummary, SubtitleDirection, SubtitleLimitation } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
@@ -27,6 +27,12 @@ import { SourceEntryScreen } from '../source-entry';
 type VideoSelection = SourceAnchor & {
     readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
 };
+const limitationNames: Record<SubtitleLimitation, string> = { styling: 'styling', positioning: 'positioning', effects: 'effects' };
+function listLimitations(values: readonly SubtitleLimitation[]) {
+  const names = values.map(value => limitationNames[value]);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+}
+
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
@@ -63,6 +69,14 @@ function WatchWorkspace() {
     const [transcriptBatch, setTranscriptBatch] = useState<AnalysisBatch | null>(null);
     const [position, setPosition] = useState(0);
     const [inspection, setInspection] = useState<Inspection | null>(null);
+    // Words the learner inspected in this source feed the Vocabulary "Hovered words" view, as in the Reader.
+    const [hovered, setHovered] = useState<ReadonlySet<string>>(new Set());
+    useEffect(() => { setHovered(new Set()); }, [id]);
+    function inspect(value: Inspection) {
+        setInspection(value);
+        setHovered(previous => value.targets.every(target => previous.has(target)) ? previous
+            : new Set([...previous, ...value.targets]));
+    }
     const [returnedSelection, setReturnedSelection] = useState<VideoSelection | null>(null);
     const returnedCue = useRef<View>(null);
     const restoredInspection = useRef<SourceAnchor | null>(null);
@@ -499,7 +513,7 @@ function WatchWorkspace() {
                 return;
             }
             const path = paths[0];
-            if (path.toLowerCase().endsWith('.srt')) {
+            if (/\.(srt|vtt|ass|ssa)$/i.test(path)) {
                 void attach(path);
                 return;
             }
@@ -637,7 +651,7 @@ function WatchWorkspace() {
                         source={window.source} open={transcriptOpen} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
                         floatingControls={sidebarInset > 0 && synchronizationOpen && window.source.subtitleRevision ? focusTarget => <View
                           style={styles.sidebarSynchronization(overlayTop)}>{renderSynchronizationControls(focusTarget)}</View> : undefined}
-                        analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={setInspection}
+                        analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={inspect} hovered={hovered}
                         onOpenChange={value => {
                           setInspection(null); setTranscriptOpen(value);
                           if (value) void pauseAndSave().catch(() => {});
@@ -708,6 +722,8 @@ function WatchWorkspace() {
                               onPress={() => { setOffsetDraft('0'); applyOffset(0); }} />
                           </Row>
                           <Text>Current offset: {window.source.subtitleOffsetMs} ms</Text>
+                          {window.source.subtitleLimitations.length ? <Text variant="caption" muted testID="subtitle-limitations">
+                            {`Only the text and timing of these subtitles are shown; their ${listLimitations(window.source.subtitleLimitations)} aren’t.`}</Text> : null}
                         </> : null}
                         {playbackError ? <><Text accessibilityRole="alert">{playbackError.message}</Text>
                           <Button label="Refresh playback settings" variant="secondary" disabled={busy}
@@ -746,6 +762,8 @@ function WatchWorkspace() {
                 </Row>
                 {error ? <FailureNotice tone="media" message={error.message} detail={error.detail}>
                     <Button label="Retry" accessibilityLabel="Retry source" variant="secondary" onPress={() => { setError(null); setSourceReload(v => v + 1); }} />
+                    <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
+                    <Button label="Reselect from Home" variant="secondary" disabled={busy} onPress={() => router.dismissTo('/')} />
                 </FailureNotice> : null}
                 {saveError ? <FailureNotice tone="media" message={saveError.message} detail={saveError.detail}>
                     <Button label="Retry" accessibilityLabel="Retry saving position" variant="secondary" onPress={() => void persist().catch(() => {})} />
@@ -798,7 +816,7 @@ function WatchWorkspace() {
                                     inspectionMode={window.source.inspectionTrigger}
                                     onInspect={(token, anchor) => {
                                         void pauseAndSave().catch(() => {});
-                                        setInspection({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
+                                        inspect({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
                                             sourceAnchor: cueAnchor(window.source, cue, token, latest.current.position),
                                             packageRevision: batch?.packageRevision });
                                     }} />

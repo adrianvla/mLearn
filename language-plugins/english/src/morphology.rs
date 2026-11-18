@@ -66,17 +66,23 @@ pub(super) fn candidates(
             forms.entry(base).or_default().extend(tags.iter().copied());
         }
     }
-    let mut targets = BTreeSet::new();
-    for (form, tags) in forms {
+    // The lexicon lists each lemma's targets most frequent sense first; the first target is the
+    // nearby meaning, so keep that order and only drop repeats. The surface form leads its bases.
+    let mut seen = BTreeSet::new();
+    let mut targets = Vec::new();
+    let surface = forms.remove_entry(&normalized);
+    for (form, tags) in surface.into_iter().chain(forms) {
         if let Some(Value::Array(values)) = lookup(&format!("lemma/{form}"))? {
             for value in values {
                 if let Some(id) = value.as_str() {
-                    if id.split(':').nth(1).is_some_and(|tag| tags.contains(tag)) {
-                        targets.insert(id.to_owned());
+                    if id.split(':').nth(1).is_some_and(|tag| tags.contains(tag))
+                        && seen.insert(id.to_owned())
+                    {
+                        targets.push(id.to_owned());
                     }
                 }
             }
         }
     }
-    Ok(targets.into_iter().collect())
+    Ok(targets)
 }

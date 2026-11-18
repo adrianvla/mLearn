@@ -77,6 +77,7 @@ fn retained_abi1_modules_and_saved_source_run_offline_without_reinstallation() {
         subtitle_offset_revision: 0,
         playback_rate: 1.0,
         inspection_trigger: Default::default(),
+        subtitle_limitations: Vec::new(),
     };
     let mut store = ProfileStore::open(&profile.join("profile.sqlite3")).unwrap();
     let manifests = [

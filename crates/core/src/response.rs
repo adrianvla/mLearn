@@ -1,5 +1,5 @@
 use crate::{
-    AnalysisBatch, CuePosition, DictionaryBatch, KnowledgeProjection, LanguageDescription,
+    AnalysisBatch, CuePosition, DictionaryBatch, DictionaryResult, KnowledgeProjection, LanguageDescription,
     LexicalEntry, PackageInstallStatus, PluginSummary, Snapshot, SourceRecord, SourceWindow,
     TargetKnowledge, TranscriptPage,
 };
@@ -216,6 +216,13 @@ pub enum Response {
     },
     Dictionary {
         batch: DictionaryBatch,
+    },
+    TargetSummaries {
+        #[serde(rename = "packageId")]
+        package_id: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        items: Vec<DictionaryResult>,
     },
     SourcePractice {
         items: Vec<crate::TargetPracticeItem>,

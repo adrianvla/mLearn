@@ -285,6 +285,13 @@ export function createRuntimeClient(transport: Transport) {
         throw new RuntimeError('protocol','Mismatched dictionary batch');
       return r.batch;
     },
+    async targetSummaries(packageId:string,packageRevision:string,targetIds:string[]){
+      const r=await watch({type:'target_summaries',packageId,packageRevision,targetIds});
+      if(r.type!=='target_summaries'||r.packageId!==packageId||r.packageRevision!==packageRevision
+        ||r.items.length!==targetIds.length||r.items.some((item,index)=>(item.state==='available'?item.summary.targetId:item.targetId)!==targetIds[index]))
+        throw new RuntimeError('protocol','Mismatched dictionary batch');
+      return r.items;
+    },
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
     async graphNeighborhood(query:GraphQuery,signal?:AbortSignal) {
       const original=structuredClone(query);

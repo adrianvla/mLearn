@@ -214,6 +214,9 @@ impl Runtime {
                     inspection_trigger: old
                         .as_ref()
                         .map_or(InspectionTrigger::Click, |s| s.inspection_trigger),
+                    subtitle_limitations: old
+                        .as_ref()
+                        .map_or_else(Vec::new, |s| s.subtitle_limitations.clone()),
                 };
                 self.store.save_source(&source).map_err(|e| e.to_string())?;
                 Ok(Response::Source {
@@ -228,12 +231,19 @@ impl Runtime {
                 })
             }
             Request::AttachSubtitles { source_id, path } => {
-                let path = local(&path, &["srt"])?;
+                let path = local(&path, &["srt", "vtt", "ass", "ssa"])?;
                 if fs::metadata(&path).map_err(|e| e.to_string())?.len() > 2 * 1024 * 1024 {
                     return Err("Subtitle file exceeds 2 MiB".into());
                 }
-                let cues = subtitles::parse(
-                    &fs::read_to_string(&path).map_err(|e| format!("SRT must be UTF-8: {e}"))?,
+                let extension = path
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_lowercase();
+                let parsed = subtitles::parse(
+                    &fs::read_to_string(&path)
+                        .map_err(|e| format!("Subtitles must be UTF-8: {e}"))?,
+                    &extension,
                 )?;
                 let revision = hash(&path, &self.cancellation, epoch)?;
                 let path = self.import_path(&path, &revision, true, epoch)?;
@@ -241,12 +251,13 @@ impl Runtime {
                 source.subtitle_path = Some(path.to_string_lossy().into_owned());
                 source.subtitle_revision = Some(revision);
                 source.subtitle_offset_ms = 0;
+                source.subtitle_limitations = parsed.limitations;
                 source.subtitle_offset_revision = source
                     .subtitle_offset_revision
                     .checked_add(1)
                     .ok_or("Subtitle synchronization revision exhausted")?;
                 self.store
-                    .attach_cues(&source, &cues)
+                    .attach_cues(&source, &parsed.cues)
                     .map_err(|e| e.to_string())?;
                 self.analysis_cache
                     .retain(|(key, _)| !key.starts_with(&source_id));

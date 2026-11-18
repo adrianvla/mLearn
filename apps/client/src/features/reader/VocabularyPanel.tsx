@@ -10,7 +10,8 @@ import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
 import type { Inspection } from '../inspector';
-import { CaptureList, emptyMaterial, useSourcePractice, type CaptureCandidate } from '../material';
+import { CaptureList, emptyMaterial, useCandidateMeanings, useSourcePractice, type CaptureCandidate } from '../material';
+import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { documentAnchor } from './documentFlow';
 import { imageAnalysisWindow, imageAnchor, imageContext } from './imageFlow';
 import type { ImageReaderPage } from './useImageReader';
@@ -101,16 +102,32 @@ export function VocabularyPanel({ client, source, words, hovered, status, pages,
     const visibleKeys = useRef(new Set<string>());
     visibleKeys.current = new Set(visible.map(word => word.candidate.key));
     const scope = JSON.stringify([source.id, source.contentRevision, source.packageId, source.packageVersion]);
-    const practice = useSourcePractice(client, visible.map(word => word.candidate), scope, sessionId => {
+    // One package revision analyzed this view; its entries supply each card's nearby meaning.
+    const packageRevision = visible[0]?.packageRevision ?? null;
+    const meanings = useCandidateMeanings(packageRevision ? ids => client.targetSummaries(source.packageId, packageRevision, ids) : null,
+        JSON.stringify([source.packageId, packageRevision]), visible.map(word => word.candidate));
+    const cards = visible.map(word => meanings.resolve(word.candidate) ?? word.candidate);
+    const practice = useSourcePractice(client, cards, scope, sessionId => {
         router.push({ pathname: '../review', params: { sessionId } });
     });
     const more = (pages ?? []).filter(item => item.page && imageAnalysisWindow(item.page, item.analysisOffset).next !== null);
+    // The title and its count belong to the same top band as the list controls (golden Reader).
     const header = <View style={styles.controls}>
+        <View style={styles.heading}>
+            <View style={styles.title}>
+                <Text variant="groupTitle" accessibilityRole="header">Vocabulary</Text>
+                {words.length ? <Text variant="caption" muted>{filtered.length} words</Text> : null}
+            </View>
+            <Button ref={close} label="Close vocabulary" icon="close" iconOnly variant="quiet" size="compact" onPress={onClose} />
+        </View>
         <Row wrap={false}>
             <Button label={practice.retry ? 'Retry Practise' : 'Practise'} variant="secondary" tone="warning" size="compact"
                 busy={practice.pending} disabled={!visible.length && !practice.retry} onPress={() => void practice.start()} />
         </Row>
         {practice.error ? <Text variant="caption" accessibilityRole="alert">Practice couldn’t start.</Text> : null}
+        {meanings.error ? <FailureNotice message={meanings.error.message} detail={meanings.error.detail}>
+            <Button label="Retry" accessibilityLabel="Retry dictionary entries" variant="secondary" size="compact" onPress={meanings.retry} />
+        </FailureNotice> : null}
         <View style={styles.order}><Select label="Word order" size="compact" value={order}
             options={[{ value: 'reading', label: 'Reading order' }, { value: 'unknown', label: 'Unknown first' }]}
             onValueChange={value => { setOrder(value === 'unknown' ? 'unknown' : 'reading'); setOffset(0); }} /></View>
@@ -126,15 +143,7 @@ export function VocabularyPanel({ client, source, words, hovered, status, pages,
             }} />)}
     </View>;
     return <View style={styles.panel} testID="reader-side-panel">
-        <View style={styles.heading}>
-            <View style={styles.title}>
-                <Text variant="groupTitle" accessibilityRole="header">Vocabulary</Text>
-                {words.length ? <Text variant="caption" muted>{filtered.length} words</Text> : null}
-            </View>
-            <Button ref={close} label="Close vocabulary" icon="close" iconOnly variant="quiet" size="compact" onPress={onClose} />
-        </View>
-        <CaptureList client={client} candidates={visible.map(word => word.candidate)} presentation="cards" header={header}
-            captureAllLabel="Save all for review"
+        <CaptureList client={client} candidates={cards} presentation="cards" header={header}
             onInspect={(candidate, anchor: TextAnchor) => {
                 const word = visible.find(value => value.candidate.key === candidate.key);
                 const sourceAnchor = candidate.content.source;
@@ -162,7 +171,7 @@ export function VocabularyPanel({ client, source, words, hovered, status, pages,
 
 const styles = StyleSheet.create(theme => ({
     panel: { gap: theme.spacing.compact },
-    heading: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small },
+    heading: { flexDirection: 'row', alignItems: 'flex-start', alignSelf: 'stretch', gap: theme.spacing.small },
     title: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
     controls: { gap: theme.spacing.compact, alignItems: 'flex-start' },
     order: { minWidth: 160 },

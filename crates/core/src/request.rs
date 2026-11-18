@@ -389,6 +389,15 @@ pub enum Request {
         #[serde(rename = "targetIds")]
         target_ids: Vec<String>,
     },
+    /// Nearby meanings for a bounded set of targets, independent of any source window.
+    TargetSummaries {
+        #[serde(rename = "packageId")]
+        package_id: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        #[serde(rename = "targetIds")]
+        target_ids: Vec<String>,
+    },
     Knowledge {
         keys: Vec<KnowledgeKey>,
     },

@@ -66,8 +66,10 @@ pub(super) enum LanguageAction {
     SourcePractice(Vec<mlearn_core::SourcePracticeTarget>),
     AuthoredPreview(Box<mlearn_core::Material>),
     Graph(mlearn_core::GraphQuery),
+    /// A video source window checks its subtitle/package identity on completion; without one the
+    /// package revision alone scopes the result.
     Summaries {
-        source: SourceRecord,
+        source: Option<SourceRecord>,
         targets: Vec<String>,
     },
     Claim(ClaimChange),

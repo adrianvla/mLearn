@@ -1,21 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue, DictionaryResult } from '@mlearn/contracts';
+import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue } from '@mlearn/contracts';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
 import { Menu } from '@mlearn/ui/menu';
 import { Row } from '@mlearn/ui/layout';
+import { Select } from '@mlearn/ui/select';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { failure, type Failure } from '../failure';
 import { AnnotatedText } from '../annotated-text';
 import type { Inspection } from '../inspector';
-import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, useSourcePractice, type CaptureCandidate } from '../material';
+import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, useCandidateMeanings, useSourcePractice, type CaptureCandidate } from '../material';
 import { useRouter } from 'expo-router';
+
+const known = (status: CaptureCandidate['knowledgeStatus']) => status === 'claimed_known' || status === 'assessed_known';
 
 export function cueTime(milliseconds: number) {
   const seconds = Math.floor(Math.max(0, milliseconds) / 1000);
@@ -23,7 +26,7 @@ export function cueTime(milliseconds: number) {
 }
 
 /** Bounded source navigation. Cue text/timestamps are never rewritten for display. */
-export function Transcript({ client, source, open, onOpenChange, onSeek, analysis, onAnalysis, onInspect,
+export function Transcript({ client, source, open, onOpenChange, onSeek, analysis, onAnalysis, onInspect, hovered,
   vocabulary, onVocabularyChange, floatingControls, children }: PropsWithChildren<{
   client: RuntimeClient;
   source: SourceRecord;
@@ -33,6 +36,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   analysis: AnalysisBatch | null;
   onAnalysis: (analysis: AnalysisBatch | null) => void;
   onInspect: (inspection: Inspection) => void;
+  hovered: ReadonlySet<string>;
   vocabulary: boolean;
   onVocabularyChange: (vocabulary: boolean) => void;
   floatingControls?: (focusTarget: () => View | null) => ReactNode;
@@ -43,11 +47,8 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const [after, setAfter] = useState<number | null>(null);
   const [reload, setReload] = useState(0);
   const [captureRefresh, setCaptureRefresh] = useState(0);
-  const [unknownOnly, setUnknownOnly] = useState(false);
-  const [dictionary, setDictionary] = useState<{ identity: string; items: DictionaryResult[] } | null>(null);
-  const [dictionaryPending, setDictionaryPending] = useState(false);
-  const [dictionaryError, setDictionaryError] = useState<Failure | null>(null);
-  const [dictionaryReload, setDictionaryReload] = useState(0);
+  const [order, setOrder] = useState<'subtitle' | 'unknown'>('subtitle');
+  const [filter, setFilter] = useState<'all' | 'dictionary' | 'hovered'>('all');
   const trigger = useRef<View>(null);
   const visibleWords = useRef(new Set<string>());
   const [page, setPage] = useState<TranscriptPage | null>(null);
@@ -157,41 +158,23 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     const targetId = token.targets[0];
     const status = prepared?.annotations.find(annotation => annotation.cueIndex === analyzed.cue.index
       && annotation.tokenStart === token.start)?.status ?? 'pending';
-    if (!targetId || vocabulary && token.nearbyMeaning === false || seen.has(targetId) || captureCandidates.length >= 128
-      || vocabulary && unknownOnly && (status === 'claimed_known' || status === 'assessed_known')) continue;
+    if (!targetId || vocabulary && filter === 'dictionary' && token.nearbyMeaning === false || seen.has(targetId) || captureCandidates.length >= 128
+      || vocabulary && filter === 'hovered' && !token.targets.some(target => hovered.has(target))) continue;
     seen.add(targetId);
     // The bulk action resolves each selected cue's native media time on demand.
     captureCandidates.push({ key: targetId, knowledgeStatus: status, presentation: token.presentation, resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
       targetId, packageRevision: prepared?.packageRevision ?? null, phrase: token.text, context: analyzed.cue.text,
       source: cueAnchor(source, analyzed.cue, token, Math.max(0, analyzed.cue.startMs - source.subtitleOffsetMs)) } });
   }
-  const dictionaryIdentity = JSON.stringify([prepared?.sourceId, prepared?.subtitleRevision,
-    prepared?.packageRevision, captureCandidates.map(candidate => candidate.key)]);
-  useEffect(() => {
-    if (!open || !prepared) return;
-    let active = true;
-    setDictionary({ identity: dictionaryIdentity, items: [] });
-    setDictionaryPending(true); setDictionaryError(null);
-    void (async () => {
-      const items: DictionaryResult[] = [];
-      for (let offset = 0; offset < captureCandidates.length; offset += 6) {
-        const batch = await client.inspectTargets(source.id, prepared.subtitleRevision, prepared.packageRevision,
-          captureCandidates.slice(offset, offset + 6).map(candidate => candidate.key));
-        if (!active) return;
-        items.push(...batch.items);
-      }
-      if (active) setDictionary({ identity: dictionaryIdentity, items });
-    })().catch((cause: unknown) => {
-      if (active) setDictionaryError(failure(cause, 'Dictionary entries for these words couldn’t be loaded.'));
-    }).finally(() => { if (active) setDictionaryPending(false); });
-    return () => { active = false; };
-  }, [client, open, dictionaryIdentity, dictionaryReload]);
-  const dictionaryItems = dictionary?.identity === dictionaryIdentity ? dictionary.items : [];
-  const resolvedCandidates = captureCandidates.flatMap(candidate => {
-    const entry = dictionaryItems.find(item => item.state === 'available' && item.summary.targetId === candidate.key);
-    return entry?.state === 'available' ? [{ ...candidate, content: { ...candidate.content,
-      reading: entry.summary.reading ?? '', meaning: entry.summary.summary } }] : [];
-  });
+  // "Unknown first" orders, it does not hide: known words keep their place after the rest (stable sort).
+  if (vocabulary && order === 'unknown') captureCandidates.sort((a, b) => Number(known(a.knowledgeStatus)) - Number(known(b.knowledgeStatus)));
+  const meanings = useCandidateMeanings(open && prepared ? ids => client.inspectTargets(source.id, prepared.subtitleRevision,
+    prepared.packageRevision, ids).then(batch => batch.items) : null,
+    JSON.stringify([prepared?.sourceId, prepared?.subtitleRevision, prepared?.packageRevision]), captureCandidates);
+  const dictionaryItems = meanings.items;
+  const dictionaryPending = meanings.pending;
+  const dictionaryError = meanings.error;
+  const resolvedCandidates = captureCandidates.flatMap(candidate => meanings.resolve(candidate) ?? []);
   visibleWords.current = new Set(resolvedCandidates.map(candidate => candidate.key));
   const practice = useSourcePractice(client, resolvedCandidates, identity, sessionId => {
     onOpenChange(false);
@@ -210,19 +193,23 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const dictionaryFeedback = <>
     {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}
     {dictionaryError ? <FailureNotice message={dictionaryError.message} detail={dictionaryError.detail}>
-      <Button label="Retry" accessibilityLabel="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></FailureNotice> : null}
+      <Button label="Retry" accessibilityLabel="Retry source dictionary" size="compact" onPress={meanings.retry} /></FailureNotice> : null}
     {dictionaryItems.map(item => item.state === 'unavailable'
       ? <Text key={item.targetId} variant="caption">{item.message}</Text> : null)}
   </>;
   const vocabularyControls = <>
     <Row>
-      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice words in this view'}
-        size="compact" variant="secondary" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
+      <Button label="Practise" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice words in this view'}
+        size="compact" variant="secondary" tone="warning" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
         onPress={() => void practice.start()} />
-      <Button label="All" accessibilityLabel="All words" size="compact" variant="pill" accessibilityState={{ selected: !unknownOnly }}
-        onPress={() => setUnknownOnly(false)} />
-      <Button label="Unknown" accessibilityLabel="Unknown words" size="compact" variant="pill" accessibilityState={{ selected: unknownOnly }}
-        onPress={() => setUnknownOnly(true)} />
+    </Row>
+    <View style={styles.order}><Select label="Word order" size="compact" value={order}
+      options={[{ value: 'subtitle', label: 'Subtitle order' }, { value: 'unknown', label: 'Unknown first' }]}
+      onValueChange={value => setOrder(value === 'unknown' ? 'unknown' : 'subtitle')} /></View>
+    <Row>
+      {([['all', 'All'], ['dictionary', 'Dictionary only'], ['hovered', 'Hovered words']] as const).map(([value, label]) =>
+        <Button key={value} label={label} variant="pill" tone={filter === value ? 'info' : 'neutral'} size="compact"
+          accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} />)}
     </Row>
     {practice.error ? <FailureNotice message={practice.error.message} detail={practice.error.detail} /> : null}
     {sourceFeedback}
@@ -236,7 +223,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         onPress: () => { onVocabularyChange(true); onOpenChange(true); } },
     ]} />
     <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar" modal={false}
-    description={vocabulary ? dictionaryPending || dictionary?.identity !== dictionaryIdentity ? 'Loading words…'
+    description={vocabulary ? dictionaryPending ? 'Loading words…'
       : dictionaryError ? 'Words unavailable' : `${resolvedCandidates.length} words in this range`
       : 'Exact, case-sensitive subtitle search.'}
     floatingControls={floatingControls}
@@ -292,6 +279,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
 
 const styles = StyleSheet.create(theme => ({
   cueTime: { alignSelf: 'flex-start' },
+  order: { alignSelf: 'flex-start', minWidth: 160 },
   cue: { gap: theme.spacing.small, paddingVertical: theme.spacing.small,
     borderBottomWidth: 1, borderBottomColor: theme.colors.border },
 }));

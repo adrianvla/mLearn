@@ -15,7 +15,7 @@ const source: SourceRecord = {
   id: 'video', title: 'Source', mediaPath: '/source.mp4', mediaRevision: 'media',
   subtitlePath: '/source.srt', subtitleRevision: 'subtitles', packageId: 'example.language',
   packageVersion: '1', positionMs: 1000, durationMs: 10000, subtitleOffsetMs: 500,
-  subtitleOffsetRevision: 1, playbackRate: 1.25, inspectionTrigger: 'click',
+  subtitleOffsetRevision: 1, playbackRate: 1.25, inspectionTrigger: 'click', subtitleLimitations: [],
 };
 
 function fixture(count: number) {
@@ -391,7 +391,8 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
         if (mode === 'transcript' || mode === 'vocabulary-focus' || mode === 'dictionary') {
           function SourceTranscript() {
             const [vocabulary, setVocabulary] = React.useState(mode === 'dictionary');
-            return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
+            // WatchScreen owns hovered words; this harness records none, so "Hovered words" empties the view.
+            return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary} hovered={new Set()}
             open={true} onOpenChange={() => {}} onSeek={() => {}} analysis={analysis}
             onAnalysis={() => {}} onInspect={inspection => {
               window.sourceInspection = inspection;
@@ -422,6 +423,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             export { CaptureList } from './apps/client/src/features/material/CaptureList';
             export { SourceCapture } from './apps/client/src/features/material/SourceCapture';
             export { useSourcePractice } from './apps/client/src/features/material/useSourcePractice';
+            export { useCandidateMeanings } from './apps/client/src/features/material/useCandidateMeanings';
           `,
         }));
         builder.onResolve({ filter: /^(react-native(-unistyles)?|expo-router|@mlearn\/ui\/.*)$/ }, args =>
@@ -502,7 +504,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           }));
           await page.getByRole('button', { name: 'word0', exact: true }).click();
           await inspected;
-          await page.getByRole('button', { name: 'Unknown words', exact: true }).click();
+          await page.getByRole('button', { name: 'Hovered words', exact: true }).click();
           await expect(page.getByRole('button', { name: 'word0', exact: true })).toHaveCount(0);
           await page.evaluate(() => Reflect.get(window, 'sourceInspection').anchor.restoreFocus());
           await expect(page.getByRole('button', { name: 'Transcript', exact: true })).toBeFocused();

@@ -387,6 +387,7 @@ impl RuntimeExecutor {
                     Request::AnalyzeSource { .. }
                         | Request::AnalyzeTranscript { .. }
                         | Request::InspectTargets { .. }
+                        | Request::TargetSummaries { .. }
                 )
             ) {
                 self.guest.try_lock()?
@@ -525,6 +526,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::PreviewAuthoredPractice { .. }
         | Request::GraphNeighborhood { .. }
         | Request::InspectTargets { .. }
+        | Request::TargetSummaries { .. }
         | Request::ChangeClaim { .. }
         | Request::InvokePlugin { .. }
         | Request::InstallPlugin { .. }

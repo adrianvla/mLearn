@@ -76,7 +76,10 @@ export function useCollectionSelection(
       const values = await client.collectionSelections();
       if (owner.current === scope) setRetained(values);
     } catch (cause) {
-      if (owner.current === scope) setError(failure(cause, 'Your selection wasn’t changed.'));
+      // Retained selections are bounded; releasing one is the recovery the learner can take.
+      if (owner.current === scope) setError(failure(cause, retained.length
+        ? 'Your selection wasn’t changed. Release an existing selection, then try again.'
+        : 'Your selection wasn’t changed.'));
     } finally {
       if (owner.current === scope) { busy.current = false; setPending(false); }
     }

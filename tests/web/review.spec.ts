@@ -212,7 +212,7 @@ for (const playing of [false, true]) {
       await page.evaluate(() => { window.__reviewTest.hold = false; window.__reviewTest.release?.(); });
       const retry = page.getByRole('button', { name: 'Retry Review save', exact: true });
       await expect(retry).toBeEnabled();
-      await expect(page.getByText('Review write unavailable', { exact: true })).toBeVisible();
+      await expect(page.getByText('Your Review progress wasn’t saved.', { exact: true })).toBeVisible();
       await expect(page).toHaveURL(/\/review(?:\?|$)/);
       for (const width of [1080, 390]) {
         await page.setViewportSize({ width, height: 900 });
@@ -312,7 +312,7 @@ for (const playing of [false, true]) {
     // Then failure retains the activity and retry reuses the identical command.
     const retry = page.getByRole('button', { name: 'Retry Review save', exact: true });
     await expect(retry).toBeEnabled();
-    await expect(page.getByText('Review write unavailable', { exact: true })).toBeVisible();
+    await expect(page.getByText('Your Review progress wasn’t saved.', { exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/review(?:\?|$)/);
     await expect(home).toBeDisabled();
     for (const width of [1080, 390]) {
@@ -443,7 +443,7 @@ test('Adjust preserves exceptions and untested outcomes; failed saves retry iden
   await page.screenshot({ path: info.outputPath('adjust.png'), fullPage: true });
   await page.evaluate(() => { window.__reviewTest.fail = true; });
   await page.keyboard.press('4'); await page.keyboard.press('4');
-  await expect(page.getByRole('alert')).toHaveText('Review write unavailable');
+  await expect(page.getByRole('alert')).toHaveText('Your Review progress wasn’t saved.');
   await page.screenshot({ path: info.outputPath('failed-save.png'), fullPage: true });
   await page.getByRole('button', { name: 'Retry Review save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Reveal', exact: true })).toBeVisible();

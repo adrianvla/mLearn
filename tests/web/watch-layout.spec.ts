@@ -229,10 +229,10 @@ test(`focused live word card fits the ${width}px overlay when its close control 
       // This transport has no native media duration: preserve its real
       // recoverable capture failure rather than manufacturing a saved receipt.
       const captureError = vocabulary.getByRole('alert');
-      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
+      await expect(captureError).toHaveText('These words weren’t saved.');
       await page.setViewportSize({ width: 390, height: 850 });
       await expect(vocabulary).not.toHaveCSS('height', '850px');
-      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
+      await expect(captureError).toHaveText('These words weren’t saved.');
       const drawerBounds = await vocabulary.boundingBox();
       if (!drawerBounds) throw new Error('Compact vocabulary drawer is not laid out');
       expect(drawerBounds.x).toBeGreaterThanOrEqual(0);
@@ -240,7 +240,7 @@ test(`focused live word card fits the ${width}px overlay when its close control 
       await page.screenshot({ path: info.outputPath('vocabulary-compact-retained-error.png') });
       await page.setViewportSize({ width, height: 850 });
       await expect(vocabulary).toHaveCSS('height', '850px');
-      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
+      await expect(captureError).toHaveText('These words weren’t saved.');
       const sidebarBounds = await vocabulary.boundingBox();
       const synchronizationBounds = await page.getByRole('button', { name: /^Subtitle offset:/, includeHidden: true }).boundingBox();
       if (!sidebarBounds || !synchronizationBounds) throw new Error('Vocabulary synchronization is not laid out');

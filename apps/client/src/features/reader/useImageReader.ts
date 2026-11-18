@@ -14,6 +14,18 @@ const noticeOf = (notice: ReaderNotice, cause?: unknown): ImageReaderNotice => {
     return { ...notice, message: mapped?.message ?? notice.message, detail: mapped?.detail ?? null };
 };
 
+/**
+ * Reads a new spread at once. The native runtime admits one page job at a time, so a cancelled
+ * recognition can still answer `busy` until it releases; only then wait for it and read again.
+ */
+async function whenReleased<T>(running: { readonly settled: Promise<void> } | null, read: () => Promise<T>): Promise<T> {
+    try { return await read(); } catch (cause) {
+        if (!running || !(cause instanceof RuntimeError && cause.code === 'busy')) throw cause;
+        await running.settled;
+        return read();
+    }
+}
+
 export type ImageReaderPage = {
     readonly descriptor: ImagePageDescriptor;
     readonly uri: string;
@@ -135,26 +147,27 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         const previous = preparedPages.current ?? currentPages.current;
         preparedPages.current = null;
         void (async () => {
-            // The native runtime admits one page job at a time: let a recognition
-            // of the departing spread release before reading the new one, rather
-            // than reporting the transient rejection as an unshowable page.
+            // Cancel the departing spread's recognition; the new spread does not wait for it.
             const running = operation.current;
-            if (running) { running.controller.abort(); await running.settled; }
-            if (!live) return;
-            const loaded: ImageReaderPage[] = [];
-            for (const index of indices) {
-                const retained = previous.find(item => item.descriptor.pageIndex === index);
-                if (retained) loaded.push(retained);
-                else {
-                    const descriptor = await host.client.imagePage(source.id, index);
-                    const uri = await host.ocr.uri(source.id, descriptor.resourceId);
-                    const original = frozen?.resourceId === descriptor.resourceId ? frozen : null;
-                    const page = original ?? await host.client.readOcr(source.id, descriptor.resourceId);
-                    if (page && page.contentRevision !== source.contentRevision)
-                        throw new RuntimeError('protocol', 'Cached recognition belongs to a different source revision.');
-                    loaded.push({ descriptor, uri, page, batch: null, analyzing: false, analysisOffset: 0, error: '' });
+            running?.controller.abort();
+            const read = async () => {
+                const loaded: ImageReaderPage[] = [];
+                for (const index of indices) {
+                    const retained = previous.find(item => item.descriptor.pageIndex === index);
+                    if (retained) loaded.push(retained);
+                    else {
+                        const descriptor = await host.client.imagePage(source.id, index);
+                        const uri = await host.ocr.uri(source.id, descriptor.resourceId);
+                        const original = frozen?.resourceId === descriptor.resourceId ? frozen : null;
+                        const page = original ?? await host.client.readOcr(source.id, descriptor.resourceId);
+                        if (page && page.contentRevision !== source.contentRevision)
+                            throw new RuntimeError('protocol', 'Cached recognition belongs to a different source revision.');
+                        loaded.push({ descriptor, uri, page, batch: null, analyzing: false, analysisOffset: 0, error: '' });
+                    }
                 }
-            }
+                return loaded;
+            };
+            const loaded = await whenReleased(running, read);
             if (!live || scope.current !== owner) return;
             setPages(loaded);
             for (const item of loaded) {
@@ -245,15 +258,17 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         const running = operation.current;
         running?.controller.abort();
         try {
-            if (running) await running.settled;
             // Do not checkpoint a page whose original cannot be displayed.
-            const prepared: ImageReaderPage[] = [];
-            for (const target of pageSpread(index, source.totalPages ?? 0, settings.paired, settings.firstPageSingle)) {
-                const descriptor = await host.client.imagePage(source.id, target);
-                const uri = await host.ocr.uri(source.id, descriptor.resourceId);
-                const page = await host.client.readOcr(source.id, descriptor.resourceId);
-                prepared.push({ descriptor, uri, page, batch: null, analyzing: false, analysisOffset: 0, error: '' });
-            }
+            const prepared = await whenReleased(running, async () => {
+                const spread: ImageReaderPage[] = [];
+                for (const target of pageSpread(index, source.totalPages ?? 0, settings.paired, settings.firstPageSingle)) {
+                    const descriptor = await host.client.imagePage(source.id, target);
+                    const uri = await host.ocr.uri(source.id, descriptor.resourceId);
+                    const page = await host.client.readOcr(source.id, descriptor.resourceId);
+                    spread.push({ descriptor, uri, page, batch: null, analyzing: false, analysisOffset: 0, error: '' });
+                }
+                return spread;
+            });
             if (!owner || scope.current !== owner) return;
             preparedPages.current = prepared;
             const target = prepared.find(item => item.descriptor.pageIndex === index);

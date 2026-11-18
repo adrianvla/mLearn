@@ -139,6 +139,9 @@ async function start(page: Page, reviewReturn = false) {
                 capabilities: [{ id: 'reading', label: 'Reading' }] },
               knowledge: { projections: [], claim: 'untracked' },
             });
+            case 'target_summaries': return JSON.stringify({ type: 'target_summaries', packageId: request.packageId,
+              packageRevision: request.packageRevision, items: (request.targetIds as string[]).map(targetId => ({ state: 'available',
+                summary: { targetId, headword: targetId, reading: null, summary: 'Fixture meaning', presentation: null } })) });
             case 'material_eligibility': return JSON.stringify({ type: 'material_eligibility',
               items: [{ target: { packageId: 'package', targetId: 'tokyo' },
                 availability: { state: 'existing', materialId: material.id, excluded: false } }] });

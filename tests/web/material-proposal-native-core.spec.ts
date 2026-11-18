@@ -313,7 +313,7 @@ test('source proposals retain edits and atomically recover acceptance after a lo
     await installEnglish(page);
     const document = await client.openDocument(resolve('tests/fixtures/reader/continuity.txt'), 'org.mlearn.english');
     await page.goto(`/reader?id=${document.source.id}`);
-    await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+    await page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true }).click();
     await page.getByRole('button', { name: 'Inspector actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Propose Material', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Material proposals', exact: true });
@@ -388,7 +388,7 @@ test('source proposals retain edits and atomically recover acceptance after a lo
     const result = JSON.parse((await (await returned).json()).value);
     expect(result).toMatchObject({ type: 'document_material_source', anchor: pending[0].content.source });
     await expect(dialog).toBeHidden();
-    const returnedWord = page.getByRole('button', { name: 'Children: untracked', exact: true });
+    const returnedWord = page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true });
     await expect(returnedWord).toBeVisible();
     await expect(returnedWord.locator('[data-source-start]')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
     await page.screenshot({ path: info.outputPath('proposal-source-return-phone.png') });
@@ -481,7 +481,10 @@ test('generation cancellation bypasses a held admission and retained retry expos
     await expect(dialog.getByTestId('material-generation-report').getByText('complete', { exact: true })).toBeVisible();
     await dialog.getByRole('button', { name: 'Collect generated proposals', exact: true }).click();
     await expect(dialog.getByTestId('material-generation-report')).toContainText('1 of up to 4 proposals retained');
-    await expect(dialog.getByTestId('material-generation-report').getByRole('alert')).toContainText('Candidate 2');
+    const report = dialog.getByTestId('material-generation-report');
+    await expect(report.getByRole('alert')).toHaveText('Some proposals couldn’t be generated.');
+    await report.getByRole('button', { name: 'Details', exact: true }).click();
+    await expect(report).toContainText('Candidate 2');
     const generated = (await client.materialGenerations()).items.find(item => item.generation.retryOf === cancelled.generation.id);
     if (!generated) throw new Error('Native generation retry is not retained');
     expect(generated.proposalIds).toHaveLength(1);

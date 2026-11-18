@@ -21,7 +21,7 @@ export function FailureNotice({ message, detail, tone = 'content', children, tes
     <Text tone={tone} accessibilityRole="alert">{message}</Text>
     {children || detail ? <View style={styles.actions}>
       {children}
-      {detail ? <Button label="Details" variant="disclosure" size="compact" accessibilityState={{ expanded: open }}
+      {detail ? <Button label="Details" variant="disclosure" size="compact" surface={tone} accessibilityState={{ expanded: open }}
         onPress={() => setOpen(value => !value)} /> : null}
     </View> : null}
     {open && detail ? <Text tone={tone} variant="detail" muted selectable>{detail}</Text> : null}

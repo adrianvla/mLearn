@@ -173,7 +173,7 @@ test('Material collections preserve exact counts and native order through paging
     };
     await page.route(`${backend.url}/invoke`, failWindow);
     await next.click();
-    await expect(page.getByRole('alert')).toHaveText('Collection window unavailable');
+    await expect(page.getByRole('alert')).toHaveText('This Material couldn’t be opened.');
     await expect(phrase).toHaveValue('entry-47');
     await page.unroute(`${backend.url}/invoke`, failWindow);
     await page.getByRole('button', { name: 'Retry opening Material', exact: true }).click();

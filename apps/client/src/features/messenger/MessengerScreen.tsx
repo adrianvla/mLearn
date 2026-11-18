@@ -15,6 +15,7 @@ import { KeyboardAvoidingView } from '@mlearn/ui/keyboard-avoiding-view';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { useDeveloperMode } from '../../bootstrap/developerMode';
 import { AnnotatedText } from '../annotated-text';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { Inspector, type Inspection } from '../inspector';
@@ -60,6 +61,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
   readonly speech?: SpeechHost;
 }) {
   const [calling, setCalling] = useState(false);
+  const [developerMode] = useDeveloperMode();
   const messenger = useMessenger(client, initialId, focusSequence);
   const actions = { ...messenger, client };
   const router = useRouter();
@@ -271,7 +273,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
       <View style={[styles.tools, !toolsOpen && styles.closedTools]}>
         <Row>
         <ProviderDialog client={client} />
-        <RuntimeTrace key={messenger.id} client={client} generationId={selectedTrace} openRevision={traceOpenRevision} />
+        {developerMode ? <RuntimeTrace key={messenger.id} client={client} generationId={selectedTrace} openRevision={traceOpenRevision} /> : null}
         {chat?.kind === 'thread' ? <Button label="Discard Thread" variant="quiet" size="compact"
           disabled={messenger.busy || active} onPress={discard} /> : null}
         {chat?.kind === 'thread' ? <IntegrateDialog client={client} thread={chat} messages={messenger.messages}
@@ -357,7 +359,7 @@ export function MessengerWorkspace({ client, initialId = '', focusMessageId, foc
                 <MessageActions key={`${message.id}:${message.revision}`} actions={actions} message={message} conversation={chat}
                   packageVersion={messenger.analysis?.packageVersion ?? null}
                   onReply={() => messenger.changeDraft(messenger.draft?.text ?? '', { id: message.id, revision: message.revision })}
-                  onTrace={() => { setToolsOpen(true); setTraceId(message.generationId); setTraceOpenRevision(value => value + 1); }} /></Row>
+                  onTrace={developerMode ? () => { setToolsOpen(true); setTraceId(message.generationId); setTraceOpenRevision(value => value + 1); } : undefined} /></Row>
               {messenger.generation?.assistantMessageId === message.id && messenger.generation.error
                 ? <FailureNotice message="This reply couldn’t be generated." detail={messenger.generation.error} /> : null}
             </View>;

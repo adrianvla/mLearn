@@ -22,7 +22,7 @@ const sourceWindow: SourceWindow = {
   source: { id: 'source', title: 'Source', mediaPath: 'fixture.mp4', mediaRevision: 'media',
     subtitlePath: 'fixture.srt', subtitleRevision: 'subtitles', packageId: 'package', packageVersion: '1',
     positionMs: 1000, durationMs: 10_000, subtitleOffsetMs: 0, subtitleOffsetRevision: 0,
-    playbackRate: 1, inspectionTrigger: 'click' },
+    playbackRate: 1, inspectionTrigger: 'click', subtitleLimitations: [] },
   cues: [], totalCues: 0,
 };
 declare global {
@@ -152,7 +152,7 @@ test('failed preview retries in the same editor without losing authored fields',
   await page.evaluate(() => { window.__materialTest.failPreview = true; });
   const preview = page.getByRole('button', { name: 'Preview preview.gif', exact: true });
   await preview.click();
-  await expect(page.getByRole('alert')).toHaveText('Preview unavailable');
+  await expect(page.getByRole('alert')).toHaveText('This attachment couldn’t be previewed.');
   await page.evaluate(() => { window.__materialTest.failPreview = false; });
   await preview.click();
   const image = page.getByRole('img', { name: 'preview.gif', exact: true });
@@ -211,7 +211,7 @@ test('failed opening retries that record without discarding the existing draft o
   await page.evaluate(() => { window.__materialTest.failOpen = true; });
   await page.getByRole('button', { name: 'Next Material', exact: true }).click();
   await page.getByRole('button', { name: 'Discard', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Open unavailable');
+  await expect(page.getByRole('alert')).toHaveText('This Material couldn’t be opened.');
   await expect(page.getByTestId('material-notes')).toHaveValue('Unsaved notes');
   await expect(page.getByTestId('material-card-material-0')).toBeAttached();
   await expect(page.getByRole('button', { name: 'Retry Material list', exact: true })).toHaveCount(0);
@@ -229,7 +229,7 @@ test('editor source retry is beside its action and preserves fields until real n
   await page.getByTestId('material-notes').fill('Keep these notes');
   await page.evaluate(() => { window.__materialTest.failReturn = true; });
   await page.getByRole('button', { name: 'Return to source', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Source unavailable');
+  await expect(page.getByRole('alert')).toHaveText('The source for this Material couldn’t be reopened.');
   await expect(page.getByTestId('material-notes')).toHaveValue('Keep these notes');
   const retry = page.getByRole('button', { name: 'Retry returning to source', exact: true });
   const retryBox = await retry.boundingBox();
@@ -254,7 +254,7 @@ test('list recovery preserves an open draft and repeats only the list request', 
   await page.getByRole('menuitem', { name: 'Knowledge', exact: true }).click();
   await page.evaluate(() => { window.__materialTest.failList = true; });
   await page.getByRole('button', { name: 'Material', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('List unavailable');
+  await expect(page.getByRole('alert')).toHaveText('Your Material list couldn’t be loaded.');
   await expect(page.getByTestId('material-card-material-1')).toBeAttached();
   await page.getByRole('button', { name: 'Retry Material list', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -337,7 +337,7 @@ test('a long Material label keeps switching controls compact and keyboard access
 
 test('direct-route open failure leaves the list available and retries the selected record', async ({ page }) => {
   await start(page, '?id=material-1', true);
-  await expect(page.getByRole('alert')).toHaveText('Open unavailable');
+  await expect(page.getByRole('alert')).toHaveText('This Material couldn’t be opened.');
   await expect(page.getByRole('button', { name: 'Edit First', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Retry opening Material', exact: true }).click();
   await expect(page.getByTestId('material-phrase')).toHaveValue('Second');
@@ -351,7 +351,7 @@ test('list source retry repeats the initiating record rather than reloading the 
   await start(page);
   await page.evaluate(() => { window.__materialTest.failReturn = true; });
   await page.getByRole('button', { name: 'Return to source: Second', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Source unavailable');
+  await expect(page.getByRole('alert')).toHaveText('The source for this Material couldn’t be reopened.');
   const navigated = page.waitForURL(url => url.pathname === '/watch');
   await page.getByRole('button', { name: 'Retry returning to source', exact: true }).click();
   await navigated;

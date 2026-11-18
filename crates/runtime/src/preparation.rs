@@ -496,7 +496,41 @@ impl Runtime {
                 self.language_work(
                     &package_id,
                     LanguageAction::Summaries {
-                        source,
+                        source: Some(source),
+                        targets: target_ids,
+                    },
+                    cancellation,
+                )
+            }
+            Request::TargetSummaries {
+                package_id,
+                package_revision,
+                target_ids,
+            } => {
+                if target_ids.is_empty()
+                    || target_ids.len() > 6
+                    || target_ids.iter().any(|id| id.is_empty() || id.len() > 512)
+                    || target_ids
+                        .iter()
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != target_ids.len()
+                {
+                    return Err(Failure::Operation(
+                        "Dictionary batch requires one to six distinct targets".into(),
+                    ));
+                }
+                let package = self
+                    .installed
+                    .get(&package_id)
+                    .ok_or_else(|| Failure::Operation("Language package unavailable".into()))?;
+                if package.revision()? != package_revision {
+                    return Err(Failure::Operation("Language package changed".into()));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::Summaries {
+                        source: None,
                         targets: target_ids,
                     },
                     cancellation,

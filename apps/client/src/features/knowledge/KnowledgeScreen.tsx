@@ -17,6 +17,10 @@ import { ActivityNavigation } from '../navigation';
 import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { failure, type Failure } from '../failure';
 
+const preparationLabel: Record<CollectionPreparationStatus['phase'], string> = {
+  preparing: 'Preparing words', cancelling: 'Stopping', succeeded: 'Words ready', cancelled: 'Preparation stopped', failed: 'Preparation failed',
+};
+
 export function KnowledgeScreen() {
   const host = useRuntime();
   const router = useRouter();
@@ -164,6 +168,8 @@ export function KnowledgeScreen() {
     try {
       const status = cancel ? await host.client.cancelCollectionPreparation(command.commandId)
         : await host.client.collectionPreparationStatus(command.commandId);
+      // A progress read that lands after the preparation itself returned is stale.
+      if (!cancel && preparing.current !== command) return;
       if (scope && owner.current === scope) {
         setPreparation(status);
         if (status?.phase === 'succeeded') { setAfter(null); setReload(value => value + 1); }
@@ -174,6 +180,12 @@ export function KnowledgeScreen() {
   }
   const capabilityLabel = description?.capabilities.find(item => item.id === description.annotationCapability)?.label;
   const activePreparation = preparation?.phase === 'preparing' || preparation?.phase === 'cancelling';
+  // Preparation runs as one long native command; its progress is read while it runs.
+  useEffect(() => {
+    if (!activePreparation) return;
+    const timer = setTimeout(() => void preparationControl(false), 1000);
+    return () => clearTimeout(timer);
+  }, [preparation]);
   const languageControl = <Select label="Knowledge language" value={packageId} size="compact"
     options={packages.map(item => ({ value: item.id, label: item.displayName ?? item.id }))}
     onValueChange={value => {
@@ -252,17 +264,19 @@ export function KnowledgeScreen() {
         {error ? <View style={styles.notice}><FailureNotice message={error.message} detail={error.detail}>
           <Button label="Retry Knowledge" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice></View> : null}
         {currentResult?.state === 'unavailable' ? <View style={styles.notice}>
-          <Text>{currentResult.message}</Text>
+          {description?.catalog ? <Text>Words in this language need to be prepared before you can browse them.</Text>
+            : description ? <FailureNotice message="Knowledge isn’t available for this language." detail={currentResult.message} /> : null}
           {description?.catalog ? <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId}
             onPress={() => void prepare()} /> : null}
         </View> : null}
         {currentResult?.state === 'preparing' ? <View style={styles.notice}>
-          <Text>Collection preparation required · {currentResult.processed} of {currentResult.total}</Text>
+          <Text>Words need to be prepared · {currentResult.processed} of {currentResult.total}</Text>
           <Button label="Prepare Knowledge collection" disabled={activePreparation || !packageId} onPress={() => void prepare()} />
         </View> : null}
         {preparation?.command.packageId === packageId && !page ? <View style={styles.notice}>
-          <Text>{preparation.phase} · {preparation.processed}{preparation.total === null ? '' : ` of ${preparation.total}`}</Text>
-          {preparation.message ? <Text accessibilityRole="alert">{preparation.message}</Text> : null}
+          <Text accessibilityLiveRegion="polite">{preparationLabel[preparation.phase]} · {preparation.processed}{preparation.total === null ? '' : ` of ${preparation.total}`}</Text>
+          {preparation.message ? <FailureNotice message={preparation.phase === 'failed' ? 'Words couldn’t be prepared.' : 'Preparation stopped early.'}
+            detail={preparation.message} /> : null}
           {activePreparation ? <Row>
             <Button label="Refresh preparation status" variant="secondary" onPress={() => void preparationControl(false)} />
             <Button label="Cancel preparation" variant="quiet" onPress={() => void preparationControl(true)} />

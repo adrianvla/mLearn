@@ -94,6 +94,10 @@ test('M01 Watch to Inspector to Knowledge with exact resume and recoverable fail
     const alert = page.getByRole('alert').first();
     await expect(alert).toBeVisible({ timeout: 30_000 });
     expect(await alert.innerText()).not.toMatch(/Error|errno|\.webm|No such file|os error/);
+    // The Details disclosure on the dark media surface must be legible (light text).
+    const detailsColor = await page.getByRole('button', { name: 'Details' }).first().evaluate(node => getComputedStyle(node.querySelector('div[dir], span, div') ?? node).color);
+    const [red, green, blue] = (detailsColor.match(/\d+/g) ?? ['0', '0', '0']).map(Number);
+    expect((0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255).toBeGreaterThan(0.6);
     await page.screenshot({ path: info.outputPath('m01-missing-file.png') });
     await rename(`${video}.moved`, video);
     await page.getByRole('button', { name: /^Retry/ }).first().click();

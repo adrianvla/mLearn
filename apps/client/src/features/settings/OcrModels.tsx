@@ -10,7 +10,7 @@ import { FailureNotice } from '@mlearn/ui/failure-notice';
 import { failure, type Failure } from '../failure';
 import { Progress } from '@mlearn/ui/progress';
 import { Row, Stack, SettingRow } from '@mlearn/ui/layout';
-import { useDeveloperMode } from './developerMode';
+import { useDeveloperMode } from '../../bootstrap/developerMode';
 
 const phases = {
     downloading: 'Downloading',
@@ -23,6 +23,9 @@ const phases = {
 type Models = NonNullable<Extract<ReturnType<typeof useRuntime>, { available: true }>['ocrModels']>;
 export function OcrModels({ models }: { readonly models: Models }) {
     const [developerMode] = useDeveloperMode();
+    // Catalog labels name the recognition engines; that is diagnostic detail outside Developer mode.
+    const name = (model: { readonly label: string }, index: number) => developerMode ? model.label
+        : inventory && inventory.items.length > 1 ? `Text recognition model ${index + 1}` : 'Text recognition model';
     const [focused, setFocused] = useState(false);
     useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
     const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -105,7 +108,7 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 onPress={() => { setError(null); setReload(value => value + 1); }} />
         </FailureNotice> : null}
         {inventory && !inventory.items.length ? <Text>No text recognition models are available on this device.</Text> : null}
-        {inventory?.items.map(model => <SettingRow key={model.id} label={model.label} description={<>
+        {inventory?.items.map((model, index) => <SettingRow key={model.id} label={name(model, index)} description={<>
             {developerMode ? <Text variant="detail" muted selectable>{model.target} · {model.bytes} bytes</Text> : null}
             <Text variant="caption" tone={model.installed ? 'success' : 'content'}>
                 {model.installed ? 'Installed' : 'Not installed'}
@@ -122,19 +125,19 @@ export function OcrModels({ models }: { readonly models: Models }) {
             <Row>
                 {!model.installed || model.installedRevision !== model.revision ? <Button
                     label={model.installed ? 'Update model' : 'Install model'}
-                    accessibilityLabel={`${model.installed ? 'Update' : 'Install'} ${model.label}`} variant="secondary"
+                    accessibilityLabel={`${model.installed ? 'Update' : 'Install'} ${name(model, index)}`} variant="secondary"
                     busy={pending?.id === model.id && pending.kind === 'install'} disabled={pending !== null || active}
                     onPress={() => void run(model.id, 'install', () => models.install(model.id))} /> : null}
                 {model.installed ? <>
-                    <Button label="Test model" accessibilityLabel={`Test ${model.label}`} variant="secondary"
+                    <Button label="Test model" accessibilityLabel={`Test ${name(model, index)}`} variant="secondary"
                         busy={pending?.id === model.id && pending.kind === 'test'} disabled={pending !== null || active}
                         onPress={() => void run(model.id, 'test', async () => {
                             const value = await models.test(model.id);
                             if (alive.current) setResult({ id: model.id, value });
                         })} />
-                    <Dialog title="Remove OCR model" description={`Remove ${model.label} from this device? Saved sources and recognized text are kept.`}
+                    <Dialog title="Remove OCR model" description={`Remove ${name(model, index)} from this device? Saved sources and recognized text are kept.`}
                         open={removing === model.id} onOpenChange={open => setRemoving(open ? model.id : null)}
-                        trigger={<Button label="Remove model" accessibilityLabel={`Remove ${model.label}`} variant="quiet" disabled={pending !== null || active} />}>
+                        trigger={<Button label="Remove model" accessibilityLabel={`Remove ${name(model, index)}`} variant="quiet" disabled={pending !== null || active} />}>
                         <Button label="Remove model resources" onPress={() => {
                             setRemoving(null); void run(model.id, 'remove', () => models.remove(model.id));
                         }} />
@@ -142,7 +145,10 @@ export function OcrModels({ models }: { readonly models: Models }) {
                 </> : null}
             </Row>
         </SettingRow>)}
-        {status ? <SettingRow label={inventory?.items.find(model => model.id === status.command.pluginId)?.label ?? 'Text recognition model'}
+        {status ? <SettingRow label={(() => {
+            const index = inventory?.items.findIndex(model => model.id === status.command.pluginId) ?? -1;
+            return inventory && index >= 0 ? name(inventory.items[index], index) : 'Text recognition model';
+        })()}
             description={<>
                 <Text variant="caption" accessibilityLiveRegion="polite">{phases[status.phase]}</Text>
                 {active ? <Progress label="Model installation" value={status.totalBytes && status.totalBytes > 0

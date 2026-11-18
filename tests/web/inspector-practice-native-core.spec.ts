@@ -26,7 +26,7 @@ test('Inspector Practice retries its exact canonical admission with honest assis
     for (const theme of builtInThemes) {
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.reload();
-      await page.getByRole('button', { name: 'Children: untracked', exact: true }).click();
+      await page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true }).click();
       await inspector.getByRole('button', { name: /^Knowledge:/ }).click();
       await page.getByRole('button', { name: 'Meaning', exact: true }).click();
       await expect(page.getByRole('button', { name: 'Practice Meaning', exact: true })).toBeVisible();
@@ -89,7 +89,7 @@ test('Inspector Practice retries its exact canonical admission with honest assis
     expect((await client.reviewSession(session.id)).encounter).toEqual(session.encounter);
     await page.getByRole('button', { name: 'Return to source', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/reader\\?.*reviewSessionId=${session.id}`));
-    await expect(page.getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
+    await expect(page.getByTestId('reader-document-ready').getByRole('button', { name: 'Children: untracked', exact: true })).toBeVisible();
     await page.goto(`/review?sessionId=${session.id}`);
     await page.getByRole('button', { name: 'Reveal', exact: true }).click();
     await page.getByRole('button', { name: 'Fluent', exact: true }).click();
@@ -125,7 +125,7 @@ test('enlarged source Inspector keeps focused Practice readable in short viewpor
       for (const width of [390, 1080]) {
         await page.setViewportSize({ width, height: 560 });
         await page.goto(`/reader?id=${document.source.id}`);
-        const word = page.getByRole('button', { name: 'zygomorphous: untracked', exact: true });
+        const word = page.getByTestId('reader-document-ready').getByRole('button', { name: 'zygomorphous: untracked', exact: true });
         await word.click();
         const inspector = page.getByTestId('inspector-panel');
         const knowledge = inspector.getByRole('button', { name: /^Knowledge:/ });

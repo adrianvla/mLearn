@@ -422,6 +422,8 @@ test('Inspector explanation admits the actual selected message and source contex
 
 test('Runtime Inspector shows the saved native request inputs and response without issuing another generation', async ({ page, nativeCore }, info) => {
   test.setTimeout(60_000);
+  // Execution inspection is a developer-mode surface (SPEC P11).
+  await page.addInitScript(() => localStorage.setItem('mlearn.developerMode', 'true'));
   await openNativeConversation(page, nativeCore);
   const composer = page.getByRole('textbox', { name: 'Message', exact: true });
   await composer.fill('Inspect this actual request.');

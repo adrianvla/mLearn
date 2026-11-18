@@ -34,7 +34,7 @@ export function ReaderScreen() {
     if (!host.available) return <AppShell header={<Row>
         <Button label="Home" variant="quiet" onPress={() => router.dismissTo('/')} />
         <Text variant="heading" accessibilityRole="header">Reader</Text>
-    </Row>}><Text accessibilityRole="alert">Reading isn’t available here.</Text></AppShell>;
+    </Row>}><Text accessibilityRole="alert">{host.reason}</Text></AppShell>;
     return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
         materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
         proposalId={typeof params.proposalId === 'string' ? params.proposalId : undefined}
@@ -59,6 +59,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     const { theme } = useUnistyles();
     const insets = useSafeAreaInsets();
     const wide = viewport.width >= 900 * theme.textScale;
+    const roomy = viewport.width >= 1200 * theme.textScale;
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [focused, setFocused] = useState(true);
     const [departing, setDeparting] = useState(false);
@@ -189,7 +190,7 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     // While the shown spread is being recognized the strip reports only that
     // progress; a page notice returns once recognition settles.
     const strip = reader.error ? null
-        : navigationFailed || reader.saveError ? { ...notices.saveFailed, onAction: () => void reader.persist().catch(() => setNavigationFailed(true)) }
+        : navigationFailed || reader.saveError ? { ...notices.saveFailed, onAction: () => void reader.persist().then(() => setNavigationFailed(false), () => setNavigationFailed(true)) }
         : imageMode && imageReader.notice && imageReader.recognition !== 'working' ? { ...imageReader.notice, onAction: imageReader.retry }
         : !imageMode && reader.analysisError ? { ...notices.lookupFailed, onAction: reader.retryAnalysis }
         : null;
@@ -244,12 +245,13 @@ function ReaderWorkspace({ client, id, materialId, proposalId, reviewSessionId, 
     </View> : null;
     // An image collection has no title of its own (only the picked folder's
     // name), so it is named by what it is.
-    const title = !source ? '' : source.format === 'images'
-        ? `Images · ${source.totalPages} ${source.totalPages === 1 ? 'page' : 'pages'}` : source.title;
+    // A collection keeps the name it was opened with; only an unnamed one is described by its pages.
+    const title = !source ? '' : source.title.trim() || (source.format === 'images'
+        ? `Images · ${source.totalPages} ${source.totalPages === 1 ? 'page' : 'pages'}` : '');
     const statusPosition = imageMode ? position
         : currentBlock ? currentBlock.image ? currentBlock.image.alt || 'Image' : currentBlock.text || null : null;
     return <View style={styles.screen(insets.top, insets.bottom)}>
-        <ReaderToolbar title={title} position={position} imageMode={imageMode} wide={wide} optionsRef={optionsToggle}
+        <ReaderToolbar title={title} position={position} imageMode={imageMode} pageImages={source?.format !== 'text'} wide={wide} roomy={roomy} optionsRef={optionsToggle}
             leadingInset={host.available ? Math.max(0, (host.windowControlsWidth ?? 0) - theme.spacing.small) : 0}
             railOpen={railOpen} panelOpen={panel === 'vocabulary'} appearanceOpen={panel === 'appearance'} optionsOpen={panel === 'options'}
             disabled={!source || reader.pending} homeDisabled={departing}

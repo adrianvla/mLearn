@@ -35,7 +35,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
   const [reload, setReload] = useState(0);
   const [selecting, setSelecting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [notice, setNotice] = useState<'empty' | 'cancelled' | null>(null);
+  const [notice, setNotice] = useState<'empty' | 'cancelled' | 'unprepared' | null>(null);
   const [assessmentDetails, setAssessmentDetails] = useState(false);
   const [scopeOptions, setScopeOptions] = useState(false);
   const owner = useRef<object | null>(null);
@@ -87,7 +87,14 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
       if (owner.current !== scope) return;
       if (controller.signal.aborted && cause instanceof RuntimeError && cause.code === 'cancelled')
         setNotice('cancelled');
-      else setError(failure(cause, 'Words for Word Sync couldn’t be selected.'));
+      else {
+        // Selection reads the prepared Knowledge catalog; retrying cannot help until it is prepared.
+        const catalog = await client.collection({ packageId, surface: 'knowledge', filter: { kind: 'all', filters: [] }, sort: 'default', after: null })
+          .catch(() => null);
+        if (owner.current !== scope) return;
+        if (catalog && catalog.state !== 'ready') setNotice('unprepared');
+        else setError(failure(cause, 'Words for Word Sync couldn’t be selected.'));
+      }
     } finally {
       if (operation.current === controller) operation.current = null;
       flight.current = false;
@@ -126,7 +133,7 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
     {metadataError ? <FailureNotice message={metadataError.message} detail={metadataError.detail}>
       <Button label="Retry Word Sync options" variant="secondary" onPress={() => setReload(value => value + 1)} /></FailureNotice> : null}
     {!loading && !metadataError && !capabilities.length
-      ? <Text>This package does not declare supported Word Sync probes.</Text> : null}
+      ? <Text>Word Sync isn’t available for this language.</Text> : null}
     <SettingRow label="Skill to check">
     <Select label="Word Sync capability" value={capability} disabled={loading} size="compact"
       options={capabilities.map(item => ({ value: item.id, label: item.label }))}
@@ -146,6 +153,10 @@ export function CalibrationSetup({ client, initialPackageId, disabled, saving = 
     <Button label="Start Word Sync" disabled={loading || !valid || !!metadataError} onPress={() => void select()} />
     {notice === 'empty' ? <Text testID="calibration-empty" accessibilityLiveRegion="polite">No unmeasured targets match this scope.</Text> : null}
     {notice === 'cancelled' ? <Text testID="calibration-cancelled" accessibilityLiveRegion="polite">Selection cancelled.</Text> : null}
+    {notice === 'unprepared' ? <Stack>
+      <Text testID="calibration-unprepared" accessibilityLiveRegion="polite">Words in this language need to be prepared before Word Sync can choose from them.</Text>
+      <Button label="Prepare words" variant="secondary" onPress={() => onOpenKnowledge(packageId)} />
+    </Stack> : null}
     {error ? <FailureNotice message={error.message} detail={error.detail}>
       <Button label="Retry selection" variant="secondary" disabled={loading || !valid} onPress={() => void select()} /></FailureNotice> : null}
     <Button label="How Word Sync is assessed" variant="disclosure" size="compact"

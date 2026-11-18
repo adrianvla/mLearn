@@ -2,8 +2,8 @@
 //! Candidates are lexical senses, not a claim of contextual disambiguation.
 use mlearn_core::{AnalyzedToken, Capability, LexicalEntry};
 use mlearn_language_sdk::{
-    serde_json::{self, json, Value},
     Call,
+    serde_json::{self, Value, json},
 };
 use std::collections::BTreeMap;
 use unicode_segmentation::UnicodeSegmentation;
@@ -223,6 +223,20 @@ mod tests {
             vec!["wn30:v:0003:walk"]
         );
         let text = "👩🏽‍💻 café children";
+        let ranked = |k: &str| -> Result<Option<Value>, String> {
+            Ok((k == "lemma/walk").then(|| {
+                json!([
+                    "wn30:v:01904930:walk",
+                    "wn30:v:01113473:walk",
+                    "wn30:n:00283568:walk"
+                ])
+            }))
+        };
+        assert_eq!(
+            candidates("walked", &ranked).unwrap(),
+            vec!["wn30:v:01904930:walk", "wn30:v:01113473:walk"],
+            "the most frequent sense stays first"
+        );
         for (offset, word) in text.unicode_word_indices() {
             assert_eq!(&text[offset..offset + word.len()], word);
         }

@@ -209,6 +209,7 @@ fn main() {
         SubtitleDirection::decl(),
         OccurrenceKnowledge::decl(),
         InspectionTrigger::decl(),
+        SubtitleLimitation::decl(),
         SourceRecord::decl(),
         Cue::decl(),
         SourceWindow::decl(),

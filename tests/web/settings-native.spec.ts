@@ -78,7 +78,12 @@ test('package errors recover, cancelled downloads retry and installed data survi
   const failure = JSON.parse((await (await rejected).json()).value);
   expect(failure.type).toBe('error');
   expect(typeof failure.message).toBe('string');
-  await expect(page.getByRole('alert').filter({ hasText: failure.message })).toBeVisible();
+  // The native message is detail: the alert stays plain and Details reveals it.
+  const alert = page.getByRole('alert').first();
+  await expect(alert).toBeVisible();
+  await expect(alert).not.toContainText(failure.message);
+  await page.getByRole('button', { name: 'Details', exact: true }).first().click();
+  await expect(page.getByText(failure.message, { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: info.outputPath('package-catalog-error.png') });
 
   nativeCore.catalogMode('complete');

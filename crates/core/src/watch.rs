@@ -19,7 +19,16 @@ pub enum InspectionTrigger {
     Delayed,
     Modifier,
 }
-model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger });
+/// What an attached subtitle file carries that the product does not reproduce; only its text and timing are used.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum SubtitleLimitation {
+    Styling,
+    Positioning,
+    Effects,
+}
+model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default)] subtitle_offset_revision:u32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger,#[serde(default)] subtitle_limitations:Vec<SubtitleLimitation> });
 model!(Cue {
     index: u32,
     start_ms: u32,

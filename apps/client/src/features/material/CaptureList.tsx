@@ -24,7 +24,7 @@ export type CaptureCandidate = {
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, renderMenu, captureAllLabel = 'Capture view' }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header, disabled = false, renderMenu, captureAllLabel = 'Save all for review' }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
@@ -236,7 +236,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
         </Row>
         {!actions && result?.state === 'saved' ? <Text tone={tone} accessibilityLiveRegion="polite" testID="capture-receipt">
           {cards ? result.reused ? 'Saved earlier' : 'Saved for review' : `${result.reused ? 'Reused' : 'Saved'} · ${result.materialId} · revision ${result.committedRevision}`}</Text> : null}
-        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <Text tone={tone} accessibilityRole="alert">{result.message}</Text> : null}
+        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <FailureNotice tone={tone} message="This word wasn’t saved." detail={result.message} /> : null}
           <Button label={`Retry capture ${candidate.content.phrase}`} variant={primary} disabled={disabled || pending} onPress={() => void capture([item])} /></> : null}
         {result?.state === 'duplicate' ? <>
           <Text tone={tone}>Choose existing Material or keep this context distinct.</Text>
@@ -262,6 +262,7 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: wide ? theme.colors.surface : undefined,
     paddingHorizontal: wide ? theme.spacing.medium : 0,
     paddingBottom: wide ? theme.spacing.medium : 0,
+    paddingTop: wide ? theme.spacing.medium : 0,
     marginHorizontal: wide ? -theme.spacing.medium : 0,
     marginTop: wide ? -theme.spacing.medium : 0,
     marginBottom: wide ? theme.spacing.medium + theme.spacing.tiny : 0,

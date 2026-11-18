@@ -25,13 +25,16 @@ const triggers: readonly { value: InspectionMode; label: string }[] = [
 ];
 const onOff = (value: boolean) => value ? 'On' : 'Off';
 
-export function ReaderToolbar({ title, position, imageMode, wide, optionsRef, leadingInset, railOpen, panelOpen, appearanceOpen, optionsOpen,
+export function ReaderToolbar({ title, position, imageMode, pageImages, wide, roomy, optionsRef, leadingInset, railOpen, panelOpen, appearanceOpen, optionsOpen,
     disabled, homeDisabled, writingMode, imageReader, previousDisabled, nextDisabled, onRail, onHome, onWritingMode,
     onAppearance, onOptions, onPanel, onBeforeLayout, onPrevious, onNext }: {
     readonly title: string;
     readonly position: string | null;
     readonly imageMode: boolean;
     readonly wide: boolean;
+    readonly pageImages: boolean;
+    /** Wide enough for labelled Home beside the full image page-layout controls. */
+    readonly roomy: boolean;
     readonly optionsRef: RefObject<View | null>;
     readonly leadingInset: number;
     readonly railOpen: boolean;
@@ -70,19 +73,21 @@ export function ReaderToolbar({ title, position, imageMode, wide, optionsRef, le
         onValueChange={value => {
             if (value === 'auto' || value === 'horizontal' || value === 'vertical') onWritingMode(value);
         }} /> : null;
-    const appearance = !imageMode ? <Button label="Themes & Settings" variant="secondary" size="compact" disabled={disabled}
+    // Narrow windows show these two menus as icons so they stay in reach beside the page turns.
+    const appearance = !imageMode ? <Button label="Themes & Settings" icon={wide ? undefined : 'palette'} iconOnly={!wide} variant="secondary" size="compact" disabled={disabled}
         accessibilityState={{ expanded: appearanceOpen }} onPress={onAppearance} /> : null;
-    const options = <Button ref={optionsRef} label="View options" icon={imageMode ? 'settings' : undefined} iconOnly={imageMode}
+    const options = <Button ref={optionsRef} label="View options" icon={imageMode || !wide ? 'settings' : undefined} iconOnly={imageMode || !wide}
         variant="secondary" size="compact" disabled={disabled} accessibilityState={{ expanded: optionsOpen }} onPress={onOptions} />;
-    const layout = imageMode || wide ? <ImageLayoutControls reader={imageReader} onBeforeAction={onBeforeLayout} /> : null;
-    // One row at every width. Narrow windows keep Home, title and page turns
-    // fixed and scroll the remaining controls; the page position stays only in
-    // the status strip there, so it is never shown twice side by side.
-    return <View testID="reader-toolbar" style={styles.toolbar}>
+    // Page layout acts on page images; a plain-text source has none, so its toolbar keeps room for the title.
+    const layout = imageMode || wide && pageImages ? <ImageLayoutControls reader={imageReader} onBeforeAction={onBeforeLayout} /> : null;
+    // Narrow windows keep Home, title, page turns and Vocabulary in the first row and give the
+    // remaining controls one full-width scrolling row, so nothing overlaps or wraps unpredictably.
+    // The page position stays only in the status strip there, so it is never shown twice.
+    return <View testID="reader-toolbar" style={[styles.toolbar, !wide && styles.narrowToolbar]}>
         <View style={[styles.leading, !wide && styles.narrowLeading, { paddingLeft: leadingInset }]}>
             {wide ? <Button label={railOpen ? 'Hide page rail' : 'Show page rail'} icon="sidebarLeft" iconOnly size="compact"
                 variant="secondary" accessibilityState={{ expanded: railOpen }} onPress={onRail} /> : null}
-            <Button label="Home" icon="arrowLeft" iconOnly={!wide} size="compact" variant="secondary" disabled={homeDisabled} onPress={onHome} />
+            <Button label="Home" icon="arrowLeft" iconOnly={!roomy} size="compact" variant="secondary" disabled={homeDisabled} onPress={onHome} />
             <View style={[styles.title, !wide && styles.narrowTitle]}><Text variant="navigation" muted numberOfLines={1} accessibilityRole="header"
                 testID="reader-title">{title}</Text></View>
             {position && wide ? <Text variant="detail" muted testID="reader-toolbar-position">{position}</Text> : null}
@@ -294,9 +299,10 @@ const styles = StyleSheet.create(theme => ({
     toolbar: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
         paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small,
         borderBottomWidth: 1, borderColor: theme.colors.border, _web: { userSelect: 'none' } },
-    narrowActions: { flexGrow: 1, flexBasis: 0, minWidth: 44 },
+    narrowToolbar: { flexWrap: 'wrap', rowGap: theme.spacing.small },
+    narrowActions: { flexGrow: 1, flexBasis: '100%', minWidth: 0 },
     leading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small, flexShrink: 1, flexGrow: 1, minWidth: 0 },
-    narrowLeading: { flexGrow: 0, maxWidth: '70%' },
+    narrowLeading: { flexBasis: '100%' },
     title: { flexShrink: 1, minWidth: 0 },
     narrowTitle: { minWidth: 48 },
     actionsViewport: { flexGrow: 0, flexShrink: 1 },

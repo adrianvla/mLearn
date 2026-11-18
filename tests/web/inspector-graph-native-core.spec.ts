@@ -23,7 +23,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     await expect(page.getByRole('button', { name: /^Update .*English/ })).toBeVisible();
     const document = await client.openDocument(resolve('tests/fixtures/reader/graph-navigation.txt'), packageId);
     await page.goto(`/reader?id=${document.source.id}`);
-    const trigger = page.getByRole('button', { name: 'run: untracked', exact: true });
+    const trigger = page.getByTestId('reader-document-ready').getByRole('button', { name: 'run: untracked', exact: true });
     await trigger.click();
     const inspector = page.getByTestId('inspector-panel');
     await inspector.getByRole('button', { name: 'Capture run', exact: true }).click();
@@ -139,7 +139,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     await expect(inspector.getByRole('button', { name: 'Linguistic relationships', exact: true })).toBeFocused();
     await expect(graph.getByText(`${capability.label}: claimed known`, { exact: true })).toHaveCount(1);
     await inspector.getByRole('button', { name: 'Close Inspector', exact: true }).click();
-    await expect(page.getByRole('button', { name: /^run:/ })).toBeFocused();
+    await expect(page.getByTestId('reader-document-ready').getByRole('button', { name: /^run:/ })).toBeFocused();
     await backend.crashRestart();
     const reopened = await client.inspectTarget(packageId, targetId, root.packageRevision);
     expect(reopened.knowledge.projections.find(value => value.key.capability === capability.id)?.claim).toBe(true);
@@ -153,7 +153,7 @@ test('Inspector graph refreshes native claims without transferring Knowledge or 
     for (const theme of builtInThemes) {
       await client.saveTheme(theme, (await client.snapshot()).revision);
       await page.goto(`/reader?id=${document.source.id}`);
-      await page.getByRole('button', { name: `run: ${reopened.knowledge.claim}`, exact: true }).click();
+      await page.getByTestId('reader-document-ready').getByRole('button', { name: `run: ${reopened.knowledge.claim}`, exact: true }).click();
       await inspector.getByRole('button', { name: 'Inspect', exact: true }).click();
       await inspector.getByRole('button', { name: 'Linguistic relationships', exact: true }).click();
       await expect(graph.getByText(`${capability.label}: claimed known`, { exact: true })).toHaveCount(1);

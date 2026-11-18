@@ -42,7 +42,7 @@ impl Runtime {
                     self.validate_analysis_source(input)?;
                 }
                 let source = match &work.action {
-                    LanguageAction::Summaries { source, .. } => Some(source),
+                    LanguageAction::Summaries { source, .. } => source.as_ref(),
                     _ => None,
                 };
                 if let Some(source) = source {
@@ -209,7 +209,21 @@ impl Runtime {
                             preview: preview.as_ref().clone(),
                         }
                     }
-                    (LanguageAction::Summaries { source, .. }, GuestOutput::Dictionary(items)) => {
+                    (
+                        LanguageAction::Summaries { source: None, .. },
+                        GuestOutput::Dictionary(items),
+                    ) => Response::TargetSummaries {
+                        package_id: work.package.manifest.id.clone(),
+                        package_revision: work.package.revision()?,
+                        items: items.clone(),
+                    },
+                    (
+                        LanguageAction::Summaries {
+                            source: Some(source),
+                            ..
+                        },
+                        GuestOutput::Dictionary(items),
+                    ) => {
                         Response::Dictionary {
                             batch: mlearn_core::DictionaryBatch {
                                 source_id: source.id.clone(),
